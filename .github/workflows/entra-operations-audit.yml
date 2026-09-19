@@ -1,0 +1,137 @@
+name: Entra Operations audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/entra-operations-audit.yml'
+      - 'scripts/entra/**'
+      - 'tests/entra/**'
+      - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: entra-operations-audit
+  cancel-in-progress: false
+
+jobs:
+  validate-definition:
+    name: Validate Entra Operations workflow definition
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Validate workflow invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/entra/operations-audit.ts
+          test -f tests/entra/operations-audit.test.ts
+          test -f docs/infra/ENTRA_OPERATIONS_OIDC.md
+          grep -Fq 'id-token: write' .github/workflows/entra-operations-audit.yml
+          grep -Fq 'api%3A%2F%2FAzureADTokenExchange' .github/workflows/entra-operations-audit.yml
+
+  audit:
+    name: Audit Entra applications via OIDC
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Enforce trusted main and required variables
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          for value in             "$ENTRA_TENANT_ID"             "$ENTRA_OPERATIONS_CLIENT_ID"             "$WEB_APPLICATION_OBJECT_ID"             "$GRAPH_APPLICATION_OBJECT_ID"; do
+            [[ "$value" =~ $uuid ]] || {
+              echo "::error::A required Entra/GitHub variable is missing or invalid."
+              exit 1
+            }
+          done
+
+      - name: Exchange GitHub OIDC assertion for short-lived Graph token
+        id: token
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          oidc_response="$(
+            curl --silent --show-error --fail               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange"
+          )"
+          oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
+
+          entra_response="$(
+            curl --silent --show-error --fail               -X POST               -H 'Content-Type: application/x-www-form-urlencoded'               --data-urlencode "client_id=${ENTRA_OPERATIONS_CLIENT_ID}"               --data-urlencode 'scope=https://graph.microsoft.com/.default'               --data-urlencode 'grant_type=client_credentials'               --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer'               --data-urlencode "client_assertion=${oidc_token}"               "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
+          )"
+          graph_token="$(jq -r '.access_token // empty' <<<"$entra_response")"
+          test -n "$graph_token"
+          echo "::add-mask::$graph_token"
+          printf '%s' "$graph_token" > "$RUNNER_TEMP/graph-access-token"
+          chmod 600 "$RUNNER_TEMP/graph-access-token"
+          unset oidc_token graph_token oidc_response entra_response
+
+      - name: Run sanitized Entra audit
+        id: audit
+        shell: bash
+        env:
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          test -n "$token"
+          echo "::add-mask::$token"
+
+          output="$RUNNER_TEMP/entra-operations-audit.json"
+          trap 'rm -f "$RUNNER_TEMP/graph-access-token" "$RUNNER_TEMP/entra-operations-audit.json"' EXIT
+          GRAPH_ACCESS_TOKEN="$token"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/operations-audit.ts > "$output"
+          rm -f "$RUNNER_TEMP/graph-access-token"
+          unset token
+
+          jq -e '
+            .applications.web.id != null and
+            .applications.graph.id != null and
+            (.applications.web.passwordCredentials | type == "array") and
+            (.applications.graph.passwordCredentials | type == "array")
+          ' "$output" >/dev/null
+
+          {
+            echo "### Entra Operations audit"
+            echo
+            jq -r '
+              "- Web: " + .applications.web.displayName +
+              " — certs: " + ((.applications.web.keyCredentials | length) | tostring) +
+              ", password credentials: " + ((.applications.web.passwordCredentials | length) | tostring),
+              "- Graph: " + .applications.graph.displayName +
+              " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
+              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring)
+            ' "$output"
+          } >> "$GITHUB_STEP_SUMMARY"
