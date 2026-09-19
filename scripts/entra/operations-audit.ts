@@ -49,6 +49,13 @@ type ServicePrincipalResponse = {
   servicePrincipalType?: string;
 };
 
+type AppRoleAssignmentResponse = {
+  id?: string;
+  appRoleId?: string;
+  resourceId?: string;
+  createdDateTime?: string | null;
+};
+
 type Collection<T> = { value?: T[] };
 
 export type EntraApplicationAudit = {
@@ -86,7 +93,24 @@ export type EntraApplicationAudit = {
     displayName: string;
     accountEnabled: boolean | null;
     servicePrincipalType: string | null;
+    appRoleAssignments: Array<{
+      id: string;
+      appRoleId: string;
+      resourceId: string;
+      createdDateTime: string | null;
+    }>;
   } | null;
+};
+
+export type EntraDriftFinding = {
+  severity: 'warning' | 'critical';
+  application: 'web' | 'graph';
+  code: string;
+};
+
+export type EntraDriftAudit = {
+  status: 'ok' | 'warning' | 'critical';
+  findings: EntraDriftFinding[];
 };
 
 export type EntraOperationsAudit = {
@@ -95,6 +119,7 @@ export type EntraOperationsAudit = {
     web: EntraApplicationAudit;
     graph: EntraApplicationAudit;
   };
+  drift: EntraDriftAudit;
 };
 
 export class EntraOperationsAuditError extends Error {
@@ -107,6 +132,104 @@ export class EntraOperationsAuditError extends Error {
     this.stage = stage;
     this.status = status;
   }
+}
+
+const EXPECTED_APPLICATIONS = {
+  web: {
+    appId: '78185e20-c824-4acc-9ccd-41b9f7509a6f',
+    displayName: 'Ecossistema Escolar - Web',
+    signInAudience: 'AzureADMyOrg',
+    redirectUris: {
+      web: ['https://admin.escolaieda.com/auth/callback'],
+      spa: [],
+      publicClient: [],
+    },
+  },
+  graph: {
+    appId: '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
+    displayName: 'Ecossistema Escolar - Graph Backend',
+    signInAudience: 'AzureADMyOrg',
+    redirectUris: {
+      web: [],
+      spa: [],
+      publicClient: [],
+    },
+  },
+} as const;
+
+const BROAD_APPLICATION_PERMISSIONS = new Set([
+  '7ab1d382-f21e-4acd-a863-ba3e13f7da61', // Directory.Read.All
+  '332a536c-c7ef-4017-ab91-336970924f0d', // Sites.Read.All
+  '9492366f-7969-46a4-8d15-ed1a20078fff', // Sites.ReadWrite.All
+  '01d4889c-1287-42c6-ac1f-5d1e02578ef6', // Files.Read.All
+]);
+
+function sorted(values: readonly string[]): string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
+}
+
+function auditDrift(
+  applications: { web: EntraApplicationAudit; graph: EntraApplicationAudit },
+  now: Date,
+): EntraDriftAudit {
+  const findings: EntraDriftFinding[] = [];
+  const add = (
+    application: 'web' | 'graph',
+    severity: EntraDriftFinding['severity'],
+    code: string,
+  ) => findings.push({ application, severity, code });
+
+  for (const label of ['web', 'graph'] as const) {
+    const actual = applications[label];
+    const expected = EXPECTED_APPLICATIONS[label];
+
+    if (actual.appId !== expected.appId) add(label, 'critical', 'app-id-mismatch');
+    if (actual.displayName !== expected.displayName) add(label, 'warning', 'display-name-drift');
+    if (actual.signInAudience !== expected.signInAudience)
+      add(label, 'critical', 'sign-in-audience-drift');
+
+    for (const surface of ['web', 'spa', 'publicClient'] as const) {
+      if (!sameStrings(actual.redirectUris[surface], expected.redirectUris[surface]))
+        add(label, 'critical', `redirect-uri-${surface}-drift`);
+    }
+
+    if (!actual.servicePrincipal) add(label, 'critical', 'service-principal-missing');
+    else if (actual.servicePrincipal.accountEnabled === false)
+      add(label, 'critical', 'service-principal-disabled');
+
+    if (actual.passwordCredentials.length > 0)
+      add(label, 'warning', 'password-credential-present');
+    if (actual.keyCredentials.length === 0)
+      add(label, 'critical', 'certificate-credential-missing');
+
+    for (const credential of actual.keyCredentials) {
+      if (!credential.endDateTime) continue;
+      const remaining = new Date(credential.endDateTime).getTime() - now.getTime();
+      if (!Number.isFinite(remaining)) {
+        add(label, 'warning', 'certificate-expiry-invalid');
+        continue;
+      }
+      if (remaining <= 0) add(label, 'critical', 'certificate-expired');
+      else if (remaining <= 45 * 24 * 60 * 60 * 1000)
+        add(label, 'warning', 'certificate-expiring-soon');
+    }
+
+    for (const assignment of actual.servicePrincipal?.appRoleAssignments ?? []) {
+      if (BROAD_APPLICATION_PERMISSIONS.has(assignment.appRoleId))
+        add(label, 'warning', 'broad-application-permission-present');
+    }
+  }
+
+  const status = findings.some((finding) => finding.severity === 'critical')
+    ? 'critical'
+    : findings.some((finding) => finding.severity === 'warning')
+      ? 'warning'
+      : 'ok';
+  return { status, findings };
 }
 
 function requiredUuid(value: string, name: string): string {
@@ -141,6 +264,7 @@ async function graphJson<T>(
 function sanitizeApplication(
   app: ApplicationResponse,
   servicePrincipal: ServicePrincipalResponse | null,
+  appRoleAssignments: AppRoleAssignmentResponse[],
 ): EntraApplicationAudit {
   if (!app.id || !app.appId || !app.displayName) throw new EntraOperationsAuditError('invalid-application-response');
   return {
@@ -187,6 +311,16 @@ function sanitizeApplication(
             accountEnabled:
               typeof servicePrincipal.accountEnabled === 'boolean' ? servicePrincipal.accountEnabled : null,
             servicePrincipalType: servicePrincipal.servicePrincipalType ?? null,
+            appRoleAssignments: appRoleAssignments.flatMap((assignment) =>
+              assignment.id && assignment.appRoleId && assignment.resourceId
+                ? [{
+                    id: assignment.id,
+                    appRoleId: assignment.appRoleId,
+                    resourceId: assignment.resourceId,
+                    createdDateTime: assignment.createdDateTime ?? null,
+                  }]
+                : [],
+            ),
           }
         : null,
   };
@@ -228,7 +362,16 @@ async function readExactApplication(
   );
   const values = principals.value ?? [];
   if (values.length > 1) throw new EntraOperationsAuditError(`${label}-service-principal-ambiguous`);
-  return sanitizeApplication(app, values[0] ?? null);
+  const servicePrincipal = values[0] ?? null;
+  const assignments = servicePrincipal?.id
+    ? await graphJson<Collection<AppRoleAssignmentResponse>>(
+        fetcher,
+        token,
+        `/servicePrincipals/${encodeURIComponent(servicePrincipal.id)}/appRoleAssignments?$select=id,appRoleId,resourceId,createdDateTime&$top=100`,
+        `${label}-app-role-assignments`,
+      )
+    : { value: [] };
+  return sanitizeApplication(app, servicePrincipal, assignments.value ?? []);
 }
 
 export async function auditEntraOperations(input: {
@@ -250,9 +393,12 @@ export async function auditEntraOperations(input: {
     readExactApplication(fetcher, accessToken, graphObjectId, 'graph'),
   ]);
 
+  const now = (input.now ?? (() => new Date()))();
+  const applications = { web, graph };
   return {
-    generatedAt: (input.now ?? (() => new Date()))().toISOString(),
-    applications: { web, graph },
+    generatedAt: now.toISOString(),
+    applications,
+    drift: auditDrift(applications, now),
   };
 }
 
