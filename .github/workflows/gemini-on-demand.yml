@@ -109,6 +109,17 @@ jobs:
           Path(".gemini/task.md").write_text(guard.build_prompt(meta), encoding="utf-8")
           PY
 
+      - name: Install trusted project dependencies when requested
+        if: steps.request.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          needs_node="$(jq -r '.needs_node' "$RUNNER_TEMP/gemini-meta.json")"
+          if [ "$needs_node" = "true" ]; then
+            npm ci --ignore-scripts
+          else
+            echo "Node validation not requested; dependency install skipped."
+          fi
+
       - name: Install pinned Gemini CLI
         if: steps.request.outputs.run == 'true'
         run: npm install --global --ignore-scripts @google/gemini-cli@0.60.0
@@ -128,8 +139,6 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .gemini
-          needs_node="$(jq -r '.needs_node' "$RUNNER_TEMP/gemini-meta.json")"
-          [ "$needs_node" != "true" ] || npm ci
           python infra/agents/validate_worktree.py             --root "$GITHUB_WORKSPACE"             --meta "$RUNNER_TEMP/gemini-meta.json"             --result "$RUNNER_TEMP/gemini-result.json"
           git add -A
           git diff --cached --binary --full-index > "$RUNNER_TEMP/gemini.patch"
@@ -197,7 +206,7 @@ jobs:
           fi
 
           git apply --index --whitespace=error "$patch"
-          python infra/agents/validate_worktree.py             --root "$GITHUB_WORKSPACE"             --meta "$meta"             --result "$RUNNER_TEMP/publish-result.json"
+          python infra/agents/validate_worktree.py             --root "$GITHUB_WORKSPACE"             --meta "$meta"             --result "$RUNNER_TEMP/publish-result.json"             --paths-only
 
           jq -e '.has_changes == true' "$RUNNER_TEMP/publish-result.json" >/dev/null
           git diff --cached --check
