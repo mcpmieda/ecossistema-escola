@@ -196,7 +196,31 @@ async function readTarget(
   return { application, keys };
 }
 
-type PatchKey = Omit<NormalizedKey, 'keyId'> & { keyId?: string };
+type PatchKey = {
+  type: 'AsymmetricX509Cert';
+  usage: 'Verify';
+  key: string;
+  displayName: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  customKeyIdentifier?: string;
+};
+
+function certificateIdentity(key: Pick<NormalizedKey, 'key' | 'displayName'>): string {
+  return `${key.displayName}\u0000${key.key}`;
+}
+
+function preservedPatchKey(
+  key: NormalizedKey & { slot?: MaintenanceRotationSlot },
+): PatchKey {
+  return {
+    type: 'AsymmetricX509Cert',
+    usage: 'Verify',
+    key: key.key,
+    displayName: key.displayName,
+    ...(key.customKeyIdentifier ? { customKeyIdentifier: key.customKeyIdentifier } : {}),
+  };
+}
 
 async function patchKeys(
   fetcher: GraphFetcher,
@@ -285,7 +309,9 @@ export async function addRotationCertificate(input: {
   }
   const previousActive = keys.find((key) => key.slot === previousActiveSlot)!;
   const staleSameSlot = keys.find((key) => key.slot === input.slot)!;
-  const preserved = keys.map(({ slot: _slot, ...key }) => key);
+  const preserved = keys.map((key) => preservedPatchKey(key));
+  const previousActiveIdentity = certificateIdentity(previousActive);
+  const staleSameSlotIdentity = certificateIdentity(staleSameSlot);
   const newKey: PatchKey = {
     type: 'AsymmetricX509Cert',
     usage: 'Verify',
@@ -310,8 +336,8 @@ export async function addRotationCertificate(input: {
   if (
     after.keys.length !== 3 ||
     !created ||
-    !after.keys.some((key) => key.keyId === previousActive.keyId) ||
-    !after.keys.some((key) => key.keyId === staleSameSlot.keyId)
+    !after.keys.some((key) => certificateIdentity(key) === previousActiveIdentity) ||
+    !after.keys.some((key) => certificateIdentity(key) === staleSameSlotIdentity)
   ) {
     throw new MaintenanceRotationError('add-certificate-postcondition-failed');
   }
@@ -342,10 +368,19 @@ export async function removeExactCertificate(input: {
   const { keys } = await readTarget(fetcher, token, input.target, objectId);
   if (!keys.some((key) => key.keyId === keyId)) throw new MaintenanceRotationError('key-to-remove-missing');
   if (keys.length <= 1) throw new MaintenanceRotationError('refuse-remove-last-certificate');
-  const remaining = keys.filter((key) => key.keyId !== keyId).map(({ slot: _slot, ...key }) => key);
+  const removed = keys.find((key) => key.keyId === keyId)!;
+  const removedIdentity = certificateIdentity(removed);
+  const remainingSource = keys.filter((key) => key.keyId !== keyId);
+  const remaining = remainingSource.map((key) => preservedPatchKey(key));
   await patchKeys(fetcher, token, objectId, remaining, 'remove-certificate');
   const after = await readTarget(fetcher, token, input.target, objectId);
-  if (after.keys.some((key) => key.keyId === keyId) || after.keys.length !== remaining.length) {
+  if (
+    after.keys.some((key) => certificateIdentity(key) === removedIdentity) ||
+    after.keys.length !== remaining.length ||
+    remainingSource.some(
+      (expected) => !after.keys.some((actual) => certificateIdentity(actual) === certificateIdentity(expected)),
+    )
+  ) {
     throw new MaintenanceRotationError('remove-certificate-postcondition-failed');
   }
   return { status: 'removed', remainingCertificates: after.keys.length };
@@ -389,16 +424,21 @@ export async function finalizeRotation(input: {
     throw new MaintenanceRotationError('finalize-new-certificate-not-preferred');
   }
 
+  const newestIdentity = certificateIdentity(newest);
+  const rollbackIdentity = certificateIdentity(rollback[0]!);
+  const staleIdentity = certificateIdentity(stale);
   const remaining = keys
     .filter((key) => key.keyId !== stale.keyId)
-    .map(({ slot: _slot, ...key }) => key);
+    .map((key) => preservedPatchKey(key));
   await patchKeys(fetcher, token, objectId, remaining, 'finalize-certificate');
   const after = await readTarget(fetcher, token, input.target, objectId);
+  const retainedNew = after.keys.find((key) => certificateIdentity(key) === newestIdentity);
+  const retainedRollback = after.keys.find((key) => certificateIdentity(key) === rollbackIdentity);
   if (
     after.keys.length !== 2 ||
-    !after.keys.some((key) => key.keyId === newest.keyId) ||
-    !after.keys.some((key) => key.keyId === rollback[0]!.keyId) ||
-    after.keys.some((key) => key.keyId === stale.keyId)
+    !retainedNew ||
+    !retainedRollback ||
+    after.keys.some((key) => certificateIdentity(key) === staleIdentity)
   ) {
     throw new MaintenanceRotationError('finalize-postcondition-failed');
   }
@@ -407,9 +447,9 @@ export async function finalizeRotation(input: {
     status: 'finalized',
     target: input.target,
     slot: input.slot,
-    retainedNewKeyId: newest.keyId,
+    retainedNewKeyId: retainedNew.keyId,
     retainedRollbackSlot: rollbackSlot,
-    retainedRollbackKeyId: rollback[0]!.keyId,
+    retainedRollbackKeyId: retainedRollback.keyId,
     removedStaleKeyId: stale.keyId,
   };
 }
