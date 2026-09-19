@@ -92,7 +92,7 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
       return { period, version, state: revisions.length ? value?.pending ? 'update-pending' as const : 'published' as const
         : value?.available ? 'available' as const : 'no-data' as const,
         availableRevision: value?.available ? dataVersion : null,
-        publishedRevision: revisions.length === 1 ? revisions[0]! : revisions.length > 1 ? `mixed:${publicationDigestV1([...revisions].sort())}` : null };
+        publishedRevision: revisions.length === 1 ? revisions[0]! : revisions.length > 1 ? `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}` : null };
     }),
   };
 }
