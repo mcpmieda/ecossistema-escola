@@ -11,6 +11,7 @@ This file records names, consumers and authority boundaries only. It must never 
 | `CLOUDFLARE_DEPLOY_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/deploy-student-portal.yml`, `.github/workflows/entra-maintenance.yml` | Pages/Workers deployment and the bounded Maintenance update of one inactive runtime credential slot. |
 | `CLOUDFLARE_HYPERDRIVE_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml` | Hyperdrive production verification/configuration only. |
 | `GEMINI_API_KEY` | `.github/workflows/antigravity-on-demand.yml` and `.github/workflows/gemini-on-demand.yml` | Shared provider credential for the bounded Antigravity and Gemini CLI executors. Provider quota is shared; host-side validation runs outside the model step. |
+| `OPENHANDS_API_KEY` | `.github/workflows/openhands-on-demand.yml` → `infra/agents/openhands_cloud.py` | Starts bounded OpenHands Cloud conversations. The provider job has read-only GitHub permissions; reporting runs in a separate issue-write job. |
 
 ## Repository variables to keep
 
