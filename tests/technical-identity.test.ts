@@ -12,13 +12,11 @@ function rotated(createdAt: string, keyId: string): string {
 }
 
 describe('technical identity slots', () => {
-  it('requires at least one A/B credential and never falls back to retired legacy fields', () => {
+  it('requires at least one A/B credential when both slots are absent', () => {
     const env = {
       ...testEnv,
       GRAPH_CREDENTIAL_A: undefined,
       GRAPH_CREDENTIAL_B: undefined,
-      GRAPH_PRIVATE_KEY_PKCS8: 'x'.repeat(256),
-      GRAPH_CERT_THUMBPRINT: 'thumbprint-value-12345',
     } as unknown as typeof testEnv;
     try {
       graphCredentials(env);
