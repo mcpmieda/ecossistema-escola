@@ -5,8 +5,10 @@ on:
     paths:
       - '.github/workflows/entra-maintenance.yml'
       - 'scripts/entra/maintenance-plan.ts'
+      - 'scripts/entra/certificate-validity.ts'
       - 'scripts/entra/maintenance-rotate.ts'
       - 'scripts/entra/validate-runtime-credential.ts'
+      - 'tests/entra/certificate-validity.test.ts'
       - 'tests/entra/maintenance-plan.test.ts'
       - 'tests/entra/maintenance-rotate.test.ts'
       - 'tests/entra/validate-runtime-credential.test.ts'
@@ -63,8 +65,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f scripts/entra/maintenance-plan.ts
+          test -f scripts/entra/certificate-validity.ts
           test -f scripts/entra/maintenance-rotate.ts
           test -f scripts/entra/validate-runtime-credential.ts
+          test -f tests/entra/certificate-validity.test.ts
           test -f tests/entra/maintenance-plan.test.ts
           test -f tests/entra/maintenance-rotate.test.ts
           test -f tests/entra/validate-runtime-credential.test.ts
@@ -314,10 +318,9 @@ jobs:
           thumbprint="$(openssl dgst -sha1 -binary "$dir/cert.der" | base64 | tr '+/' '-_' | tr -d '=\n')"
           printf '%s' "$thumbprint" > "$dir/thumbprint"
           chmod 600 "$dir/thumbprint"
-          not_before="$(openssl x509 -in "$dir/cert.pem" -noout -startdate | cut -d= -f2-)"
-          not_after="$(openssl x509 -in "$dir/cert.pem" -noout -enddate | cut -d= -f2-)"
-          created_at="$(RAW_DATE="$not_before" node -e 'const d=new Date(process.env.RAW_DATE); if(Number.isNaN(d.valueOf())) process.exit(1); console.log(d.toISOString())')"
-          end_at="$(RAW_DATE="$not_after" node -e 'const d=new Date(process.env.RAW_DATE); if(Number.isNaN(d.valueOf())) process.exit(1); console.log(d.toISOString())')"
+          validity="$(node --experimental-strip-types scripts/entra/certificate-validity.ts "$dir/cert.pem")"
+          created_at="$(jq -er '.startDateTime' <<<"$validity")"
+          end_at="$(jq -er '.endDateTime' <<<"$validity")"
           display_name="automatic-${TARGET}-slot-${SLOT}-${created_at}"
           echo "created_at=$created_at" >> "$GITHUB_OUTPUT"
           echo "end_at=$end_at" >> "$GITHUB_OUTPUT"
