@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Tooltip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
 import {
   auditKindV1,
@@ -65,6 +65,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
   const [event, setEvent] = useState<AdminQueryV1['event']>(),
     [result, setResult] = useState<AdminQueryV1['result']>();
   const [filters, setFilters] = useState<FiltersV1>({});
+  const appliedFilters = useRef<FiltersV1>({});
   const [invalid, setInvalid] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
   const [detail, setDetail] = useState<AuditDetailStateV1>({ state: 'idle' });
@@ -133,9 +134,12 @@ function AuditBodyV1(props: OperationsPropsV1) {
           ...(event ? { event } : {}),
           ...(result ? { result } : {}),
         };
-        setFilters((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next));
-        setOpened(null);
-        detailReader.clear();
+        if (JSON.stringify(appliedFilters.current) !== JSON.stringify(next)) {
+          appliedFilters.current = next;
+          setFilters(next);
+          setOpened(null);
+          detailReader.clear();
+        }
         setInvalid(false);
       } catch {
         setInvalid(true);
@@ -228,6 +232,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
               setUntil('');
               setEvent(undefined);
               setResult(undefined);
+              appliedFilters.current = {};
               setFilters({});
               setInvalid(false);
               close();
