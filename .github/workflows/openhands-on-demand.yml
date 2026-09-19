@@ -169,9 +169,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$INVOKE_RESULT" = "success" ]; then
-            gh issue comment "$ISSUE_NUMBER" --body \
+            gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body \
               "OpenHands Cloud concluiu com status \`$STATUS\`. Conversa: $CONVERSATION_URL"
           else
-            gh issue comment "$ISSUE_NUMBER" --body \
+            gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body \
               "A execução do OpenHands Cloud falhou fechada. Nenhuma alteração foi integrada."
           fi
