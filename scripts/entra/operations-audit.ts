@@ -98,9 +98,14 @@ export type EntraOperationsAudit = {
 };
 
 export class EntraOperationsAuditError extends Error {
-  constructor(readonly stage: string, readonly status?: number) {
+  readonly stage: string;
+  readonly status?: number;
+
+  constructor(stage: string, status?: number) {
     super(status ? `Entra operations audit failed at ${stage} (${status})` : `Entra operations audit failed at ${stage}`);
     this.name = 'EntraOperationsAuditError';
+    this.stage = stage;
+    this.status = status;
   }
 }
 
