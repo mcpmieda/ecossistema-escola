@@ -58,6 +58,12 @@ describe('Entra Operations OIDC workflow', () => {
     expect(result.stderr).not.toContain('ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX');
   });
 
+  it('keeps SharePoint selected-site auditing disabled until the explicit repository variable is enabled', () => {
+    expect(workflow).toContain('vars.ENTRA_SHAREPOINT_AUDIT_ENABLED');
+    expect(workflow).toContain('.sharePoint.status | IN("disabled", "ok")');
+    expect(workflow).toContain('isolation probe:');
+  });
+
   it('fails closed on critical Entra drift while keeping the summary sanitized', () => {
     expect(workflow).toContain('.drift.status != "critical"');
     expect(workflow).toContain('Critical Entra configuration drift detected.');
