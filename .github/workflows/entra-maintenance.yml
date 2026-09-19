@@ -378,6 +378,7 @@ jobs:
           done
           test "$validated" = "true"
           jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$graph_key_id"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
 
           cat "$dir/credential.json" | npx wrangler pages secret put "$SECRET_NAME"             --project-name ecossistema-escola >/dev/null
           secret_written=true
