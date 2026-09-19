@@ -103,7 +103,7 @@ Depois da federação e do consentimento, executar manualmente o workflow **Entr
 
 ## SharePoint com Sites.Selected
 
-A auditoria de SharePoint fica **desativada por padrão** até a concessão explícita do site ser concluída. Não adicionar `Sites.Read.All` ou `Sites.FullControl.All` à identidade Operations.
+A auditoria de SharePoint está **habilitada em produção** após a concessão explícita do site. A identidade Operations permanece sem `Sites.Read.All` ou `Sites.FullControl.All`.
 
 Identidade Operations atual:
 - Client ID: `8d0378b4-832c-4703-8449-5ff2072589a5`
@@ -112,11 +112,11 @@ Identidade Operations atual:
 Site produtivo selecionado:
 - `eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56`
 
-Sequência de habilitação:
-1. adicionar `Sites.Selected` como **Application permission** no App Registration Operations e conceder admin consent;
-2. por um contexto administrativo separado, conceder **Read** somente ao site produtivo acima. A identidade Operations não deve receber a permissão ampla usada para administrar essa concessão;
-3. criar/alterar a Repository Variable `ENTRA_SHAREPOINT_AUDIT_ENABLED=true`;
-4. executar novamente o workflow.
+Estado de habilitação em 2026-09-19:
+1. `Sites.Selected` adicionado como **Application permission** no App Registration Operations, com admin consent;
+2. grant **Read** concedido somente ao site produtivo acima por contexto administrativo separado;
+3. Repository Variable `ENTRA_SHAREPOINT_AUDIT_ENABLED=true` habilitada;
+4. o workflow deve comprovar leitura do site selecionado e negação do site de isolamento.
 
 Exemplo do grant administrativo pelo Microsoft Graph:
 
