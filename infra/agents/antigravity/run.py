@@ -19,6 +19,10 @@ SCHEMA_VERSION = 1
 MAX_ALLOWED_PATHS = 40
 MAX_VALIDATE_COMMANDS = 12
 MAX_PROMPT_CHARS = 30_000
+MAX_LEADER_CHARS = 200
+MAX_GOAL_CHARS = 12_000
+MAX_HANDOFF_ITEM_CHARS = 1_500
+MAX_ISSUE_TITLE_CHARS = 256
 PROVIDER_MODELS = (
     "gemini-3.8-flash",
     "gemini-3.7-flash",
@@ -33,6 +37,12 @@ HARD_FORBIDDEN = (
     ".env",
     ".env.*",
     "infra/agents/**",
+    "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    ".npmrc",
     "docs/gradebook/PROJECT_STATE.yaml",
 )
 FORBIDDEN_COMMAND_FRAGMENTS = (
@@ -79,6 +89,7 @@ def extract_handoff(body: str) -> dict[str, Any]:
 
 
 def clean_string_list(value: Any, field: str, limit: int) -> list[str]:
+    """Validate a bounded list of non-empty handoff strings."""
     if not isinstance(value, list) or not value:
         fail(f"{field} must be a non-empty array.")
     if len(value) > limit:
@@ -87,7 +98,10 @@ def clean_string_list(value: Any, field: str, limit: int) -> list[str]:
     for entry in value:
         if not isinstance(entry, str) or not entry.strip():
             fail(f"{field} contains an invalid entry.")
-        cleaned.append(entry.strip())
+        item = entry.strip()
+        if len(item) > MAX_HANDOFF_ITEM_CHARS:
+            fail(f"{field} contains an entry longer than {MAX_HANDOFF_ITEM_CHARS} characters.")
+        cleaned.append(item)
     return cleaned
 
 
@@ -114,6 +128,10 @@ def validate_handoff(handoff: dict[str, Any]) -> dict[str, Any]:
         fail("leader is required.")
     if not isinstance(goal, str) or not goal.strip():
         fail("goal is required.")
+    if len(leader.strip()) > MAX_LEADER_CHARS:
+        fail(f"leader exceeds {MAX_LEADER_CHARS} characters.")
+    if len(goal.strip()) > MAX_GOAL_CHARS:
+        fail(f"goal exceeds {MAX_GOAL_CHARS} characters.")
 
     allowed_paths = [
         normalize_allowed_pattern(value)
@@ -155,6 +173,8 @@ def write_meta(issue: dict[str, Any], handoff: dict[str, Any], meta_path: Path) 
     html_url = issue.get("html_url")
     if not isinstance(number, int) or not isinstance(title, str):
         fail("Issue metadata is incomplete.")
+    if len(title) > MAX_ISSUE_TITLE_CHARS:
+        fail(f"Issue title exceeds {MAX_ISSUE_TITLE_CHARS} characters.")
     canonical = json.dumps(handoff, sort_keys=True, separators=(",", ":")).encode("utf-8")
     meta = {
         **handoff,
@@ -222,7 +242,7 @@ def validate_changed_paths(paths: list[str], allowed_paths: list[str]) -> None:
         if not any(matches(pattern, path) for pattern in allowed_paths):
             violations.append(path)
     if violations:
-        fail("Antigravity changed files outside the delegated scope: " + ", ".join(violations))
+        fail("Delegated agent changed files outside the allowed scope: " + ", ".join(violations))
 
 
 def build_prompt(meta: dict[str, Any]) -> str:
