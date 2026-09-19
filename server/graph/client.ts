@@ -50,7 +50,11 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
     if (response.status === 429 || response.status >= 500)
       throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
   }
-  if (lastStatus === 0) throw new GraphTokenError('assertion', lastAssertionSlot ?? slot ?? 'LEGACY');
+  if (lastStatus === 0) {
+    const failedSlot = lastAssertionSlot ?? slot;
+    if (!failedSlot) throw new GraphTokenError('assertion', 'A');
+    throw new GraphTokenError('assertion', failedSlot);
+  }
   // Keep the identity provider response body private, but retain the status and an
   // opaque correlation id so callers can classify an outage without parsing text.
   throw new GraphError(lastStatus || 503, crypto.randomUUID());
