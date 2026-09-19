@@ -122,3 +122,20 @@ Estado inicial comprovado em 2026-09-19:
 - Graph: A é o slot mais novo; primeira rotação deve usar `target=graph`, `slot=B`.
 
 Executar uma rotação por alvo por vez: `rotate` → conferir run/deploy → `finalize` → próximo alvo.
+
+
+## Reparo de certificado órfão
+
+Se uma rotação falhar depois de adicionar o novo certificado ao Entra, mas antes de gravar o secret Pages, use `repair-orphan` antes de qualquer nova tentativa de `rotate`.
+
+O reparo falha fechado e só remove o certificado mais novo do slot selecionado quando todas as condições abaixo são verdadeiras:
+
+- o alvo possui exatamente 3 certificados;
+- existem exatamente 2 certificados no slot selecionado e 1 no slot oposto;
+- o candidato mais novo tem menos de 24 horas;
+- não existe deploy manual de produção concluído com sucesso após a criação desse candidato;
+- a identidade Maintenance continua restrita aos dois Application Objects oficiais e a `Application.ReadWrite.OwnedBy`.
+
+Depois da remoção, o workflow relê o Entra e exige retorno a exatamente 2 certificados sem password credentials. O reparo não altera secret Pages e não executa deploy.
+
+O rollback automático da operação `rotate` tenta a remoção do certificado novo até 3 vezes. Se ainda assim falhar, o job emite somente um aviso sanitizado e exige `repair-orphan` antes da próxima rotação.
