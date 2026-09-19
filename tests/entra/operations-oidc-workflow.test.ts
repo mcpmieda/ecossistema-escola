@@ -32,4 +32,10 @@ describe('Entra Operations OIDC workflow', () => {
     expect(workflow).toContain('https://graph.microsoft.com/.default');
     expect(workflow).toContain('scripts/entra/operations-audit.ts');
   });
+
+  it('does not publish detailed Entra metadata from the public repository', () => {
+    expect(workflow).not.toContain('actions/upload-artifact');
+    expect(workflow).toContain("trap 'rm -f");
+    expect(workflow).toContain('GITHUB_STEP_SUMMARY');
+  });
 });
