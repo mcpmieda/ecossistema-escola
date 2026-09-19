@@ -1,0 +1,140 @@
+name: Entra Maintenance dry-run
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/entra-maintenance.yml'
+      - 'scripts/entra/maintenance-plan.ts'
+      - 'tests/entra/maintenance-plan.test.ts'
+      - 'docs/infra/ENTRA_MAINTENANCE_OIDC.md'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: entra-maintenance
+  cancel-in-progress: false
+
+jobs:
+  validate-definition:
+    name: Validate Entra Maintenance workflow definition
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify bounded dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/entra/maintenance-plan.ts
+          test -f tests/entra/maintenance-plan.test.ts
+          test -f docs/infra/ENTRA_MAINTENANCE_OIDC.md
+          grep -Fq 'environment: maintenance' .github/workflows/entra-maintenance.yml
+          grep -Fq 'id-token: write' .github/workflows/entra-maintenance.yml
+          grep -Fq 'Application.ReadWrite.OwnedBy' docs/infra/ENTRA_MAINTENANCE_OIDC.md
+          ! grep -Eq "method: ['\"](POST|PATCH|DELETE)['\"]" scripts/entra/maintenance-plan.ts
+
+  dry-run:
+    name: Plan Maintenance via OIDC
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: maintenance
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Enforce trusted main and required variables
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          for value in "$ENTRA_TENANT_ID" "$ENTRA_MAINTENANCE_CLIENT_ID" "$WEB_APPLICATION_OBJECT_ID" "$GRAPH_APPLICATION_OBJECT_ID"; do
+            [[ "$value" =~ $uuid ]] || {
+              echo "::error::A required Entra/GitHub variable is missing or invalid."
+              exit 1
+            }
+          done
+
+      - name: Exchange GitHub OIDC assertion for short-lived Graph token
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          oidc_response="$(
+            curl --silent --show-error --fail               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange"
+          )"
+          oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
+
+          entra_response="$(
+            curl --silent --show-error --fail               -X POST               -H 'Content-Type: application/x-www-form-urlencoded'               --data-urlencode "client_id=${ENTRA_MAINTENANCE_CLIENT_ID}"               --data-urlencode 'scope=https://graph.microsoft.com/.default'               --data-urlencode 'grant_type=client_credentials'               --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer'               --data-urlencode "client_assertion=${oidc_token}"               "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
+          )"
+          graph_token="$(jq -r '.access_token // empty' <<<"$entra_response")"
+          test -n "$graph_token"
+          echo "::add-mask::$graph_token"
+          printf '%s' "$graph_token" > "$RUNNER_TEMP/graph-access-token"
+          chmod 600 "$RUNNER_TEMP/graph-access-token"
+          unset oidc_token graph_token oidc_response entra_response
+
+      - name: Run sanitized Maintenance dry-run
+        shell: bash
+        env:
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          test -n "$token"
+          echo "::add-mask::$token"
+          output="$RUNNER_TEMP/entra-maintenance-plan.json"
+          trap 'rm -f "$RUNNER_TEMP/graph-access-token" "$RUNNER_TEMP/entra-maintenance-plan.json"' EXIT
+
+          GRAPH_ACCESS_TOKEN="$token"             ENTRA_MAINTENANCE_CLIENT_ID="$ENTRA_MAINTENANCE_CLIENT_ID"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/maintenance-plan.ts > "$output"
+          rm -f "$RUNNER_TEMP/graph-access-token"
+          unset token
+
+          jq -e '
+            .status == "ready" and
+            .identity.applicationPermissions == ["Application.ReadWrite.OwnedBy"] and
+            (.identity.ownedApplicationObjectIds | length) == 2 and
+            (.targets.web.keyCredentials | length) > 0 and
+            (.targets.graph.keyCredentials | length) > 0
+          ' "$output" >/dev/null
+
+          {
+            echo "### Entra Maintenance dry-run"
+            echo
+            jq -r '
+              "- Permission set: " + (.identity.applicationPermissions | join(", ")),
+              "- Owned targets: " + ((.identity.ownedApplicationObjectIds | length) | tostring),
+              "- Web certificates: " + ((.targets.web.keyCredentials | length) | tostring) +
+                ", password credentials: " + (.targets.web.passwordCredentialCount | tostring),
+              "- Graph certificates: " + ((.targets.graph.keyCredentials | length) | tostring) +
+                ", password credentials: " + (.targets.graph.passwordCredentialCount | tostring),
+              "- Result: ready; no Entra mutation executed"
+            ' "$output"
+          } >> "$GITHUB_STEP_SUMMARY"
