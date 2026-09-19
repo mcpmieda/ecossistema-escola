@@ -1,0 +1,125 @@
+name: Entra Operations audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/entra-operations-audit.yml'
+      - 'scripts/entra/**'
+      - 'tests/entra/**'
+      - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: entra-operations-audit
+  cancel-in-progress: false
+
+jobs:
+  validate-definition:
+    name: Validate Entra Operations workflow definition
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Validate workflow invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/entra/operations-audit.ts
+          test -f tests/entra/operations-audit.test.ts
+          test -f docs/infra/ENTRA_OPERATIONS_OIDC.md
+          grep -Fq 'id-token: write' .github/workflows/entra-operations-audit.yml
+          grep -Fq 'allow-no-subscriptions: true' .github/workflows/entra-operations-audit.yml
+
+  audit:
+    name: Audit Entra applications via OIDC
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Enforce trusted main and required variables
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          for value in             "$ENTRA_TENANT_ID"             "$ENTRA_OPERATIONS_CLIENT_ID"             "$WEB_APPLICATION_OBJECT_ID"             "$GRAPH_APPLICATION_OBJECT_ID"; do
+            [[ "$value" =~ $uuid ]] || {
+              echo "::error::A required Entra/GitHub variable is missing or invalid."
+              exit 1
+            }
+          done
+
+      - name: Login to Microsoft Entra with GitHub OIDC
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906
+        with:
+          client-id: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          tenant-id: ${{ vars.ENTRA_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Acquire short-lived Graph token and run sanitized audit
+        id: audit
+        shell: bash
+        env:
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          token="$(az account get-access-token --resource-type ms-graph --query accessToken -o tsv)"
+          test -n "$token"
+          echo "::add-mask::$token"
+
+          output="$RUNNER_TEMP/entra-operations-audit.json"
+          GRAPH_ACCESS_TOKEN="$token"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/operations-audit.ts > "$output"
+          unset token
+
+          jq -e '
+            .applications.web.id != null and
+            .applications.graph.id != null and
+            (.applications.web.passwordCredentials | type == "array") and
+            (.applications.graph.passwordCredentials | type == "array")
+          ' "$output" >/dev/null
+
+          {
+            echo "### Entra Operations audit"
+            echo
+            jq -r '
+              "- Web: " + .applications.web.displayName +
+              " — certs: " + ((.applications.web.keyCredentials | length) | tostring) +
+              ", password credentials: " + ((.applications.web.passwordCredentials | length) | tostring),
+              "- Graph: " + .applications.graph.displayName +
+              " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
+              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring)
+            ' "$output"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized audit artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: entra-operations-audit
+          path: ${{ runner.temp }}/entra-operations-audit.json
+          if-no-files-found: error
+          retention-days: 14
