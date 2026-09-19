@@ -34,7 +34,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate bounded client
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Validate bounded OpenHands client
         run: |
           set -euo pipefail
           python -m py_compile infra/agents/openhands_cloud.py
@@ -51,8 +56,13 @@ jobs:
     permissions:
       contents: read
       issues: read
+    outputs:
+      run: ${{ steps.request.outputs.run }}
+      issue: ${{ steps.request.outputs.issue }}
+      status: ${{ steps.agent.outputs.status }}
+      conversation_url: ${{ steps.agent.outputs.conversation_url }}
     steps:
-      - name: Resolve request
+      - name: Resolve and authorize request
         id: request
         shell: bash
         env:
@@ -63,17 +73,25 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "issue_comment" ]; then
-            [ "$COMMENT_BODY" = "/openhands" ] || { echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; }
-            issue="$COMMENT_ISSUE"
+            if [ "$COMMENT_BODY" != "/openhands" ]; then
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            issue_number="$COMMENT_ISSUE"
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            issue="$INPUT_ISSUE"
+            issue_number="$INPUT_ISSUE"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          [[ "$issue" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid issue number"; exit 1; }
+
+          if ! [[ "$issue_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid issue number."
+            exit 1
+          fi
+
           echo "run=true" >> "$GITHUB_OUTPUT"
-          echo "issue=$issue" >> "$GITHUB_OUTPUT"
+          echo "issue=$issue_number" >> "$GITHUB_OUTPUT"
 
       - name: Checkout trusted main
         if: steps.request.outputs.run == 'true'
@@ -83,84 +101,77 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Fetch and validate trusted handoff
+      - name: Set up Python
+        if: steps.request.outputs.run == 'true'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Fetch trusted issue
         if: steps.request.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE: ${{ steps.request.outputs.issue }}
-          OWNER: ${{ github.repository_owner }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.issue }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}" > "$RUNNER_TEMP/openhands-issue.json"
-          jq -e --arg owner "$OWNER" '.pull_request == null and .user.login == $owner' \
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}" > "$RUNNER_TEMP/openhands-issue.json"
+          jq -e --arg owner "$REPOSITORY_OWNER" \
+            '.pull_request == null and .user.login == $owner' \
             "$RUNNER_TEMP/openhands-issue.json" >/dev/null
+
+      - name: Validate handoff before provider use
+        if: steps.request.outputs.run == 'true'
+        run: |
+          set -euo pipefail
           python infra/agents/antigravity/run.py check \
             --issue-json "$RUNNER_TEMP/openhands-issue.json" \
             --meta "$RUNNER_TEMP/openhands-meta.json"
 
-      - name: Build bounded OpenHands prompt
-        if: steps.request.outputs.run == 'true'
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          meta = json.loads(
-              (Path(os.environ["RUNNER_TEMP"]) / "openhands-meta.json").read_text(
-                  encoding="utf-8"
-              )
-          )
-          allowed = "\n".join(f"- {item}" for item in meta["allowed_paths"])
-          preserve = "\n".join(f"- {item}" for item in meta["preserve"])
-          do_not = "\n".join(f"- {item}" for item in meta["do_not"])
-          validate = "\n".join(f"- {item}" for item in meta["validate"])
-          prompt = f"""You are OpenHands, an implementation executor working under ChatGPT leadership.
-
-Read AGENTS.md before doing anything else.
-
-Issue #{meta['issue_number']} — {meta['issue_title']}
-
-Goal:
-{meta['goal']}
-
-Allowed paths:
-{allowed}
-
-Preserve:
-{preserve}
-
-Do not:
-{do_not}
-
-Validation commands:
-{validate}
-
-Rules:
-- Work only on the delegated task and allowed paths.
-- Never read, print, infer, copy, or expose secrets, credentials, environment variables, student data, or private production data.
-- Do not merge to main and do not deploy.
-- If code changes are needed, create only a candidate branch or pull request through the connected OpenHands GitHub integration.
-- If the task requires anything outside Allowed paths or an architectural decision, stop and explain the blocker instead of expanding scope.
-"""
-          if len(prompt) > 30000:
-              raise SystemExit("Generated OpenHands prompt is too large.")
-          (Path(os.environ["RUNNER_TEMP"]) / "openhands-prompt.txt").write_text(
-              prompt,
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Start and poll OpenHands Cloud
+      - name: Confirm OpenHands credential
         if: steps.request.outputs.run == 'true'
         env:
           OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
         run: |
           set -euo pipefail
+          test -n "${OPENHANDS_API_KEY:-}"
+
+      - name: Execute OpenHands Cloud
+        if: steps.request.outputs.run == 'true'
+        id: agent
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+        run: |
+          set -euo pipefail
           python infra/agents/openhands_cloud.py \
-            --prompt "$(cat "$RUNNER_TEMP/openhands-prompt.txt")" \
+            --meta "$RUNNER_TEMP/openhands-meta.json" \
             --repository "$GITHUB_REPOSITORY" \
-            --branch "main" \
+            --branch main \
             --timeout-seconds 1200 \
             --poll-interval-seconds 30
+
+  report:
+    name: Report OpenHands result
+    needs: invoke
+    if: always() && needs.invoke.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Report sanitized result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ needs.invoke.outputs.issue }}
+          STATUS: ${{ needs.invoke.outputs.status }}
+          CONVERSATION_URL: ${{ needs.invoke.outputs.conversation_url }}
+          INVOKE_RESULT: ${{ needs.invoke.result }}
+        run: |
+          set -euo pipefail
+          if [ "$INVOKE_RESULT" = "success" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body \
+              "OpenHands Cloud concluiu com status \`$STATUS\`. Conversa: $CONVERSATION_URL"
+          else
+            gh issue comment "$ISSUE_NUMBER" --body \
+              "A execução do OpenHands Cloud falhou fechada. Nenhuma alteração foi integrada."
+          fi
