@@ -75,19 +75,30 @@ function hydratePatchKey(value: PatchKey): StoredKey {
   };
 }
 
-function statefulFetcher(initialKeys: StoredKey[]) {
+function statefulFetcher(
+  initialKeys: StoredKey[],
+  options: { staleReadsAfterPatch?: number } = {},
+) {
   let keys = structuredClone(initialKeys);
+  let staleSnapshot: StoredKey[] | null = null;
+  let staleReadsRemaining = 0;
   const patchBodies: Array<{ keyCredentials: PatchKey[] }> = [];
   const fetcher = vi.fn<typeof fetch>(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
     expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
     if (method === 'GET' && url.includes(`/applications/${WEB_OBJECT_ID}`)) {
+      if (staleSnapshot && staleReadsRemaining > 0) {
+        staleReadsRemaining -= 1;
+        return Response.json(application(staleSnapshot));
+      }
       return Response.json(application(keys));
     }
     if (method === 'PATCH' && url.endsWith(`/applications/${WEB_OBJECT_ID}`)) {
       const body = JSON.parse(String(init?.body)) as { keyCredentials: PatchKey[] };
       patchBodies.push(structuredClone(body));
+      staleSnapshot = structuredClone(keys);
+      staleReadsRemaining = options.staleReadsAfterPatch ?? 0;
       keys = body.keyCredentials.map(hydratePatchKey);
       return new Response(null, { status: 204 });
     }
@@ -219,6 +230,31 @@ describe('Maintenance certificate rotation', () => {
     });
 
     expect(result).toEqual({ status: 'removed', remainingCertificates: 2 });
+    expect(state.keys().map((value) => value.displayName)).toEqual([
+      'automatic-web-slot-A-2026-08-24T16:00:05.533Z',
+      'automatic-web-slot-B-2026-08-24T16:02:00.054Z',
+    ]);
+  });
+
+  it('waits for Graph reads to converge after removing an orphan certificate', async () => {
+    const state = statefulFetcher([
+      key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
+      key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
+      key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
+    ], { staleReadsAfterPatch: 2 });
+    const pause = vi.fn(async () => undefined);
+
+    const result = await removeExactCertificate({
+      accessToken: TOKEN,
+      target: 'web',
+      objectId: WEB_OBJECT_ID,
+      keyId: GRAPH_NEW_A,
+      fetcher: state.fetcher,
+      pause,
+    });
+
+    expect(result).toEqual({ status: 'removed', remainingCertificates: 2 });
+    expect(pause).toHaveBeenCalledTimes(2);
     expect(state.keys().map((value) => value.displayName)).toEqual([
       'automatic-web-slot-A-2026-08-24T16:00:05.533Z',
       'automatic-web-slot-B-2026-08-24T16:02:00.054Z',
