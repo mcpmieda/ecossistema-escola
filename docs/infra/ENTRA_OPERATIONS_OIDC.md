@@ -32,6 +32,23 @@ A saída sanitizada contém:
 
 Erros Graph retornam apenas estágio + status HTTP, sem corpo bruto do provider.
 
+## Drift read-only
+
+A auditoria também compara o estado real com o baseline produtivo versionado para os dois apps:
+
+- client/app ID esperado;
+- `signInAudience`;
+- redirect URIs autorizadas;
+- existência e estado do service principal;
+- presença de certificado técnico;
+- certificado expirado ou próximo da expiração;
+- presença de password credential;
+- app-role assignments efetivamente concedidos ao service principal.
+
+Drift de identidade, audience, redirect URI, service principal ausente/desabilitado ou certificado ausente/expirado é **crítico** e faz o workflow falhar fechado. Password credentials, certificados próximos da expiração e permissões amplas conhecidas são reportados como **warning** enquanto a migração de menor privilégio estiver em andamento.
+
+O Job Summary publica somente status e contagens; os app-role assignments detalhados permanecem apenas no arquivo temporário do runner e são apagados ao final.
+
 ## Próxima etapa manual
 
 Depois que o workflow OIDC for criado:
