@@ -60,7 +60,7 @@ export function parseCiProvenanceV1(input: unknown): CiProvenanceV1 {
     treeSha: shaV1(value.treeSha, 'tree SHA'),
     runId: integerV1(value.runId, 'run ID'),
   };
-  if (Object.keys(value).sort().join(',') !== Object.keys(parsed).sort().join(','))
+  if (Object.keys(value).sort((left, right) => left.localeCompare(right)).join(',') !== Object.keys(parsed).sort((left, right) => left.localeCompare(right)).join(','))
     throw new Error('Unexpected provenance fields');
   return parsed;
 }
