@@ -104,7 +104,7 @@ export type EntraApplicationAudit = {
 
 export type EntraDriftFinding = {
   severity: 'warning' | 'critical';
-  application: 'web' | 'graph';
+  application: 'web' | 'graph' | 'sharepoint';
   code: string;
 };
 
@@ -113,12 +113,23 @@ export type EntraDriftAudit = {
   findings: EntraDriftFinding[];
 };
 
+export type EntraSharePointAudit = {
+  enabled: boolean;
+  status: 'disabled' | 'ok';
+  siteId?: string;
+  displayName?: string | null;
+  webUrl?: string | null;
+  visibleListCount?: number;
+  isolationProbe: 'not-run' | 'denied';
+};
+
 export type EntraOperationsAudit = {
   generatedAt: string;
   applications: {
     web: EntraApplicationAudit;
     graph: EntraApplicationAudit;
   };
+  sharePoint: EntraSharePointAudit;
   drift: EntraDriftAudit;
 };
 
@@ -157,11 +168,19 @@ const EXPECTED_APPLICATIONS = {
   },
 } as const;
 
+const EXPECTED_SHAREPOINT_SITE_ID =
+  'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56';
+const SHAREPOINT_ISOLATION_PROBE_SITE_ID =
+  'eduieda.sharepoint.com,bc1489eb-2358-475f-a3b6-674e42eb7e53,f3e8239e-3ed7-4eb1-8774-e14743bc0d45';
+
 const BROAD_APPLICATION_PERMISSIONS = new Set([
   '7ab1d382-f21e-4acd-a863-ba3e13f7da61', // Directory.Read.All
   '332a536c-c7ef-4017-ab91-336970924f0d', // Sites.Read.All
   '9492366f-7969-46a4-8d15-ed1a20078fff', // Sites.ReadWrite.All
+  'a82116e5-55eb-4c41-a434-62fe8a61c773', // Sites.FullControl.All
+  '0c0bf378-bf22-4481-8f81-9e89a9b4960a', // Sites.Manage.All
   '01d4889c-1287-42c6-ac1f-5d1e02578ef6', // Files.Read.All
+  '75359482-378d-4052-8f01-80520e7db3cd', // Files.ReadWrite.All
 ]);
 
 function sorted(values: readonly string[]): string[] {
@@ -259,6 +278,80 @@ async function graphJson<T>(
   } catch {
     throw new EntraOperationsAuditError(`${stage}-invalid-json`);
   }
+}
+
+async function graphStatus(
+  fetcher: GraphFetcher,
+  token: string,
+  path: string,
+  stage: string,
+): Promise<number> {
+  let response: Response;
+  try {
+    response = await fetcher(`${GRAPH_BASE}${path}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new EntraOperationsAuditError(`${stage}-transport`);
+  }
+  await response.body?.cancel().catch(() => undefined);
+  return response.status;
+}
+
+async function auditSharePoint(
+  fetcher: GraphFetcher,
+  token: string,
+  enabled: boolean,
+): Promise<EntraSharePointAudit> {
+  if (!enabled) {
+    return { enabled: false, status: 'disabled', isolationProbe: 'not-run' };
+  }
+
+  const select = encodeURIComponent('id,displayName,webUrl');
+  const site = await graphJson<{ id?: string; displayName?: string; webUrl?: string }>(
+    fetcher,
+    token,
+    `/sites/${encodeURIComponent(EXPECTED_SHAREPOINT_SITE_ID)}?$select=${select}`,
+    'sharepoint-selected-site',
+  );
+  if (site.id !== EXPECTED_SHAREPOINT_SITE_ID)
+    throw new EntraOperationsAuditError('sharepoint-selected-site-mismatch');
+
+  const lists = await graphJson<Collection<{ id?: string }>>(
+    fetcher,
+    token,
+    `/sites/${encodeURIComponent(EXPECTED_SHAREPOINT_SITE_ID)}/lists?$select=id&$top=20`,
+    'sharepoint-selected-site-lists',
+  );
+  if (!Array.isArray(lists.value))
+    throw new EntraOperationsAuditError('sharepoint-selected-site-lists-invalid');
+
+  const isolationStatus = await graphStatus(
+    fetcher,
+    token,
+    `/sites/${encodeURIComponent(SHAREPOINT_ISOLATION_PROBE_SITE_ID)}?$select=id`,
+    'sharepoint-isolation-probe',
+  );
+  if (isolationStatus >= 200 && isolationStatus < 300)
+    throw new EntraOperationsAuditError('sharepoint-broad-access-detected');
+  if (isolationStatus !== 403 && isolationStatus !== 404)
+    throw new EntraOperationsAuditError('sharepoint-isolation-probe', isolationStatus);
+
+  return {
+    enabled: true,
+    status: 'ok',
+    siteId: site.id,
+    displayName: site.displayName ?? null,
+    webUrl: site.webUrl ?? null,
+    visibleListCount: lists.value.length,
+    isolationProbe: 'denied',
+  };
 }
 
 function sanitizeApplication(
@@ -378,6 +471,7 @@ export async function auditEntraOperations(input: {
   accessToken: string;
   webApplicationObjectId: string;
   graphApplicationObjectId: string;
+  sharePointAuditEnabled?: boolean;
   fetcher?: GraphFetcher;
   now?: () => Date;
 }): Promise<EntraOperationsAudit> {
@@ -388,9 +482,10 @@ export async function auditEntraOperations(input: {
   if (webObjectId === graphObjectId) throw new EntraOperationsAuditError('duplicate-object-id');
 
   const fetcher = input.fetcher ?? fetch;
-  const [web, graph] = await Promise.all([
+  const [web, graph, sharePoint] = await Promise.all([
     readExactApplication(fetcher, accessToken, webObjectId, 'web'),
     readExactApplication(fetcher, accessToken, graphObjectId, 'graph'),
+    auditSharePoint(fetcher, accessToken, input.sharePointAuditEnabled === true),
   ]);
 
   const now = (input.now ?? (() => new Date()))();
@@ -398,6 +493,7 @@ export async function auditEntraOperations(input: {
   return {
     generatedAt: now.toISOString(),
     applications,
+    sharePoint,
     drift: auditDrift(applications, now),
   };
 }
@@ -406,10 +502,12 @@ async function main(): Promise<void> {
   const accessToken = process.env.GRAPH_ACCESS_TOKEN ?? '';
   const webApplicationObjectId = process.env.WEB_APPLICATION_OBJECT_ID ?? '';
   const graphApplicationObjectId = process.env.GRAPH_APPLICATION_OBJECT_ID ?? '';
+  const sharePointAuditEnabled = process.env.ENTRA_SHAREPOINT_AUDIT_ENABLED === 'true';
   const result = await auditEntraOperations({
     accessToken,
     webApplicationObjectId,
     graphApplicationObjectId,
+    sharePointAuditEnabled,
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
