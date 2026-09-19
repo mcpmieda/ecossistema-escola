@@ -1,5 +1,5 @@
 import { createElement, StrictMode } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentSessionsV1 } from '../../../../src/features/student-portal-admin/sessions/student-sessions-v1';
@@ -11,6 +11,7 @@ import {
   OP_ACCOUNT_V1,
 } from '../overview/fixtures-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
+import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
   cleanup();
@@ -93,6 +94,7 @@ describe('administrative sessions interface', () => {
     expect(document.body.textContent).not.toContain('SYNTHETIC OP STUDENT');
   });
   it('does not offer school-wide revocation, disables writes for read-only and pages beyond 100', async () => {
+    const observer = controlledContinuousObserverV1();
     const mock = operationsMockV1({ count: 420 });
     render(
       createElement(
@@ -107,6 +109,11 @@ describe('administrative sessions interface', () => {
     );
     await screen.findByRole('grid', { name: 'Sessões ativas' });
     expect(screen.queryByRole('button', { name: 'Encerrar sessões da turma' })).toBeNull();
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(100),
+    );
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    await act(async () => observer.intersect());
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(105),
     );
