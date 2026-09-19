@@ -58,6 +58,12 @@ describe('Entra Operations OIDC workflow', () => {
     expect(result.stderr).not.toContain('ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX');
   });
 
+  it('publishes only a count for Operations permissions while the detailed assignments stay runner-local', () => {
+    expect(workflow).toContain('.operationsIdentity.appRoleAssignments | length');
+    expect(workflow).not.toContain('.operationsIdentity.appRoleAssignments[]');
+    expect(workflow).not.toContain('appRoleId +');
+  });
+
   it('keeps SharePoint selected-site auditing disabled until the explicit repository variable is enabled', () => {
     expect(workflow).toContain('vars.ENTRA_SHAREPOINT_AUDIT_ENABLED');
     expect(workflow).toContain('.sharePoint.status | IN("disabled", "ok")');
