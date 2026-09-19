@@ -312,21 +312,11 @@ jobs:
           openssl req -new -x509 -key "$dir/private.pem" -out "$dir/cert.pem" -days 180 -sha256             -subj "/CN=ecossistema-${TARGET}-${SLOT}-${GITHUB_RUN_ID}" >/dev/null 2>&1
           openssl x509 -in "$dir/cert.pem" -outform DER -out "$dir/cert.der"
           thumbprint="$(openssl dgst -sha1 -binary "$dir/cert.der" | base64 | tr '+/' '-_' | tr -d '=\n')"
-          key_id="$(node -e 'console.log(crypto.randomUUID())')"
+          printf '%s' "$thumbprint" > "$dir/thumbprint"
+          chmod 600 "$dir/thumbprint"
           created_at="$(node -e 'console.log(new Date().toISOString())')"
           end_at="$(node -e 'const d=new Date(); d.setUTCDate(d.getUTCDate()+180); console.log(d.toISOString())')"
           display_name="automatic-${TARGET}-slot-${SLOT}-${created_at}"
-          KEY_PATH="$dir/private.pem" THUMBPRINT="$thumbprint" KEY_ID="$key_id" CREATED_AT="$created_at"             node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const value = {
-            privateKeyPkcs8: readFileSync(process.env.KEY_PATH, 'utf8'),
-            certificateThumbprint: process.env.THUMBPRINT,
-            keyId: process.env.KEY_ID,
-            createdAt: process.env.CREATED_AT,
-          };
-          writeFileSync(process.env.RUNNER_TEMP + '/maintenance-rotation/credential.json', JSON.stringify(value), { mode: 0o600 });
-          NODE
-          echo "key_id=$key_id" >> "$GITHUB_OUTPUT"
           echo "created_at=$created_at" >> "$GITHUB_OUTPUT"
           echo "end_at=$end_at" >> "$GITHUB_OUTPUT"
           echo "display_name=$display_name" >> "$GITHUB_OUTPUT"
@@ -340,7 +330,6 @@ jobs:
           APPLICATION_OBJECT_ID: ${{ steps.target.outputs.object_id }}
           TARGET_CLIENT_ID: ${{ steps.target.outputs.client_id }}
           SECRET_NAME: ${{ steps.target.outputs.secret_name }}
-          NEW_KEY_ID: ${{ steps.candidate.outputs.key_id }}
           NEW_START_DATE_TIME: ${{ steps.candidate.outputs.created_at }}
           NEW_END_DATE_TIME: ${{ steps.candidate.outputs.end_at }}
           NEW_DISPLAY_NAME: ${{ steps.candidate.outputs.display_name }}
@@ -354,19 +343,30 @@ jobs:
           echo "::add-mask::$token"
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
           secret_written=false
+          graph_key_id=""
           rollback() {
             status=$?
-            if [ "$status" -ne 0 ] && [ "$secret_written" != "true" ]; then
-              GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"                 APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$NEW_KEY_ID"                 node --experimental-strip-types scripts/entra/maintenance-rotate.ts >/dev/null 2>&1 || true
+            if [ "$status" -ne 0 ] && [ "$secret_written" != "true" ] && [ -n "$graph_key_id" ]; then
+              GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"                 APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$graph_key_id"                 node --experimental-strip-types scripts/entra/maintenance-rotate.ts >/dev/null 2>&1 || true
             fi
             rm -rf "$dir"
             exit "$status"
           }
           trap rollback EXIT
 
-          GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=add ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" NEW_KEY_ID="$NEW_KEY_ID"             CERT_DER_PATH="$dir/cert.der" NEW_DISPLAY_NAME="$NEW_DISPLAY_NAME"             NEW_START_DATE_TIME="$NEW_START_DATE_TIME" NEW_END_DATE_TIME="$NEW_END_DATE_TIME"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/add-result.json"
+          GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=add ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID"             CERT_DER_PATH="$dir/cert.der" NEW_DISPLAY_NAME="$NEW_DISPLAY_NAME"             NEW_START_DATE_TIME="$NEW_START_DATE_TIME" NEW_END_DATE_TIME="$NEW_END_DATE_TIME"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/add-result.json"
           graph_key_id="$(jq -r '.newGraphKeyId // empty' "$RUNNER_TEMP/add-result.json")"
           [[ "$graph_key_id" =~ ^[0-9a-fA-F-]{36}$ ]]
+          KEY_PATH="$dir/private.pem" THUMBPRINT="$(cat "$dir/thumbprint")" KEY_ID="$graph_key_id" CREATED_AT="$NEW_START_DATE_TIME"             node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const value = {
+            privateKeyPkcs8: readFileSync(process.env.KEY_PATH, 'utf8'),
+            certificateThumbprint: process.env.THUMBPRINT,
+            keyId: process.env.KEY_ID,
+            createdAt: process.env.CREATED_AT,
+          };
+          writeFileSync(process.env.RUNNER_TEMP + '/maintenance-rotation/credential.json', JSON.stringify(value), { mode: 0o600 });
+          NODE
 
           validated=false
           for _attempt in {1..12}; do
@@ -377,7 +377,7 @@ jobs:
             sleep 5
           done
           test "$validated" = "true"
-          jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$NEW_KEY_ID"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
+          jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$graph_key_id"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
 
           cat "$dir/credential.json" | npx wrangler pages secret put "$SECRET_NAME"             --project-name ecossistema-escola >/dev/null
           secret_written=true
