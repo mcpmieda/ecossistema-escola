@@ -73,4 +73,4 @@ Conceder somente a permissão **Application**:
 
 Essa permissão permite ler applications e service principals e requer admin consent. Não conceder `Directory.Read.All` nem permissões de escrita para esta identidade Operations.
 
-Depois da federação e do consentimento, executar manualmente o workflow **Entra Operations audit**. O artefato gerado contém apenas metadados sanitizados.
+Depois da federação e do consentimento, executar manualmente o workflow **Entra Operations audit**. Como o repositório é público, o JSON detalhado fica somente no runner e é apagado ao final; o GitHub recebe apenas um resumo mínimo no Job Summary.
