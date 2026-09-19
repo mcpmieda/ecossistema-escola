@@ -7,6 +7,15 @@ on:
       - 'scripts/entra/**'
       - 'tests/entra/**'
       - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/entra-operations-audit.yml'
+      - 'scripts/entra/**'
+      - 'tests/entra/**'
+      - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  schedule:
+    - cron: '15 10 * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -41,7 +50,7 @@ jobs:
 
   audit:
     name: Audit Entra applications via OIDC
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -104,6 +113,8 @@ jobs:
         env:
           WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          ENTRA_SHAREPOINT_AUDIT_ENABLED: ${{ vars.ENTRA_SHAREPOINT_AUDIT_ENABLED }}
         run: |
           set -euo pipefail
           token="$(cat "$RUNNER_TEMP/graph-access-token")"
@@ -120,7 +131,12 @@ jobs:
             .applications.web.id != null and
             .applications.graph.id != null and
             (.applications.web.passwordCredentials | type == "array") and
-            (.applications.graph.passwordCredentials | type == "array")
+            (.applications.graph.passwordCredentials | type == "array") and
+            (.drift.status | IN("ok", "warning", "critical")) and
+            (.drift.findings | type == "array") and
+            (.operationsIdentity.appId != null) and
+            (.operationsIdentity.appRoleAssignments | type == "array") and
+            (.sharePoint.status | IN("disabled", "ok"))
           ' "$output" >/dev/null
 
           {
@@ -132,6 +148,21 @@ jobs:
               ", password credentials: " + ((.applications.web.passwordCredentials | length) | tostring),
               "- Graph: " + .applications.graph.displayName +
               " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
-              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring)
+              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring),
+              "- Operations identity: permissions: " +
+              ((.operationsIdentity.appRoleAssignments | length) | tostring),
+              "- Drift: " + .drift.status +
+              " — findings: " + ((.drift.findings | length) | tostring),
+              "- SharePoint: " + .sharePoint.status +
+              (if .sharePoint.status == "ok"
+                then " — lists visible: " + ((.sharePoint.visibleListCount // 0) | tostring) +
+                     ", isolation probe: " + .sharePoint.isolationProbe
+                else ""
+               end)
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          jq -e '.drift.status != "critical"' "$output" >/dev/null || {
+            echo "::error::Critical Entra configuration drift detected."
+            exit 1
+          }

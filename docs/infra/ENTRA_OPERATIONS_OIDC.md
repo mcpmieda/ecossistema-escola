@@ -32,6 +32,29 @@ A saída sanitizada contém:
 
 Erros Graph retornam apenas estágio + status HTTP, sem corpo bruto do provider.
 
+## Drift read-only
+
+A auditoria também compara o estado real com o baseline produtivo versionado para os dois apps:
+
+- client/app ID esperado;
+- `signInAudience`;
+- redirect URIs autorizadas;
+- existência e estado do service principal;
+- presença de certificado técnico;
+- certificado expirado ou próximo da expiração;
+- presença de password credential;
+- app-role assignments efetivamente concedidos ao service principal.
+
+Drift de identidade, audience, redirect URI, service principal ausente/desabilitado ou certificado ausente/expirado é **crítico** e faz o workflow falhar fechado. Password credentials, certificados próximos da expiração e permissões amplas conhecidas são reportados como **warning** enquanto a migração de menor privilégio estiver em andamento.
+
+O Job Summary publica somente status e contagens; os app-role assignments detalhados permanecem apenas no arquivo temporário do runner e são apagados ao final.
+
+A identidade **Operations também audita a si própria**. O conjunto permitido de application permissions fica limitado a:
+- `Application.Read.All`;
+- `Sites.Selected`, quando/antes da habilitação da prova SharePoint.
+
+Qualquer application permission adicional no service principal Operations é tratada como drift crítico. Assim, adicionar por engano `Directory.Read.All`, `Sites.Read.All`, `Sites.ReadWrite.All` ou outra permissão não aprovada faz a auditoria falhar fechado.
+
 ## Próxima etapa manual
 
 Depois que o workflow OIDC for criado:
@@ -47,8 +70,10 @@ A identidade de Maintenance será tratada separadamente depois que Operations es
 O workflow `.github/workflows/entra-operations-audit.yml` usa OIDC e não armazena client secret.
 
 Execução real:
-- somente `workflow_dispatch`;
-- somente `main`;
+- `workflow_dispatch` na `main`;
+- automaticamente após pushes na `main` que alterem o auditor/workflow/documentação relacionada;
+- diariamente às 10:15 UTC para detectar drift externo mesmo sem mudança no repositório;
+- sempre somente sobre a `main`;
 - `id-token: write` existe apenas no job de auditoria;
 - não depende de `azure/login` ou Azure CLI: o workflow solicita diretamente uma assertion OIDC ao GitHub e a troca no endpoint OAuth 2.0 do Entra;
 - audience da assertion: `api://AzureADTokenExchange`;
@@ -74,3 +99,49 @@ Conceder somente a permissão **Application**:
 Essa permissão permite ler applications e service principals e requer admin consent. Não conceder `Directory.Read.All` nem permissões de escrita para esta identidade Operations.
 
 Depois da federação e do consentimento, executar manualmente o workflow **Entra Operations audit**. Como o repositório é público, o JSON detalhado fica somente no runner e é apagado ao final; o GitHub recebe apenas um resumo mínimo no Job Summary.
+
+
+## SharePoint com Sites.Selected
+
+A auditoria de SharePoint fica **desativada por padrão** até a concessão explícita do site ser concluída. Não adicionar `Sites.Read.All` ou `Sites.FullControl.All` à identidade Operations.
+
+Identidade Operations atual:
+- Client ID: `8d0378b4-832c-4703-8449-5ff2072589a5`
+- permissão adicional prevista: `Sites.Selected` (Application), ID `883ea226-0bf2-4a8f-9f9d-92c9162a727d`.
+
+Site produtivo selecionado:
+- `eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56`
+
+Sequência de habilitação:
+1. adicionar `Sites.Selected` como **Application permission** no App Registration Operations e conceder admin consent;
+2. por um contexto administrativo separado, conceder **Read** somente ao site produtivo acima. A identidade Operations não deve receber a permissão ampla usada para administrar essa concessão;
+3. criar/alterar a Repository Variable `ENTRA_SHAREPOINT_AUDIT_ENABLED=true`;
+4. executar novamente o workflow.
+
+Exemplo do grant administrativo pelo Microsoft Graph:
+
+```http
+POST https://graph.microsoft.com/v1.0/sites/eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56/permissions
+Content-Type: application/json
+
+{
+  "roles": ["read"],
+  "grantedToIdentities": [
+    {
+      "application": {
+        "id": "8d0378b4-832c-4703-8449-5ff2072589a5",
+        "displayName": "Ecossistema Operations - GitHub OIDC"
+      }
+    }
+  ]
+}
+```
+
+A chamada acima deve ser feita por uma identidade administrativa separada com autoridade para administrar permissões do site. Não guardar essa autoridade no workflow Operations.
+
+Quando habilitada, a auditoria:
+- lê o site selecionado e uma amostra limitada das listas;
+- faz uma prova negativa contra o site raiz de comunicação do tenant;
+- falha fechado se o site selecionado não estiver acessível;
+- falha fechado se a identidade Operations conseguir ler o site de isolamento, indicando acesso mais amplo que o planejado;
+- não publica nomes de listas nem permissões detalhadas no GitHub.

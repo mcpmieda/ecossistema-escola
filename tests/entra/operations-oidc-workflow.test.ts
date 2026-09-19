@@ -25,8 +25,12 @@ describe('Entra Operations OIDC workflow', () => {
     expect(workflow).not.toMatch(/secrets\.(ENTRA|AZURE|GRAPH|WEB)/u);
   });
 
-  it('runs the real audit only on explicit workflow dispatch from main', () => {
-    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+  it('runs the real audit only from trusted main on dispatch, audited pushes or schedule', () => {
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(workflow).toContain("github.event_name == 'push'");
+    expect(workflow).toContain("github.event_name == 'schedule'");
+    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("cron: '15 10 * * *'");
     expect(workflow).toContain('test "$GITHUB_REF" = "refs/heads/main"');
     expect(workflow).toContain('ACTIONS_ID_TOKEN_REQUEST_URL');
     expect(workflow).toContain('client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
@@ -52,6 +56,25 @@ describe('Entra Operations OIDC workflow', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Entra operations audit failed at missing-access-token');
     expect(result.stderr).not.toContain('ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX');
+  });
+
+  it('publishes only a count for Operations permissions while the detailed assignments stay runner-local', () => {
+    expect(workflow).toContain('.operationsIdentity.appRoleAssignments | length');
+    expect(workflow).not.toContain('.operationsIdentity.appRoleAssignments[]');
+    expect(workflow).not.toContain('appRoleId +');
+  });
+
+  it('keeps SharePoint selected-site auditing disabled until the explicit repository variable is enabled', () => {
+    expect(workflow).toContain('vars.ENTRA_SHAREPOINT_AUDIT_ENABLED');
+    expect(workflow).toContain('.sharePoint.status | IN("disabled", "ok")');
+    expect(workflow).toContain('isolation probe:');
+  });
+
+  it('fails closed on critical Entra drift while keeping the summary sanitized', () => {
+    expect(workflow).toContain('.drift.status != "critical"');
+    expect(workflow).toContain('Critical Entra configuration drift detected.');
+    expect(workflow).toContain('"- Drift: "');
+    expect(workflow).not.toContain('appRoleAssignments | @json');
   });
 
   it('does not publish detailed Entra metadata from the public repository', () => {
