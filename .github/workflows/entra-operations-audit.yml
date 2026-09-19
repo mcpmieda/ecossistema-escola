@@ -37,7 +37,8 @@ jobs:
           test -f tests/entra/operations-audit.test.ts
           test -f docs/infra/ENTRA_OPERATIONS_OIDC.md
           grep -Fq 'id-token: write' .github/workflows/entra-operations-audit.yml
-          grep -Fq 'allow-no-subscriptions: true' .github/workflows/entra-operations-audit.yml
+          grep -Fq 'api%3A%2F%2FAzureADTokenExchange' .github/workflows/entra-operations-audit.yml
+          ! grep -Fq 'azure/login@' .github/workflows/entra-operations-audit.yml
 
   audit:
     name: Audit Entra applications via OIDC
@@ -73,14 +74,32 @@ jobs:
             }
           done
 
-      - name: Login to Microsoft Entra with GitHub OIDC
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906
-        with:
-          client-id: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
-          tenant-id: ${{ vars.ENTRA_TENANT_ID }}
-          allow-no-subscriptions: true
+      - name: Exchange GitHub OIDC assertion for short-lived Graph token
+        id: token
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          oidc_response="$(
+            curl --silent --show-error --fail               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange"
+          )"
+          oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
 
-      - name: Acquire short-lived Graph token and run sanitized audit
+          entra_response="$(
+            curl --silent --show-error --fail               -X POST               -H 'Content-Type: application/x-www-form-urlencoded'               --data-urlencode "client_id=${ENTRA_OPERATIONS_CLIENT_ID}"               --data-urlencode 'scope=https://graph.microsoft.com/.default'               --data-urlencode 'grant_type=client_credentials'               --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer'               --data-urlencode "client_assertion=${oidc_token}"               "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
+          )"
+          graph_token="$(jq -r '.access_token // empty' <<<"$entra_response")"
+          test -n "$graph_token"
+          echo "::add-mask::$graph_token"
+          printf '%s' "$graph_token" > "$RUNNER_TEMP/graph-access-token"
+          chmod 600 "$RUNNER_TEMP/graph-access-token"
+          unset oidc_token graph_token oidc_response entra_response
+
+      - name: Run sanitized Entra audit
         id: audit
         shell: bash
         env:
@@ -88,12 +107,13 @@ jobs:
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
         run: |
           set -euo pipefail
-          token="$(az account get-access-token --resource-type ms-graph --query accessToken -o tsv)"
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
           test -n "$token"
           echo "::add-mask::$token"
 
           output="$RUNNER_TEMP/entra-operations-audit.json"
           GRAPH_ACCESS_TOKEN="$token"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/operations-audit.ts > "$output"
+          rm -f "$RUNNER_TEMP/graph-access-token"
           unset token
 
           jq -e '
