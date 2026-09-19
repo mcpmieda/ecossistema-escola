@@ -215,7 +215,7 @@ export function createPerformanceRequestHandlerV1(
     try {
       payload = await readBoundedJson(request, 32_768);
     } catch (cause) {
-      return invalidRequest(cause instanceof HttpError ? 'invalid-request' : 'invalid-request');
+      return invalidRequest('invalid-request');
     }
     if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 6) {
       const parsed = performanceAnalyticsRequestSchemaV6.safeParse(payload);
