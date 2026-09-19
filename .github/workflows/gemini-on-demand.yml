@@ -25,6 +25,8 @@ jobs:
     permissions:
       contents: read
       issues: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
     outputs:
       run: ${{ steps.request.outputs.run }}
       issue: ${{ steps.request.outputs.issue }}
@@ -168,6 +170,8 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Checkout same immutable trusted revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -262,4 +266,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.execute.outputs.issue }}
         run: |
-          gh issue comment "$ISSUE" --body             "A execução do Gemini CLI falhou fechada; nenhuma alteração foi mesclada. Workflow run ${GITHUB_RUN_ID}."
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "A execução do Gemini CLI falhou fechada; nenhuma alteração foi mesclada. Workflow run ${GITHUB_RUN_ID}."
