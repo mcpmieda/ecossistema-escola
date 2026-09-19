@@ -10,7 +10,8 @@ const TOKEN = 'synthetic-token';
 const WEB_OBJECT_ID = '11111111-1111-4111-8111-111111111111';
 const OLD_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OLD_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const NEW_A = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const RUNTIME_NEW_A = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const GRAPH_NEW_A = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 function key(
   keyId: string,
@@ -51,7 +52,9 @@ function statefulFetcher(initialKeys: ReturnType<typeof key>[]) {
     }
     if (method === 'PATCH' && url.endsWith(`/applications/${WEB_OBJECT_ID}`)) {
       const body = JSON.parse(String(init?.body)) as { keyCredentials: ReturnType<typeof key>[] };
-      keys = structuredClone(body.keyCredentials);
+      keys = structuredClone(body.keyCredentials).map((value) =>
+        value.keyId ? value : { ...value, keyId: GRAPH_NEW_A },
+      );
       return new Response(null, { status: 204 });
     }
     return new Response('unexpected', { status: 404 });
@@ -71,7 +74,7 @@ describe('Maintenance certificate rotation', () => {
       target: 'web',
       slot: 'A',
       objectId: WEB_OBJECT_ID,
-      newKeyId: NEW_A,
+      newKeyId: RUNTIME_NEW_A,
       certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
       displayName: 'automatic-web-slot-A-2026-09-19T13:00:00.000Z',
       startDateTime: '2026-09-19T13:00:00.000Z',
@@ -86,7 +89,7 @@ describe('Maintenance certificate rotation', () => {
       previousActiveSlot: 'B',
       previousActiveKeyId: OLD_B,
       staleSameSlotKeyId: OLD_A,
-      newKeyId: NEW_A,
+      newKeyId: RUNTIME_NEW_A,
     });
     expect(state.keys()).toHaveLength(3);
     expect(state.keys().map((value) => value.keyId).sort()).toEqual([OLD_A, OLD_B, NEW_A].sort());
@@ -103,7 +106,7 @@ describe('Maintenance certificate rotation', () => {
       target: 'web',
       slot: 'B',
       objectId: WEB_OBJECT_ID,
-      newKeyId: NEW_A,
+      newKeyId: RUNTIME_NEW_A,
       certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
       displayName: 'automatic-web-slot-B-2026-09-19T13:00:00.000Z',
       startDateTime: '2026-09-19T13:00:00.000Z',
@@ -117,7 +120,7 @@ describe('Maintenance certificate rotation', () => {
     const state = statefulFetcher([
       key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
       key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
-      key(NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
+      key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
     ]);
 
     const result = await finalizeRotation({
@@ -130,26 +133,26 @@ describe('Maintenance certificate rotation', () => {
 
     expect(result).toMatchObject({
       status: 'finalized',
-      retainedNewKeyId: NEW_A,
+      retainedNewKeyId: GRAPH_NEW_A,
       retainedRollbackSlot: 'B',
       retainedRollbackKeyId: OLD_B,
       removedStaleKeyId: OLD_A,
     });
-    expect(state.keys().map((value) => value.keyId).sort()).toEqual([OLD_B, NEW_A].sort());
+    expect(state.keys().map((value) => value.keyId).sort()).toEqual([OLD_B, GRAPH_NEW_A].sort());
   });
 
   it('can remove the exact newly-added certificate during pre-secret rollback', async () => {
     const state = statefulFetcher([
       key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
       key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
-      key(NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
+      key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
     ]);
 
     const result = await removeExactCertificate({
       accessToken: TOKEN,
       target: 'web',
       objectId: WEB_OBJECT_ID,
-      keyId: NEW_A,
+      keyId: GRAPH_NEW_A,
       fetcher: state.fetcher,
     });
 
@@ -166,7 +169,7 @@ describe('Maintenance certificate rotation', () => {
         accessToken: TOKEN,
         target: 'web',
         objectId: WEB_OBJECT_ID,
-        keyId: NEW_A,
+        keyId: GRAPH_NEW_A,
         fetcher,
       });
       throw new Error('expected failure');
