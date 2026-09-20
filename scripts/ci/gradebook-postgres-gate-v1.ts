@@ -354,7 +354,7 @@ async function assertFutureGradebookObjectAclV1(): Promise<void> {
       RETURNS integer
       LANGUAGE sql
       SET search_path TO 'pg_catalog'
-      AS $ SELECT 1 $;
+      AS 'SELECT 1';
   `);
   try {
     const probe = await firstRow(`
