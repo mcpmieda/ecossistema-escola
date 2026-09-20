@@ -160,13 +160,13 @@ function safeInteger(value: unknown): value is number {
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const sortedExpected = [...expected].sort();
+  const actual = Object.keys(value).sort((left, right) => left.localeCompare(right, 'en'));
+  const sortedExpected = [...expected].sort((left, right) => left.localeCompare(right, 'en'));
   return actual.length === sortedExpected.length && actual.every((key, index) => key === sortedExpected[index]);
 }
 
 function hasExactNames(actual: readonly string[], expected: readonly string[]): boolean {
-  const left = [...actual].sort();
+  const left = [...actual].sort((left, right) => left.localeCompare(right, 'en'));
   const right = [...expected].sort();
   return left.length === right.length && left.every((name, index) => name === right[index]);
 }
