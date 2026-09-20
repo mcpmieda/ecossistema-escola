@@ -35,14 +35,14 @@ type ReviewIntentV1 =
   | { field: SettingsFieldV1; inherit: false; value: ReturnType<typeof parseSettingsDraftV1> };
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
 export interface StudentSettingsPropsV1 {
-  client: PortalAdminClientV1;
-  reader?: PortalAdminReadClientV2;
-  scope: ScopeV1;
-  canWrite: boolean;
-  scopeLabel?: string;
-  describeScope?: (scope: ScopeV1) => string;
-  onCommitted?: () => void;
-  onOpenCustomization?: OpenCustomizationV1;
+  readonly client: PortalAdminClientV1;
+  readonly reader?: PortalAdminReadClientV2;
+  readonly scope: ScopeV1;
+  readonly canWrite: boolean;
+  readonly scopeLabel?: string;
+  readonly describeScope?: (scope: ScopeV1) => string;
+  readonly onCommitted?: () => void;
+  readonly onOpenCustomization?: OpenCustomizationV1;
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
@@ -58,6 +58,17 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
   calendar:
     'Organiza os períodos de acesso e divulgação. Uma personalização substitui o calendário inteiro neste aluno ou turma. Campo vazio não define uma data.',
 };
+function settingOriginLabelV1(
+  settings: EffectiveSettingsV1,
+  field: SettingsFieldV1,
+  owns: boolean,
+  sourceLabel: string,
+) {
+  if (owns) return settings.scope.kind === 'school' ? 'Padrão da escola' : 'Definido aqui';
+  if (settings.sources[field].kind === 'school') return 'Padrão da escola';
+  return 'Padrão de ' + sourceLabel;
+}
+
 function FieldCardV1({
   field,
   settings,
@@ -66,7 +77,7 @@ function FieldCardV1({
   sourceLabel,
   review,
   onDirtyChange,
-}: {
+}: Readonly<{
   field: SettingsFieldV1;
   settings: EffectiveSettingsV1;
   disabled: boolean;
@@ -74,7 +85,7 @@ function FieldCardV1({
   sourceLabel: string;
   review: (review: ReviewIntentV1) => void;
   onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
-}) {
+}>) {
   const sourceDraft = useMemo(() => settingsDraftV1(field, settings.value), [field, settings]);
   const sourceKey = JSON.stringify(sourceDraft);
   const [draft, setDraft] = useState(sourceDraft);
@@ -107,13 +118,7 @@ function FieldCardV1({
         <div className="pa-settings-card-heading">
           <h3>{SETTINGS_LABELS_V1[field]}</h3>
           <Chip size="sm" variant="soft">
-            {owns
-              ? settings.scope.kind === 'school'
-                ? 'Padrão da escola'
-                : 'Definido aqui'
-              : settings.sources[field].kind === 'school'
-                ? 'Padrão da escola'
-                : 'Padrão de ' + sourceLabel}
+            {settingOriginLabelV1(settings, field, owns, sourceLabel)}
           </Chip>
         </div>
         <InfoV1 label={`Sobre ${SETTINGS_LABELS_V1[field]}`}>{fieldHelp[field]}</InfoV1>
@@ -171,6 +176,13 @@ function FieldCardV1({
     </Card>
   );
 }
+function calendarChangeLabelV1(key: string) {
+  if (key in CALENDAR_LABELS_V1)
+    return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
+  if (key === 'disclosure') return 'Data única de divulgação';
+  return `Divulgação de ${key.slice('disclosure.'.length)}`;
+}
+
 function ReviewDialogV1({
   review,
   settings,
@@ -178,14 +190,14 @@ function ReviewDialogV1({
   disabled,
   close,
   confirm,
-}: {
+}: Readonly<{
   review: ReviewV1;
   settings: EffectiveSettingsV1;
   scopeLabel: string;
   disabled: boolean;
   close: () => void;
   confirm: () => void;
-}) {
+}>) {
   const next = review.inherit ? null : review.value[review.field];
   const past =
     !review.inherit && review.field === 'calendar' && review.value.calendar
@@ -224,11 +236,7 @@ function ReviewDialogV1({
                 <ul>
                   {past.map((key) => (
                     <li key={key}>
-                      {key in CALENDAR_LABELS_V1
-                        ? CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1]
-                        : key === 'disclosure'
-                          ? 'Data única de divulgação'
-                          : `Divulgação de ${key.slice('disclosure.'.length)}`}
+                      {calendarChangeLabelV1(key)}
                     </li>
                   ))}
                 </ul>
