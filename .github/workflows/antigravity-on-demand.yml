@@ -134,7 +134,20 @@ jobs:
           set -euo pipefail
           handoff_hash="$(jq -r '.handoff_hash' "$RUNNER_TEMP/antigravity-meta.json")"
           marker="<!-- antigravity-handoff:${handoff_hash} -->"
-          if gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments?per_page=100"             --jq '.[].body' | grep -Fq "$marker"; then
+          comments_file="$RUNNER_TEMP/antigravity-comments.json"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments?per_page=100" \
+            | jq -s 'add' > "$comments_file"
+          if jq -e --arg marker "$marker" '
+            any(.[];
+              (.body | contains($marker)) and
+              (
+                (
+                  (.body | contains("_Sem texto de resposta._")) and
+                  (.body | contains("**Arquivos modificados:**\n- nenhum"))
+                ) | not
+              )
+            )
+          ' "$comments_file" >/dev/null; then
             echo "duplicate=true" >> "$GITHUB_OUTPUT"
             gh issue comment "$ISSUE_NUMBER" --body               "Este handoff já teve uma execução concluída do Antigravity. Nenhuma nova cota foi consumida."
           else
