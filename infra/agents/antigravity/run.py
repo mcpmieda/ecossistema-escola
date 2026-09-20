@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import tempfile
 from typing import Any
 
 HANDOFF_BEGIN = "<!-- AGENT_HANDOFF_BEGIN -->"
@@ -247,7 +248,7 @@ def list_changed_paths(root: Path) -> list[str]:
     return sorted({line.strip().replace("\\", "/") for line in output.splitlines() if line.strip()})
 
 
-def validate_changed_paths(paths: list[str], allowed_paths: list[str]) -> None:
+def path_violations(paths: list[str], allowed_paths: list[str]) -> list[str]:
     violations: list[str] = []
     for path in paths:
         if any(matches(pattern, path) for pattern in HARD_FORBIDDEN):
@@ -255,15 +256,76 @@ def validate_changed_paths(paths: list[str], allowed_paths: list[str]) -> None:
             continue
         if not any(matches(pattern, path) for pattern in allowed_paths):
             violations.append(path)
+    return violations
+
+
+def validate_changed_paths(paths: list[str], allowed_paths: list[str]) -> None:
+    violations = path_violations(paths, allowed_paths)
     if violations:
         fail("Delegated agent changed files outside the allowed scope: " + ", ".join(violations))
 
 
-def build_prompt(meta: dict[str, Any]) -> str:
+def resolve_workspace_target(root: Path, raw_path: str, allowed_paths: list[str]) -> tuple[Path, str]:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise ValueError("Workspace path is required.")
+    if "\\" in raw_path:
+        raise ValueError("Workspace path must use repository-relative POSIX separators.")
+
+    relative_input = Path(raw_path)
+    if relative_input.is_absolute():
+        raise ValueError("Workspace path must be repository-relative.")
+
+    trusted_root = root.resolve(strict=True)
+    target = (trusted_root / relative_input).resolve(strict=False)
+    try:
+        relative = target.relative_to(trusted_root).as_posix()
+    except ValueError as exc:
+        raise ValueError("Workspace path escapes the repository.") from exc
+
+    if relative in ("", "."):
+        raise ValueError("Workspace path must identify a file.")
+    if path_violations([relative], allowed_paths):
+        raise ValueError("Workspace path is outside the delegated allowed_paths.")
+    if target.exists() and target.is_dir():
+        raise ValueError("Workspace path points to a directory.")
+    return target, relative
+
+
+def make_workspace_tools(root: Path, allowed_paths: list[str]) -> list[Any]:
+    trusted_root = root.resolve(strict=True)
+
+    def write_workspace_file(path: str, content: str) -> str:
+        """Create or fully replace one UTF-8 file inside delegated allowed_paths."""
+        if not isinstance(content, str):
+            raise ValueError("File content must be text.")
+        target, relative = resolve_workspace_target(trusted_root, path, allowed_paths)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return f"Wrote workspace file: {relative}"
+
+    def replace_workspace_text(path: str, old_text: str, new_text: str) -> str:
+        """Replace exactly one text occurrence in an existing delegated UTF-8 file."""
+        if not old_text:
+            raise ValueError("old_text must not be empty.")
+        target, relative = resolve_workspace_target(trusted_root, path, allowed_paths)
+        if not target.is_file():
+            raise ValueError("Workspace file does not exist.")
+        current = target.read_text(encoding="utf-8")
+        occurrences = current.count(old_text)
+        if occurrences != 1:
+            raise ValueError(f"Expected exactly one old_text match; found {occurrences}.")
+        target.write_text(current.replace(old_text, new_text, 1), encoding="utf-8")
+        return f"Updated workspace file: {relative}"
+
+    return [write_workspace_file, replace_workspace_text]
+
+
+def build_prompt(meta: dict[str, Any], *, write_guidance: str = "") -> str:
     preserve = "\n".join(f"- {item}" for item in meta["preserve"])
     do_not = "\n".join(f"- {item}" for item in meta["do_not"])
     allowed = "\n".join(f"- {item}" for item in meta["allowed_paths"])
     validate = "\n".join(f"- {item}" for item in meta["validate"])
+    write_rule = f" {write_guidance.strip()}" if write_guidance.strip() else ""
     prompt = f"""You are an implementation executor working under a lead agent.
 
 Issue: #{meta['issue_number']} — {meta['issue_title']}
@@ -284,7 +346,7 @@ Host-side validation commands (you must not run these yourself):
 
 Implement only the delegated scope. Do not make architectural decisions, expand contracts, change business or academic rules, or modify files outside Allowed paths. If the task cannot be completed without doing one of those things, do not improvise: stop and explain the blocker in your final response.
 
-Do not use network access, terminal commands, environment variables or credentials. Do not use git/gh, and do not create commits or branches. The host workflow will run validation commands after your execution, review scope, and publish a draft PR if the result is valid.
+Do not use network access, terminal commands, environment variables or credentials. Do not use git/gh, and do not create commits or branches.{write_rule} The host workflow will run validation commands after your execution, review scope, and publish a draft PR if the result is valid.
 """
     if len(prompt) > MAX_PROMPT_CHARS:
         fail("Generated Antigravity prompt is too large.")
@@ -316,7 +378,7 @@ def provider_retry_delay_seconds(error: Exception, attempt_index: int) -> int | 
 
 
 def make_agent_config(api_key: str, model: str, root: Path, system_instructions: str,
-    capabilities: Any, policies: list[Any], types: Any) -> Any:
+    capabilities: Any, policies: list[Any], tools: list[Any], types: Any) -> Any:
     from google.antigravity import LocalAgentConfig  # type: ignore[import-not-found]
 
     return LocalAgentConfig(
@@ -326,6 +388,7 @@ def make_agent_config(api_key: str, model: str, root: Path, system_instructions:
         system_instructions=system_instructions,
         capabilities=capabilities,
         policies=policies,
+        tools=tools,
         budget_config=types.BudgetConfig(
             max_model_calls=12,
             max_tool_calls=80,
@@ -350,13 +413,12 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
             types.BuiltinTools.SEARCH_DIR,
             types.BuiltinTools.FIND_FILE,
             types.BuiltinTools.VIEW_FILE,
-            types.BuiltinTools.CREATE_FILE,
-            types.BuiltinTools.EDIT_FILE,
             types.BuiltinTools.FINISH,
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
     policies: list[Any] = [policy.allow_all()]
+    workspace_tools = make_workspace_tools(root, meta["allowed_paths"])
 
     agents_rules = (root / "AGENTS.md").read_text(encoding="utf-8")
     system_instructions = f"""Follow the repository governance below as binding instructions.
@@ -369,7 +431,14 @@ You are an executor, not the architectural authority. Stay inside the current wo
 """
 
     os.chdir(root)
-    base_prompt = build_prompt(meta)
+    base_prompt = build_prompt(
+        meta,
+        write_guidance=(
+            "For repository writes, use only the custom write_workspace_file and "
+            "replace_workspace_text tools. Do not use internal artifact metadata or "
+            "artifact paths; built-in create/edit file tools are intentionally unavailable."
+        ),
+    )
     for attempt_index, model in enumerate(PROVIDER_MODELS):
         config = make_agent_config(
             api_key,
@@ -378,6 +447,7 @@ You are an executor, not the architectural authority. Stay inside the current wo
             system_instructions,
             capabilities,
             policies,
+            workspace_tools,
             types,
         )
         prompt = base_prompt
@@ -449,24 +519,51 @@ def command_sdk_check(args: argparse.Namespace) -> None:
             types.BuiltinTools.SEARCH_DIR,
             types.BuiltinTools.FIND_FILE,
             types.BuiltinTools.VIEW_FILE,
-            types.BuiltinTools.CREATE_FILE,
-            types.BuiltinTools.EDIT_FILE,
             types.BuiltinTools.FINISH,
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
     policies: list[Any] = [policy.allow_all()]
-    for model in dict.fromkeys(PROVIDER_MODELS):
-        make_agent_config(
-            "sdk-check-only",
-            model,
-            Path.cwd(),
-            "SDK compatibility check only.",
-            capabilities,
-            policies,
-            types,
-        )
-    print("Antigravity SDK configuration and provider fallback models are compatible.")
+    with (
+        tempfile.TemporaryDirectory(prefix="antigravity-sdk-check-") as temp_dir,
+        tempfile.TemporaryDirectory(prefix="antigravity-sdk-outside-") as outside_dir,
+    ):
+        temp_root = Path(temp_dir)
+        workspace_tools = make_workspace_tools(temp_root, ["docs/**"])
+        write_tool, replace_tool = workspace_tools
+        write_tool("docs/report.md", "alpha\n")
+        replace_tool("docs/report.md", "alpha", "beta")
+        if (temp_root / "docs/report.md").read_text(encoding="utf-8") != "beta\n":
+            raise RuntimeError("Workspace writer smoke test failed.")
+
+        symlink_parent = temp_root / "docs"
+        symlink_parent.mkdir(parents=True, exist_ok=True)
+        (symlink_parent / "outside").symlink_to(Path(outside_dir), target_is_directory=True)
+
+        for unsafe_path in (
+            "../escape.md",
+            "infra/agents/antigravity/run.py",
+            "docs/outside/escape.md",
+        ):
+            try:
+                write_tool(unsafe_path, "blocked\n")
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError("Workspace writer accepted an unsafe path.")
+
+        for model in dict.fromkeys(PROVIDER_MODELS):
+            make_agent_config(
+                "sdk-check-only",
+                model,
+                temp_root,
+                "SDK compatibility check only.",
+                capabilities,
+                policies,
+                workspace_tools,
+                types,
+            )
+    print("Antigravity SDK configuration, workspace writers and provider fallback models are compatible.")
 
 
 def command_check(args: argparse.Namespace) -> None:
