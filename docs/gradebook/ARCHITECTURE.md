@@ -24,11 +24,13 @@ A unidade acadêmica de escrita e idempotência foi homologada na #613. Atualiza
 
 ## Provedor não é modelo de dados
 
+Mapa atual e critérios de classificação: [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md).
+
 `withOfficialGradebookDatabaseV1` seleciona provider e, no caminho PostgreSQL, injeta um facade compatível em `GRADEBOOK_D1`. Isso permite que tipos ou nomes `D1ReadDatabaseV1`, `D1WriteDatabaseV1` e `d1-*` apareçam em código que executa em PostgreSQL.
 
 O facade traduz sintaxe/parametrização; não reconstrói tabelas `academic_*_streams`, `*_versions`, snapshots ou sessões removidas. Consumidor que consulta essas relações não está migrado apenas porque recebe PostgreSQL. Não retirar o facade/portas ainda usados pelo importador.
 
-O default do seletor físico ainda é `d1` quando a variável não é informada. Esta PR não altera a variável nem afirma que uma configuração ausente é aceitável em produção. O antigo admin D1 é roteado antes desse wrapper e precisa de tratamento separado.
+O parser de ambiente ainda possui default `d1` quando a variável não é informada; isso é uma dívida separada (#970/B-08), **não um fallback físico de produção**. O wrapper oficial só permite D1 em local/preview e falha fechado em produção sem `provider=postgres` + `PROD_DB`. As rotas administrativas históricas também usam PostgreSQL em produção; migrations pelo caminho antigo estão retiradas.
 
 ## Projeções relacionais e motor
 
