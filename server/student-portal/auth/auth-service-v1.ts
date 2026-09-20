@@ -16,10 +16,9 @@ import type {
   PortalTransactionV1,
   VerifierV1,
 } from '../../../shared/student-portal-contracts/ports-v1';
-import {
-  StudentPortalPostgresPersistenceV1,
-  type StudentPortalPostgresQueryV1,
-  type StudentPortalPostgresSqlV1,
+import type {
+  StudentPortalPostgresQueryV1,
+  StudentPortalPostgresSqlV1,
 } from '../persistence/postgres-persistence-v1';
 import {
   accessContextV1,
@@ -168,27 +167,33 @@ async function credentialProofV1(
   secret: string,
   kind: 'pin' | 'password',
 ): Promise<CredentialProofV1 | null> {
-  const rows = await sql.unsafe(
-    "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
-    [qr.credentialId, qr.keyVersion],
-  );
-  if (rows.length !== 1) return null;
-  const accountId = z.uuid().parse(rows[0]!.account_id);
-  const store = new StudentPortalPostgresPersistenceV1(sql);
-  const account = await store.findAccount(accountId);
-  const credential = await store.readCredentials(accountId);
-  const expectedState = kind === 'password' ? 'active' : 'pending';
-  if (
-    !account ||
-    account.state !== expectedState ||
-    credential?.state !== 'active' ||
-    credential.credentialId !== qr.credentialId ||
-    credential.keyVersion !== qr.keyVersion
-  )
-    return null;
-  const verifier = kind === 'pin' ? credential.pin : credential.password;
-  if (!verifier) return null;
-  return { accountId, verifier, valid: await cryptoPort.verifySecret(secret, verifier) };
+  const snapshot = await accountTransactionV1(sql, async (tx, store) => {
+    const rows = await tx.unsafe(
+      "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
+      [qr.credentialId, qr.keyVersion],
+    );
+    if (rows.length !== 1) return null;
+    const accountId = z.uuid().parse(rows[0]!.account_id);
+    await store.lockAccounts([accountId]);
+    const account = await store.findAccount(accountId);
+    const credential = await store.readCredentials(accountId);
+    const expectedState = kind === 'password' ? 'active' : 'pending';
+    if (
+      !account ||
+      account.state !== expectedState ||
+      credential?.state !== 'active' ||
+      credential.credentialId !== qr.credentialId ||
+      credential.keyVersion !== qr.keyVersion
+    )
+      return null;
+    const verifier = kind === 'pin' ? credential.pin : credential.password;
+    return verifier ? { accountId, verifier } : null;
+  });
+  if (!snapshot) return null;
+  return {
+    ...snapshot,
+    valid: await cryptoPort.verifySecret(secret, snapshot.verifier),
+  };
 }
 
 type ActivationStateV1 = {
