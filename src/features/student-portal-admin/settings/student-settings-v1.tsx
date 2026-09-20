@@ -268,7 +268,6 @@ type ErrorSettingsLoadV1 = Extract<
   { state: 'error' }
 >;
 type ErrorSettingsMutationV1 = Extract<SettingsMutationStateV1, { state: 'error' }>;
-type SettingsWriterV1 = ReturnType<typeof createSettingsMutationV1>;
 
 function settingsLoadErrorMessageV1(error: ErrorSettingsLoadV1['error']) {
   if (error.state === 'unauthenticated') return 'Sessão expirada. Entre novamente no ADM.';
