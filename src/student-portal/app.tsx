@@ -125,7 +125,7 @@ export function StudentPortalApp({
     return (
       <main className="pa-access-check" aria-busy="true" aria-label="Verificando acesso ao Portal">
         <Spinner size="sm" aria-label="Aguarde" />
-        <output>Verificando acesso…</output>
+        <p role="status">Verificando acesso…</p>
       </main>
     );
   return (
