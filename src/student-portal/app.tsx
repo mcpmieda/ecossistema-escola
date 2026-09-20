@@ -105,7 +105,7 @@ export function StudentPortalApp({
             </Alert.Content>
           </Alert>
         )}
-        <Suspense fallback={<p role="status">Preparando entrada segura…</p>}>
+        <Suspense fallback={<output>Preparando entrada segura…</output>}>
           <StudentAuthenticationV1
             client={client}
             initialQr={initialQr}
@@ -133,7 +133,7 @@ export function StudentPortalApp({
       load={session.load}
       status={<><RemoteLiveNoticeV1 state={liveState} /><LiveReadNoticeV1 failed={session.load.state === 'ready' && Boolean(session.load.refreshError)} />
         {session.load.state === 'ready' && session.load.refreshError ? <Button variant="secondary" onPress={() => { void session.refresh(); }}>Tentar novamente</Button> : null}</>}
-      grades={(data) => <Suspense fallback={<p role="status">Carregando notas…</p>}><StudentGradesV1 data={data} /></Suspense>}
+      grades={(data) => <Suspense fallback={<output>Carregando notas…</output>}><StudentGradesV1 data={data} /></Suspense>}
       onRetry={() => {
         void session.refresh();
       }}
