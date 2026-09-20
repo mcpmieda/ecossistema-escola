@@ -1,5 +1,7 @@
 # Entrega de avisos remotos — continuação da #839
 
+> **Checkpoint histórico da #839.** A #839 foi encerrada por consolidação em 20/09/2026. A fotografia técnica atual está em [`docs/gradebook/LIVE_RESILIENCE_CURRENT_970.md`](../gradebook/LIVE_RESILIENCE_CURRENT_970.md), com homologação real restante em #968/P-12. O texto abaixo permanece como evidência da entrega original.
+
 ## Evidência operacional e limite
 
 A consulta somente leitura de 17/09/2026, aproximadamente 17:11 UTC, encontrou 185 avisos na `live_event_outbox_v1`, todos pendentes, sem confirmação de entrega; havia tentativas repetidas nos avisos mais antigos. Isso é um bloqueio para reduzir polling com base em live saudável. Não prova a causa do timeout do navegador às 15:54 UTC.
