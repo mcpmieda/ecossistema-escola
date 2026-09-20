@@ -191,7 +191,7 @@ async function credentialProofV1(
     const locked = await lockedCredentialV1(store, accountId);
     if (!locked) return null;
     const { account, credential } = locked;
-    const expectedState = kind === 'password' ? 'active' : 'pending';
+    const expectedState = kind === 'password' ? 'active' : 'pending-activation';
     if (
       account.state !== expectedState ||
       credential?.state !== 'active' ||
