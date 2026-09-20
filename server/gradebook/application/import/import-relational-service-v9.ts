@@ -24,6 +24,14 @@ import {
   resolveRelationalNoteMutationV9,
   shouldRetireQualitativeInstrumentV9,
 } from './import-relational-instrument-decisions-v9';
+import {
+  buildRelationPlanV9,
+  RelationPlanErrorV9,
+  relationBindingKeyV9,
+  type ExistingRelationBindingV9,
+  type RelationComponentV9,
+  type RelationSourceBindingV9,
+} from './import-relational-relation-plan-v9';
 import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
@@ -50,15 +58,6 @@ class RelationalImportErrorV9 extends Error {
   ) {
     super(reason);
   }
-}
-
-function normalizeName(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
-    .trim()
-    .replace(/\s+/gu, ' ')
-    .toUpperCase();
 }
 
 function dbNameKey(value: string): string {
@@ -283,51 +282,134 @@ async function resolveRelationClasses(
   return result;
 }
 
-interface ExistingBindingV9 {
-  readonly turmaId: number;
-  readonly numero: number;
-  readonly alunoId: number;
-  readonly situacao: number | null;
-  readonly turmaRelacionadaId: number | null;
-  readonly nome: string;
+function parseExistingRelationBindingsV9(
+  rows: readonly Row[],
+): readonly ExistingRelationBindingV9[] {
+  return rows.map((row) => ({
+    turmaId: asNumber(row.turma_id, 'turma-id'),
+    numero: asNumber(row.numero, 'numero'),
+    alunoId: asNumber(row.aluno_id, 'aluno-id'),
+    situacao: row.situacao === null ? null : asNumber(row.situacao, 'situacao'),
+    turmaRelacionadaId:
+      row.turma_relacionada_id === null
+        ? null
+        : asNumber(row.turma_relacionada_id, 'turma-relacionada-id'),
+    nome: String(row.nome),
+  }));
 }
 
-interface SourceBindingV9 {
-  readonly index: number;
-  readonly turmaId: number;
-  readonly turmaCode: string;
-  readonly numero: number;
-  readonly nome: string;
-  readonly situacao: number | null;
-  readonly relatedTurmaId: number | null;
-  readonly relatedCode: string | null;
-}
-
-function bindingKey(turmaId: number, numero: number): string {
-  return `${turmaId}:${numero}`;
-}
-
-function nameClassKey(turmaId: number, name: string): string {
-  return `${turmaId}:${normalizeName(name)}`;
-}
-
-class UnionFindV9 {
-  private readonly parent: number[];
-  constructor(size: number) {
-    this.parent = Array.from({ length: size }, (_, index) => index);
+function relationPlanOrThrowV9(
+  request: GradebookRelationImportRequestV9,
+  classes: ReadonlyMap<string, ExistingClassV9>,
+  existing: readonly ExistingRelationBindingV9[],
+) {
+  try {
+    return buildRelationPlanV9(request, classes, existing);
+  } catch (cause) {
+    if (cause instanceof RelationPlanErrorV9) {
+      throw new RelationalImportErrorV9(cause.state, cause.reason);
+    }
+    throw cause;
   }
-  find(value: number): number {
-    const parent = this.parent[value]!;
-    if (parent === value) return value;
-    const root = this.find(parent);
-    this.parent[value] = root;
-    return root;
+}
+
+async function resolveRelationComponentStudentV9(
+  database: D1WriteDatabaseV1,
+  state: ImportStateV9,
+  request: GradebookRelationImportRequestV9,
+  component: RelationComponentV9,
+): Promise<number> {
+  let alunoId = component.seedAlunoId;
+  if (alunoId === null) {
+    const created = await changedFirst<Row>(
+      database,
+      state,
+      request,
+      1,
+      'INSERT INTO gradebook.aluno (ano, nome) VALUES (?, ?) RETURNING id',
+      [request.ano, component.preferred.nome],
+    );
+    return asNumber(created.id, 'aluno-id');
   }
-  union(left: number, right: number): void {
-    const a = this.find(left);
-    const b = this.find(right);
-    if (a !== b) this.parent[b] = a;
+
+  const current = await first<Row>(
+    database,
+    'SELECT nome FROM gradebook.aluno WHERE id = ? AND ano = ?',
+    [alunoId, request.ano],
+  );
+  if (!current) {
+    throw new RelationalImportErrorV9(
+      'conflict',
+      `Aluno existente fora do ano ${request.ano}.`,
+    );
   }
+  if (String(current.nome) !== component.preferred.nome) {
+    await changedRun(
+      database,
+      state,
+      request,
+      1,
+      'UPDATE gradebook.aluno SET nome = ? WHERE id = ?',
+      [component.preferred.nome, alunoId],
+    );
+  }
+  return alunoId;
+}
+
+async function persistRelationBindingV9(
+  database: D1WriteDatabaseV1,
+  state: ImportStateV9,
+  request: GradebookRelationImportRequestV9,
+  item: RelationSourceBindingV9,
+  alunoId: number,
+  current: ExistingRelationBindingV9 | undefined,
+): Promise<void> {
+  if (!current) {
+    await changedRun(
+      database,
+      state,
+      request,
+      1,
+      `INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [request.ano, item.turmaId, item.numero, alunoId, item.situacao, item.relatedTurmaId],
+    );
+    return;
+  }
+  if (current.alunoId !== alunoId) {
+    throw new RelationalImportErrorV9(
+      'conflict',
+      `Vínculo ${item.turmaCode}/${item.numero} pertence a outro aluno.`,
+    );
+  }
+  if (current.situacao === item.situacao && current.turmaRelacionadaId === item.relatedTurmaId) {
+    return;
+  }
+
+  const importId = await ensureImport(database, state, request, 1);
+  await run(
+    database,
+    `INSERT INTO gradebook.vinculo_historico
+     (importacao_id, turma_id, numero, situacao_anterior, situacao_nova, turma_rel_anterior, turma_rel_nova)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      importId,
+      item.turmaId,
+      item.numero,
+      current.situacao,
+      item.situacao,
+      current.turmaRelacionadaId,
+      item.relatedTurmaId,
+    ],
+  );
+  state.writes++;
+  state.writes += await academicRun(
+    database,
+    state,
+    `UPDATE gradebook.vinculo SET situacao = ?, turma_relacionada_id = ?
+     WHERE turma_id = ? AND numero = ?`,
+    [item.situacao, item.relatedTurmaId, item.turmaId, item.numero],
+  );
 }
 
 async function persistRelation(
@@ -335,7 +417,7 @@ async function persistRelation(
   request: GradebookRelationImportRequestV9,
   state: ImportStateV9,
 ): Promise<void> {
-  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [
+  const year = await first<Row>(database, 'SELECT ano FROM gradebook.ano_letivo WHERE ano = ?', [
     request.ano,
   ]);
   if (!year) {
@@ -359,191 +441,23 @@ async function persistRelation(
      WHERE v.ano = ?`,
     [request.ano],
   );
-  const existingByBinding = new Map<string, ExistingBindingV9>();
-  const existingByNameClass = new Map<string, ExistingBindingV9[]>();
-  for (const row of existingRows) {
-    const item: ExistingBindingV9 = {
-      turmaId: asNumber(row.turma_id, 'turma-id'),
-      numero: asNumber(row.numero, 'numero'),
-      alunoId: asNumber(row.aluno_id, 'aluno-id'),
-      situacao: row.situacao === null ? null : asNumber(row.situacao, 'situacao'),
-      turmaRelacionadaId:
-        row.turma_relacionada_id === null
-          ? null
-          : asNumber(row.turma_relacionada_id, 'turma-relacionada-id'),
-      nome: String(row.nome),
-    };
-    existingByBinding.set(bindingKey(item.turmaId, item.numero), item);
-    const key = nameClassKey(item.turmaId, item.nome);
-    existingByNameClass.set(key, [...(existingByNameClass.get(key) ?? []), item]);
-  }
-
-  const source: SourceBindingV9[] = [];
-  for (const turma of request.turmas) {
-    const resolved = classes.get(classKey(turma.codigo));
-    if (!resolved) throw new Error('resolved-class-missing');
-    for (const aluno of turma.alunos) {
-      const rawStatus = aluno[2];
-      const related = aluno[3] === undefined ? null : classes.get(classKey(aluno[3]));
-      if (aluno[3] !== undefined && !related) {
-        throw new RelationalImportErrorV9(
-          'blocked',
-          `Turma relacionada não encontrada: ${aluno[3]}.`,
-        );
-      }
-      source.push({
-        index: source.length,
-        turmaId: resolved.id,
-        turmaCode: resolved.codigo,
-        numero: aluno[0],
-        nome: aluno[1].trim(),
-        situacao: rawStatus === 0 ? null : rawStatus,
-        relatedTurmaId: related?.id ?? null,
-        relatedCode: aluno[3] ?? null,
-      });
-    }
-  }
-
-  const sourceByNameClass = new Map<string, SourceBindingV9[]>();
-  for (const item of source) {
-    const key = nameClassKey(item.turmaId, item.nome);
-    sourceByNameClass.set(key, [...(sourceByNameClass.get(key) ?? []), item]);
-  }
-  const union = new UnionFindV9(source.length);
-  const externalSeed = new Map<number, number>();
-  for (const item of source) {
-    if (item.relatedTurmaId === null) continue;
-    const candidates = sourceByNameClass.get(nameClassKey(item.relatedTurmaId, item.nome)) ?? [];
-    if (candidates.length > 1) {
-      throw new RelationalImportErrorV9('blocked', `Movimentação ambígua para ${item.nome}.`);
-    }
-    if (candidates.length === 1) {
-      union.union(item.index, candidates[0]!.index);
-      continue;
-    }
-    const existing = existingByNameClass.get(nameClassKey(item.relatedTurmaId, item.nome)) ?? [];
-    const ids = [...new Set(existing.map((value) => value.alunoId))];
-    if (ids.length !== 1) {
-      throw new RelationalImportErrorV9(
-        'blocked',
-        ids.length === 0
-          ? `Movimentação sem vínculo de origem/destino para ${item.nome}.`
-          : `Movimentação ambígua para ${item.nome}.`,
-      );
-    }
-    externalSeed.set(item.index, ids[0]!);
-  }
-
-  const components = new Map<number, SourceBindingV9[]>();
-  for (const item of source) {
-    const root = union.find(item.index);
-    components.set(root, [...(components.get(root) ?? []), item]);
-  }
+  const plan = relationPlanOrThrowV9(
+    request,
+    classes,
+    parseExistingRelationBindingsV9(existingRows),
+  );
 
   const alunoForSource = new Map<number, number>();
-  for (const [root, items] of components) {
-    const seeds = new Set<number>();
-    for (const item of items) {
-      const existing = existingByBinding.get(bindingKey(item.turmaId, item.numero));
-      if (existing) seeds.add(existing.alunoId);
-      const external = externalSeed.get(item.index);
-      if (external !== undefined) seeds.add(external);
-    }
-    if (seeds.size > 1) {
-      throw new RelationalImportErrorV9(
-        'conflict',
-        `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`,
-      );
-    }
-    const preferred = items.find((item) => item.situacao !== 6) ?? items[0]!;
-    let alunoId = [...seeds][0];
-    if (alunoId === undefined) {
-      const created = await changedFirst<Row>(
-        database,
-        state,
-        request,
-        1,
-        `INSERT INTO gradebook.aluno (ano, nome) VALUES (?, ?) RETURNING id`,
-        [request.ano, preferred.nome],
-      );
-      alunoId = asNumber(created.id, 'aluno-id');
-    } else {
-      const current = await first<Row>(
-        database,
-        `SELECT nome FROM gradebook.aluno WHERE id = ? AND ano = ?`,
-        [alunoId, request.ano],
-      );
-      if (!current)
-        throw new RelationalImportErrorV9(
-          'conflict',
-          `Aluno existente fora do ano ${request.ano}.`,
-        );
-      if (String(current.nome) !== preferred.nome) {
-        await changedRun(
-          database,
-          state,
-          request,
-          1,
-          `UPDATE gradebook.aluno SET nome = ? WHERE id = ?`,
-          [preferred.nome, alunoId],
-        );
-      }
-    }
-    for (const item of items) alunoForSource.set(item.index, alunoId);
-    void root;
+  for (const component of plan.components) {
+    const alunoId = await resolveRelationComponentStudentV9(database, state, request, component);
+    for (const item of component.items) alunoForSource.set(item.index, alunoId);
   }
 
-  const ordered = [...source].sort((left, right) =>
-    left.situacao === 6 ? -1 : right.situacao === 6 ? 1 : left.index - right.index,
-  );
-  for (const item of ordered) {
+  for (const item of plan.orderedSource) {
     const alunoId = alunoForSource.get(item.index);
     if (alunoId === undefined) throw new Error('component-aluno-missing');
-    const current = existingByBinding.get(bindingKey(item.turmaId, item.numero));
-    if (!current) {
-      await changedRun(
-        database,
-        state,
-        request,
-        1,
-        `INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [request.ano, item.turmaId, item.numero, alunoId, item.situacao, item.relatedTurmaId],
-      );
-      continue;
-    }
-    if (current.alunoId !== alunoId) {
-      throw new RelationalImportErrorV9(
-        'conflict',
-        `Vínculo ${item.turmaCode}/${item.numero} pertence a outro aluno.`,
-      );
-    }
-    if (current.situacao === item.situacao && current.turmaRelacionadaId === item.relatedTurmaId)
-      continue;
-    const importId = await ensureImport(database, state, request, 1);
-    await run(
-      database,
-      `INSERT INTO gradebook.vinculo_historico
-       (importacao_id, turma_id, numero, situacao_anterior, situacao_nova, turma_rel_anterior, turma_rel_nova)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        importId,
-        item.turmaId,
-        item.numero,
-        current.situacao,
-        item.situacao,
-        current.turmaRelacionadaId,
-        item.relatedTurmaId,
-      ],
-    );
-    state.writes++;
-    state.writes += await academicRun(
-      database,
-      state,
-      `UPDATE gradebook.vinculo SET situacao = ?, turma_relacionada_id = ?
-       WHERE turma_id = ? AND numero = ?`,
-      [item.situacao, item.relatedTurmaId, item.turmaId, item.numero],
-    );
+    const current = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
+    await persistRelationBindingV9(database, state, request, item, alunoId, current);
   }
 }
 
