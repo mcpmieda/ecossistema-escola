@@ -180,6 +180,39 @@ async function lockedCredentialV1(store: PortalTransactionV1, accountId: string)
   return { account, credential: await store.readCredentials(accountId) };
 }
 
+type QrAuthStateV1 =
+  | { result: FailureV1 }
+  | {
+      accountId: string;
+      context: AccessContextV1;
+      credential: CredentialRecordV1;
+      attempt: AttemptRecordV1;
+    };
+
+async function qrAuthStateV1(
+  sql: StudentPortalPostgresSqlV1,
+  tx: StudentPortalPostgresQueryV1,
+  store: PortalTransactionV1,
+  qr: QrIdentityV1,
+  requestId: string,
+): Promise<QrAuthStateV1> {
+  const accountId = await activeQrAccountIdV1(tx, qr);
+  if (!accountId) return { result: denied(requestId) };
+  const locked = await lockedCredentialV1(store, accountId);
+  if (!locked) return { result: denied(requestId) };
+  const { account, credential } = locked;
+  const context = await accessContextV1(sql, tx, store, accountId);
+  if (!context)
+    return { result: await auditedDenied(store, account, await authNowV1(tx), requestId) };
+  if (
+    credential?.state !== 'active' ||
+    credential.credentialId !== qr.credentialId ||
+    credential.keyVersion !== qr.keyVersion
+  )
+    return { result: await auditedDenied(store, context.account, context.now, requestId) };
+  return { accountId, context, credential, attempt: await attempts(store, context) };
+}
+
 async function credentialProofV1(
   sql: StudentPortalPostgresSqlV1,
   cryptoPort: CryptoPortV1,
@@ -321,20 +354,9 @@ export class AuthServiceV1 {
           riskPassed,
         );
     return accountTransactionV1(this.sql, async (tx, store) => {
-      const accountId = await activeQrAccountIdV1(tx, qr);
-      if (!accountId) return denied(requestId);
-      const locked = await lockedCredentialV1(store, accountId);
-      if (!locked) return denied(requestId);
-      const { account, credential } = locked;
-      const context = await accessContextV1(this.sql, tx, store, accountId);
-      if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
-      if (
-        credential?.state !== 'active' ||
-        credential.credentialId !== qr.credentialId ||
-        credential.keyVersion !== qr.keyVersion
-      )
-        return auditedDenied(store, context.account, context.now, requestId);
-      const attempt = await attempts(store, context);
+      const locked = await qrAuthStateV1(this.sql, tx, store, qr, requestId);
+      if ('result' in locked) return locked.result;
+      const { accountId, context, credential, attempt } = locked;
       const limited = blocked(attempt, context, requestId);
       if (limited) return limited;
       if (context.account.state === 'active') {
@@ -473,22 +495,11 @@ export class AuthServiceV1 {
       riskPassed,
     );
     return accountTransactionV1(this.sql, async (tx, store) => {
-      const accountId = await activeQrAccountIdV1(tx, qr);
-      if (!accountId) return denied(requestId);
-      const locked = await lockedCredentialV1(store, accountId);
-      if (!locked) return denied(requestId);
-      const { account, credential } = locked;
-      const context = await accessContextV1(this.sql, tx, store, accountId);
-      if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
-      if (
-        context.account.state !== 'active' ||
-        !credential?.password ||
-        credential.state !== 'active' ||
-        credential.credentialId !== qr.credentialId ||
-        credential.keyVersion !== qr.keyVersion
-      )
+      const locked = await qrAuthStateV1(this.sql, tx, store, qr, requestId);
+      if ('result' in locked) return locked.result;
+      const { accountId, context, credential, attempt } = locked;
+      if (context.account.state !== 'active' || !credential.password)
         return auditedDenied(store, context.account, context.now, requestId);
-      const attempt = await attempts(store, context);
       const limited = blocked(attempt, context, requestId);
       if (limited) return limited;
       if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
