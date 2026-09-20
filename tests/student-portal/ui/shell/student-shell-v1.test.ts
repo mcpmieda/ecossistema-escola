@@ -29,8 +29,9 @@ afterEach(() => {
 });
 
 describe('student shell and canonical profile', () => {
-  it('renders profile before grades from the same self object and retains the existing brand', () => {
+  it('renders profile before grades from the same self object and retains the existing brand', async () => {
     const slot = vi.fn(grades);
+    const user = userEvent.setup();
     render(page({ grades: slot }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('PORTAL DO ALUNO');
     expect(
@@ -43,6 +44,8 @@ describe('student shell and canonical profile', () => {
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     expect(screen.getByText(/Turma de exemplo.*2026/u)).toBeTruthy();
     expect(screen.getByText('Em curso')).toBeTruthy();
+    expect(slot).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('tab', { name: 'Boletim' }));
     expect(slot.mock.calls[0]?.[0]).toBe(SYNTHETIC_SELF_V1);
     expect(document.querySelector('aside')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
