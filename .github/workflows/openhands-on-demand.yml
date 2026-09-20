@@ -49,8 +49,11 @@ jobs:
   invoke:
     name: Invoke bounded OpenHands Cloud task
     if: >-
-      github.event_name != 'pull_request' &&
-      github.actor == github.repository_owner
+      github.actor == github.repository_owner &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issue_comment' && github.event.comment.body == '/openhands')
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
