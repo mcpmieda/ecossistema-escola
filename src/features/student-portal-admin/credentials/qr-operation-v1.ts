@@ -43,6 +43,41 @@ const defaultRenderer: QrRendererV1 = async (cards, format, signal, progress) =>
     ? render.renderQrPdfV1(cards, signal, progress)
     : render.renderQrPngV1(cards[0]!.qr, signal);
 };
+function orderedCardsV1(
+  received: PrintCardV1[],
+  captured: QrCommandV1,
+  responseVersion: number,
+) {
+  const ids =
+    captured.operation === 'qr-batch' ? captured.accountIds : [captured.accountId];
+  const mode = captured.operation === 'qr-batch' ? captured.mode : 'qr-only';
+  const byId = new Map(received.map((card) => [card.accountId.toLowerCase(), card]));
+  const missing = ids.some((id) => !byId.has(id.toLowerCase()));
+  const wrongMode = received.some((card) => card.mode !== mode);
+  if (
+    received.length !== ids.length ||
+    missing ||
+    wrongMode ||
+    responseVersion < captured.expectedVersion
+  )
+    throw new PortalClientErrorV1('invalid-response');
+  return ids.map((id) => byId.get(id.toLowerCase())!);
+}
+
+function artifactValidV1(
+  artifact: QrArtifactV1,
+  format: 'pdf' | 'png',
+  expectedCount: number,
+) {
+  const expectedType = format === 'pdf' ? 'application/pdf' : 'image/png';
+  return (
+    artifact.format === format &&
+    artifact.count === expectedCount &&
+    artifact.blob.size > 0 &&
+    artifact.blob.type === expectedType
+  );
+}
+
 /** Credentials/blobs never enter React state, errors, URLs or persistent storage. */
 export function createQrOperationV1({
   client,
@@ -51,28 +86,31 @@ export function createQrOperationV1({
   render = defaultRenderer,
   now = Date.now,
   onAuthorizationLost,
-}: {
+}: Readonly<{
   client: PortalAdminClientV1;
   publish: (state: QrOperationStateV1) => void;
   canWrite: boolean;
   render?: QrRendererV1;
   now?: () => number;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
-}) {
-  let state: QrOperationStateV1 = { state: 'idle' },
-    generation = 0;
+}>) {
+  let state: QrOperationStateV1 = { state: 'idle' };
+  let generation = 0;
   let active: AbortController | undefined;
   let prepared: ReturnType<PortalAdminClientV1['prepareCommand']> | undefined;
-  let command: QrCommandV1 | undefined,
-    format: 'pdf' | 'png' = 'pdf';
-  let cards: PrintCardV1[] | undefined, artifact: QrArtifactV1 | undefined;
-  let startedAt = 0,
-    expires: ReturnType<typeof setTimeout> | undefined;
+  let command: QrCommandV1 | undefined;
+  let format: 'pdf' | 'png' = 'pdf';
+  let cards: PrintCardV1[] | undefined;
+  let artifact: QrArtifactV1 | undefined;
+  let startedAt = 0;
+  let expires: ReturnType<typeof setTimeout> | undefined;
   const downloads = createQrDownloadsV1();
+
   function emit(next: QrOperationStateV1) {
     state = next;
     publish(next);
   }
+
   function clear(next: 'idle' | 'cancelled' | 'expired' = 'idle') {
     generation++;
     active?.abort();
@@ -83,99 +121,107 @@ export function createQrOperationV1({
     downloads.clear();
     emit({ state: next });
   }
+
+  async function requestCards(current: number, controller: AbortController) {
+    const captured = command!;
+    emit({
+      state: 'requesting',
+      count: captured.operation === 'qr-batch' ? captured.accountIds.length : 1,
+    });
+    const response = await prepared!.execute(controller.signal);
+    if (current !== generation || controller.signal.aborted) return false;
+    if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
+
+    let received: PrintCardV1[];
+    try {
+      received = validatePrintCardsV1(response.cards);
+    } catch {
+      throw new PortalClientErrorV1('invalid-response');
+    }
+    cards = orderedCardsV1(received, captured, response.version);
+    prepared = command = undefined;
+    return true;
+  }
+
+  async function renderCards(current: number, controller: AbortController) {
+    const currentCards = cards!;
+    emit({ state: 'rendering', completed: 0, total: currentCards.length });
+    const result = await render(currentCards, format, controller.signal, (completed, total) => {
+      if (current === generation && !controller.signal.aborted)
+        emit({ state: 'rendering', completed, total });
+    });
+    if (current !== generation || controller.signal.aborted) return;
+    if (!artifactValidV1(result, format, currentCards.length))
+      throw new Error('artifact-unavailable');
+
+    artifact = result;
+    cards = undefined;
+    emit({
+      state: 'ready',
+      format,
+      count: result.count,
+      pages: result.pages,
+      copy: 'none',
+      downloadFailed: false,
+    });
+    expires = setTimeout(() => clear('expired'), 5 * 60_000);
+  }
+
+  function handleFailure(
+    error: unknown,
+    stage: 'request' | 'render',
+    current: number,
+    controller: AbortController,
+  ) {
+    if (current !== generation || controller.signal.aborted) return;
+    const failure =
+      error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
+    if (failure.state === 'unauthenticated' || failure.state === 'forbidden') {
+      clear();
+      emit({ state: 'error', stage, error: failure, retryable: false, retryAt: 0 });
+      onAuthorizationLost?.(failure);
+      return;
+    }
+    const retryable =
+      stage === 'render' ||
+      ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(
+        failure.state,
+      );
+    if (!retryable) prepared = command = undefined;
+    emit({
+      state: 'error',
+      stage,
+      error: failure,
+      retryable,
+      retryAt: now() + (failure.retryAfterSeconds ?? 0) * 1000,
+    });
+  }
+
   async function run() {
     if (active || (!prepared && !cards) || (state.state === 'error' && now() < state.retryAt))
       return;
-    if (prepared && now() - startedAt >= 23 * 3600_000) {
+    if (prepared && now() - startedAt >= 23 * 3_600_000) {
       clear('expired');
       return;
     }
-    const current = ++generation,
-      controller = new AbortController();
+
+    const current = ++generation;
+    const controller = new AbortController();
     active = controller;
     let stage: 'request' | 'render' = cards ? 'render' : 'request';
     try {
       if (!cards) {
-        const captured = command!;
-        emit({
-          state: 'requesting',
-          count: captured.operation === 'qr-batch' ? captured.accountIds.length : 1,
-        });
-        const response = await prepared!.execute(controller.signal);
-        if (current !== generation || controller.signal.aborted) return;
-        if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
-        let received: PrintCardV1[];
-        try {
-          received = validatePrintCardsV1(response.cards);
-        } catch {
-          throw new PortalClientErrorV1('invalid-response');
-        }
-        const ids = captured.operation === 'qr-batch' ? captured.accountIds : [captured.accountId];
-        const byId = new Map(received.map((card) => [card.accountId.toLowerCase(), card]));
-        if (
-          received.length !== ids.length ||
-          ids.some((id) => !byId.has(id.toLowerCase())) ||
-          received.some(
-            (card) => card.mode !== (captured.operation === 'qr-batch' ? captured.mode : 'qr-only'),
-          ) ||
-          response.version < captured.expectedVersion
-        )
-          throw new PortalClientErrorV1('invalid-response');
-        cards = ids.map((id) => byId.get(id.toLowerCase())!);
-        prepared = command = undefined;
+        if (!(await requestCards(current, controller))) return;
         stage = 'render';
       }
-      emit({ state: 'rendering', completed: 0, total: cards!.length });
-      const result = await render(cards!, format, controller.signal, (completed, total) => {
-        if (current === generation && !controller.signal.aborted)
-          emit({ state: 'rendering', completed, total });
-      });
-      if (current !== generation || controller.signal.aborted) return;
-      if (
-        result.format !== format ||
-        result.count !== cards!.length ||
-        result.blob.size === 0 ||
-        result.blob.type !== (format === 'pdf' ? 'application/pdf' : 'image/png')
-      )
-        throw new Error('artifact-unavailable');
-      artifact = result;
-      cards = undefined;
-      emit({
-        state: 'ready',
-        format,
-        count: result.count,
-        pages: result.pages,
-        copy: 'none',
-        downloadFailed: false,
-      });
-      expires = setTimeout(() => clear('expired'), 5 * 60_000);
+      await renderCards(current, controller);
     } catch (error) {
-      if (current !== generation || controller.signal.aborted) return;
-      const failure =
-        error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
-      if (['unauthenticated', 'forbidden'].includes(failure.state)) {
-        clear();
-        emit({ state: 'error', stage, error: failure, retryable: false, retryAt: 0 });
-        onAuthorizationLost?.(failure);
-        return;
-      }
-      const retryable =
-        stage === 'render' ||
-        ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(
-          failure.state,
-        );
-      if (!retryable) prepared = command = undefined;
-      emit({
-        state: 'error',
-        stage,
-        error: failure,
-        retryable,
-        retryAt: now() + (failure.retryAfterSeconds ?? 0) * 1000,
-      });
+      handleFailure(error, stage, current, controller);
     } finally {
       if (current === generation) active = undefined;
     }
   }
+
   return {
     async submit(input: QrCommandV1, requestedFormat: 'pdf' | 'png') {
       if (!canWrite || active || prepared || cards || artifact) return;
@@ -196,8 +242,8 @@ export function createQrOperationV1({
     retry: run,
     async copy() {
       if (!artifact || state.state !== 'ready' || state.copy === 'pending') return;
-      const current = generation,
-        ready = state;
+      const current = generation;
+      const ready = state;
       emit({ ...ready, copy: 'pending' });
       const result = await copyQrImageV1(artifact);
       if (current === generation) emit({ ...ready, copy: result });
