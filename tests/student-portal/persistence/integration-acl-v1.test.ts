@@ -29,7 +29,7 @@ beforeAll(async () => {
 afterAll(async () => { await pg?.close(); });
 
 describe('gradebook_app narrow Portal integration surface', () => {
-  it('has schema usage and only the two approved function executions', async () => {
+  it('pins the two approved function executions at the 0001–0004 checkpoint', async () => {
     const result = (await pg.query(`SELECT
       has_schema_privilege('gradebook_app','student_portal','USAGE') AS schema_usage,
       has_table_privilege('gradebook_app','student_portal.account','SELECT') AS account_select,
