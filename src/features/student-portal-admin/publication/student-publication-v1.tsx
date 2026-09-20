@@ -23,12 +23,12 @@ import {
 import './student-publication-v1.css';
 
 export interface StudentPublicationPropsV1 {
-  client: PortalAdminClientV1;
-  scope: ScopeV1;
-  canWrite: boolean;
-  scopeLabel?: string;
-  onOpenSettings?: () => void;
-  onOpenHealth?: () => void;
+  readonly client: PortalAdminClientV1;
+  readonly scope: ScopeV1;
+  readonly canWrite: boolean;
+  readonly scopeLabel?: string;
+  readonly onOpenSettings?: () => void;
+  readonly onOpenHealth?: () => void;
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -41,12 +41,35 @@ const revisionLabel = (revision: string | null) =>
   revision === null ? 'Nenhuma' : revision.startsWith('mixed:') ? 'Mais de uma versão' : revision;
 const termLabel = (period: string) =>
   period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
-const operationLabel = (command: PublicationCommandV1) =>
-  command.operation === 'unpublish'
-    ? 'Retirar publicação'
-    : command.operation === 'publish-update'
-      ? 'Publicar atualização'
-      : 'Publicar período';
+function operationLabel(command: PublicationCommandV1) {
+  if (command.operation === 'unpublish') return 'Retirar publicação';
+  if (command.operation === 'publish-update') return 'Publicar atualização';
+  return 'Publicar período';
+}
+
+function publicationColorV1(state: PublicationItemV1['state']) {
+  if (state === 'update-pending') return 'warning' as const;
+  if (state === 'published') return 'success' as const;
+  return 'default' as const;
+}
+
+function publicationErrorLabelV1(mutation: Extract<PublicationMutationV1, { state: 'error' }>) {
+  if (mutation.error.state === 'conflict')
+    return 'A fonte, o escopo ou a configuração mudou. Recarregue e revise uma nova decisão; a revisão não será substituída automaticamente.';
+  if (mutation.error.state === 'unauthenticated')
+    return 'Sessão expirada. Entre novamente no ADM.';
+  if (mutation.error.state === 'forbidden')
+    return 'A operação não foi autorizada neste escopo. Recarregue para conferir o estado atual.';
+  if (mutation.retryable)
+    return 'O resultado da decisão não foi confirmado. Repetir mantém a mesma revisão e a mesma operação.';
+  return 'Não foi possível validar a decisão. Recarregue o estado e revise antes de tentar novamente.';
+}
+
+function publicationLoadErrorLabelV1(error: { state: string }) {
+  if (error.state === 'unauthenticated') return 'Sessão expirada. Entre novamente no ADM.';
+  if (error.state === 'forbidden') return 'Sem permissão para consultar este escopo.';
+  return 'Consulta indisponível. Tente novamente.';
+}
 function PublicationPeriodV1({
   item,
   data,
@@ -54,14 +77,14 @@ function PublicationPeriodV1({
   canWrite,
   disabled,
   review,
-}: {
+}: Readonly<{
   item: PublicationItemV1;
   data: PublicationSnapshotV1;
   scope: ScopeV1;
   canWrite: boolean;
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
-}) {
+}>) {
   const hasData = item.state !== 'no-data' && item.availableRevision !== null;
   const published = item.publishedRevision !== null;
   return (
@@ -72,13 +95,7 @@ function PublicationPeriodV1({
           <Chip
             size="sm"
             variant="soft"
-            color={
-              item.state === 'update-pending'
-                ? 'warning'
-                : item.state === 'published'
-                  ? 'success'
-                  : 'default'
-            }
+            color={publicationColorV1(item.state)}
           >
             {PUBLICATION_LABELS_V1[item.state]}
           </Chip>
@@ -89,9 +106,10 @@ function PublicationPeriodV1({
           <div>
             <dt>Liberar a partir de</dt>
             <dd>
-              {disclosureAtV1(data.settings, item.period)
-                ? dateLabel(disclosureAtV1(data.settings, item.period))
-                : 'Publicação manual'}
+              {(() => {
+                const disclosure = disclosureAtV1(data.settings, item.period);
+                return disclosure ? dateLabel(disclosure) : 'Publicação manual';
+              })()}
             </dd>
           </div>
           <div>
