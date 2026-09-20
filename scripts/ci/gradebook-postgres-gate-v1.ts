@@ -193,11 +193,39 @@ async function seedSyntheticCurrentState(): Promise<void> {
   );
 }
 
+async function installPortalCoordination(): Promise<void> {
+  const migrations = [
+    '0001_identity_credentials_acl_v1.sql',
+    '0002_policy_publication_revision_v1.sql',
+    '0003_audit_receipts_closure_integration_v1.sql',
+    '0004_gradebook_integration_usage_v1.sql',
+    '0005_year_reset_protocol_v1.sql',
+    '0006_gradebook_revision_year_range_v1.sql',
+  ] as const;
+
+  for (const file of migrations) {
+    const source = await readFile('migrations/student-portal/' + file, 'utf8');
+    await sql.unsafe(source);
+  }
+
+  const revision = await firstRow(
+    "SELECT academic_year::integer AS academic_year, academic_counter::integer AS academic_counter, reset_counter::integer AS reset_counter FROM student_portal.academic_revision WHERE academic_year=2026",
+  );
+  if (
+    Number(revision.academic_year) !== 2026 ||
+    Number(revision.academic_counter) !== 1 ||
+    Number(revision.reset_counter) !== 1
+  ) {
+    throw new Error('gradebook-ci-postgres-portal-coordination-mismatch');
+  }
+}
+
 async function run(): Promise<void> {
   try {
     await replaySchema();
     await validateCatalog();
     await seedSyntheticCurrentState();
+    await installPortalCoordination();
     process.stdout.write(JSON.stringify({
       state: 'ready',
       database: 'gradebook_recovery_ci',
@@ -205,6 +233,7 @@ async function run(): Promise<void> {
       tables: 30,
       rlsTables: 30,
       syntheticOnly: true,
+      portalCoordinationMigrations: 6,
     }) + '\n');
   } finally {
     await sql.end({ timeout: 2 });
