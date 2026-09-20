@@ -32,7 +32,7 @@ The ledger above is the **repository migration sequence**, not independent proof
 - QR payloads, raw session tokens, PINs and passwords are never stored. Only credential metadata, verifiers and hashes are persisted.
 - `student_portal_app` owns no schema objects and has no DDL, superuser or BYPASSRLS capability. It receives only runtime DML in the private Portal schema and SELECT on the narrow Portal-owned academic views. Desde #859, as 27 tabelas privadas também exigem a policy `student_portal_app_backend_v1`; a policy não concede operações e a ACL continua sendo o limite de SELECT/INSERT/UPDATE/DELETE.
 - `PUBLIC` receives no schema/table/function privileges. Supabase client roles are not granted privileges by these migrations.
-- `gradebook_app` receives schema `USAGE` plus only `EXECUTE` on `record_gradebook_change_v1` and `inspect_year_reset_guard_v1`; it receives no table DML in `student_portal`.
+- `gradebook_app` receives schema `USAGE`, no table DML in `student_portal`, and the current explicit function surface: `record_gradebook_change_v1`, `inspect_year_reset_guard_v1`, `ensure_year_coordination_v1`, `prepare_year_reset_v1`, `consume_year_reset_v1`, `complete_year_reset_v1` and `synchronize_gradebook_profiles_v1`. The full-chain PostgreSQL ACL gate pins this exact set; adding another executable function requires an explicit migration and test update.
 - Revision generations are random per database and counters are positive/durable. `record_gradebook_change_v1` is idempotent by `event_id` and must be called only after the #703 common lock protocol has been acquired by the writer. `inspect_year_reset_guard_v1` is read-only and must run in the same reset transaction after those locks.
 - D1/KV are not fallback persistence for this schema.
 
