@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../../../src/gradebook-domain/context/academic-context-2026-v1';
 import type {
   AcademicEntityRecordV1,
@@ -592,7 +593,7 @@ class GradebookD1WriterV1 {
       );
 
       if (logicalSource.state === 'candidate') {
-        for (const logicalSourceId of [...logicalSource.candidateLogicalSourceIds].sort()) {
+        for (const logicalSourceId of [...logicalSource.candidateLogicalSourceIds].sort(compareCanonicalStringsV1)) {
           changes(
             await this.database
               .prepare(

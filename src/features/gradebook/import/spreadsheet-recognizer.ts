@@ -1,3 +1,4 @@
+import { comparePtBrNumericLabelsV1 } from '../../../../shared/gradebook-contracts/string-order-v1';
 import {
   SOURCE_CONTRACT_VERSION_V2,
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
@@ -733,7 +734,7 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
       students: group.students.size,
       declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
       disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      trimesters: [...group.trimesters].sort(),
+      trimesters: [...group.trimesters].sort(comparePtBrNumericLabelsV1),
       recovery: group.recovery,
       sheets: group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     }))
