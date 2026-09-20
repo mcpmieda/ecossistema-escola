@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useRef, useState, type Ref, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
@@ -133,7 +133,7 @@ function CredentialFieldsV1({
   confirmation: string;
   setValue: (value: string) => void;
   setConfirmation: (value: string) => void;
-  confirmationInput: Ref<HTMLInputElement>;
+  confirmationInput: RefObject<HTMLInputElement | null>;
   keepConnected: boolean;
   setKeepConnected: (value: boolean) => void;
   sitekey: string;
@@ -156,9 +156,7 @@ function CredentialFieldsV1({
           value={value}
           onChange={setValue}
           onComplete={
-            state.step === 'create'
-              ? () => (confirmationInput as { current: HTMLInputElement | null }).current?.focus()
-              : undefined
+            state.step === 'create' ? () => confirmationInput.current?.focus() : undefined
           }
           secret={state.step !== 'pin'}
           disabled={state.pending}
