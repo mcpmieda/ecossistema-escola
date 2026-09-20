@@ -1,5 +1,7 @@
 # Consumo administrativo e proteção de edição — pacote #839
 
+> **Checkpoint histórico da #839.** A #839 foi encerrada por consolidação em 20/09/2026. O estado operacional atual está em [LIVE_RESILIENCE_CURRENT_970.md](LIVE_RESILIENCE_CURRENT_970.md), #970/B-21 e #968/P-12. Frases abaixo como “não encerrar #839” registram o estado daquela entrega e não são instrução vigente.
+
 Continuação de PR840 e PR841, sem novo endpoint/contrato público, schema, ACL, regra acadêmica ou infraestrutura. Este documento descreve implementação; resultados efetivos dos gates e publicação ficam na PR.
 
 ## Canal único no Centro
