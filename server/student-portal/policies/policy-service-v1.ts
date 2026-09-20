@@ -11,6 +11,7 @@ const FIELDS = ['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult'
 type Field = typeof FIELDS[number];
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
 const storedRow = z.object({ scope_key: z.string(), field_key: z.enum(FIELDS), value_json: z.unknown(), source_scope_json: scopeV1, version: versionV1 });
+type StoredRowV1 = z.infer<typeof storedRow>;
 
 function normalizedScope(input: ScopeV1): ScopeV1 {
   const scope = scopeV1.parse(input);
@@ -76,40 +77,73 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   return false;
 }
 
-/** Shared pure policy resolution for single-target and batched administrative reads. */
-export async function resolvePolicySnapshotRowsV1(input: ScopeV1, rows: readonly Record<string, unknown>[]) {
-  const scope = normalizedScope(input);
-  if (rows.length !== 1 || rows[0]!.resolved !== true) throw new Error('student-portal-policy-target-unresolved');
-  const target = rows[0]!;
-  const records = z.array(storedRow).parse(target.settings_rows);
+function schoolDefaultsV1(records: readonly StoredRowV1[]) {
   const school = records.filter((row) => row.scope_key === key(SCHOOL));
-  if (school.length !== FIELDS.length || new Set(school.map((row) => row.field_key)).size !== FIELDS.length
-    || new Set(school.map((row) => row.version)).size !== 1) throw new Error('student-portal-policy-defaults-unavailable');
-  if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL))) throw new Error('student-portal-policy-defaults-unavailable');
+  const complete =
+    school.length === FIELDS.length &&
+    new Set(school.map((row) => row.field_key)).size === FIELDS.length &&
+    new Set(school.map((row) => row.version)).size === 1;
+  if (!complete) throw new Error('student-portal-policy-defaults-unavailable');
+  if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL)))
+    throw new Error('student-portal-policy-defaults-unavailable');
   try {
-    const defaults = settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
+    const defaults = settingsValueV1.parse(
+      Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
+    );
     normalizeCalendarV1(defaults.calendar);
   } catch {
     throw new Error('student-portal-policy-defaults-unavailable');
   }
-  const epoch = school[0]!.version;
-  const classId = target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
+  return school;
+}
+
+function scopeChainV1(scope: ScopeV1, classId: number | null): ScopeV1[] {
   const chain: ScopeV1[] = [SCHOOL];
   if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
   if (scope.kind === 'account') chain.push(scope);
+  return chain;
+}
+
+function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly ScopeV1[]) {
   const value: Record<string, unknown> = {};
   const sources: Record<string, ScopeV1> = {};
   for (const origin of chain) {
-    for (const row of records.filter((item) => item.scope_key === key(origin))) {
+    const originKey = key(origin);
+    for (const row of records.filter((item) => item.scope_key === originKey)) {
       // Foundation snapshots may annotate inherited values. Only the owning scope overrides.
-      if (key(normalizedScope(row.source_scope_json)) !== key(origin)) continue;
-      value[row.field_key] = row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
+      if (key(normalizedScope(row.source_scope_json)) !== originKey) continue;
+      value[row.field_key] =
+        row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
       sources[row.field_key] = origin;
     }
   }
-  const version = versionV1.parse(epoch + z.coerce.number().int().safe().nonnegative().parse(target.account_version));
+  return { value, sources };
+}
+
+/** Shared pure policy resolution for single-target and batched administrative reads. */
+export async function resolvePolicySnapshotRowsV1(
+  input: ScopeV1,
+  rows: readonly Record<string, unknown>[],
+) {
+  const scope = normalizedScope(input);
+  if (rows.length !== 1 || rows[0]!.resolved !== true)
+    throw new Error('student-portal-policy-target-unresolved');
+  const target = rows[0]!;
+  const records = z.array(storedRow).parse(target.settings_rows);
+  const school = schoolDefaultsV1(records);
+  const epoch = school[0]!.version;
+  const classId =
+    target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
+  const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId));
+  const accountVersion = z.coerce.number().int().safe().nonnegative().parse(target.account_version);
+  const version = versionV1.parse(epoch + accountVersion);
   const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
-  return { settings, classId, epoch, policyVersion: `policy:${await hash({ settings, classId })}` };
+  return {
+    settings,
+    classId,
+    epoch,
+    policyVersion: `policy:${await hash({ settings, classId })}`,
+  };
 }
 
 export class PolicyServiceV1 implements EffectivePolicyPortV1 {
