@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { notifyLiveChangeV1, subscribeLiveRefreshV1 } from '../../src/shared/live-data/live-refresh-v1';
 const disposers: Array<() => void> = [];
 beforeEach(() => {
-  vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.useFakeTimers(); mockSecureJitterV1(0);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
