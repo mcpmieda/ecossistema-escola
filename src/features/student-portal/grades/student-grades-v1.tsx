@@ -28,8 +28,8 @@ function subscribeCompact(callback: () => void) {
 const compactSnapshot = () => window.matchMedia(COMPACT_QUERY).matches;
 const serverCompactSnapshot = () => false;
 
-export { StudentMarkV1 } from './student-mark-v1';
 import { StudentMarkV1 } from './student-mark-v1';
+export { StudentMarkV1 };
 
 function PeriodCellV1({ period, recovery }: { period?: PeriodV1; recovery: boolean }) {
   if (!period)
