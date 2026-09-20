@@ -5,7 +5,7 @@ import {
   applyCurrentGradebookSchemaV1,
   assertCurrentGradebookSchemaV1,
   GRADEBOOK_CURRENT_CATALOG_V1,
-} from '../../server/gradebook/recovery/current-gradebook-schema-v1';
+} from '../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
 
 const connectionString = process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '';
 
