@@ -179,7 +179,7 @@ function nextDataVectorV1(
 
 function mergedSubjectsV1(
   previous: SelfResponseV1 | null,
-  fresh: SelfResponseV1,
+  fresh: ReturnType<typeof academicToSelfV1>,
   selected: readonly PeriodV1[],
   nextVector: readonly (string | null)[],
 ) {
