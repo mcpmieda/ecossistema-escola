@@ -122,7 +122,7 @@ export function StudentProfileV1({
       <h2 id={heading} className="pa-section-title">
         Perfil do aluno
       </h2>
-      <Card className="pa-profile-card">
+      <Card variant="secondary" className="pa-profile-card">
         <Card.Content className="pa-profile-content">
           <Avatar
             className="pa-student-avatar"
