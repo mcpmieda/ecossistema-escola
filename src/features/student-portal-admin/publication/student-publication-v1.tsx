@@ -23,12 +23,12 @@ import {
 import './student-publication-v1.css';
 
 export interface StudentPublicationPropsV1 {
-  client: PortalAdminClientV1;
-  scope: ScopeV1;
-  canWrite: boolean;
-  scopeLabel?: string;
-  onOpenSettings?: () => void;
-  onOpenHealth?: () => void;
+  readonly client: PortalAdminClientV1;
+  readonly scope: ScopeV1;
+  readonly canWrite: boolean;
+  readonly scopeLabel?: string;
+  readonly onOpenSettings?: () => void;
+  readonly onOpenHealth?: () => void;
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -41,12 +41,17 @@ const revisionLabel = (revision: string | null) =>
   revision === null ? 'Nenhuma' : revision.startsWith('mixed:') ? 'Mais de uma versão' : revision;
 const termLabel = (period: string) =>
   period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
-const operationLabel = (command: PublicationCommandV1) =>
-  command.operation === 'unpublish'
-    ? 'Retirar publicação'
-    : command.operation === 'publish-update'
-      ? 'Publicar atualização'
-      : 'Publicar período';
+function operationLabel(command: PublicationCommandV1) {
+  if (command.operation === 'unpublish') return 'Retirar publicação';
+  if (command.operation === 'publish-update') return 'Publicar atualização';
+  return 'Publicar período';
+}
+
+function publicationColorV1(item: PublicationItemV1) {
+  if (item.state === 'update-pending') return 'warning' as const;
+  if (item.state === 'published') return 'success' as const;
+  return 'default' as const;
+}
 function PublicationPeriodV1({
   item,
   data,
@@ -54,14 +59,14 @@ function PublicationPeriodV1({
   canWrite,
   disabled,
   review,
-}: {
+}: Readonly<{
   item: PublicationItemV1;
   data: PublicationSnapshotV1;
   scope: ScopeV1;
   canWrite: boolean;
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
-}) {
+}>) {
   const hasData = item.state !== 'no-data' && item.availableRevision !== null;
   const published = item.publishedRevision !== null;
   return (
@@ -72,13 +77,7 @@ function PublicationPeriodV1({
           <Chip
             size="sm"
             variant="soft"
-            color={
-              item.state === 'update-pending'
-                ? 'warning'
-                : item.state === 'published'
-                  ? 'success'
-                  : 'default'
-            }
+            color={publicationColorV1(item)}
           >
             {PUBLICATION_LABELS_V1[item.state]}
           </Chip>
