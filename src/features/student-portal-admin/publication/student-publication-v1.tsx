@@ -337,13 +337,13 @@ function PublicationReviewV1({
   busy,
   onClose,
   onConfirm,
-}: {
+}: Readonly<{
   command: PublicationCommandV1;
   label: string;
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
-}) {
+}>) {
   return (
     <Modal.Backdrop
       isOpen
@@ -406,6 +406,126 @@ function PublicationReviewV1({
     </Modal.Backdrop>
   );
 }
+function PublicationLoadFeedbackV1({
+  load,
+  busy,
+  clock,
+  retryAt,
+  reload,
+}: Readonly<{
+  load: ReturnType<typeof initialPublicationViewV1>['load'];
+  busy: boolean;
+  clock: number;
+  retryAt: number;
+  reload: () => void;
+}>) {
+  if (load.state === 'loading')
+    return (
+      <output className="pa-publication-loading">
+        <Spinner size="sm" />
+        Carregando publicações…
+      </output>
+    );
+  if (load.state !== 'error') return null;
+  return (
+    <div role="alert" className="pa-publication-error">
+      <p>{publicationLoadErrorLabelV1(load.error)}</p>
+      <Button
+        size="sm"
+        variant="secondary"
+        isDisabled={busy || clock < retryAt}
+        onPress={reload}
+      >
+        Tentar novamente
+      </Button>
+    </div>
+  );
+}
+
+function PublicationDataV1({
+  data,
+  fixedScope,
+  canWrite,
+  busy,
+  refreshing,
+  review,
+  prepare,
+  onOpenSettings,
+}: Readonly<{
+  data: PublicationSnapshotV1;
+  fixedScope: ScopeV1;
+  canWrite: boolean;
+  busy: boolean;
+  refreshing: boolean;
+  review: PublicationCommandV1 | null;
+  prepare: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
+  onOpenSettings?: () => void;
+}>) {
+  const periodDisabled = busy || refreshing || review !== null;
+  return (
+    <>
+      <Card className="pa-publication-policy">
+        <Card.Header>
+          <h3>Exibição no Portal</h3>
+        </Card.Header>
+        <Card.Content>
+          <dl className="pa-publication-details">
+            <div>
+              <dt>Atualização automática</dt>
+              <dd>{data.settings.value.autoUpdate ? 'Ligada' : 'Desligada'}</dd>
+            </div>
+            <div>
+              <dt>Notas exibidas</dt>
+              <dd>{data.settings.value.showPartials ? 'Finais e parciais' : 'Somente finais'}</dd>
+            </div>
+            <div>
+              <dt>Divulgação de resultado final</dt>
+              <dd>{data.settings.value.showFinalResult ? 'Ligada' : 'Desligada'}</dd>
+            </div>
+            <div>
+              <dt>Resultado final a partir de</dt>
+              <dd>{dateLabel(data.settings.value.calendar.finalDisclosureAt)}</dd>
+            </div>
+          </dl>
+          <Tooltip>
+            <Tooltip.Trigger className="w-fit text-xs text-muted">Regras de acesso</Tooltip.Trigger>
+            <Tooltip.Content>
+              Publicação, datas e permissão de acesso são verificadas por aluno. Uma configuração
+              individual pode substituir o padrão.
+            </Tooltip.Content>
+          </Tooltip>
+        </Card.Content>
+        {onOpenSettings ? (
+          <Card.Footer>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={busy || review !== null}
+              onPress={onOpenSettings}
+            >
+              Acesso e datas
+            </Button>
+          </Card.Footer>
+        ) : null}
+      </Card>
+      <StableReadStatusV1 busy={refreshing}>Atualizando consulta do servidor</StableReadStatusV1>
+      <div className="pa-publication-periods">
+        {data.items.map((item) => (
+          <PublicationPeriodV1
+            key={item.period}
+            item={item}
+            data={data}
+            scope={fixedScope}
+            canWrite={canWrite}
+            disabled={periodDisabled}
+            review={prepare}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function PublicationScopeV1({
   client,
   scope,
@@ -496,98 +616,24 @@ function PublicationScopeV1({
         clock={clock}
         reloadDisabled={clock < retryAt}
       />
-      {view.load.state === 'loading' ? (
-        <p role="status" className="pa-publication-loading">
-          <Spinner size="sm" />
-          Carregando publicações…
-        </p>
-      ) : null}
-      {view.load.state === 'error' ? (
-        <div role="alert" className="pa-publication-error">
-          <p>
-            {view.load.error.state === 'unauthenticated'
-              ? 'Sessão expirada. Entre novamente no ADM.'
-              : view.load.error.state === 'forbidden'
-                ? 'Sem permissão para consultar este escopo.'
-                : 'Consulta indisponível. Tente novamente.'}
-          </p>
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={busy || clock < retryAt}
-            onPress={reload}
-          >
-            Tentar novamente
-          </Button>
-        </div>
-      ) : null}
+      <PublicationLoadFeedbackV1
+        load={view.load}
+        busy={busy}
+        clock={clock}
+        retryAt={retryAt}
+        reload={reload}
+      />
       {data ? (
-        <>
-          <Card className="pa-publication-policy">
-            <Card.Header>
-              <h3>Exibição no Portal</h3>
-            </Card.Header>
-            <Card.Content>
-              <dl className="pa-publication-details">
-                <div>
-                  <dt>Atualização automática</dt>
-                  <dd>{data.settings.value.autoUpdate ? 'Ligada' : 'Desligada'}</dd>
-                </div>
-                <div>
-                  <dt>Notas exibidas</dt>
-                  <dd>
-                    {data.settings.value.showPartials ? 'Finais e parciais' : 'Somente finais'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Divulgação de resultado final</dt>
-                  <dd>{data.settings.value.showFinalResult ? 'Ligada' : 'Desligada'}</dd>
-                </div>
-                <div>
-                  <dt>Resultado final a partir de</dt>
-                  <dd>{dateLabel(data.settings.value.calendar.finalDisclosureAt)}</dd>
-                </div>
-              </dl>
-              <Tooltip>
-                <Tooltip.Trigger className="w-fit text-xs text-muted">
-                  Regras de acesso
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  Publicação, datas e permissão de acesso são verificadas por aluno. Uma
-                  configuração individual pode substituir o padrão.
-                </Tooltip.Content>
-              </Tooltip>
-            </Card.Content>
-            {onOpenSettings ? (
-              <Card.Footer>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={busy || review !== null}
-                  onPress={onOpenSettings}
-                >
-                  Acesso e datas
-                </Button>
-              </Card.Footer>
-            ) : null}
-          </Card>
-          <StableReadStatusV1 busy={view.refreshing}>Atualizando consulta do servidor</StableReadStatusV1>
-          <div className="pa-publication-periods">
-            {data.items.map((item) => (
-              <PublicationPeriodV1
-                key={item.period}
-                item={item}
-                data={data}
-                scope={fixedScope}
-                canWrite={canWrite}
-                disabled={
-                  busy || view.refreshing || review !== null || view.mutation.state === 'error'
-                }
-                review={prepare}
-              />
-            ))}
-          </div>
-        </>
+        <PublicationDataV1
+          data={data}
+          fixedScope={fixedScope}
+          canWrite={canWrite}
+          busy={busy}
+          refreshing={view.refreshing}
+          review={review}
+          prepare={prepare}
+          onOpenSettings={onOpenSettings}
+        />
       ) : null}
       {review && canWrite ? (
         <PublicationReviewV1
