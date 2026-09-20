@@ -137,7 +137,7 @@ function jsonColumnNameV1(value: string): boolean {
 
 function castJsonColumnParametersV1(query: string): string {
   let translated = query.replace(
-    /\bINSERT\s+INTO\s+([A-Za-z0-9_."]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/giu,
+    /\bINSERT\s+INTO\s+([\w."]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/giu,
     (match, relation: string, columnList: string, valueList: string) => {
       const columns = columnList.split(',').map((column) => column.trim());
       const values = valueList.split(',').map((value) => value.trim());
@@ -152,7 +152,7 @@ function castJsonColumnParametersV1(query: string): string {
   );
 
   translated = translated.replace(
-    /\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\$\d+)(?!\s*::\s*jsonb\b)/giu,
+    /\b(\w+)\s*=\s*(\$\d+)(?!\s*::\s*jsonb\b)/giu,
     (match, column: string, placeholder: string) =>
       jsonColumnNameV1(column) ? `${column} = ${placeholder}::jsonb` : match,
   );
