@@ -8,7 +8,7 @@ describe('Student Portal migration ledger', () => {
   it('lists every repository migration exactly once and in order', () => {
     const directory = join(root, 'migrations/student-portal');
     const migrations = readdirSync(directory)
-      .filter((name) => /^\\d{4}_.+\\.sql$/.test(name))
+      .filter((name) => /^\d{4}_.+\.sql$/.test(name))
       .sort();
     const readme = readFileSync(join(directory, 'README.md'), 'utf8');
 
@@ -17,7 +17,7 @@ describe('Student Portal migration ledger', () => {
       expect(readme.split(token)).toHaveLength(2);
     }
 
-    const ledgerOrder = Array.from(readme.matchAll(/\\| `(\\d{4}_[^`]+\\.sql)` \\|/g)).map(
+    const ledgerOrder = Array.from(readme.matchAll(/\| `(\d{4}_[^`]+\.sql)` \|/g)).map(
       (match) => match[1],
     );
     expect(ledgerOrder).toEqual(migrations);
