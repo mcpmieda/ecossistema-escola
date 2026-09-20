@@ -10,10 +10,19 @@ Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separa
 | `0002_policy_publication_revision_v1.sql` | settings, publication/projection/jobs, durable revision state/events and narrow 2026 academic read views |
 | `0003_audit_receipts_closure_integration_v1.sql` | audit, idempotency receipts, explicit link tombstones, reset preview proof and narrow Gradebook revision function |
 | `0004_gradebook_integration_usage_v1.sql` | namespace-only integration ACL plus read-only reset guard function for `gradebook_app`; no table privilege |
+| `0005_year_reset_protocol_v1.sql` | #706: amplia a coordenação técnica do reset ao intervalo anual do BN, inicializa revisão por ano e cria guards sem conceder DML acadêmico |
+| `0006_gradebook_revision_year_range_v1.sql` | #706: amplia `record_gradebook_change_v1` ao intervalo anual contratado, preservando idempotência e revisões duráveis |
+| `0007_lifecycle_integration_v1.sql` | #707: adiciona controle/snapshot de lifecycle, preview de fechamento de vínculos e sincronização de perfis com população inicialmente desabilitada |
+| `0008_atomic_publication_v2.sql` | #803: introduz preparação/publicação V2 atômica e escopada, inicialmente desabilitada, sem alterar fatos acadêmicos |
+| `0009_publication_cutover_guard_v2.sql` | bloqueia escritores legados de publicação/projeção/jobs quando o cutover V2 escopado estiver ativo |
+| `0010_incremental_publication_v3.sql` | #806: acrescenta preparação incremental V3 e métricas sem mudar decisões de publicação nem notas |
+| `0011_live_event_outbox_v1.sql` | #808: outbox transacional mínimo para avisos live autenticados, contendo apenas roteamento e versões opacas |
+| `0012_granular_observations_names_v1.sql` | #817: projeta nomes de avaliações e observação granular no Portal e restringe emissão live ao ano 2026; depende de Gradebook 0009 |
+| `0013_publication_inheritance_v1.sql` | #827: marca herança lógica da decisão do escopo pai sem apagar release nem copiar fatos acadêmicos |
 | `0014_year_reset_full_cleanup_v1.sql` | mantém o contrato do reset anual e remove, ao concluir, eventos de revisão, provas técnicas e coordenação anual do ano apagado |
 | `0015_student_portal_rls_v1.sql` | defesa em profundidade #859: RLS não-forçado nas 27 tabelas privadas, policy restrita a `student_portal_app` e ACL existente preservada |
 
-The sequence assumes the current relational Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`. In particular, `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
+The ledger above is the **repository migration sequence**, not independent proof that every file has been applied remotely. Production application is recorded by the owning issue/deploy evidence and by the canonical project state. The sequence began against the Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`; later Portal migrations declare newer Gradebook dependencies explicitly (for example `0012` depends on Gradebook `0009`). `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
 
 ## Invariants
 

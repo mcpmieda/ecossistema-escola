@@ -1,10 +1,14 @@
 # Banco de Notas — ponto de entrada
 
-## Continuidade atual — 13/09/2026
+## Continuidade atual — 20/09/2026
 
-O programa funcional BN e a entrega #596 estão encerrados. Main auditada `270ab8a442e833cd089d4d139bacbef55c7c52a0`, PR774/deploy34788638736 SUCCESS, schema gradebook com30 tabelas. O seletor global opera2025/2026;2025 é massa de teste e não há comparação entre anos. Trilha humana, R/R e reset anual já foram integrados conforme decisões vigentes. Não retomar a #668 ou reconstruir persistência por um checkpoint antigo.
+O programa funcional BN e a entrega institucional #596 continuam encerrados; a fila operacional atual é **#970**, criada para manutenção e reconciliação após os diagnósticos independentes. Não reabrir filas históricas por checkpoint antigo.
 
-A fila ativa é [Portal do Aluno Parte2 #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), execução sequencial autorizada, com #743–#756 concluídas/publicadas e composição #757 em andamento. As identidades CODEX/CHAT ONLINE dos títulos permanecem. Os deltas BN de contrato/classificação foram integrados por #745/#747 e não reabrem o programa final. Estado atual em PROJECT_STATE.yaml; checkpoint antigo preservado sob historical_checkpoint_668. G-B Portal continua parcial até#759; dados e autoridade BN permanecem preservados.
+Baseline reconciliada nesta rodada: `main@cad68337b48c7d4a40477b088d36835c705246f2` (PR #963; deploy oficial `35487533274` SUCCESS). O schema `gradebook` permanece com 30 tabelas; a migration corrente no repositório e comprovadamente aplicada em produção é `0012_current_state_cleanup_v1.sql` (#863, versão Supabase `20260918163014`). O schema `student_portal` possui 27 tabelas privadas; `0015_student_portal_rls_v1.sql` foi aplicada e verificada em produção em #859/#963 (versão `20260920004859`).
+
+A presença de um arquivo no Git não é, sozinha, prova de aplicação produtiva. `PROJECT_STATE.yaml` registra separadamente a árvore auditada e a evidência de produção. O bloco `historical_checkpoint_668` continua memória imutável, não fila nem autorização operacional.
+
+A fila Portal Parte 2 #742 está concluída e não é mais a fila ativa do Banco. Manutenção nova parte de #970 e de suas issues filhas reproduzíveis. O redesign visual do Portal #964/#965 é trabalho separado e não altera a autoridade acadêmica do Banco.
 
 ## Fechamento factual em 11/09/2026
 
