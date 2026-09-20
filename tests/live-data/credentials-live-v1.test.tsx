@@ -2,6 +2,7 @@
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { StudentCredentialsV1 } from '../../src/features/student-portal-admin/credentials/student-credentials-v1';
 import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 import { qrMockV1 } from '../student-portal/ui/credentials/fixtures-v1';
@@ -48,8 +49,9 @@ it.each([0, 0.999])('updates readiness at jitter %s without generating a QR or s
   // The production delay can exceed Testing Library's 1s waitFor default.
   // Control time instead of extending that timeout or removing the real scheduler.
   vi.useFakeTimers();
-  vi.spyOn(Math, 'random').mockReturnValue(random);
-  const delay = 250 + Math.floor(random * 1_000);
+  const jitter = Math.floor(random * 1_000);
+  mockSecureJitterV1(jitter);
+  const delay = 250 + jitter;
   mock.accounts[0]!.firstAccess = { state: 'ready', qrIssued: true, recoveryReady: true };
   act(() => notifyLiveChangeV1('portal'));
   await act(async () => { await vi.advanceTimersByTimeAsync(delay - 1); });
