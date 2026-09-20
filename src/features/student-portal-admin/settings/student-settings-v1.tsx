@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -456,7 +456,7 @@ function SettingsBodyV1({
   reload,
 }: Readonly<{
   load: PortalLoadStateV1<EffectiveSettingsV1>;
-  ready: (load: ReadySettingsLoadV1) => React.ReactNode;
+  ready: (load: ReadySettingsLoadV1) => ReactNode;
   reload: () => void;
 }>) {
   if (load.state === 'idle' || load.state === 'loading')
@@ -469,7 +469,7 @@ function SettingsBodyV1({
   if (load.state === 'error')
     return (
       <div role="alert" className="pa-settings-error">
-        <p>{settingsLoadErrorMessageV1(load)}</p>
+        <p>{settingsLoadErrorMessageV1(load.error)}</p>
         <Button size="sm" variant="secondary" onPress={reload}>
           Tentar novamente
         </Button>
@@ -612,68 +612,35 @@ function SettingsScopeV1({
           </Button>
         ) : null}
       </header>
-      {notice ? <p role="status">{notice}</p> : null}
-      {load.state === 'idle' || load.state === 'loading' ? (
-        <div role="status" className="pa-settings-loading">
-          <Spinner size="sm" />
-          Carregando configurações
-        </div>
-      ) : load.state === 'error' ? (
-        <div role="alert" className="pa-settings-error">
-          <p>
-            {load.error.state === 'unauthenticated'
-              ? 'Sessão expirada. Entre novamente no ADM.'
-              : load.error.state === 'forbidden'
-                ? 'Sem permissão para esta consulta.'
-                : 'Configurações indisponíveis. Tente novamente.'}
-          </p>
-          <Button size="sm" variant="secondary" onPress={() => void reload(false)}>
-            Tentar novamente
-          </Button>
-        </div>
-      ) : load.state === 'ready' ? (
-        <>
-          {mutation.state === 'error' ? (
-            <div className="pa-settings-error" role="alert">
-              <p>
-                {mutation.error.state === 'conflict'
-                  ? 'A configuração mudou em outra operação. Recarregue e revise antes de salvar novamente.'
-                  : mutation.error.state === 'unauthenticated' ||
-                      mutation.error.state === 'forbidden'
-                    ? 'A operação não foi autorizada. Recarregue sua sessão e permissões.'
-                    : 'Não foi possível confirmar o resultado da operação. Tente a mesma operação novamente ou recarregue o estado antes de uma nova alteração.'}
-              </p>
-              {mutation.retryable && canWrite ? (
-                <Button size="sm" variant="secondary" isDisabled={clock < mutation.retryAt}
-                  onPress={() => void writer.retry()}>Tentar novamente</Button>
-              ) : null}
-              <Button size="sm" variant="ghost" onPress={discardAndReload}>Recarregar</Button>
-            </div>
-          ) : null}
-          <div className="pa-settings-fields">
-            {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
-              <FieldCardV1 key={`${discardVersion}:${field}`} field={field} settings={load.data}
-                canWrite={canWrite} disabled={busy || mutation.state === 'error' || review !== null}
-                sourceLabel={sourceLabel(load.data.sources[field])}
-                review={(intent) => setReview({ ...intent, expectedVersion: load.data.version })}
-                onDirtyChange={onDirtyChange} />
-            ))}
-          </div>
-          {reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
-            <CustomizedSettingsV1 key={settingsScopeKeyV1(fixedScope)} reader={reader} client={client}
-              scope={fixedScope} canWrite={canWrite} onOpen={onOpenCustomization} />
-          ) : null}
-          {fixedScope.kind === 'school' && canWrite ? (
-            <LinkClosureV1 key={load.data.version} client={client}
-              disabled={mutation.state === 'pending' || review !== null || mutation.state === 'error'}
-              onClosed={linksClosed} onBusyChange={setClosing} />
-          ) : null}
-          {review && canWrite ? (
-            <ReviewDialogV1 review={review} settings={load.data} scopeLabel={label} disabled={busy}
-              close={() => setReview(null)} confirm={() => void confirm()} />
-          ) : null}
-        </>
-      ) : null}
+      {notice ? <output>{notice}</output> : null}
+      <SettingsBodyV1
+        load={load}
+        reload={() => void reload(false)}
+        ready={(readyLoad) => (
+          <SettingsReadyV1
+            load={readyLoad}
+            mutation={mutation}
+            client={client}
+            reader={reader}
+            fixedScope={fixedScope}
+            canWrite={canWrite}
+            label={label}
+            describeScope={describeScope}
+            onOpenCustomization={onOpenCustomization}
+            review={review}
+            busy={busy}
+            clock={clock}
+            discardVersion={discardVersion}
+            onDirtyChange={onDirtyChange}
+            setReview={setReview}
+            discardAndReload={discardAndReload}
+            retry={() => void writer.retry()}
+            linksClosed={linksClosed}
+            setClosing={setClosing}
+            confirm={() => void confirm()}
+          />
+        )}
+      />
     </section>
   );
 }
