@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
 import type {
   AcademicYearV1,
   AcademicYearId,
@@ -170,7 +171,7 @@ function aggregateCoverage(cells: readonly PerformanceMatrixSourceCellV1[]): Res
     0,
   );
   const missingItemCount = cells.reduce((total, cell) => total + cell.coverage.missingItemCount, 0);
-  const reasons = [...new Set(cells.flatMap((cell) => cell.coverage.reasons))].sort((left, right) => left.localeCompare(right, 'en'));
+  const reasons = [...new Set(cells.flatMap((cell) => cell.coverage.reasons))].sort(compareCanonicalStringsV1);
   const state =
     expectedItemCount === 0
       ? 'not-applicable'
