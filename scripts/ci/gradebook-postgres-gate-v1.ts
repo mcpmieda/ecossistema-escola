@@ -386,14 +386,17 @@ async function assertFutureGradebookObjectAclV1(): Promise<void> {
           'EXECUTE'
         ) AS authenticated_function_execute
     `);
-    if (
-      booleanField(probe, 'app_table_any') ||
-      booleanField(probe, 'app_sequence_any') ||
-      booleanField(probe, 'app_function_execute') ||
-      booleanField(probe, 'anon_function_execute') ||
-      booleanField(probe, 'authenticated_function_execute')
-    ) {
-      throw new Error('gradebook-ci-acl-future-object-inherited-privilege');
+    const inherited = {
+      appTable: booleanField(probe, 'app_table_any'),
+      appSequence: booleanField(probe, 'app_sequence_any'),
+      appFunction: booleanField(probe, 'app_function_execute'),
+      anonFunction: booleanField(probe, 'anon_function_execute'),
+      authenticatedFunction: booleanField(probe, 'authenticated_function_execute'),
+    };
+    if (Object.values(inherited).some(Boolean)) {
+      throw new Error(
+        `gradebook-ci-acl-future-object-inherited-privilege:${JSON.stringify(inherited)}`,
+      );
     }
   } finally {
     await sql.unsafe(`
