@@ -9,6 +9,7 @@ import {
 } from '../../../../src/features/student-portal/shell/student-shell-v1';
 import { SYNTHETIC_SELF_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
+import { setupOperationsDomV1 } from '../overview/dom-v1';
 import {
   selfResponseV1,
   type SelfResponseV1,
@@ -20,13 +21,7 @@ const grades = (_data: SelfResponseV1) =>
 const page = (props: Partial<StudentPagePropsV1> = {}) =>
   createElement(StudentPortalPageV1, { load: ready, grades, ...props });
 beforeEach(() => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-  }));
+  setupOperationsDomV1();
 });
 afterEach(() => {
   cleanup();
