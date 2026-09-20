@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { DraftUpdatesNoticeV1, allowDraftNavigationV1, useDraftNavigationGuardV1 } from '../../src/shared/forms/draft-navigation-v1';
 import { LiveRefreshScopeV1 } from '../../src/shared/live-data/live-refresh-scope-v1';
 import { useLiveRefreshV1 } from '../../src/shared/live-data/use-live-refresh-v1';
 import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 
 beforeEach(() => {
-  vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.useFakeTimers(); mockSecureJitterV1(0);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
