@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { adminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { adminCommandV1, type AdminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { effectiveSettingsV1, settingsValueV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
-import type { EffectivePolicyPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
+import type { EffectivePolicyPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { initialPolicyDefaultsV1 } from './defaults-v1';
 import { normalizeCalendarV1 } from './calendar-v1';
@@ -11,6 +11,7 @@ const FIELDS = ['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult'
 type Field = typeof FIELDS[number];
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
 const storedRow = z.object({ scope_key: z.string(), field_key: z.enum(FIELDS), value_json: z.unknown(), source_scope_json: scopeV1, version: versionV1 });
+type StoredRowV1 = z.infer<typeof storedRow>;
 
 function normalizedScope(input: ScopeV1): ScopeV1 {
   const scope = scopeV1.parse(input);
@@ -18,13 +19,20 @@ function normalizedScope(input: ScopeV1): ScopeV1 {
 }
 
 function key(scope: ScopeV1): string {
-  return scope.kind === 'school' ? 'school:2026' : scope.kind === 'class' ? `class:2026:${scope.classId}` : `account:2026:${scope.accountId}`;
+  if (scope.kind === 'school') return 'school:2026';
+  if (scope.kind === 'class') return `class:2026:${scope.classId}`;
+  return `account:2026:${scope.accountId}`;
 }
 
 function canonical(input: unknown): string {
   if (Array.isArray(input)) return `[${input.map(canonical).join(',')}]`;
-  if (input !== null && typeof input === 'object') return `{${Object.entries(input).sort(([a], [b]) => a.localeCompare(b))
-    .map(([field, value]) => `${JSON.stringify(field)}:${canonical(value)}`).join(',')}}`;
+  if (input !== null && typeof input === 'object') {
+    const entries = Object.entries(input)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([field, value]) => JSON.stringify(field) + ':' + canonical(value))
+      .join(',');
+    return '{' + entries + '}';
+  }
   return JSON.stringify(input);
 }
 
@@ -69,40 +77,229 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   return false;
 }
 
-/** Shared pure policy resolution for single-target and batched administrative reads. */
-export async function resolvePolicySnapshotRowsV1(input: ScopeV1, rows: readonly Record<string, unknown>[]) {
-  const scope = normalizedScope(input);
-  if (rows.length !== 1 || rows[0]!.resolved !== true) throw new Error('student-portal-policy-target-unresolved');
-  const target = rows[0]!;
-  const records = z.array(storedRow).parse(target.settings_rows);
+function schoolDefaultsV1(records: readonly StoredRowV1[]) {
   const school = records.filter((row) => row.scope_key === key(SCHOOL));
-  if (school.length !== FIELDS.length || new Set(school.map((row) => row.field_key)).size !== FIELDS.length
-    || new Set(school.map((row) => row.version)).size !== 1) throw new Error('student-portal-policy-defaults-unavailable');
-  if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL))) throw new Error('student-portal-policy-defaults-unavailable');
+  const complete =
+    school.length === FIELDS.length &&
+    new Set(school.map((row) => row.field_key)).size === FIELDS.length &&
+    new Set(school.map((row) => row.version)).size === 1;
+  if (!complete) throw new Error('student-portal-policy-defaults-unavailable');
+  if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL)))
+    throw new Error('student-portal-policy-defaults-unavailable');
   try {
-    const defaults = settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
+    const defaults = settingsValueV1.parse(
+      Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
+    );
     normalizeCalendarV1(defaults.calendar);
   } catch {
     throw new Error('student-portal-policy-defaults-unavailable');
   }
-  const epoch = school[0]!.version;
-  const classId = target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
+  return school;
+}
+
+function scopeChainV1(scope: ScopeV1, classId: number | null): ScopeV1[] {
   const chain: ScopeV1[] = [SCHOOL];
   if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
   if (scope.kind === 'account') chain.push(scope);
+  return chain;
+}
+
+function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly ScopeV1[]) {
   const value: Record<string, unknown> = {};
   const sources: Record<string, ScopeV1> = {};
   for (const origin of chain) {
-    for (const row of records.filter((item) => item.scope_key === key(origin))) {
+    const originKey = key(origin);
+    for (const row of records.filter((item) => item.scope_key === originKey)) {
       // Foundation snapshots may annotate inherited values. Only the owning scope overrides.
-      if (key(normalizedScope(row.source_scope_json)) !== key(origin)) continue;
-      value[row.field_key] = row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
+      if (key(normalizedScope(row.source_scope_json)) !== originKey) continue;
+      value[row.field_key] =
+        row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
       sources[row.field_key] = origin;
     }
   }
-  const version = versionV1.parse(epoch + z.coerce.number().int().safe().nonnegative().parse(target.account_version));
+  return { value, sources };
+}
+
+/** Shared pure policy resolution for single-target and batched administrative reads. */
+export async function resolvePolicySnapshotRowsV1(
+  input: ScopeV1,
+  rows: readonly Record<string, unknown>[],
+) {
+  const scope = normalizedScope(input);
+  if (rows.length !== 1 || rows[0]!.resolved !== true)
+    throw new Error('student-portal-policy-target-unresolved');
+  const target = rows[0]!;
+  const records = z.array(storedRow).parse(target.settings_rows);
+  const school = schoolDefaultsV1(records);
+  const epoch = school[0]!.version;
+  const classId =
+    target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
+  const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId));
+  const accountVersion = z.coerce.number().int().safe().nonnegative().parse(target.account_version);
+  const version = versionV1.parse(epoch + accountVersion);
   const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
-  return { settings, classId, epoch, policyVersion: `policy:${await hash({ settings, classId })}` };
+  return {
+    settings,
+    classId,
+    epoch,
+    policyVersion: `policy:${await hash({ settings, classId })}`,
+  };
+}
+
+type SettingsSetCommandV1 = Extract<AdminCommandV1, { operation: 'settings-set' }>;
+type SettingsInheritCommandV1 = Extract<AdminCommandV1, { operation: 'settings-inherit' }>;
+type SettingsCommandV1 = SettingsSetCommandV1 | SettingsInheritCommandV1;
+
+function settingsCommandV1(input: unknown): SettingsCommandV1 {
+  const command = adminCommandV1.parse(input);
+  if (command.operation !== 'settings-set' && command.operation !== 'settings-inherit')
+    throw new Error('student-portal-policy-command-invalid');
+  return command;
+}
+
+async function statementNowV1(tx: StudentPortalPostgresQueryV1) {
+  const clock = await tx.unsafe('SELECT statement_timestamp() AS now');
+  const raw = clock[0]!.now;
+  return raw instanceof Date ? raw : new Date(z.string().parse(raw));
+}
+
+async function receiptReplayV1(
+  tx: StudentPortalPostgresQueryV1,
+  persistence: PortalTransactionV1,
+  command: SettingsCommandV1,
+  receiptActor: string,
+  requestDigest: string,
+  now: Date,
+) {
+  const existing = await persistence.readIdempotency(command.idempotencyKey, receiptActor);
+  if (!existing) return null;
+  if (Date.parse(existing.expiresAt) <= now.getTime()) {
+    await tx.unsafe(
+      'DELETE FROM student_portal.operation_receipt WHERE idempotency_key=$1 AND actor_id=$2',
+      [command.idempotencyKey, receiptActor],
+    );
+    return null;
+  }
+  if (existing.requestDigest !== requestDigest)
+    throw new Error('student-portal-policy-idempotency-conflict');
+  return { operationId: existing.operationId, version: existing.version };
+}
+
+function storedMatchesV1(
+  previous: Record<string, unknown> | undefined,
+  value: unknown,
+  scope: ScopeV1,
+) {
+  return Boolean(
+    previous &&
+      canonical(previous.value_json) === canonical(value) &&
+      canonical(previous.source_scope_json) === canonical(scope),
+  );
+}
+
+async function applySettingsSetV1(
+  tx: StudentPortalPostgresQueryV1,
+  scope: ScopeV1,
+  command: SettingsSetCommandV1,
+  stored: readonly Record<string, unknown>[],
+  nextEpoch: number,
+  previousCalendar: unknown,
+  now: Date,
+) {
+  let changed = false;
+  for (const field of FIELDS) {
+    if (!(field in command.value)) continue;
+    const value =
+      field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
+    const previous = stored.find((row) => row.field_key === field);
+    if (storedMatchesV1(previous, value, scope)) continue;
+    const immediate =
+      field !== 'calendar' || immediateCalendarChange(previousCalendar, value, now.getTime());
+    if (!command.acknowledgeImmediateEffect && immediate)
+      throw new Error('student-portal-policy-immediate-confirmation-required');
+    await writeField(tx, scope, field, value, nextEpoch);
+    changed = true;
+  }
+  return changed;
+}
+
+async function applySettingsInheritV1(
+  tx: StudentPortalPostgresQueryV1,
+  scope: ScopeV1,
+  command: SettingsInheritCommandV1,
+) {
+  let changed = false;
+  for (const field of command.keys) {
+    const deleted = await tx.unsafe(
+      'DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2 RETURNING field_key',
+      [key(scope), field],
+    );
+    changed ||= deleted.length > 0;
+  }
+  return changed;
+}
+
+async function applySettingsCommandV1(
+  tx: StudentPortalPostgresQueryV1,
+  scope: ScopeV1,
+  command: SettingsCommandV1,
+  stored: readonly Record<string, unknown>[],
+  nextEpoch: number,
+  previousCalendar: unknown,
+  now: Date,
+) {
+  if (command.operation === 'settings-set')
+    return applySettingsSetV1(tx, scope, command, stored, nextEpoch, previousCalendar, now);
+  return applySettingsInheritV1(tx, scope, command);
+}
+
+async function advancePolicyEpochV1(tx: StudentPortalPostgresQueryV1, nextEpoch: number) {
+  const advanced = await tx.unsafe(
+    "UPDATE student_portal.setting SET version=$1,updated_at=statement_timestamp() WHERE scope_key='school:2026' RETURNING field_key",
+    [nextEpoch],
+  );
+  if (advanced.length !== FIELDS.length)
+    throw new Error('student-portal-policy-defaults-unavailable');
+  // Preserve the last published payload; the new policyVersion invalidates its authorization.
+  await tx.unsafe(
+    "UPDATE student_portal.publication_job SET state='failed',lease_until=NULL,updated_at=statement_timestamp() WHERE state IN ('queued','running')",
+  );
+}
+
+async function savePolicyMutationV1(
+  persistence: PortalTransactionV1,
+  actor: string,
+  scope: ScopeV1,
+  command: SettingsCommandV1,
+  receiptActor: string,
+  requestDigest: string,
+  now: Date,
+  version: number,
+  changed: boolean,
+) {
+  const operationId = crypto.randomUUID();
+  if (changed)
+    await persistence.appendAudit({
+      eventId: crypto.randomUUID(),
+      at: now.toISOString(),
+      actorId: actor,
+      accountId: scope.kind === 'account' ? scope.accountId : null,
+      scope,
+      kind: 'settings-changed',
+      result: 'success',
+      requestId: command.idempotencyKey,
+      version,
+      maskedIp: null,
+    });
+  await persistence.saveIdempotency({
+    key: command.idempotencyKey,
+    actorId: receiptActor,
+    requestDigest,
+    operationId,
+    version,
+    expiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+  });
+  return { operationId, version };
 }
 
 export class PolicyServiceV1 implements EffectivePolicyPortV1 {
@@ -157,62 +354,64 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
   /** Composition can enqueue publication work on this same physical transaction before commit. */
   async mutateInTransaction(tx: StudentPortalPostgresQueryV1, actorId: string, input: unknown) {
     const actor = z.uuid().parse(actorId).toLowerCase();
-    const command = adminCommandV1.parse(input);
-    if (command.operation !== 'settings-set' && command.operation !== 'settings-inherit') throw new Error('student-portal-policy-command-invalid');
+    const command = settingsCommandV1(input);
     const scope = normalizedScope(command.scope);
-    if (command.operation === 'settings-inherit' && scope.kind === 'school') throw new Error('student-portal-school-cannot-inherit');
+    if (command.operation === 'settings-inherit' && scope.kind === 'school')
+      throw new Error('student-portal-school-cannot-inherit');
+
     await lockYear(tx);
-    const store = new StudentPortalPostgresPersistenceV1({ unsafe: (query, parameters) => tx.unsafe(query, parameters), begin: (operation) => operation(tx) });
+    const store = new StudentPortalPostgresPersistenceV1({
+      unsafe: (query, parameters) => tx.unsafe(query, parameters),
+      begin: (operation) => operation(tx),
+    });
     return store.transaction(async (persistence) => {
-      const clock = await tx.unsafe('SELECT statement_timestamp() AS now');
-      const nowRaw = clock[0]!.now;
-      const now = nowRaw instanceof Date ? nowRaw : new Date(z.string().parse(nowRaw));
+      const now = await statementNowV1(tx);
       const receiptActor = `policy:${actor}`;
       const requestDigest = await hash({ ...command, scope });
-      const existingReceipt = await persistence.readIdempotency(command.idempotencyKey, receiptActor);
-      if (existingReceipt && Date.parse(existingReceipt.expiresAt) > now.getTime()) {
-        if (existingReceipt.requestDigest !== requestDigest) throw new Error('student-portal-policy-idempotency-conflict');
-        return { operationId: existingReceipt.operationId, version: existingReceipt.version };
-      }
-      if (existingReceipt) await tx.unsafe('DELETE FROM student_portal.operation_receipt WHERE idempotency_key=$1 AND actor_id=$2', [command.idempotencyKey, receiptActor]);
+      const replay = await receiptReplayV1(
+        tx,
+        persistence,
+        command,
+        receiptActor,
+        requestDigest,
+        now,
+      );
+      if (replay) return replay;
+
       if (scope.kind === 'account') await persistence.lockAccounts([scope.accountId]);
       const before = await this.readSnapshotInTransaction(tx, scope);
-      if (before.settings.version !== command.expectedVersion) throw new Error('student-portal-policy-version-conflict');
-      const stored = await tx.unsafe('SELECT field_key,value_json,source_scope_json FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE', [key(scope)]);
+      if (before.settings.version !== command.expectedVersion)
+        throw new Error('student-portal-policy-version-conflict');
+
+      const stored = await tx.unsafe(
+        'SELECT field_key,value_json,source_scope_json FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE',
+        [key(scope)],
+      );
       const nextEpoch = versionV1.parse(before.epoch + 1);
-      let changed = false;
-      if (command.operation === 'settings-set') {
-        for (const field of FIELDS) {
-          if (!(field in command.value)) continue;
-          const value = field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
-          const previous = stored.find((row) => row.field_key === field);
-          if (previous && canonical(previous.value_json) === canonical(value) && canonical(previous.source_scope_json) === canonical(scope)) continue;
-          if (!command.acknowledgeImmediateEffect && (field !== 'calendar' || immediateCalendarChange(before.settings.value.calendar, value, now.getTime()))) {
-            throw new Error('student-portal-policy-immediate-confirmation-required');
-          }
-          await writeField(tx, scope, field, value, nextEpoch);
-          changed = true;
-        }
-      } else {
-        for (const field of command.keys) {
-          const deleted = await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2 RETURNING field_key', [key(scope), field]);
-          changed ||= deleted.length > 0;
-        }
-      }
-      if (changed) {
-        const advanced = await tx.unsafe("UPDATE student_portal.setting SET version=$1,updated_at=statement_timestamp() WHERE scope_key='school:2026' RETURNING field_key", [nextEpoch]);
-        if (advanced.length !== FIELDS.length) throw new Error('student-portal-policy-defaults-unavailable');
-        // Preserve the last published payload; the new policyVersion invalidates its authorization.
-        await tx.unsafe("UPDATE student_portal.publication_job SET state='failed',lease_until=NULL,updated_at=statement_timestamp() WHERE state IN ('queued','running')");
-      }
+      const changed = await applySettingsCommandV1(
+        tx,
+        scope,
+        command,
+        stored,
+        nextEpoch,
+        before.settings.value.calendar,
+        now,
+      );
+      if (changed) await advancePolicyEpochV1(tx, nextEpoch);
+
       const after = await this.readSnapshotInTransaction(tx, scope);
-      const operationId = crypto.randomUUID();
-      if (changed) await persistence.appendAudit({ eventId: crypto.randomUUID(), at: now.toISOString(), actorId: actor,
-        accountId: scope.kind === 'account' ? scope.accountId : null, scope, kind: 'settings-changed', result: 'success',
-        requestId: command.idempotencyKey, version: after.settings.version, maskedIp: null });
-      await persistence.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest, operationId,
-        version: after.settings.version, expiresAt: new Date(now.getTime() + 86400_000).toISOString() });
-      return { operationId, version: after.settings.version };
+      return savePolicyMutationV1(
+        persistence,
+        actor,
+        scope,
+        command,
+        receiptActor,
+        requestDigest,
+        now,
+        after.settings.version,
+        changed,
+      );
     });
   }
+
 }
