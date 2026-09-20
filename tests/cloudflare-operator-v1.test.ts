@@ -159,8 +159,14 @@ describe('Cloudflare read-only operator', () => {
               accounts: [
                 {
                   workersInvocationsAdaptive: [
-                    { sum: { requests: 12, errors: 1 } },
-                    { sum: { requests: 8, errors: 0 } },
+                    {
+                      sum: { requests: 12, errors: 1 },
+                      quantiles: { cpuTimeP50: 3, cpuTimeP99: 9 },
+                    },
+                    {
+                      sum: { requests: 8, errors: 0 },
+                      quantiles: { cpuTimeP50: 4, cpuTimeP99: 7 },
+                    },
                   ],
                 },
               ],
@@ -197,6 +203,8 @@ describe('Cloudflare read-only operator', () => {
       windowMinutes: 60,
       requests: 20,
       errors: 1,
+      maxCpuTimeP50: 4,
+      maxCpuTimeP99: 9,
     });
     expect(calls).toHaveLength(3);
     expect(calls[0]?.url).toMatch(/\/workers\/scripts$/u);
@@ -207,6 +215,8 @@ describe('Cloudflare read-only operator', () => {
     expect(calls[2]?.init?.method).toBe('POST');
     const query = JSON.parse(String(calls[2]?.init?.body));
     expect(query.query).toContain('query PortalWorkerMetrics');
+    expect(query.query).toContain('cpuTimeP50');
+    expect(query.query).toContain('cpuTimeP99');
     expect(query.query).not.toContain('mutation');
     expect(query.variables.scriptName).toBe('student-portal-production');
     expect(JSON.stringify(result)).not.toContain(token);
