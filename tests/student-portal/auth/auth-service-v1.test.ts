@@ -8,6 +8,7 @@ import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1'
 import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
 import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
+import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { installResetSchemaFixtureV1 } from '../year-reset/schema-fixture';
 import { servePortalAuthV1 } from '../../../server/student-portal/http/auth/handler-v1';
 
@@ -30,6 +31,19 @@ let qr: string;
 let failAudit = false;
 const risk = { verify: vi.fn(async (token: string) => token === 'synthetic-valid-risk') };
 const id = () => crypto.randomUUID();
+
+function cryptoWithV1(overrides: Partial<CryptoPortV1> = {}): CryptoPortV1 {
+  return {
+    randomToken: (bytes) => cryptoPort.randomToken(bytes),
+    hashOpaqueToken: (token) => cryptoPort.hashOpaqueToken(token),
+    deriveVerifier: (secret, pepperVersion) => cryptoPort.deriveVerifier(secret, pepperVersion),
+    verifySecret: (secret, verifier) => cryptoPort.verifySecret(secret, verifier),
+    signQr: (credentialId, keyVersion) => cryptoPort.signQr(credentialId, keyVersion),
+    verifyQr: (credentialId, keyVersion, signature) =>
+      cryptoPort.verifyQr(credentialId, keyVersion, signature),
+    ...overrides,
+  };
+}
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -155,6 +169,84 @@ beforeEach(async () => {
 }, 30_000);
 afterAll(async () => {
   await pg?.close();
+});
+
+describe('KDF transaction boundary', () => {
+  it('executes PIN/password KDF only after explicit SQL transactions release', async () => {
+    let depth = 0;
+    const trackedSql: StudentPortalPostgresSqlV1 = {
+      unsafe: (query, parameters) => sql.unsafe(query, parameters),
+      begin: async (operation) => {
+        depth += 1;
+        try {
+          return await sql.begin(operation);
+        } finally {
+          depth -= 1;
+        }
+      },
+    };
+    const phases: string[] = [];
+    const trackedCrypto = cryptoWithV1({
+      deriveVerifier: async (secret, pepperVersion) => {
+        expect(depth).toBe(0);
+        phases.push('derive');
+        return cryptoPort.deriveVerifier(secret, pepperVersion);
+      },
+      verifySecret: async (secret, verifier) => {
+        expect(depth).toBe(0);
+        phases.push('verify');
+        return cryptoPort.verifySecret(secret, verifier);
+      },
+    });
+    const service = new AuthServiceV1(trackedSql, trackedCrypto, 1, risk);
+    const challenge = await service.challenge({ contractVersion: 1, qr, pin: '2001' }, id());
+    if (challenge.state !== 'password-creation') throw new Error('synthetic-kdf-proof-missing');
+    expect(await service.activate({
+      contractVersion: 1,
+      challenge: challenge.challenge,
+      password: '123456',
+      confirmation: '123456',
+      keepConnected: false,
+    }, id())).toHaveProperty('token');
+    expect(await service.login({
+      contractVersion: 1,
+      qr,
+      password: '123456',
+      keepConnected: false,
+    }, id())).toHaveProperty('token');
+    expect(phases).toEqual(['verify', 'derive', 'verify']);
+  });
+
+  it('rejects a stale password proof if credentials rotate during KDF', async () => {
+    await activate();
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+    const releasePromise = new Promise<void>((resolve) => { release = resolve; });
+    const service = new AuthServiceV1(sql, cryptoWithV1({
+      verifySecret: async (secret, verifier) => {
+        entered();
+        await releasePromise;
+        return cryptoPort.verifySecret(secret, verifier);
+      },
+    }), 1, risk);
+    const before = Number((await pg.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM student_portal.session',
+    )).rows[0]!.count);
+    const pending = service.login({
+      contractVersion: 1,
+      qr,
+      password: '123456',
+      keepConnected: false,
+    }, id());
+    await enteredPromise;
+    await qrService.command(ACTOR, await command('password-reset', { confirmed: true }));
+    release();
+    expect(await pending).toMatchObject({ state: 'unauthenticated' });
+    expect(Number((await pg.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM student_portal.session',
+    )).rows[0]!.count)).toBe(before);
+  });
 });
 
 describe('auth with real schema, policies, birth service and scrypt', () => {
