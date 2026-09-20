@@ -32,3 +32,4 @@ Labels públicas e menções diretas do GitHub App não são o mecanismo padrão
 - Não deve receber dados reais de alunos.
 - Não deve fazer merge direto em `main` nem acionar produção como parte de uma tarefa comum.
 - Qualquer PR produzido é uma entrega candidata.
+- Se o start-task terminar em `ERROR` antes de existir conversa executável, o host permite somente uma nova criação, usando o mesmo deadline global. Timeout, falha após início da execução e sandbox `ERROR` durante a conversa continuam fail-closed sem repetição automática.
