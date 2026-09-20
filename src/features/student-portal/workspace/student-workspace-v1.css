@@ -12,7 +12,55 @@
 .pa-workspace-view {
   display: grid;
   min-width: 0;
+  max-width: 100%;
   gap: 1rem;
+}
+
+.pa-workspace-view > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* HeroUI Tabs inserts ScrollShadow between ListContainer and List. Constrain the
+ * nested subject/period tabs to the viewport and let the native scroller own
+ * horizontal overflow instead of expanding the page. */
+:is(.pa-student-workspace, .pa-student-workspace .tabs)[data-orientation='horizontal'] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pa-student-workspace .tabs[data-orientation='horizontal'] > .tabs__list-container {
+  align-self: flex-start;
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.pa-student-workspace .tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pa-student-workspace .tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal'] {
+  width: max-content;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.pa-student-workspace .tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .tabs__tab {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .pa-workspace-heading-row {
@@ -142,6 +190,13 @@
 @media (max-width: 759px) {
   .pa-workspace-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pa-workspace-grid > *,
+  .pa-evolution-bars,
+  .pa-progress-card-content {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 
