@@ -46,6 +46,152 @@ async function firstRow(query: string): Promise<Record<string, unknown>> {
   return row;
 }
 
+type AclObjectV1 = {
+  readonly object: string;
+  readonly privileges: readonly string[];
+};
+
+function booleanValue(value: unknown, code: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(code);
+  return value;
+}
+
+function aclObject(
+  row: Record<string, unknown>,
+  privilegeColumns: readonly (readonly [column: string, privilege: string])[],
+): AclObjectV1 {
+  const object = String(row.object ?? '');
+  if (!object) throw new Error('gradebook-ci-postgres-acl-object-invalid');
+  return {
+    object,
+    privileges: privilegeColumns
+      .filter(([column]) =>
+        booleanValue(row[column], `gradebook-ci-postgres-acl-${column}-invalid`),
+      )
+      .map(([, privilege]) => privilege),
+  };
+}
+
+async function readGradebookAclMatrix(): Promise<{
+  readonly tables: readonly AclObjectV1[];
+  readonly sequences: readonly AclObjectV1[];
+  readonly functions: readonly AclObjectV1[];
+  readonly portalFunctions: readonly string[];
+}> {
+  const tableRows = Array.from(
+    await sql.unsafe(`
+      SELECT table_name AS object,
+        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'SELECT') AS can_select,
+        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'INSERT') AS can_insert,
+        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'UPDATE') AS can_update,
+        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'DELETE') AS can_delete
+      FROM information_schema.tables
+      WHERE table_schema='gradebook' AND table_type='BASE TABLE'
+      ORDER BY table_name
+    `),
+  ) as Record<string, unknown>[];
+  const tables = tableRows.map((row) =>
+    aclObject(row, [
+      ['can_select', 'SELECT'],
+      ['can_insert', 'INSERT'],
+      ['can_update', 'UPDATE'],
+      ['can_delete', 'DELETE'],
+    ]),
+  );
+
+  const sequenceRows = Array.from(
+    await sql.unsafe(`
+      SELECT sequencename AS object,
+        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'USAGE') AS can_usage,
+        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'SELECT') AS can_select,
+        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'UPDATE') AS can_update
+      FROM pg_sequences
+      WHERE schemaname='gradebook'
+      ORDER BY sequencename
+    `),
+  ) as Record<string, unknown>[];
+  const sequences = sequenceRows.map((row) =>
+    aclObject(row, [
+      ['can_usage', 'USAGE'],
+      ['can_select', 'SELECT'],
+      ['can_update', 'UPDATE'],
+    ]),
+  );
+
+  const functionRows = Array.from(
+    await sql.unsafe(`
+      SELECT format('%I.%I(%s)',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)) AS object,
+        has_function_privilege('gradebook_app',p.oid,'EXECUTE') AS can_execute
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='gradebook'
+      ORDER BY object
+    `),
+  ) as Record<string, unknown>[];
+  const functions = functionRows.map((row) =>
+    aclObject(row, [['can_execute', 'EXECUTE']]),
+  );
+
+  const portalFunctionRows = Array.from(
+    await sql.unsafe(`
+      SELECT format('%I.%I(%s)',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)) AS object
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='student_portal'
+        AND has_function_privilege('gradebook_app',p.oid,'EXECUTE')
+      ORDER BY object
+    `),
+  ) as Record<string, unknown>[];
+  const portalFunctions = portalFunctionRows.map((row) => {
+    const object = String(row.object ?? '');
+    if (!object) throw new Error('gradebook-ci-postgres-portal-function-invalid');
+    return object;
+  });
+
+  const boundary = await firstRow(`
+    SELECT
+      (SELECT count(*)::integer
+       FROM information_schema.tables
+       WHERE table_schema='student_portal'
+         AND (
+           has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'SELECT')
+           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'INSERT')
+           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'UPDATE')
+           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'DELETE')
+         )) AS portal_table_privileges,
+      (SELECT count(*)::integer
+       FROM information_schema.tables
+       WHERE table_schema='gradebook'
+         AND (
+           has_table_privilege('anon',format('gradebook.%I',table_name),'SELECT')
+           OR has_table_privilege('anon',format('gradebook.%I',table_name),'INSERT')
+           OR has_table_privilege('anon',format('gradebook.%I',table_name),'UPDATE')
+           OR has_table_privilege('anon',format('gradebook.%I',table_name),'DELETE')
+           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'SELECT')
+           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'INSERT')
+           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'UPDATE')
+           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'DELETE')
+         )) AS client_table_privileges,
+      has_schema_privilege('anon','gradebook','USAGE') AS anon_schema_usage,
+      has_schema_privilege('authenticated','gradebook','USAGE') AS authenticated_schema_usage
+  `);
+  if (Number(boundary.portal_table_privileges) !== 0) {
+    throw new Error('gradebook-ci-postgres-portal-table-privilege-leak');
+  }
+  if (
+    Number(boundary.client_table_privileges) !== 0 ||
+    booleanValue(boundary.anon_schema_usage, 'gradebook-ci-postgres-anon-schema-usage-invalid') ||
+    booleanValue(
+      boundary.authenticated_schema_usage,
+      'gradebook-ci-postgres-authenticated-schema-usage-invalid',
+    )
+  ) {
+    throw new Error('gradebook-ci-postgres-client-privilege-leak');
+  }
+
+  return { tables, sequences, functions, portalFunctions };
+}
+
 async function seedSyntheticCurrentState(): Promise<void> {
   await sql.unsafe(
     "INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2);" +
@@ -101,6 +247,14 @@ async function run(): Promise<void> {
     await assertCurrentGradebookSchemaV1(sql);
     await seedSyntheticCurrentState();
     await installPortalCoordination();
+    const acl = await readGradebookAclMatrix();
+    if (
+      acl.tables.length !== GRADEBOOK_CURRENT_CATALOG_V1.tables ||
+      acl.sequences.length !== GRADEBOOK_CURRENT_CATALOG_V1.sequences ||
+      acl.functions.length !== GRADEBOOK_CURRENT_CATALOG_V1.functions
+    ) {
+      throw new Error('gradebook-ci-postgres-acl-catalog-mismatch');
+    }
     process.stdout.write(JSON.stringify({
       state: 'ready',
       database: 'gradebook_recovery_ci',
@@ -109,6 +263,7 @@ async function run(): Promise<void> {
       rlsTables: GRADEBOOK_CURRENT_CATALOG_V1.tables,
       syntheticOnly: true,
       portalCoordinationMigrations: 6,
+      acl,
     }) + '\n');
   } finally {
     await sql.end({ timeout: 2 });
