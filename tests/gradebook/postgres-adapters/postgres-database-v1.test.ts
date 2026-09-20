@@ -158,6 +158,43 @@ describe('gradebook PostgreSQL database adapter', () => {
     expect(sql.calls[0]?.parameters).toEqual([{ value: payload, oid: 25 }]);
   });
 
+  it('keeps JSON-looking text textual when the SQL column is not JSON', async () => {
+    const sql = new SyntheticPostgresSqlV1();
+    const database = createGradebookPostgresDatabaseFromSqlV1(sql);
+    const text = '{"looks":"json"}';
+    const payload = '{"actual":"json"}';
+
+    await database
+      .prepare(
+        'INSERT INTO source_file_versions (file_name, payload_json) VALUES (?, ?)',
+      )
+      .bind(text, payload)
+      .run();
+
+    expect(sql.calls[0]?.query).toContain(
+      'INSERT INTO gradebook.source_file_versions (file_name, payload_json) VALUES ($1, $2::jsonb)',
+    );
+    expect(sql.calls[0]?.parameters).toEqual([
+      text,
+      { value: payload, oid: 25 },
+    ]);
+    expect(sql.typedCalls).toEqual([{ value: payload, oid: 25 }]);
+  });
+
+  it('does not parse parameter contents to decide whether a placeholder is JSONB', async () => {
+    const sql = new SyntheticPostgresSqlV1();
+    const database = createGradebookPostgresDatabaseFromSqlV1(sql);
+    const malformedJson = '{not-json';
+
+    await database
+      .prepare('INSERT INTO gradebook_import_stage_sessions (metadata_json) VALUES (?)')
+      .bind(malformedJson)
+      .run();
+
+    expect(sql.calls[0]?.query).toContain('$1::jsonb');
+    expect(sql.calls[0]?.parameters).toEqual([{ value: malformedJson, oid: 25 }]);
+  });
+
   it('retains only sanitized physical failure diagnostics after repository masking', async () => {
     const sql = new SyntheticPostgresSqlV1();
     const error = Object.assign(
