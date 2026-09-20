@@ -5,16 +5,26 @@ import './student-grades-v1.css';
 type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
 type MarkV1 = PeriodV1['final'];
-const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
-
-/** Text/colour mapping only. It never derives a threshold, average, result or new mark. */
-export function StudentMarkV1({
-  mark,
-  showMaximum = false,
-}: {
+type StudentMarkPropsV1 = Readonly<{
   mark: MarkV1;
   showMaximum?: boolean;
-}) {
+}>;
+
+const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
+
+function classificationV1(meetsMinimum: boolean | null) {
+  if (meetsMinimum === true) return 'Atinge o mínimo institucional';
+  if (meetsMinimum === false) return 'Abaixo do mínimo institucional';
+  return 'Classificação indisponível';
+}
+
+function minimumStateV1(meetsMinimum: boolean | null) {
+  if (meetsMinimum === null) return 'unknown';
+  return meetsMinimum ? 'met' : 'below';
+}
+
+/** Text/colour mapping only. It never derives a threshold, average, result or new mark. */
+export function StudentMarkV1({ mark, showMaximum = false }: StudentMarkPropsV1) {
   if (mark.kind === 'recovery-pending')
     return (
       <Chip size="sm" color="danger" variant="soft" aria-label="Recuperação pendente de nota">
@@ -29,19 +39,16 @@ export function StudentMarkV1({
       </span>
     );
   }
-  const classification =
-    mark.meetsMinimum === true
-      ? 'Atinge o mínimo institucional'
-      : mark.meetsMinimum === false
-        ? 'Abaixo do mínimo institucional'
-        : 'Classificação indisponível';
+  const classification = classificationV1(mark.meetsMinimum);
   const value = number.format(mark.value);
   const total = showMaximum && mark.maximum !== null ? number.format(mark.maximum) : null;
+  const maximumLabel = total === null ? '' : ` de ${total}`;
+  const ariaLabel = `${value}${maximumLabel}. ${classification}`;
   return (
     <span
       className="pa-mark"
-      data-minimum={mark.meetsMinimum === null ? 'unknown' : mark.meetsMinimum ? 'met' : 'below'}
-      aria-label={`${value}${total === null ? '' : ` de ${total}`}. ${classification}`}
+      data-minimum={minimumStateV1(mark.meetsMinimum)}
+      aria-label={ariaLabel}
     >
       <span className="pa-mark-value">{value}</span>
       {total === null ? null : <span className="pa-mark-maximum"> / {total}</span>}
