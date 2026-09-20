@@ -124,9 +124,9 @@ export function StudentPortalApp({
   return (
     <StudentPortalPageV1
       load={session.load}
-      grades={(data) => <><RemoteLiveNoticeV1 state={liveState} /><LiveReadNoticeV1 failed={session.load.state === 'ready' && Boolean(session.load.refreshError)} />
-        {session.load.state === 'ready' && session.load.refreshError ? <Button variant="secondary" onPress={() => { void session.refresh(); }}>Tentar novamente</Button> : null}
-        <StudentGradesV1 data={data} /></>}
+      status={<><RemoteLiveNoticeV1 state={liveState} /><LiveReadNoticeV1 failed={session.load.state === 'ready' && Boolean(session.load.refreshError)} />
+        {session.load.state === 'ready' && session.load.refreshError ? <Button variant="secondary" onPress={() => { void session.refresh(); }}>Tentar novamente</Button> : null}</>}
+      grades={(data) => <StudentGradesV1 data={data} />}
       onRetry={() => {
         void session.refresh();
       }}

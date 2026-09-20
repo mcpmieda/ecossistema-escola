@@ -1,11 +1,27 @@
 .pa-shell {
+  --pa-page-bg: #f6faff;
+  --pa-page-blue: rgb(37 99 235 / 0.14);
+  --pa-page-cyan: rgb(6 182 212 / 0.12);
+  --pa-page-indigo: rgb(79 70 229 / 0.1);
   min-height: 100dvh;
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--pa-page-bg);
+  background-image:
+    radial-gradient(58rem 24rem at -8% -4%, var(--pa-page-cyan), transparent 72%),
+    radial-gradient(48rem 28rem at 108% 10%, var(--pa-page-blue), transparent 74%),
+    radial-gradient(52rem 24rem at 52% 108%, var(--pa-page-indigo), transparent 76%),
+    linear-gradient(180deg, #f9fcff 0%, #f4f9ff 48%, #f8fbff 100%);
+  background-repeat: no-repeat;
 }
 .pa-shell-header {
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  border-bottom: 1px solid rgb(255 255 255 / 0.16);
+  background:
+    radial-gradient(30rem 10rem at 82% -25%, rgb(34 211 238 / 0.36), transparent 72%),
+    linear-gradient(118deg, #0b3f9c 0%, #075dcc 58%, #0787a8 120%);
+  box-shadow: 0 12px 34px rgb(15 46 101 / 0.16);
 }
 .pa-header-inner {
   display: grid;
@@ -32,11 +48,13 @@
   place-items: center;
   width: 100%;
   height: 100%;
-  background: var(--accent);
-  color: var(--accent-foreground);
+  border: 1px solid rgb(255 255 255 / 0.3);
+  background: rgb(255 255 255 / 0.16);
+  color: white;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
 }
 .pa-header-title {
   min-width: 0;
@@ -44,18 +62,19 @@
 }
 .pa-header-title h1 {
   margin: 0;
+  color: white;
   font-size: 1rem;
   line-height: 1.3;
-  font-weight: 650;
-  letter-spacing: 0.025em;
+  font-weight: 750;
+  letter-spacing: 0.015em;
 }
 .pa-header-title p {
   margin: 0.2rem 0 0;
-  color: var(--muted);
+  color: rgb(224 242 254 / 0.84);
   font-size: 0.75rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
-  font-weight: 400;
+  font-weight: 450;
 }
 .pa-header-action {
   justify-self: end;
@@ -65,9 +84,9 @@
   min-height: 2.5rem;
 }
 .pa-shell-content {
-  max-width: 72rem;
+  max-width: 64rem;
   margin-inline: auto;
-  padding: 1.75rem 1rem 3rem;
+  padding: 1.4rem 1rem 3rem;
   min-width: 0;
 }
 .pa-shell-content:focus {
@@ -79,25 +98,33 @@
   font-weight: 600;
   line-height: 1.5;
 }
+.pa-profile-section > .pa-section-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .pa-profile-card {
   padding: 0;
   gap: 0;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 .pa-profile-content {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
-  padding: 1.25rem;
+  padding: 1.1rem;
 }
 .pa-student-avatar,
 .pa-skeleton-avatar {
   flex-shrink: 0;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 1rem;
+  width: 3.6rem;
+  height: 3.6rem;
 }
 .pa-profile-identity {
   min-width: 0;
@@ -105,17 +132,18 @@
 }
 .pa-student-name {
   margin: 0;
-  font-size: 1.375rem;
-  line-height: 1.3;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  color: #0f2a5f;
+  font-size: 1.42rem;
+  line-height: 1.25;
+  font-weight: 760;
+  letter-spacing: -0.035em;
   overflow-wrap: anywhere;
 }
 .pa-student-class {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: 0.875rem;
-  line-height: 1.5;
+  margin: 0.3rem 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .pa-profile-meta {
