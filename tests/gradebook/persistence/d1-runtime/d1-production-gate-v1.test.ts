@@ -46,6 +46,7 @@ function bindingProbe() {
 describe('gate produtivo D1 V1', () => {
   it('preserva somente estados explícitos do gate server-side na validação do ambiente', () => {
     expect(validateEnv(productionEnv(undefined)).GRADEBOOK_PRODUCTION_ENABLED).toBeUndefined();
+    expect(validateEnv(productionEnv(undefined)).GRADEBOOK_STORAGE_PROVIDER).toBeUndefined();
     expect(validateEnv(productionEnv(undefined, 'false')).GRADEBOOK_PRODUCTION_ENABLED).toBe(
       'false',
     );
