@@ -11,6 +11,7 @@ Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separa
 | `0003_audit_receipts_closure_integration_v1.sql` | audit, idempotency receipts, explicit link tombstones, reset preview proof and narrow Gradebook revision function |
 | `0004_gradebook_integration_usage_v1.sql` | namespace-only integration ACL plus read-only reset guard function for `gradebook_app`; no table privilege |
 | `0014_year_reset_full_cleanup_v1.sql` | mantém o contrato do reset anual e remove, ao concluir, eventos de revisão, provas técnicas e coordenação anual do ano apagado |
+| `0015_student_portal_rls_v1.sql` | defesa em profundidade #859: RLS não-forçado nas 27 tabelas privadas, policy restrita a `student_portal_app` e ACL existente preservada |
 
 The sequence assumes the current relational Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`. In particular, `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
 
@@ -20,7 +21,7 @@ The sequence assumes the current relational Gradebook catalog through `migration
 - A live Portal link is unique by `(academic_year, gradebook_student_id)` and references `gradebook.aluno(id, ano)` with `RESTRICT`, never cascade.
 - Closing a link first writes `link_closure`, then nulls the live academic reference. The tombstone deliberately has no FK to Gradebook so history survives a later authorized Gradebook reset. Relinking by name is outside the contract.
 - QR payloads, raw session tokens, PINs and passwords are never stored. Only credential metadata, verifiers and hashes are persisted.
-- `student_portal_app` owns no schema objects and has no DDL, superuser or BYPASSRLS capability. It receives only runtime DML in the private Portal schema and SELECT on the narrow Portal-owned academic views.
+- `student_portal_app` owns no schema objects and has no DDL, superuser or BYPASSRLS capability. It receives only runtime DML in the private Portal schema and SELECT on the narrow Portal-owned academic views. Desde #859, as 27 tabelas privadas também exigem a policy `student_portal_app_backend_v1`; a policy não concede operações e a ACL continua sendo o limite de SELECT/INSERT/UPDATE/DELETE.
 - `PUBLIC` receives no schema/table/function privileges. Supabase client roles are not granted privileges by these migrations.
 - `gradebook_app` receives schema `USAGE` plus only `EXECUTE` on `record_gradebook_change_v1` and `inspect_year_reset_guard_v1`; it receives no table DML in `student_portal`.
 - Revision generations are random per database and counters are positive/durable. `record_gradebook_change_v1` is idempotent by `event_id` and must be called only after the #703 common lock protocol has been acquired by the writer. `inspect_year_reset_guard_v1` is read-only and must run in the same reset transaction after those locks.
