@@ -18,14 +18,14 @@ Buscas de consumidor neste mapa **excluem `Aprendizados/**` como autoridade oper
 | Artefato | Estado | Consumidores vivos observados | Evidência/testes | Condição de retirada |
 | --- | --- | --- | --- | --- |
 | `import-persistence-transport-v1.ts` | COMPATIBILITY | base importada por v2/v3/v4 e tipos ainda usados na cadeia de source/import | testes de source/result/persistence | somente após retirar todos os derivados que importam v1 |
-| `...-v2.ts` | COMPATIBILITY | v3/v4/v9 | cadeia de importação V9 | somente após v9 e derivados deixarem de importar seus tipos |
-| `...-v3.ts` | COMPATIBILITY | v4, `spreadsheet-recognizer.ts`, `academic-result-projection-v1.ts` | testes de projeção/source | migrar consumidores diretos antes |
-| `...-v4.ts` | COMPATIBILITY | v5, `canonical-import-v9.ts`, diagnósticos e recognizer | testes de importação atuais | migrar consumidores diretos antes |
-| `...-v5.ts` | COMPATIBILITY | v6 | cadeia de transportes | retirar somente após v6 deixar de depender |
-| `...-v6.ts` | COMPATIBILITY | v7/v8 | cadeia V8 | retirar somente após v8 e eventual v7 saírem |
-| `...-v7.ts` | HISTORICAL/MEMORY | **nenhum consumidor vivo encontrado fora de `Aprendizados/**`** | referências encontradas só no arquivo histórico D1-V8 | BN-04 deve revalidar e só então remover/mover |
-| `...-v8.ts` | COMPATIBILITY | `spreadsheet-recognizer.ts`; compõe tipos pré-V9 | testes de recognizer/import | migrar o consumidor direto e dependências primeiro |
-| `...-v9.ts` | **CURRENT** | client V9, API `import-persistence`, V9/V10/V11, canonical import, batch/import hooks | `relational-v9-contract`, multiyear, revisions, PostgreSQL | só por nova decisão de contrato explícita |
+| `import-persistence-transport-v2.ts` | COMPATIBILITY | v3/v4/v9 | cadeia de importação V9 | somente após v9 e derivados deixarem de importar seus tipos |
+| `import-persistence-transport-v3.ts` | COMPATIBILITY | v4, `spreadsheet-recognizer.ts`, `academic-result-projection-v1.ts` | testes de projeção/source | migrar consumidores diretos antes |
+| `import-persistence-transport-v4.ts` | COMPATIBILITY | v5, `canonical-import-v9.ts`, diagnósticos e recognizer | testes de importação atuais | migrar consumidores diretos antes |
+| `import-persistence-transport-v5.ts` | COMPATIBILITY | v6 | cadeia de transportes | retirar somente após v6 deixar de depender |
+| `import-persistence-transport-v6.ts` | COMPATIBILITY | v7/v8 | cadeia V8 | retirar somente após v8 e eventual v7 saírem |
+| `import-persistence-transport-v7.ts` | HISTORICAL/MEMORY | **nenhum consumidor vivo encontrado fora de `Aprendizados/**`** | referências encontradas só no arquivo histórico D1-V8 | BN-04 deve revalidar e só então remover/mover |
+| `import-persistence-transport-v8.ts` | COMPATIBILITY | `spreadsheet-recognizer.ts`; compõe tipos pré-V9 | testes de recognizer/import | migrar o consumidor direto e dependências primeiro |
+| `import-persistence-transport-v9.ts` | **CURRENT** | client V9, API `import-persistence`, V9/V10/V11, canonical import, batch/import hooks | `relational-v9-contract`, multiyear, revisions, PostgreSQL | só por nova decisão de contrato explícita |
 
 **Interpretação:** v1–v6/v8 não são “código morto” apenas por terem número menor. V9 é a fronteira externa atual, mas reutiliza tipos das versões anteriores.
 
