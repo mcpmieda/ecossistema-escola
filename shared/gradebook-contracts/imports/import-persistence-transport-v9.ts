@@ -204,6 +204,133 @@ function validRelation(value: Record<string, unknown>): boolean {
 
 const SLOTS = new Set([1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
 
+function validUnavailableSlots(input: unknown): boolean {
+  if (input === undefined) return true;
+  if (!Array.isArray(input) || input.length > 10) return false;
+  const seen = new Set<number>();
+  for (const slot of input) {
+    if (!Number.isSafeInteger(slot) || slot < 11 || slot > 20 || seen.has(slot)) return false;
+    seen.add(slot);
+  }
+  return true;
+}
+
+function validInstrument(value: unknown, slots: Set<number>): boolean {
+  if (!Array.isArray(value) || (value.length !== 2 && value.length !== 3)) return false;
+  const slot = value[0];
+  if (!Number.isSafeInteger(slot) || !SLOTS.has(slot) || slots.has(slot)) return false;
+  if (value[1] !== null && (!validCanonicalInteger(value[1]) || value[1] <= 0)) return false;
+  if (value[2] !== undefined && !nonEmptyText(value[2], 512)) return false;
+  slots.add(slot);
+  return true;
+}
+
+function validTermStudent(
+  value: unknown,
+  instrumentCount: number,
+  numbers: Set<number>,
+): boolean {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    !Number.isSafeInteger(value[0]) ||
+    value[0] <= 0 ||
+    numbers.has(value[0])
+  )
+    return false;
+  if (
+    !Array.isArray(value[1]) ||
+    value[1].length !== instrumentCount ||
+    !value[1].every(validCell) ||
+    !validCell(value[2])
+  )
+    return false;
+  numbers.add(value[0]);
+  return true;
+}
+
+function validTerm(value: unknown, termIndex: number): boolean {
+  if (
+    !record(value) ||
+    value.trimestre !== termIndex + 1 ||
+    !Array.isArray(value.instrumentos) ||
+    !Array.isArray(value.alunos)
+  )
+    return false;
+  if (value.instrumentos.length === 0 || value.instrumentos.length > 13 || value.alunos.length > 64)
+    return false;
+
+  const snapshotVersion = value.definitionSnapshotVersion;
+  if (snapshotVersion !== undefined && snapshotVersion !== 1) return false;
+  if (
+    snapshotVersion === undefined &&
+    (value.unavailableMaximumSlots !== undefined ||
+      value.unavailableDescriptionSlots !== undefined ||
+      value.unavailableValueSlots !== undefined)
+  )
+    return false;
+  if (
+    !validUnavailableSlots(value.unavailableMaximumSlots) ||
+    !validUnavailableSlots(value.unavailableDescriptionSlots) ||
+    !validUnavailableSlots(value.unavailableValueSlots)
+  )
+    return false;
+
+  const slots = new Set<number>();
+  for (const instrumento of value.instrumentos) {
+    if (!validInstrument(instrumento, slots)) return false;
+  }
+  if (snapshotVersion === 1 && (!slots.has(1) || !slots.has(2) || !slots.has(3))) return false;
+
+  const numbers = new Set<number>();
+  for (const aluno of value.alunos) {
+    if (!validTermStudent(aluno, value.instrumentos.length, numbers)) return false;
+  }
+  return true;
+}
+
+function validRecovery(value: unknown): boolean {
+  if (value === null) return true;
+  if (!Array.isArray(value) || value.length > 64) return false;
+  const numbers = new Set<number>();
+  for (const aluno of value) {
+    if (
+      !Array.isArray(aluno) ||
+      aluno.length !== 5 ||
+      !Number.isSafeInteger(aluno[0]) ||
+      aluno[0] <= 0 ||
+      numbers.has(aluno[0])
+    )
+      return false;
+    if (
+      !validRecoveryCell(aluno[1]) ||
+      !validRecoveryCell(aluno[2]) ||
+      !validRecoveryCell(aluno[3]) ||
+      !validCell(aluno[4])
+    )
+      return false;
+    numbers.add(aluno[0]);
+  }
+  return true;
+}
+
+function validOffer(value: unknown, offers: Set<string>): boolean {
+  if (!record(value) || !nonEmptyText(value.turmaCodigo, 32) || !nonEmptyText(value.disciplina, 256))
+    return false;
+  const offerKey = JSON.stringify([
+    value.turmaCodigo.trim().toUpperCase(),
+    value.disciplina.trim().toLocaleLowerCase('pt-BR'),
+  ]);
+  if (offers.has(offerKey)) return false;
+  if (!Array.isArray(value.trimestres) || value.trimestres.length !== 3) return false;
+  for (const [termIndex, term] of value.trimestres.entries()) {
+    if (!validTerm(term, termIndex)) return false;
+  }
+  if (!validRecovery(value.recuperacao)) return false;
+  offers.add(offerKey);
+  return true;
+}
+
 function validNotes(value: Record<string, unknown>): boolean {
   if (value.granularObservationVersion !== undefined && value.granularObservationVersion !== 1)
     return false;
@@ -215,128 +342,9 @@ function validNotes(value: Record<string, unknown>): boolean {
     value.ofertas.length > 128
   )
     return false;
+
   const offers = new Set<string>();
-  for (const oferta of value.ofertas) {
-    if (
-      !record(oferta) ||
-      !nonEmptyText(oferta.turmaCodigo, 32) ||
-      !nonEmptyText(oferta.disciplina, 256)
-    )
-      return false;
-    const offerKey = JSON.stringify([
-      oferta.turmaCodigo.trim().toUpperCase(),
-      oferta.disciplina.trim().toLocaleLowerCase('pt-BR'),
-    ]);
-    if (offers.has(offerKey)) return false;
-    offers.add(offerKey);
-    if (!Array.isArray(oferta.trimestres) || oferta.trimestres.length !== 3) return false;
-    for (const [termIndex, termo] of oferta.trimestres.entries()) {
-      if (
-        !record(termo) ||
-        termo.trimestre !== termIndex + 1 ||
-        !Array.isArray(termo.instrumentos) ||
-        !Array.isArray(termo.alunos)
-      )
-        return false;
-      if (
-        termo.instrumentos.length === 0 ||
-        termo.instrumentos.length > 13 ||
-        termo.alunos.length > 64
-      )
-        return false;
-      const snapshotVersion = termo.definitionSnapshotVersion;
-      if (snapshotVersion !== undefined && snapshotVersion !== 1) return false;
-      if (
-        snapshotVersion === undefined &&
-        (termo.unavailableMaximumSlots !== undefined ||
-          termo.unavailableDescriptionSlots !== undefined ||
-          termo.unavailableValueSlots !== undefined)
-      )
-        return false;
-      const validateUnavailable = (input: unknown) => {
-        if (input === undefined) return true;
-        if (!Array.isArray(input) || input.length > 10) return false;
-        const seen = new Set<number>();
-        for (const slot of input) {
-          if (!Number.isSafeInteger(slot) || slot < 11 || slot > 20 || seen.has(slot))
-            return false;
-          seen.add(slot);
-        }
-        return true;
-      };
-      if (
-        !validateUnavailable(termo.unavailableMaximumSlots) ||
-        !validateUnavailable(termo.unavailableDescriptionSlots) ||
-        !validateUnavailable(termo.unavailableValueSlots)
-      )
-        return false;
-      const slots = new Set<number>();
-      for (const instrumento of termo.instrumentos) {
-        if (!Array.isArray(instrumento) || (instrumento.length !== 2 && instrumento.length !== 3))
-          return false;
-        if (
-          !Number.isSafeInteger(instrumento[0]) ||
-          !SLOTS.has(instrumento[0]) ||
-          slots.has(instrumento[0])
-        )
-          return false;
-        slots.add(instrumento[0]);
-        if (
-          instrumento[1] !== null &&
-          (!validCanonicalInteger(instrumento[1]) || instrumento[1] <= 0)
-        )
-          return false;
-        if (instrumento[2] !== undefined && !nonEmptyText(instrumento[2], 512)) return false;
-      }
-      if (
-        snapshotVersion === 1 &&
-        (!slots.has(1) || !slots.has(2) || !slots.has(3))
-      )
-        return false;
-      const numbers = new Set<number>();
-      for (const aluno of termo.alunos) {
-        if (
-          !Array.isArray(aluno) ||
-          aluno.length !== 3 ||
-          !Number.isSafeInteger(aluno[0]) ||
-          aluno[0] <= 0 ||
-          numbers.has(aluno[0])
-        )
-          return false;
-        numbers.add(aluno[0]);
-        if (
-          !Array.isArray(aluno[1]) ||
-          aluno[1].length !== termo.instrumentos.length ||
-          !aluno[1].every(validCell) ||
-          !validCell(aluno[2])
-        )
-          return false;
-      }
-    }
-    if (oferta.recuperacao !== null) {
-      if (!Array.isArray(oferta.recuperacao) || oferta.recuperacao.length > 64) return false;
-      const numbers = new Set<number>();
-      for (const aluno of oferta.recuperacao) {
-        if (
-          !Array.isArray(aluno) ||
-          aluno.length !== 5 ||
-          !Number.isSafeInteger(aluno[0]) ||
-          aluno[0] <= 0 ||
-          numbers.has(aluno[0])
-        )
-          return false;
-        numbers.add(aluno[0]);
-        if (
-          !validRecoveryCell(aluno[1]) ||
-          !validRecoveryCell(aluno[2]) ||
-          !validRecoveryCell(aluno[3]) ||
-          !validCell(aluno[4])
-        )
-          return false;
-      }
-    }
-  }
-  return true;
+  return value.ofertas.every((offer) => validOffer(offer, offers));
 }
 
 export function inspectGradebookImportPersistenceRequestV9(

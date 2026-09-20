@@ -30,6 +30,32 @@ const manifest = {
   parserVersion: 'xlsx-0.20.3:canonical-v9',
 } as const;
 
+function notesRequestV9(): GradebookNotesImportRequestV9 {
+  return {
+    transportVersion: 9,
+    operation: 'persist-notas',
+    manifest,
+    ano: 2026,
+    professor: 'PROFESSOR TESTE',
+    ofertas: [
+      {
+        turmaCodigo: '6A',
+        disciplina: 'MATEMÁTICA',
+        trimestres: [1, 2, 3].map((trimestre) => ({
+          trimestre: trimestre as 1 | 2 | 3,
+          instrumentos: [
+            [1, 10000],
+            [2, 10000],
+            [3, null],
+          ],
+          alunos: [[1, [7250, null, ['u'] as const], null]],
+        })) as unknown as GradebookNotesImportRequestV9['ofertas'][number]['trimestres'],
+        recuperacao: [[1, ['n'], ['r'], ['u'], 60000]],
+      },
+    ],
+  };
+}
+
 function teacherResultWithAboveMaximum(): BatchSuccess {
   const termSheet = (trimester: 1 | 2 | 3, value: number) => ({
     name: `7B${trimester}º`,
@@ -226,32 +252,61 @@ describe('gradebook relational import v9', () => {
   });
 
   it('validates explicit empty, unavailable and N/C without student names in teacher rows', () => {
-    const request: GradebookNotesImportRequestV9 = {
-      transportVersion: 9,
-      operation: 'persist-notas',
-      manifest,
-      ano: 2026,
-      professor: 'PROFESSOR TESTE',
-      ofertas: [
-        {
-          turmaCodigo: '6A',
-          disciplina: 'MATEMÁTICA',
-          trimestres: [1, 2, 3].map((trimestre) => ({
-            trimestre: trimestre as 1 | 2 | 3,
-            instrumentos: [
-              [1, 10000],
-              [2, 10000],
-              [3, null],
-            ],
-            alunos: [[1, [7250, null, ['u'] as const], null]],
-          })) as unknown as GradebookNotesImportRequestV9['ofertas'][number]['trimestres'],
-          recuperacao: [[1, ['n'], ['r'], ['u'], 60000]],
-        },
-      ],
-    };
+    const request = notesRequestV9();
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
     expect(inspectGradebookImportPersistenceRequestV9({ ...request, ano: 2025 })).toBe('ready');
     expect(JSON.stringify(request)).not.toContain('ALUNO TESTE');
+  });
+
+  it('keeps extracted V9 note validators fail-closed for every nested boundary', () => {
+    const request = notesRequestV9();
+    const offer = request.ofertas[0]!;
+    const [first, second, third] = offer.trimestres;
+    const withFirstTerm = (patch: Readonly<Record<string, unknown>>): unknown => ({
+      ...request,
+      ofertas: [
+        {
+          ...offer,
+          trimestres: [{ ...first, ...patch }, second, third],
+        },
+      ],
+    });
+    const withOffer = (patch: Readonly<Record<string, unknown>>): unknown => ({
+      ...request,
+      ofertas: [{ ...offer, ...patch }],
+    });
+
+    const invalidRequests: readonly unknown[] = [
+      withFirstTerm({
+        definitionSnapshotVersion: 1,
+        unavailableMaximumSlots: [10],
+      }),
+      withFirstTerm({
+        instrumentos: [
+          [1, 10000],
+          [1, 10000],
+          [3, null],
+        ],
+      }),
+      withFirstTerm({
+        alunos: [[1, [7250, null], null]],
+      }),
+      withFirstTerm({ trimestre: 2 }),
+      withOffer({
+        recuperacao: [
+          [1, ['n'], ['r'], ['u'], 60000],
+          [1, null, null, null, null],
+        ],
+      }),
+      {
+        ...request,
+        ofertas: [offer, offer],
+      },
+    ];
+
+    for (const invalidRequest of invalidRequests) {
+      expect(inspectGradebookImportPersistenceRequestV9(invalidRequest)).toBe('invalid-request');
+    }
   });
 });
 
