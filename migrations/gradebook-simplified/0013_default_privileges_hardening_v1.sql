@@ -9,7 +9,7 @@
 --   GRANT USAGE, SELECT ON SEQUENCES TO gradebook_app;
 -- ALTER DEFAULT PRIVILEGES IN SCHEMA gradebook
 --   GRANT EXECUTE ON FUNCTIONS TO gradebook_app;
--- ALTER DEFAULT PRIVILEGES IN SCHEMA gradebook
+-- ALTER DEFAULT PRIVILEGES
 --   GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
 --
 -- These defaults apply only to objects created by the migration owner executing
@@ -26,10 +26,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA gradebook
 ALTER DEFAULT PRIVILEGES IN SCHEMA gradebook
   REVOKE EXECUTE ON FUNCTIONS FROM gradebook_app;
 
--- PostgreSQL grants EXECUTE on new functions to PUBLIC by default.
--- Revoke that default too, otherwise gradebook_app would still inherit EXECUTE
--- indirectly through PUBLIC when it has USAGE on the schema.
-ALTER DEFAULT PRIVILEGES IN SCHEMA gradebook
+-- PostgreSQL grants EXECUTE on new functions to PUBLIC through the owner's
+-- global default ACL. A schema-local REVOKE cannot subtract a global default.
+-- Harden the migration owner's future functions globally; every future function
+-- must receive its intended EXECUTE grants explicitly.
+ALTER DEFAULT PRIVILEGES
   REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 
 COMMIT;
