@@ -131,27 +131,41 @@ function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFail
   };
 }
 
-function serializedJsonText(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^[[{]/u.test(value.trimStart())) return false;
-  try {
-    JSON.parse(value);
-    return true;
-  } catch {
-    return false;
-  }
+function jsonColumnNameV1(value: string): boolean {
+  return JSON_COLUMNS.test(value.replace(/^["']|["']$/gu, ''));
 }
 
-function castSerializedJsonParameters(query: string, values: readonly unknown[]): string {
-  let translated = query;
-  values.forEach((value, index) => {
-    if (!serializedJsonText(value)) return;
-    const placeholder = `\\$${String(index + 1)}`;
-    translated = translated.replace(
-      new RegExp(`${placeholder}(?!\\d)(?!\\s*::\\s*jsonb\\b)`, 'giu'),
-      `$${String(index + 1)}::jsonb`,
-    );
-  });
+function castJsonColumnParametersV1(query: string): string {
+  let translated = query.replace(
+    /\bINSERT\s+INTO\s+([A-Za-z0-9_."]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/giu,
+    (match, relation: string, columnList: string, valueList: string) => {
+      const columns = columnList.split(',').map((column) => column.trim());
+      const values = valueList.split(',').map((value) => value.trim());
+      if (columns.length !== values.length) return match;
+      const next = values.map((value, index) =>
+        jsonColumnNameV1(columns[index] ?? '') && /^\$\d+$/u.test(value)
+          ? `${value}::jsonb`
+          : value,
+      );
+      return `INSERT INTO ${relation} (${columnList}) VALUES (${next.join(', ')})`;
+    },
+  );
+
+  translated = translated.replace(
+    /\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\$\d+)(?!\s*::\s*jsonb\b)/giu,
+    (match, column: string, placeholder: string) =>
+      jsonColumnNameV1(column) ? `${column} = ${placeholder}::jsonb` : match,
+  );
   return translated;
+}
+
+function jsonParameterIndexesV1(query: string): ReadonlySet<number> {
+  const indexes = new Set<number>();
+  for (const match of query.matchAll(/\$(\d+)\s*::\s*jsonb\b/giu)) {
+    const index = Number(match[1]) - 1;
+    if (Number.isSafeInteger(index) && index >= 0) indexes.add(index);
+  }
+  return indexes;
 }
 
 function safeInteger(value: bigint): number | string {
@@ -343,12 +357,12 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
   }
 
   async execute(query: string, values: readonly D1WriteValueV1[]): Promise<PostgresExecutionV1> {
-    const translated = castSerializedJsonParameters(
+    const translated = castJsonColumnParametersV1(
       translateGradebookD1SqlToPostgresV1(query),
-      values,
     );
-    const parameters = values.map((value) =>
-      serializedJsonText(value) && this.sql.typed
+    const jsonParameters = jsonParameterIndexesV1(translated);
+    const parameters = values.map((value, index) =>
+      jsonParameters.has(index) && typeof value === 'string' && this.sql.typed
         ? this.sql.typed(value, POSTGRES_TEXT_OID_V1)
         : value,
     );
