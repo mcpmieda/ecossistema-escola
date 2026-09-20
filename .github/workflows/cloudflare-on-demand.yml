@@ -254,7 +254,7 @@ jobs:
             `| Worker \`student-portal-production\` | ${cell(deploy.worker.state)} | presente: ${yesNo(deploy.worker.present)} · modificado: ${cell(deploy.worker.modifiedAt)} · compatibility date: ${cell(deploy.worker.compatibilityDate)} |`,
             `| Pages \`student-portal-edge\` | ${cell(deploy.pages.state)} | presente: ${yesNo(deploy.pages.present)} · branch: ${cell(deploy.pages.productionBranch)} · deploy: ${cell(deploy.pages.deploymentStatus)} · criado: ${cell(deploy.pages.deploymentCreatedAt)} |`,
             `| Hyperdrive \`PORTAL_DB\` | ${cell(hyperdrive.hyperdrive.state)} | presente: ${yesNo(hyperdrive.hyperdrive.present)} · cache desabilitado: ${yesNo(hyperdrive.hyperdrive.cacheDisabled)} · limite origem: ${cell(hyperdrive.hyperdrive.originConnections)} |`,
-            `| Workers Analytics | ${cell(deploy.analytics.state)} | janela: ${cell(deploy.analytics.windowMinutes)} min · requests: ${cell(deploy.analytics.requests)} · errors: ${cell(deploy.analytics.errors)} |`,
+            `| Workers Analytics | ${cell(deploy.analytics.state)} | janela: ${cell(deploy.analytics.windowMinutes)} min · requests: ${cell(deploy.analytics.requests)} · errors: ${cell(deploy.analytics.errors)} · CPU p50 máx. bucket: ${cell(deploy.analytics.maxCpuTimeP50)} · CPU p99 máx. bucket: ${cell(deploy.analytics.maxCpuTimeP99)} |`,
             '',
             'O relatório contém apenas metadados operacionais permitidos. Não inclui código do Worker, resposta bruta da Cloudflare, token, header, host/database/user do Hyperdrive, eventos individuais ou dados de estudantes.',
             '',
