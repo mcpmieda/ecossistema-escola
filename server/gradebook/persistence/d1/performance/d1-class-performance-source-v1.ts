@@ -170,7 +170,7 @@ function aggregateCoverage(cells: readonly PerformanceMatrixSourceCellV1[]): Res
     0,
   );
   const missingItemCount = cells.reduce((total, cell) => total + cell.coverage.missingItemCount, 0);
-  const reasons = [...new Set(cells.flatMap((cell) => cell.coverage.reasons))].sort();
+  const reasons = [...new Set(cells.flatMap((cell) => cell.coverage.reasons))].sort((left, right) => left.localeCompare(right, 'en'));
   const state =
     expectedItemCount === 0
       ? 'not-applicable'
