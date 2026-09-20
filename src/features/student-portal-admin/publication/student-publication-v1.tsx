@@ -165,6 +165,134 @@ function PublicationPeriodV1({
     </Card>
   );
 }
+type ErrorPublicationMutationV1 = Extract<PublicationMutationV1, { state: 'error' }>;
+type AcceptedPublicationMutationV1 = Extract<PublicationMutationV1, { state: 'accepted' }>;
+
+function publicationErrorMessageV1(mutation: ErrorPublicationMutationV1) {
+  if (mutation.error.state === 'conflict')
+    return 'A fonte, o escopo ou a configuração mudou. Recarregue e revise uma nova decisão; a revisão não será substituída automaticamente.';
+  if (mutation.error.state === 'unauthenticated') return 'Sessão expirada. Entre novamente no ADM.';
+  if (mutation.error.state === 'forbidden')
+    return 'A operação não foi autorizada neste escopo. Recarregue para conferir o estado atual.';
+  if (mutation.retryable)
+    return 'O resultado da decisão não foi confirmado. Repetir mantém a mesma revisão e a mesma operação.';
+  return 'Não foi possível validar a decisão. Recarregue o estado e revise antes de tentar novamente.';
+}
+
+function PublicationErrorFeedbackV1({
+  mutation,
+  onRetry,
+  reload,
+  clock,
+  reloadDisabled,
+}: Readonly<{
+  mutation: ErrorPublicationMutationV1;
+  onRetry: () => void;
+  reload: () => void;
+  clock: number;
+  reloadDisabled: boolean;
+}>) {
+  return (
+    <div role="alert" className="pa-publication-error">
+      <p>{publicationErrorMessageV1(mutation)}</p>
+      <div className="pa-publication-actions">
+        {mutation.retryable ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={clock < mutation.retryAt}
+            onPress={onRetry}
+          >
+            Tentar novamente
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" isDisabled={reloadDisabled} onPress={reload}>
+          Recarregar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function observationPendingTextV1(removed: boolean) {
+  return removed
+    ? 'Conferindo a retirada na leitura atual.'
+    : 'Conferindo a edição liberada na consulta do servidor.';
+}
+
+function observationConfirmedTextV1(removed: boolean) {
+  return removed ? 'Publicação retirada.' : 'Publicação confirmada.';
+}
+
+function observationReportedTextV1(removed: boolean) {
+  return removed
+    ? 'Publicação retirada para este grupo.'
+    : 'Publicação confirmada para este grupo.';
+}
+
+function PublicationAcceptedFeedbackV1({
+  mutation,
+  scope,
+  onCancel,
+  reload,
+  onOpenHealth,
+  reloadDisabled,
+}: Readonly<{
+  mutation: AcceptedPublicationMutationV1;
+  scope: ScopeV1;
+  onCancel: () => void;
+  reload: () => void;
+  onOpenHealth?: () => void;
+  reloadDisabled: boolean;
+}>) {
+  const removed = mutation.command.operation === 'unpublish';
+  if (mutation.observation === 'observing')
+    return (
+      <>
+        <p>{observationPendingTextV1(removed)}</p>
+        <p>
+          Consultas de acompanhamento: {mutation.checks} de até {PUBLICATION_CHECKS_V1}.
+        </p>
+        <Button size="sm" variant="outline" onPress={onCancel}>
+          Parar acompanhamento
+        </Button>
+      </>
+    );
+  if (mutation.observation === 'confirmed')
+    return <p>{observationConfirmedTextV1(removed)}</p>;
+  if (mutation.observation === 'reported')
+    return (
+      <>
+        <p>{observationReportedTextV1(removed)}</p>
+        {!removed ? (
+          <p>
+            Publicação de {scope.kind === 'school' ? 'escola' : 'turma'} verificada. O acesso de
+            cada aluno continua sujeito ao vínculo, ao calendário e às permissões vigentes.
+          </p>
+        ) : null}
+      </>
+    );
+  const message =
+    mutation.observation === 'stopped'
+      ? 'Acompanhamento parado. Isso não cancela a decisão aceita nem o processamento no servidor.'
+      : 'Não foi possível confirmar o estado atual. A decisão aceita foi preservada; consulte novamente sem criar outra publicação.';
+  return (
+    <>
+      <p>{message}</p>
+      <div className="pa-publication-actions">
+        <Button size="sm" variant="secondary" isDisabled={reloadDisabled} onPress={reload}>
+          Consultar estado atual
+        </Button>
+        {onOpenHealth ? (
+          <Button size="sm" variant="ghost" onPress={onOpenHealth}>
+            Ver saúde operacional
+          </Button>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 function PublicationFeedbackV1({
   mutation,
   scope,
@@ -174,7 +302,7 @@ function PublicationFeedbackV1({
   onOpenHealth,
   clock,
   reloadDisabled,
-}: {
+}: Readonly<{
   mutation: PublicationMutationV1;
   scope: ScopeV1;
   onCancel: () => void;
@@ -183,96 +311,33 @@ function PublicationFeedbackV1({
   onOpenHealth?: () => void;
   clock: number;
   reloadDisabled: boolean;
-}) {
+}>) {
   if (mutation.state === 'idle') return null;
   if (mutation.state === 'sending')
-    return <p role="status">Salvando publicação de {termLabel(mutation.command.period)}…</p>;
+    return <output>Salvando publicação de {termLabel(mutation.command.period)}…</output>;
   if (mutation.state === 'error')
     return (
-      <div role="alert" className="pa-publication-error">
-        <p>
-          {mutation.error.state === 'conflict'
-            ? 'A fonte, o escopo ou a configuração mudou. Recarregue e revise uma nova decisão; a revisão não será substituída automaticamente.'
-            : mutation.error.state === 'unauthenticated'
-              ? 'Sessão expirada. Entre novamente no ADM.'
-              : mutation.error.state === 'forbidden'
-                ? 'A operação não foi autorizada neste escopo. Recarregue para conferir o estado atual.'
-                : mutation.retryable
-                  ? 'O resultado da decisão não foi confirmado. Repetir mantém a mesma revisão e a mesma operação.'
-                  : 'Não foi possível validar a decisão. Recarregue o estado e revise antes de tentar novamente.'}
-        </p>
-        <div className="pa-publication-actions">
-          {mutation.retryable ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={clock < mutation.retryAt}
-              onPress={onRetry}
-            >
-              Tentar novamente
-            </Button>
-          ) : null}
-          <Button size="sm" variant="ghost" isDisabled={reloadDisabled} onPress={reload}>
-            Recarregar
-          </Button>
-        </div>
-      </div>
+      <PublicationErrorFeedbackV1
+        mutation={mutation}
+        onRetry={onRetry}
+        reload={reload}
+        clock={clock}
+        reloadDisabled={reloadDisabled}
+      />
     );
-  const removed = mutation.command.operation === 'unpublish';
   return (
-    <div role="status" className="pa-publication-feedback">
+    <div aria-live="polite" className="pa-publication-feedback">
       <p>
         <strong>{termLabel(mutation.command.period)}: solicitação aceita.</strong>
       </p>
-      {mutation.observation === 'observing' ? (
-        <>
-          <p>
-            {removed
-              ? 'Conferindo a retirada na leitura atual.'
-              : 'Conferindo a edição liberada na consulta do servidor.'}
-          </p>
-          <p>
-            Consultas de acompanhamento: {mutation.checks} de até {PUBLICATION_CHECKS_V1}.
-          </p>
-          <Button size="sm" variant="outline" onPress={onCancel}>
-            Parar acompanhamento
-          </Button>
-        </>
-      ) : mutation.observation === 'confirmed' ? (
-        <p>{removed ? 'Publicação retirada.' : 'Publicação confirmada.'}</p>
-      ) : mutation.observation === 'reported' ? (
-        <>
-          <p>
-            {removed
-              ? 'Publicação retirada para este grupo.'
-              : 'Publicação confirmada para este grupo.'}
-          </p>
-          {!removed ? (
-            <p>
-              Publicação de {scope.kind === 'school' ? 'escola' : 'turma'} verificada. O acesso de
-              cada aluno continua sujeito ao vínculo, ao calendário e às permissões vigentes.
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <p>
-            {mutation.observation === 'stopped'
-              ? 'Acompanhamento parado. Isso não cancela a decisão aceita nem o processamento no servidor.'
-              : 'Não foi possível confirmar o estado atual. A decisão aceita foi preservada; consulte novamente sem criar outra publicação.'}
-          </p>
-          <div className="pa-publication-actions">
-            <Button size="sm" variant="secondary" isDisabled={reloadDisabled} onPress={reload}>
-              Consultar estado atual
-            </Button>
-            {onOpenHealth ? (
-              <Button size="sm" variant="ghost" onPress={onOpenHealth}>
-                Ver saúde operacional
-              </Button>
-            ) : null}
-          </div>
-        </>
-      )}
+      <PublicationAcceptedFeedbackV1
+        mutation={mutation}
+        scope={scope}
+        onCancel={onCancel}
+        reload={reload}
+        onOpenHealth={onOpenHealth}
+        reloadDisabled={reloadDisabled}
+      />
     </div>
   );
 }
@@ -282,13 +347,13 @@ function PublicationReviewV1({
   busy,
   onClose,
   onConfirm,
-}: {
+}: Readonly<{
   command: PublicationCommandV1;
   label: string;
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
-}) {
+}>) {
   return (
     <Modal.Backdrop
       isOpen
