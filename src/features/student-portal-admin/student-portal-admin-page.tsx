@@ -43,7 +43,7 @@ const StudentSessionsV1 = lazy(() => import('./sessions/student-sessions-v1').th
 const StudentAuditV1 = lazy(() => import('./audit/student-audit-v1').then((module) => ({ default: module.StudentAuditV1 })));
 const StudentOverviewV1 = lazy(() => import('./overview/student-overview-v1').then((module) => ({ default: module.StudentOverviewV1 })));
 const CustomizationTargetV1 = lazy(() => import('./settings/customization-target-v1').then((module) => ({ default: module.CustomizationTargetV1 })));
-const sectionFallback = <p role="status" className="py-6 text-sm text-muted">Carregando área do Painel…</p>;
+const sectionFallback = <output className="block py-6 text-sm text-muted">Carregando área do Painel…</output>;
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
