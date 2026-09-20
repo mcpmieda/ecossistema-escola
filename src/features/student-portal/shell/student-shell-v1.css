@@ -1,7 +1,17 @@
 .pa-shell {
+  --pa-page-bg: #f6faff;
+  --pa-page-blue: rgb(37 99 235 / 0.14);
+  --pa-page-cyan: rgb(6 182 212 / 0.12);
+  --pa-page-indigo: rgb(79 70 229 / 0.1);
   min-height: 100dvh;
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--pa-page-bg);
+  background-image:
+    radial-gradient(58rem 24rem at -8% -4%, var(--pa-page-cyan), transparent 72%),
+    radial-gradient(48rem 28rem at 108% 10%, var(--pa-page-blue), transparent 74%),
+    radial-gradient(52rem 24rem at 52% 108%, var(--pa-page-indigo), transparent 76%),
+    linear-gradient(180deg, #f9fcff 0%, #f4f9ff 48%, #f8fbff 100%);
+  background-repeat: no-repeat;
 }
 .pa-shell-header {
   border-bottom: 1px solid var(--border);
