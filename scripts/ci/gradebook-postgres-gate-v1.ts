@@ -5,6 +5,8 @@ import {
   applyCurrentGradebookSchemaV1,
   assertCurrentGradebookSchemaV1,
   GRADEBOOK_CURRENT_CATALOG_V1,
+  GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1,
+  GRADEBOOK_CURRENT_TABLES_V1,
 } from '../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
 
 const connectionString = process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '';
@@ -44,6 +46,289 @@ async function firstRow(query: string): Promise<Record<string, unknown>> {
   const row = rows[0] as Record<string, unknown> | undefined;
   if (!row) throw new Error('gradebook-ci-postgres-result-missing');
   return row;
+}
+
+type GradebookAclV1 = {
+  readonly select: boolean;
+  readonly insert: boolean;
+  readonly update: boolean;
+  readonly delete: boolean;
+};
+
+const READ_DELETE_ONLY_TABLES_V1 = new Set<string>([
+  'instrumento_historico',
+  'nota_historico',
+]);
+
+const APPEND_DELETE_ONLY_TABLES_V1 = new Set<string>([
+  'boletim_snapshot',
+  'conselho_decisao_comando',
+  'conselho_fechamento',
+  'conselho_fechamento_item',
+  'conselho_idempotencia',
+  'conselho_sessao_historico',
+  'conselho_votacao_historico',
+  'importacao_diagnostico_tratamento',
+]);
+
+function expectedCurrentTableAclV1(table: string): GradebookAclV1 {
+  if (READ_DELETE_ONLY_TABLES_V1.has(table)) {
+    return { select: true, insert: false, update: false, delete: true };
+  }
+  if (APPEND_DELETE_ONLY_TABLES_V1.has(table)) {
+    return { select: true, insert: true, update: false, delete: true };
+  }
+  return { select: true, insert: true, update: true, delete: true };
+}
+
+function booleanField(row: Record<string, unknown>, key: string): boolean {
+  const value = row[key];
+  if (typeof value !== 'boolean') throw new Error(`gradebook-ci-acl-${key}-invalid`);
+  return value;
+}
+
+function stringField(row: Record<string, unknown>, key: string): string {
+  const value = row[key];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`gradebook-ci-acl-${key}-invalid`);
+  }
+  return value;
+}
+
+async function assertGradebookSchemaAclV1(): Promise<void> {
+  const schema = await firstRow(`
+    SELECT
+      has_schema_privilege('gradebook_app','gradebook','USAGE') AS schema_usage,
+      has_schema_privilege('gradebook_app','gradebook','CREATE') AS schema_create,
+      has_schema_privilege('anon','gradebook','USAGE') AS anon_usage,
+      has_schema_privilege('authenticated','gradebook','USAGE') AS authenticated_usage
+  `);
+  const boundary = {
+    usage: booleanField(schema, 'schema_usage'),
+    create: booleanField(schema, 'schema_create'),
+    anonUsage: booleanField(schema, 'anon_usage'),
+    authenticatedUsage: booleanField(schema, 'authenticated_usage'),
+  };
+  if (
+    boundary.usage !== true ||
+    boundary.create !== false ||
+    boundary.anonUsage !== false ||
+    boundary.authenticatedUsage !== false
+  ) {
+    throw new Error('gradebook-ci-acl-schema-boundary-mismatch');
+  }
+}
+
+async function assertGradebookTableAclV1(): Promise<number> {
+  const tableRows = Array.from(await sql.unsafe(`
+    SELECT
+      table_name,
+      has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'SELECT') AS can_select,
+      has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'INSERT') AS can_insert,
+      has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'UPDATE') AS can_update,
+      has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'DELETE') AS can_delete,
+      (
+        has_table_privilege('anon', format('%I.%I',table_schema,table_name), 'SELECT')
+        OR has_table_privilege('anon', format('%I.%I',table_schema,table_name), 'INSERT')
+        OR has_table_privilege('anon', format('%I.%I',table_schema,table_name), 'UPDATE')
+        OR has_table_privilege('anon', format('%I.%I',table_schema,table_name), 'DELETE')
+      ) AS anon_any,
+      (
+        has_table_privilege('authenticated', format('%I.%I',table_schema,table_name), 'SELECT')
+        OR has_table_privilege('authenticated', format('%I.%I',table_schema,table_name), 'INSERT')
+        OR has_table_privilege('authenticated', format('%I.%I',table_schema,table_name), 'UPDATE')
+        OR has_table_privilege('authenticated', format('%I.%I',table_schema,table_name), 'DELETE')
+      ) AS authenticated_any
+    FROM information_schema.tables
+    WHERE table_schema='gradebook' AND table_type='BASE TABLE'
+    ORDER BY table_name
+  `)) as Record<string, unknown>[];
+  if (tableRows.length !== GRADEBOOK_CURRENT_TABLES_V1.length) {
+    throw new Error('gradebook-ci-acl-table-count-mismatch');
+  }
+
+  const tableByName = new Map(tableRows.map((row) => [stringField(row, 'table_name'), row]));
+  for (const table of GRADEBOOK_CURRENT_TABLES_V1) {
+    const row = tableByName.get(table);
+    if (!row) throw new Error(`gradebook-ci-acl-table-missing:${table}`);
+    const actual: GradebookAclV1 = {
+      select: booleanField(row, 'can_select'),
+      insert: booleanField(row, 'can_insert'),
+      update: booleanField(row, 'can_update'),
+      delete: booleanField(row, 'can_delete'),
+    };
+    const expected = expectedCurrentTableAclV1(table);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(
+        `gradebook-ci-acl-table-mismatch:${table}:expected=${JSON.stringify(expected)}:actual=${JSON.stringify(actual)}`,
+      );
+    }
+    if (booleanField(row, 'anon_any') || booleanField(row, 'authenticated_any')) {
+      throw new Error(`gradebook-ci-acl-client-table-grant:${table}`);
+    }
+  }
+  return tableRows.length;
+}
+
+async function assertGradebookSequenceAclV1(): Promise<number> {
+  const sequenceRows = Array.from(await sql.unsafe(`
+    SELECT
+      sequencename,
+      has_sequence_privilege('gradebook_app', format('%I.%I',schemaname,sequencename), 'USAGE') AS can_usage,
+      has_sequence_privilege('gradebook_app', format('%I.%I',schemaname,sequencename), 'SELECT') AS can_select,
+      has_sequence_privilege('gradebook_app', format('%I.%I',schemaname,sequencename), 'UPDATE') AS can_update
+    FROM pg_sequences
+    WHERE schemaname='gradebook'
+    ORDER BY sequencename
+  `)) as Record<string, unknown>[];
+  if (sequenceRows.length !== GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1.length) {
+    throw new Error('gradebook-ci-acl-sequence-count-mismatch');
+  }
+  for (const row of sequenceRows) {
+    const name = stringField(row, 'sequencename');
+    const known = GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1.includes(
+      name as (typeof GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1)[number],
+    );
+    if (
+      !known ||
+      booleanField(row, 'can_usage') !== true ||
+      booleanField(row, 'can_select') !== true ||
+      booleanField(row, 'can_update') !== false
+    ) {
+      throw new Error(`gradebook-ci-acl-sequence-mismatch:${name}`);
+    }
+  }
+  return sequenceRows.length;
+}
+
+async function assertGradebookFunctionAclV1(): Promise<number> {
+  const functionRows = Array.from(await sql.unsafe(`
+    SELECT
+      p.oid::regprocedure::text AS function_identity,
+      has_function_privilege('gradebook_app',p.oid,'EXECUTE') AS can_execute
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='gradebook'
+    ORDER BY p.oid::regprocedure::text
+  `)) as Record<string, unknown>[];
+  if (functionRows.length !== GRADEBOOK_CURRENT_CATALOG_V1.functions) {
+    throw new Error('gradebook-ci-acl-function-count-mismatch');
+  }
+  for (const row of functionRows) {
+    if (booleanField(row, 'can_execute') !== true) {
+      throw new Error(
+        `gradebook-ci-acl-function-execute-missing:${stringField(row, 'function_identity')}`,
+      );
+    }
+  }
+  return functionRows.length;
+}
+
+async function assertPortalCoordinationAclV1(): Promise<number> {
+  const portalFunctionRows = Array.from(await sql.unsafe(`
+    SELECT p.oid::regprocedure::text AS function_identity
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='student_portal'
+      AND has_function_privilege('gradebook_app',p.oid,'EXECUTE')
+    ORDER BY p.oid::regprocedure::text
+  `)) as Record<string, unknown>[];
+  const portalCoordinationFunctions = portalFunctionRows.map((row) =>
+    stringField(row, 'function_identity'),
+  );
+  const expectedPortalCoordinationFunctions = [
+    'student_portal.complete_year_reset_v1(smallint,text,text)',
+    'student_portal.consume_year_reset_v1(smallint,text,text)',
+    'student_portal.ensure_year_coordination_v1(smallint)',
+    'student_portal.inspect_year_reset_guard_v1(smallint)',
+    'student_portal.prepare_year_reset_v1(smallint,text,text)',
+    'student_portal.record_gradebook_change_v1(uuid,smallint,text,boolean,integer[],timestamp with time zone)',
+  ];
+  if (
+    JSON.stringify(portalCoordinationFunctions) !==
+    JSON.stringify(expectedPortalCoordinationFunctions)
+  ) {
+    throw new Error(
+      `gradebook-ci-acl-portal-functions-mismatch:actual=${JSON.stringify(portalCoordinationFunctions)}`,
+    );
+  }
+
+  const portalTables = await firstRow(`
+    SELECT count(*)::integer AS count
+    FROM information_schema.tables
+    WHERE table_schema='student_portal'
+      AND (
+        has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'SELECT')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'INSERT')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'UPDATE')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'DELETE')
+      )
+  `);
+  if (Number(portalTables.count) !== 0) {
+    throw new Error('gradebook-ci-acl-portal-table-grant');
+  }
+  return portalCoordinationFunctions.length;
+}
+
+async function readGradebookDefaultAclV1(): Promise<{
+  readonly broadDefaultTablePrivileges: boolean;
+  readonly broadDefaultFunctionPrivileges: boolean;
+}> {
+  const defaults = await firstRow(`
+    SELECT
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_default_acl d
+        CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+        JOIN pg_catalog.pg_roles r ON r.oid=a.grantee
+        JOIN pg_catalog.pg_namespace n ON n.oid=d.defaclnamespace
+        WHERE n.nspname='gradebook'
+          AND r.rolname='gradebook_app'
+          AND d.defaclobjtype='r'
+          AND a.privilege_type IN ('INSERT','UPDATE','DELETE')
+      ) AS broad_table_defaults,
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_default_acl d
+        CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+        JOIN pg_catalog.pg_roles r ON r.oid=a.grantee
+        JOIN pg_catalog.pg_namespace n ON n.oid=d.defaclnamespace
+        WHERE n.nspname='gradebook'
+          AND r.rolname='gradebook_app'
+          AND d.defaclobjtype='f'
+          AND a.privilege_type='EXECUTE'
+      ) AS broad_function_defaults
+  `);
+  return {
+    broadDefaultTablePrivileges: booleanField(defaults, 'broad_table_defaults'),
+    broadDefaultFunctionPrivileges: booleanField(defaults, 'broad_function_defaults'),
+  };
+}
+
+async function assertCurrentGradebookAclV1(): Promise<{
+  readonly tables: number;
+  readonly sequences: number;
+  readonly functions: number;
+  readonly portalCoordinationFunctions: number;
+  readonly broadDefaultTablePrivileges: boolean;
+  readonly broadDefaultFunctionPrivileges: boolean;
+}> {
+  await assertGradebookSchemaAclV1();
+  const [tables, sequences, functions, portalCoordinationFunctions, defaults] =
+    await Promise.all([
+      assertGradebookTableAclV1(),
+      assertGradebookSequenceAclV1(),
+      assertGradebookFunctionAclV1(),
+      assertPortalCoordinationAclV1(),
+      readGradebookDefaultAclV1(),
+    ]);
+  return {
+    tables,
+    sequences,
+    functions,
+    portalCoordinationFunctions,
+    ...defaults,
+  };
 }
 
 async function seedSyntheticCurrentState(): Promise<void> {
@@ -101,6 +386,7 @@ async function run(): Promise<void> {
     await assertCurrentGradebookSchemaV1(sql);
     await seedSyntheticCurrentState();
     await installPortalCoordination();
+    const acl = await assertCurrentGradebookAclV1();
     process.stdout.write(JSON.stringify({
       state: 'ready',
       database: 'gradebook_recovery_ci',
@@ -109,6 +395,7 @@ async function run(): Promise<void> {
       rlsTables: GRADEBOOK_CURRENT_CATALOG_V1.tables,
       syntheticOnly: true,
       portalCoordinationMigrations: 6,
+      acl,
     }) + '\n');
   } finally {
     await sql.end({ timeout: 2 });
