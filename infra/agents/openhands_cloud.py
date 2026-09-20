@@ -173,6 +173,46 @@ def wait_for_start_task(
     raise SystemExit("OpenHands conversation start timed out.")
 
 
+def create_start_task(api_key: str, payload: dict[str, object]) -> str:
+    """Create one Cloud conversation start-task and return its id."""
+    created = api_request("POST", "/api/v1/app-conversations", api_key, payload)
+    if not isinstance(created, dict):
+        raise SystemExit("OpenHands API returned an unexpected start payload.")
+    task_id = str(created.get("id") or "").strip()
+    if not task_id:
+        raise SystemExit("OpenHands API did not return a start-task id.")
+    return task_id
+
+
+def start_conversation_with_retry(
+    api_key: str,
+    payload: dict[str, object],
+    *,
+    deadline: float,
+    poll_interval_seconds: int,
+) -> str:
+    """Start a conversation, retrying only terminal pre-execution provisioning failure."""
+    for start_attempt in range(1, START_MAX_ATTEMPTS + 1):
+        task_id = create_start_task(api_key, payload)
+        try:
+            return wait_for_start_task(
+                api_key,
+                task_id,
+                deadline=deadline,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+        except OpenHandsStartTaskError as exc:
+            if start_attempt >= START_MAX_ATTEMPTS or time.monotonic() >= deadline:
+                raise SystemExit(str(exc)) from exc
+            print(
+                "OpenHands sandbox provisioning failed before execution; "
+                "retrying conversation creation once.",
+                flush=True,
+            )
+            time.sleep(min(poll_interval_seconds, 10))
+    raise SystemExit("OpenHands conversation did not start.")
+
+
 def wait_for_execution(
     api_key: str,
     conversation_id: str,
@@ -247,36 +287,12 @@ def run_conversation(args: argparse.Namespace) -> None:
         "public": False,
     }
     deadline = time.monotonic() + args.timeout_seconds
-    conversation_id = ""
-    for start_attempt in range(1, START_MAX_ATTEMPTS + 1):
-        created = api_request("POST", "/api/v1/app-conversations", api_key, payload)
-        if not isinstance(created, dict):
-            raise SystemExit("OpenHands API returned an unexpected start payload.")
-
-        task_id = str(created.get("id") or "").strip()
-        if not task_id:
-            raise SystemExit("OpenHands API did not return a start-task id.")
-
-        try:
-            conversation_id = wait_for_start_task(
-                api_key,
-                task_id,
-                deadline=deadline,
-                poll_interval_seconds=args.poll_interval_seconds,
-            )
-            break
-        except OpenHandsStartTaskError as exc:
-            if start_attempt >= START_MAX_ATTEMPTS or time.monotonic() >= deadline:
-                raise SystemExit(str(exc)) from exc
-            print(
-                "OpenHands sandbox provisioning failed before execution; "
-                "retrying conversation creation once.",
-                flush=True,
-            )
-            time.sleep(min(args.poll_interval_seconds, 10))
-
-    if not conversation_id:
-        raise SystemExit("OpenHands conversation did not start.")
+    conversation_id = start_conversation_with_retry(
+        api_key,
+        payload,
+        deadline=deadline,
+        poll_interval_seconds=args.poll_interval_seconds,
+    )
 
     status, conversation_url = wait_for_execution(
         api_key,
