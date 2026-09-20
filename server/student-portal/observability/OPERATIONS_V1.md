@@ -47,6 +47,10 @@ O ledger `revision_event`, autoridade de revisões e tombstones de encerramento 
 | Consulta aguardando lock | idade da consulta≥1000ms | attention; verificar operação concorrente; não retirar locks ou executar reset para liberar |
 | Lock timeout/statement timeout | contador>0 | observar SQLSTATE agregado55P03/57014, reduzir concorrência e investigar; resposta deve continuar503 sem detalhes do driver |
 | Falha de chave, driver ou integridade | unavailable | manter fail-closed; conferir configuração/versões, sem fallback ou reativação |
+| Outbox live pendente | profundidade agregada + idade do item devido mais antigo | observar drenagem; >5min sem lease válido entra em attention |
+| Fila de publicação devida | profundidade agregada + idade do item devido mais antigo | acompanhar consumo/leases; não inferir CPU ou capacidade apenas pelo atraso |
+
+`livePending`, `liveRetrying`, `oldestLiveDueMs`, `publicationDue` e `oldestPublicationDueMs` são agregados sanitizados e limitados. Contagens são capadas em 1001 para diagnóstico operacional; não são inventário exato acima desse teto. Idade é calculada a partir do próximo instante devido, não tempo de CPU. Nenhum desses campos contém conta, aluno, turma, payload ou erro bruto. Eles tornam backlog observável no endpoint interno, mas **não criam dashboard nem alerta externo** por si só.
 
 `oldestWaitingQueryMs` é idade da consulta atualmente aguardando lock, não medição exata do início da espera. `pg_stat_activity` consulta apenas sessões do próprio papel e retorna agregados. O endpoint health não adquire o lock anual que precisa diagnosticar. Jobs cancelados com attempts0 não geram alerta de tentativas esgotadas.
 
