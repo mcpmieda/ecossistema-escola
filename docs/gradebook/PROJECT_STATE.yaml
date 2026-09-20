@@ -3,10 +3,11 @@ project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
 updated_at: 2026-09-20
 coordination:
-  master_issue: 970
-  executable_issue: 970
+  master_issue: 182
+  executable_issue: null
   current_delivery_issue: null
   current_integrator_issue: 970
+  maintenance_issue: 970
   central_state_editor: integrator-only
   active_queue: bn-maintenance-consolidated-970
   program_status: completed-functional-program-596
