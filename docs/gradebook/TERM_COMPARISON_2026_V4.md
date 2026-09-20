@@ -1,5 +1,7 @@
 # Comparação descritiva de trimestres em 2026 — #649 / PR #650
 
+> **Nota histórica — 20/09/2026:** este documento preserva o desenho da entrega #649/#650. A ampliação multi-ano posterior (#676) supersede a afirmação de que o produto inteiro opera somente em 2026. O antigo helper `CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1` foi retirado da árvore ativa em BN-04 após prova de ausência de consumidores; sua menção abaixo descreve o estado daquela entrega, não o runtime atual.
+
 ## Decisão e limite
 
 O Banco de Notas opera somente no ano letivo 2026 nesta etapa. Não existe criação, seleção, preferência nem comparação entre anos letivos no produto ativo. As colunas `ano`/`ano_letivo` continuam no schema como chaves de integridade e isolamento; esta entrega não executa DDL/DML de produção nem reinterpreta histórico.

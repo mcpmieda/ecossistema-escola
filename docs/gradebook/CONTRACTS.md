@@ -1,5 +1,7 @@
 # Contratos — vigência, compatibilidade e lacunas
 
+A classificação canônica de versões `CURRENT / COMPATIBILITY / HISTORICAL` está em [CONTRACT_VERSION_MAP.md](CONTRACT_VERSION_MAP.md). **Não inferir vigência pelo maior sufixo `vN`.**
+
 ## Desempenho analítico #815
 
 Transporte V6 aditivo, cinco perspectivas descritivas sobre a mesma projeção relacional e PDF docente compartilhado com Relatórios. V1–V5, autoridade, núcleo acadêmico e schema preservados. Contrato, sincronização, semântica, escopo por turma e limitações de validação em [PERFORMANCE_ANALYTICS_V6.md](PERFORMANCE_ANALYTICS_V6.md).
