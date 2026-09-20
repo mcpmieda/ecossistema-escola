@@ -14,6 +14,12 @@ Este diretório arquiva os caminhos de importação anteriores ao importador rel
 - [`D1-V8/`](D1-V8/) — importação D1 anterior: transporte V2–V8, compactação, staging, atomicidade, bootstrap, known-content e persistência.
 - [`HYPERDRIVE-SHADOW/`](HYPERDRIVE-SHADOW/) — transição anterior para PostgreSQL via Hyperdrive: probe, adapters, benchmark, backfill e shadow do fluxo V8.
 
+## Regra de busca — implementação vigente
+
+Ao procurar consumidores, imports ou símbolos do runtime atual, **exclua `Aprendizados/**` da busca**. Uma referência encontrada somente aqui é evidência histórica, não consumidor operacional e não motivo para manter uma cópia equivalente na árvore ativa.
+
+Antes de remover código da árvore ativa, a busca deve ser repetida por **nome de arquivo e símbolos exportados** fora de `Aprendizados/**`, além de conferir rotas/composição/testes. Esta regra evita tanto falso “código vivo” quanto retirada precipitada.
+
 ## Autoridade atual
 
 O caminho executável atual é o importador relacional:
