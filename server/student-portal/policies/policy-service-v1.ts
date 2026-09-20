@@ -18,13 +18,20 @@ function normalizedScope(input: ScopeV1): ScopeV1 {
 }
 
 function key(scope: ScopeV1): string {
-  return scope.kind === 'school' ? 'school:2026' : scope.kind === 'class' ? `class:2026:${scope.classId}` : `account:2026:${scope.accountId}`;
+  if (scope.kind === 'school') return 'school:2026';
+  if (scope.kind === 'class') return `class:2026:${scope.classId}`;
+  return `account:2026:${scope.accountId}`;
 }
 
 function canonical(input: unknown): string {
   if (Array.isArray(input)) return `[${input.map(canonical).join(',')}]`;
-  if (input !== null && typeof input === 'object') return `{${Object.entries(input).sort(([a], [b]) => a.localeCompare(b))
-    .map(([field, value]) => `${JSON.stringify(field)}:${canonical(value)}`).join(',')}}`;
+  if (input !== null && typeof input === 'object') {
+    const entries = Object.entries(input)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([field, value]) => JSON.stringify(field) + ':' + canonical(value))
+      .join(',');
+    return '{' + entries + '}';
+  }
   return JSON.stringify(input);
 }
 
@@ -211,7 +218,7 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
         accountId: scope.kind === 'account' ? scope.accountId : null, scope, kind: 'settings-changed', result: 'success',
         requestId: command.idempotencyKey, version: after.settings.version, maskedIp: null });
       await persistence.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest, operationId,
-        version: after.settings.version, expiresAt: new Date(now.getTime() + 86400_000).toISOString() });
+        version: after.settings.version, expiresAt: new Date(now.getTime() + 86_400_000).toISOString() });
       return { operationId, version: after.settings.version };
     });
   }
