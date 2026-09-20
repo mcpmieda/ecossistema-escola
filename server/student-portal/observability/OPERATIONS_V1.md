@@ -30,6 +30,12 @@ Depois da contenção, confirmar por agregados: acesso habilitado=0 no escopo, s
 
 `metrics-v1.ts` aceita somente operação enumerada, resultado enumerado e contagens/tempos. O emissor recusa campos extras e falha de logging não altera o resultado de um commit. Não passar Error, Request, URL, headers, parâmetros SQL ou DTOs ao logger. Manter invocation logs desativados; URLs podem conter informação sensível. O schema de métricas não aceita identificadores de aluno, nome, notas, nascimento, PIN, senha, QR, cookie, token ou IP.
 
+P-10/P-11 adicionam dois eventos igualmente fechados:
+- `student-portal-auth-burst-v1`: somente `allowed | global-limited | subject-limited | invalid-subject | unavailable`; nunca inclui subject, QR, challenge, IP ou hash;
+- `student-portal-db-lifecycle-v1`: operação, outcome, `openRoleMs`, `applicationMs` e attempts (1–2). `openRoleMs` cobre a primeira consulta `SELECT current_user` **mais** eventual estabelecimento lazy da conexão postgres.js; não representa custo puro do SQL nem deve ser usado para remover a role check.
+
+Esses eventos servem para volume/correlação. Sem collector/dashboard/threshold externo, log emitido não equivale a alerta operacional.
+
 O IP de rede é metadata, nunca identidade. Pages deve obter o header da requisição original entregue pela Cloudflare antes do binding; o contexto privado transporta esse valor. Em subrequests, ele pode representar o Worker intermediário. Não inferir usuário a partir do endereço, de `x-forwarded-for` ou de claims do body. `withAuditSqlV1` usa SET LOCAL na mesma transação do evento; a máscara é /24 no IPv4 e /48 no IPv6. Sistemas sem requisição têm IP nulo.
 
 Listas nunca retornam IP bruto. Detalhe exige capability write e prazo válido; a leitura já oculta IP após90dias e eventos após12meses. `cleanupPortalV1` remove fisicamente até100 registros por família/passagem e retorna apenas contagens. Agendar a limpeza, acompanhar backlog e repetir passagens limitadas para drenar atrasos. Uma indisponibilidade de cron exige intervenção: ocultação na leitura não prova que o expurgo físico ocorreu dentro do prazo.
