@@ -9,6 +9,7 @@ export type CloudflareCapabilityStateV1 =
   | 'inconclusive'
   | 'unavailable'
   | 'credential-missing';
+export type CloudflareResourceStateV1 = CloudflareCapabilityStateV1 | 'not-found';
 
 export type CloudflareCapabilityV1 = {
   id:
@@ -28,11 +29,51 @@ export type CloudflareProbeResultV1 = {
   capabilities: CloudflareCapabilityV1[];
 };
 
+export type CloudflarePortalDeployResultV1 = {
+  contractVersion: 1;
+  operation: 'portal-deploy';
+  checkedAt: string;
+  worker: {
+    state: CloudflareResourceStateV1;
+    present?: boolean;
+    modifiedAt?: string | null;
+    compatibilityDate?: string | null;
+  };
+  pages: {
+    state: CloudflareResourceStateV1;
+    present?: boolean;
+    productionBranch?: string | null;
+    deploymentStatus?: string | null;
+    deploymentCreatedAt?: string | null;
+  };
+  analytics: {
+    state: CloudflareCapabilityStateV1;
+    windowMinutes: 60;
+    requests?: number;
+    errors?: number;
+  };
+};
+
+export type CloudflarePortalHyperdriveResultV1 = {
+  contractVersion: 1;
+  operation: 'portal-hyperdrive';
+  checkedAt: string;
+  hyperdrive: {
+    state: CloudflareResourceStateV1;
+    present?: boolean;
+    cacheDisabled?: boolean;
+    originConnections?: number;
+  };
+};
+
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;
 
 const API_BASE = 'https://api.cloudflare.com/client/v4';
 const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
+const PORTAL_WORKER = 'student-portal-production';
+const PORTAL_PAGES = 'student-portal-edge';
+const PORTAL_HYPERDRIVE_ID = '46ac2fcb25ad4ad5b5662d536ccd968a';
 
 const definitions = [
   { id: 'workers.scripts.read', label: 'Workers scripts' },
@@ -48,12 +89,28 @@ function stateForStatusV1(status: number): CloudflareCapabilityStateV1 {
   return status >= 200 && status < 300 ? 'accessible' : 'unavailable';
 }
 
+function resourceStateForStatusV1(status: number): CloudflareResourceStateV1 {
+  if (status === 404) return 'not-found';
+  return stateForStatusV1(status);
+}
+
+function asObjectV1(value: unknown): JsonObject | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as JsonObject)
+    : null;
+}
+
+function asStringV1(value: unknown): string | null {
+  return typeof value === 'string' && value.length <= 160 ? value : null;
+}
+
+function asNonNegativeNumberV1(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 async function readJsonV1(response: Response): Promise<JsonObject | null> {
   try {
-    const value = (await response.json()) as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as JsonObject)
-      : null;
+    return asObjectV1((await response.json()) as unknown);
   } catch {
     return null;
   }
@@ -84,11 +141,37 @@ async function restProbeV1(
   }
 }
 
-function analyticsBodyV1(accountId: string, now: Date) {
+async function readRestResourceV1(
+  url: string,
+  token: string,
+  fetcher: Fetcher,
+): Promise<{ state: CloudflareResourceStateV1; body: JsonObject | null }> {
+  try {
+    const response = await fetcher(url, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    });
+    const state = resourceStateForStatusV1(response.status);
+    if (state !== 'accessible') {
+      await response.body?.cancel();
+      return { state, body: null };
+    }
+    const body = await readJsonV1(response);
+    if (!body || body.success === false) return { state: 'inconclusive', body: null };
+    return { state: 'accessible', body };
+  } catch {
+    return { state: 'unavailable', body: null };
+  }
+}
+
+function capabilityAnalyticsBodyV1(accountId: string, now: Date) {
   const end = now.toISOString();
   const start = new Date(now.getTime() - 5 * 60_000).toISOString();
   return {
-    query: 'query CapabilityProbe($accountTag: string, $datetimeStart: string, $datetimeEnd: string) {' +
+    query:
+      'query CapabilityProbe($accountTag: string, $datetimeStart: string, $datetimeEnd: string) {' +
       ' viewer { accounts(filter: { accountTag: $accountTag }) {' +
       ' workersInvocationsAdaptive(limit: 1, filter: { datetime_geq: $datetimeStart, datetime_leq: $datetimeEnd }) {' +
       ' sum { requests } } } } }',
@@ -96,12 +179,31 @@ function analyticsBodyV1(accountId: string, now: Date) {
   };
 }
 
-async function analyticsProbeV1(
+function portalAnalyticsBodyV1(accountId: string, now: Date) {
+  const end = now.toISOString();
+  const start = new Date(now.getTime() - 60 * 60_000).toISOString();
+  return {
+    query:
+      'query PortalWorkerMetrics($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {' +
+      ' viewer { accounts(filter: { accountTag: $accountTag }) {' +
+      ' workersInvocationsAdaptive(limit: 100, filter: { scriptName: $scriptName, datetime_geq: $datetimeStart, datetime_leq: $datetimeEnd }) {' +
+      ' sum { requests errors } } } } }',
+    variables: {
+      accountTag: accountId,
+      datetimeStart: start,
+      datetimeEnd: end,
+      scriptName: PORTAL_WORKER,
+    },
+  };
+}
+
+async function graphqlV1(
   accountId: string,
   token: string,
   fetcher: Fetcher,
-  now: Date,
-): Promise<CloudflareCapabilityStateV1> {
+  body: JsonObject,
+): Promise<{ state: CloudflareCapabilityStateV1; body: JsonObject | null }> {
+  if (!accountId || !token) return { state: 'credential-missing', body: null };
   try {
     const response = await fetcher(API_BASE + '/graphql', {
       method: 'POST',
@@ -110,28 +212,47 @@ async function analyticsProbeV1(
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(analyticsBodyV1(accountId, now)),
+      body: JSON.stringify(body),
       redirect: 'error',
       signal: AbortSignal.timeout(15_000),
     });
     const state = stateForStatusV1(response.status);
     if (state !== 'accessible') {
       await response.body?.cancel();
-      return state;
+      return { state, body: null };
     }
-    const body = await readJsonV1(response);
-    if (!body) return 'inconclusive';
-    const errors = body.errors;
-    if (Array.isArray(errors) && errors.length > 0) return 'inconclusive';
-    const data = body.data;
-    if (!data || typeof data !== 'object') return 'inconclusive';
-    const viewer = (data as JsonObject).viewer;
-    if (!viewer || typeof viewer !== 'object') return 'inconclusive';
-    const accounts = (viewer as JsonObject).accounts;
-    return Array.isArray(accounts) ? 'accessible' : 'inconclusive';
+    const parsed = await readJsonV1(response);
+    if (!parsed) return { state: 'inconclusive', body: null };
+    const errors = parsed.errors;
+    if (Array.isArray(errors) && errors.length > 0)
+      return { state: 'inconclusive', body: null };
+    return { state: 'accessible', body: parsed };
   } catch {
-    return 'unavailable';
+    return { state: 'unavailable', body: null };
   }
+}
+
+async function analyticsProbeV1(
+  accountId: string,
+  token: string,
+  fetcher: Fetcher,
+  now: Date,
+): Promise<CloudflareCapabilityStateV1> {
+  const result = await graphqlV1(
+    accountId,
+    token,
+    fetcher,
+    capabilityAnalyticsBodyV1(accountId, now),
+  );
+  if (result.state !== 'accessible' || !result.body) return result.state;
+  const data = asObjectV1(result.body.data);
+  const viewer = asObjectV1(data?.viewer);
+  const accounts = viewer?.accounts;
+  return Array.isArray(accounts) ? 'accessible' : 'inconclusive';
+}
+
+function validateAccountV1(accountId: string) {
+  if (!ACCOUNT_ID.test(accountId)) throw new Error('Invalid Cloudflare account selector');
 }
 
 export async function probeCloudflareCapabilitiesV1(input: {
@@ -143,8 +264,7 @@ export async function probeCloudflareCapabilitiesV1(input: {
 }): Promise<CloudflareProbeResultV1> {
   const now = input.now ?? new Date();
   const fetcher = input.fetcher ?? fetch;
-
-  if (!ACCOUNT_ID.test(input.accountId)) throw new Error('Invalid Cloudflare account selector');
+  validateAccountV1(input.accountId);
 
   if (!input.token) {
     return {
@@ -158,8 +278,10 @@ export async function probeCloudflareCapabilitiesV1(input: {
   const account = encodeURIComponent(input.accountId);
   const rest = {
     'workers.scripts.read': API_BASE + '/accounts/' + account + '/workers/scripts',
-    'pages.projects.read': API_BASE + '/accounts/' + account + '/pages/projects?page=1&per_page=1',
-    'hyperdrive.configs.read': API_BASE + '/accounts/' + account + '/hyperdrive/configs?page=1&per_page=1',
+    'pages.projects.read':
+      API_BASE + '/accounts/' + account + '/pages/projects?page=1&per_page=1',
+    'hyperdrive.configs.read':
+      API_BASE + '/accounts/' + account + '/hyperdrive/configs?page=1&per_page=1',
     'zones.read': API_BASE + '/zones?account.id=' + account + '&page=1&per_page=1',
   } as const;
 
@@ -180,29 +302,252 @@ export async function probeCloudflareCapabilitiesV1(input: {
   };
 }
 
+export async function diagnoseCloudflarePortalDeployV1(input: {
+  accountId: string;
+  token: string;
+  fetcher?: Fetcher;
+  now?: Date;
+}): Promise<CloudflarePortalDeployResultV1> {
+  const now = input.now ?? new Date();
+  const fetcher = input.fetcher ?? fetch;
+  validateAccountV1(input.accountId);
+
+  if (!input.token) {
+    return {
+      contractVersion: 1,
+      operation: 'portal-deploy',
+      checkedAt: now.toISOString(),
+      worker: { state: 'credential-missing' },
+      pages: { state: 'credential-missing' },
+      analytics: { state: 'credential-missing', windowMinutes: 60 },
+    };
+  }
+
+  const account = encodeURIComponent(input.accountId);
+  const workerRead = await readRestResourceV1(
+    API_BASE + '/accounts/' + account + '/workers/scripts',
+    input.token,
+    fetcher,
+  );
+  let worker: CloudflarePortalDeployResultV1['worker'] = { state: workerRead.state };
+  if (workerRead.state === 'accessible' && workerRead.body) {
+    const result = workerRead.body.result;
+    if (!Array.isArray(result)) worker = { state: 'inconclusive' };
+    else {
+      const match = result.map(asObjectV1).find((item) => item?.id === PORTAL_WORKER);
+      worker = match
+        ? {
+            state: 'accessible',
+            present: true,
+            modifiedAt: asStringV1(match.modified_on),
+            compatibilityDate: asStringV1(match.compatibility_date),
+          }
+        : { state: 'accessible', present: false };
+    }
+  }
+
+  const pagesRead = await readRestResourceV1(
+    API_BASE + '/accounts/' + account + '/pages/projects/' + encodeURIComponent(PORTAL_PAGES),
+    input.token,
+    fetcher,
+  );
+  let pages: CloudflarePortalDeployResultV1['pages'] = { state: pagesRead.state };
+  if (pagesRead.state === 'not-found') pages = { state: 'not-found', present: false };
+  else if (pagesRead.state === 'accessible' && pagesRead.body) {
+    const project = asObjectV1(pagesRead.body.result);
+    if (!project) pages = { state: 'inconclusive' };
+    else {
+      const deployment = asObjectV1(project.canonical_deployment);
+      const latestStage = asObjectV1(deployment?.latest_stage);
+      pages = {
+        state: 'accessible',
+        present: true,
+        productionBranch: asStringV1(project.production_branch),
+        deploymentStatus: asStringV1(latestStage?.status),
+        deploymentCreatedAt: asStringV1(deployment?.created_on),
+      };
+    }
+  }
+
+  const analyticsRead = await graphqlV1(
+    input.accountId,
+    input.token,
+    fetcher,
+    portalAnalyticsBodyV1(input.accountId, now),
+  );
+  let analytics: CloudflarePortalDeployResultV1['analytics'] = {
+    state: analyticsRead.state,
+    windowMinutes: 60,
+  };
+  if (analyticsRead.state === 'accessible' && analyticsRead.body) {
+    const data = asObjectV1(analyticsRead.body.data);
+    const viewer = asObjectV1(data?.viewer);
+    const accounts = viewer?.accounts;
+    if (!Array.isArray(accounts)) analytics = { state: 'inconclusive', windowMinutes: 60 };
+    else {
+      const first = asObjectV1(accounts[0]);
+      const rows = first?.workersInvocationsAdaptive;
+      if (!Array.isArray(rows)) analytics = { state: 'inconclusive', windowMinutes: 60 };
+      else {
+        let requests = 0;
+        let errors = 0;
+        let valid = true;
+        for (const row of rows) {
+          const sum = asObjectV1(asObjectV1(row)?.sum);
+          const rowRequests = asNonNegativeNumberV1(sum?.requests);
+          const rowErrors = asNonNegativeNumberV1(sum?.errors);
+          if (rowRequests === null || rowErrors === null) {
+            valid = false;
+            break;
+          }
+          requests += rowRequests;
+          errors += rowErrors;
+        }
+        analytics = valid
+          ? { state: 'accessible', windowMinutes: 60, requests, errors }
+          : { state: 'inconclusive', windowMinutes: 60 };
+      }
+    }
+  }
+
+  return {
+    contractVersion: 1,
+    operation: 'portal-deploy',
+    checkedAt: now.toISOString(),
+    worker,
+    pages,
+    analytics,
+  };
+}
+
+export async function diagnoseCloudflarePortalHyperdriveV1(input: {
+  accountId: string;
+  token: string;
+  fetcher?: Fetcher;
+  now?: Date;
+}): Promise<CloudflarePortalHyperdriveResultV1> {
+  const now = input.now ?? new Date();
+  const fetcher = input.fetcher ?? fetch;
+  validateAccountV1(input.accountId);
+
+  if (!input.token) {
+    return {
+      contractVersion: 1,
+      operation: 'portal-hyperdrive',
+      checkedAt: now.toISOString(),
+      hyperdrive: { state: 'credential-missing' },
+    };
+  }
+
+  const account = encodeURIComponent(input.accountId);
+  const read = await readRestResourceV1(
+    API_BASE + '/accounts/' + account + '/hyperdrive/configs/' + PORTAL_HYPERDRIVE_ID,
+    input.token,
+    fetcher,
+  );
+  if (read.state === 'not-found') {
+    return {
+      contractVersion: 1,
+      operation: 'portal-hyperdrive',
+      checkedAt: now.toISOString(),
+      hyperdrive: { state: 'not-found', present: false },
+    };
+  }
+  if (read.state !== 'accessible' || !read.body) {
+    return {
+      contractVersion: 1,
+      operation: 'portal-hyperdrive',
+      checkedAt: now.toISOString(),
+      hyperdrive: { state: read.state },
+    };
+  }
+
+  const config = asObjectV1(read.body.result);
+  const caching = asObjectV1(config?.caching);
+  const cacheDisabled = caching?.disabled;
+  const originConnections = asNonNegativeNumberV1(config?.origin_connection_limit);
+  if (!config || typeof cacheDisabled !== 'boolean' || originConnections === null) {
+    return {
+      contractVersion: 1,
+      operation: 'portal-hyperdrive',
+      checkedAt: now.toISOString(),
+      hyperdrive: { state: 'inconclusive' },
+    };
+  }
+
+  return {
+    contractVersion: 1,
+    operation: 'portal-hyperdrive',
+    checkedAt: now.toISOString(),
+    hyperdrive: {
+      state: 'accessible',
+      present: true,
+      cacheDisabled,
+      originConnections,
+    },
+  };
+}
+
+type CliOperationV1 = 'capabilities' | 'portal-deploy' | 'portal-hyperdrive';
+
 function parseArgsV1(argv: readonly string[]) {
   const kindIndex = argv.indexOf('--token-kind');
   const outputIndex = argv.indexOf('--output');
+  const operationIndex = argv.indexOf('--operation');
   const tokenKind = argv[kindIndex + 1];
   const output = argv[outputIndex + 1];
+  const operation = (argv[operationIndex + 1] ?? 'capabilities') as CliOperationV1;
   if ((tokenKind !== 'deploy' && tokenKind !== 'hyperdrive') || !output)
     throw new Error('Expected --token-kind <deploy|hyperdrive> and --output <path>');
-  return { tokenKind, output } as const;
+  if (!['capabilities', 'portal-deploy', 'portal-hyperdrive'].includes(operation))
+    throw new Error('Unsupported Cloudflare operator operation');
+  if (operation === 'portal-deploy' && tokenKind !== 'deploy')
+    throw new Error('portal-deploy requires deploy token');
+  if (operation === 'portal-hyperdrive' && tokenKind !== 'hyperdrive')
+    throw new Error('portal-hyperdrive requires hyperdrive token');
+  return { tokenKind, output, operation } as const;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { tokenKind, output } = parseArgsV1(process.argv.slice(2));
-  const result = await probeCloudflareCapabilitiesV1({
+  const { tokenKind, output, operation } = parseArgsV1(process.argv.slice(2));
+  const common = {
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
     token: process.env.CLOUDFLARE_API_TOKEN ?? '',
-    tokenKind,
+  };
+  const result =
+    operation === 'capabilities'
+      ? await probeCloudflareCapabilitiesV1({ ...common, tokenKind })
+      : operation === 'portal-deploy'
+        ? await diagnoseCloudflarePortalDeployV1(common)
+        : await diagnoseCloudflarePortalHyperdriveV1(common);
+
+  await writeFile(output, JSON.stringify(result, null, 2) + '\n', {
+    encoding: 'utf8',
+    mode: 0o600,
   });
-  await writeFile(output, JSON.stringify(result, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
-  console.log(
-    JSON.stringify({
-      event: 'cloudflare-readonly-probe-v1',
-      tokenKind,
-      capabilities: result.capabilities.map(({ id, state }) => ({ id, state })),
-    }),
-  );
+
+  if (operation === 'capabilities') {
+    console.log(
+      JSON.stringify({
+        event: 'cloudflare-readonly-probe-v1',
+        tokenKind,
+        capabilities: result.capabilities.map(({ id, state }) => ({ id, state })),
+      }),
+    );
+  } else {
+    console.log(
+      JSON.stringify({
+        event: 'cloudflare-readonly-diagnostic-v1',
+        operation,
+        state:
+          operation === 'portal-deploy'
+            ? {
+                worker: result.worker.state,
+                pages: result.pages.state,
+                analytics: result.analytics.state,
+              }
+            : { hyperdrive: result.hyperdrive.state },
+      }),
+    );
+  }
 }
