@@ -211,6 +211,39 @@ it('preserves the SECURITY DEFINER Gradebook integration across Portal RLS', asy
   ).toBe(1);
 });
 
+it('keeps the full-chain Gradebook integration ACL exact', async () => {
+  const functions = await owner.unsafe<{ function_name: string }[]>(`
+    SELECT p.proname AS function_name
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='student_portal'
+      AND has_function_privilege('gradebook_app',p.oid,'EXECUTE')
+    ORDER BY p.proname
+  `);
+  expect(functions.map((row) => row.function_name)).toEqual([
+    'complete_year_reset_v1',
+    'consume_year_reset_v1',
+    'ensure_year_coordination_v1',
+    'inspect_year_reset_guard_v1',
+    'prepare_year_reset_v1',
+    'record_gradebook_change_v1',
+    'synchronize_gradebook_profiles_v1',
+  ]);
+
+  const tableGrants = await owner.unsafe<{ count: number }[]>(`
+    SELECT count(*)::integer AS count
+    FROM information_schema.tables
+    WHERE table_schema='student_portal'
+      AND (
+        has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'SELECT')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'INSERT')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'UPDATE')
+        OR has_table_privilege('gradebook_app', format('%I.%I',table_schema,table_name), 'DELETE')
+      )
+  `);
+  expect(tableGrants).toEqual([{ count: 0 }]);
+});
+
 it.each([
   ['anon', () => anonymous],
   ['authenticated', () => authenticated],
