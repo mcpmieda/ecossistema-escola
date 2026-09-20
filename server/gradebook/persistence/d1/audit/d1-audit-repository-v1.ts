@@ -1,4 +1,4 @@
-import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
+import { structurallyEqualJsonV1 } from '../canonical-json-v1';
 import { isSnapshotSourceEvidenceV5 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   AuditEntityReferenceV1,
@@ -130,25 +130,6 @@ function finiteNumber(value: unknown): value is number {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === 'string';
-}
-
-function canonicalJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalJsonValue);
-  if (!isObject(value)) return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .filter((key) => value[key] !== undefined)
-      .sort(compareCanonicalStringsV1)
-      .map((key) => [key, canonicalJsonValue(value[key])]),
-  );
-}
-
-function structurallyEqual(left: unknown, right: unknown): boolean {
-  try {
-    return JSON.stringify(canonicalJsonValue(left)) === JSON.stringify(canonicalJsonValue(right));
-  } catch {
-    return false;
-  }
 }
 
 function serialize(value: unknown): string {
@@ -745,7 +726,7 @@ class GradebookD1AuditRepositoryV1 implements AuditPersistenceRepositoryV1 {
       if (
         transitions.length < value.stateHistory.length ||
         (requireAllTransitions && transitions.length !== value.stateHistory.length) ||
-        !structurallyEqual(transitions.slice(0, value.stateHistory.length), value.stateHistory)
+        !structurallyEqualJsonV1(transitions.slice(0, value.stateHistory.length), value.stateHistory)
       ) {
         return fail('invalid-transition-history');
       }
@@ -967,7 +948,7 @@ class GradebookD1AuditRepositoryV1 implements AuditPersistenceRepositoryV1 {
         const previousHistory = previousOccurrence?.stateHistory ?? [];
         if (
           record.value.stateHistory.length < previousHistory.length ||
-          !structurallyEqual(
+          !structurallyEqualJsonV1(
             record.value.stateHistory.slice(0, previousHistory.length),
             previousHistory,
           )
@@ -977,7 +958,7 @@ class GradebookD1AuditRepositoryV1 implements AuditPersistenceRepositoryV1 {
         const persistedTransitions = (await this.transitionRows(context, stream.id)).map(
           transitionFromRow,
         );
-        if (!structurallyEqual(persistedTransitions, previousHistory)) {
+        if (!structurallyEqualJsonV1(persistedTransitions, previousHistory)) {
           return fail('invalid-transition-history');
         }
         newTransitions = record.value.stateHistory.slice(previousHistory.length);
