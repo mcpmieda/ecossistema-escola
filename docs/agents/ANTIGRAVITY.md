@@ -55,8 +55,9 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 - Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
 - Falhas transitórias `429/RESOURCE_EXHAUSTED` e `503/UNAVAILABLE` usam fallback bounded para outro modelo oficial, cuja quota é independente por modelo. O SDK já faz retries internos; o host troca de modelo rapidamente em vez de esperar a janela do modelo esgotado. O workspace é conferido antes de cada retomada e cada modelo entra no máximo uma vez por execução.
 - Subagentes, ferramentas Web e terminal ficam fora da allowlist de capacidades.
-- A allowlist `CapabilitiesConfig.enabled_tools` é a fronteira primária de ferramentas; o agente recebe somente leitura/listagem/pesquisa/edição de arquivos no workspace e `finish`.
-- Como o SDK exige uma safety policy quando há ferramentas de escrita, usamos `policy.allow_all()` somente sobre essa allowlist já restrita. Isso não adiciona terminal, Web ou subagentes; apenas aprova automaticamente as ferramentas que já estão visíveis.
+- A allowlist `CapabilitiesConfig.enabled_tools` é a fronteira primária dos built-ins; o agente recebe somente leitura/listagem/pesquisa e `finish`. `CREATE_FILE`/`EDIT_FILE` nativos ficam desabilitados para evitar a ambiguidade upstream entre escrita no workspace e `ArtifactMetadata` interno.
+- Escritas no repositório usam apenas os custom tools host-side `write_workspace_file` e `replace_workspace_text`. Antes de tocar no filesystem, eles exigem caminho relativo, resolvem symlinks e validam `allowed_paths` + bloqueios globais; traversal ou escape do workspace falha fechado.
+- `policy.allow_all()` continua restrito à superfície efetivamente exposta pelo executor. Isso não adiciona terminal, Web ou subagentes.
 - O agente não recebe ferramenta de terminal. Os comandos declarados em `validate` são executados pelo host depois que o turno do agente termina.
 - O agente não recebe `GITHUB_TOKEN`.
 - `GEMINI_API_KEY` é removida do ambiente do processo antes das validações do host.
