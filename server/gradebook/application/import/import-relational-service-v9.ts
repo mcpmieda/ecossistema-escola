@@ -12,6 +12,11 @@ import type {
   GradebookNotesImportRequestV9,
   GradebookRelationImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import {
+  resolveRelationalClosingUpdateV9,
+  type RelationalClosingPatchV9,
+  type RelationalClosingStateV9,
+} from './import-relational-closing-v9';
 import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
@@ -641,13 +646,6 @@ function isUnavailable(value: GradebookImportCellV9 | GradebookImportRecoveryCel
   return Array.isArray(value) && value[0] === 'u';
 }
 
-function isNc(value: GradebookImportRecoveryCellV9): boolean {
-  return Array.isArray(value) && value[0] === 'n';
-}
-
-function isRr(value: GradebookImportRecoveryCellV9): boolean {
-  return Array.isArray(value) && value[0] === 'r';
-}
 
 interface InstrumentStateV9 {
   readonly id: number;
@@ -870,15 +868,7 @@ async function processOffer(
      FROM gradebook.fechamento WHERE oferta_id = ?`,
     [ofertaId],
   );
-  type Close = {
-    exists: boolean;
-    am: [number | null, number | null, number | null];
-    rec: [number | null, number | null, number | null];
-    ncMask: number;
-    rrMask: number;
-    u: number | null;
-  };
-  const closing = new Map<number, Close>();
+  const closing = new Map<number, RelationalClosingStateV9>();
   for (const row of fechamentoRows) {
     closing.set(asNumber(row.aluno_id, 'aluno-id'), {
       exists: true,
@@ -898,16 +888,7 @@ async function processOffer(
     });
   }
 
-  type Patch = {
-    am?: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?];
-    rec?: [
-      GradebookImportRecoveryCellV9,
-      GradebookImportRecoveryCellV9,
-      GradebookImportRecoveryCellV9,
-    ];
-    u?: GradebookImportCellV9;
-  };
-  const patches = new Map<number, Patch>();
+  const patches = new Map<number, RelationalClosingPatchV9>();
   for (const term of offer.trimestres) {
     for (const [numero, , am] of term.alunos) {
       const alunoId = bindings.get(`${turmaId}:${numero}`);
@@ -917,10 +898,10 @@ async function processOffer(
           `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`,
         );
       const patch = patches.get(alunoId) ?? {};
-      const ams = patch.am ?? [];
+      const ams: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?] =
+        patch.am ? [...patch.am] : [];
       ams[term.trimestre - 1] = am;
-      patch.am = ams;
-      patches.set(alunoId, patch);
+      patches.set(alunoId, { ...patch, am: ams });
     }
   }
   for (const [numero, rec1, rec2, rec3, u] of offer.recuperacao ?? []) {
@@ -931,13 +912,11 @@ async function processOffer(
         `Aluno REC número ${numero} não existe na turma ${offer.turmaCodigo}.`,
       );
     const patch = patches.get(alunoId) ?? {};
-    patch.rec = [rec1, rec2, rec3];
-    patch.u = u;
-    patches.set(alunoId, patch);
+    patches.set(alunoId, { ...patch, rec: [rec1, rec2, rec3], u });
   }
 
   for (const [alunoId, patch] of patches) {
-    const current = closing.get(alunoId) ?? {
+    const current: RelationalClosingStateV9 = closing.get(alunoId) ?? {
       exists: false,
       am: [null, null, null],
       rec: [null, null, null],
@@ -945,87 +924,7 @@ async function processOffer(
       rrMask: 0,
       u: null,
     };
-    const next: Close = {
-      exists: current.exists,
-      am: [...current.am],
-      rec: [...current.rec],
-      ncMask: current.ncMask,
-      rrMask: current.rrMask,
-      u: current.u,
-    };
-    const changes: Array<{
-      campo: number;
-      oldValue: number | null;
-      newValue: number | null;
-      oldState: number;
-      newState: number;
-    }> = [];
-    for (let index = 0; index < 3; index++) {
-      const target = patch.am?.[index];
-      if (target === undefined || isUnavailable(target)) continue;
-      const oldValue = next.am[index]!;
-      const newValue = target === null ? null : (target as number);
-      if (oldValue === newValue) continue;
-      changes.push({
-        campo: index + 1,
-        oldValue,
-        newValue,
-        oldState: oldValue === null ? 0 : 1,
-        newState: newValue === null ? 0 : 1,
-      });
-      next.am[index] = newValue;
-    }
-    if (patch.rec) {
-      for (let index = 0; index < 3; index++) {
-        const target = patch.rec[index]!;
-        if (isUnavailable(target)) continue;
-        const bit = 1 << index;
-        const oldNc = (next.ncMask & bit) !== 0;
-        const oldRr = (next.rrMask & bit) !== 0;
-        const oldValue = next.rec[index]!;
-        const oldState = oldRr ? 3 : oldNc ? 2 : oldValue === null ? 0 : 1;
-        let newState: number;
-        let newValue: number | null;
-        if (isNc(target)) {
-          newState = 2;
-          newValue = null;
-          next.ncMask |= bit;
-          next.rrMask &= ~bit;
-        } else if (isRr(target)) {
-          newState = 3;
-          newValue = null;
-          next.rrMask |= bit;
-          next.ncMask &= ~bit;
-        } else if (target === null) {
-          newState = 0;
-          newValue = null;
-          next.ncMask &= ~bit;
-          next.rrMask &= ~bit;
-        } else {
-          newState = 1;
-          newValue = target as number;
-          next.ncMask &= ~bit;
-          next.rrMask &= ~bit;
-        }
-        if (oldState === newState && oldValue === newValue) continue;
-        changes.push({ campo: index + 4, oldValue, newValue, oldState, newState });
-        next.rec[index] = newValue;
-      }
-    }
-    if (patch.u !== undefined && !isUnavailable(patch.u)) {
-      const oldValue = next.u;
-      const newValue = patch.u === null ? null : (patch.u as number);
-      if (oldValue !== newValue) {
-        changes.push({
-          campo: 7,
-          oldValue,
-          newValue,
-          oldState: oldValue === null ? 0 : 1,
-          newState: newValue === null ? 0 : 1,
-        });
-        next.u = newValue;
-      }
-    }
+    const { next, changes, empty } = resolveRelationalClosingUpdateV9(current, patch);
     if (changes.length === 0) continue;
     const importId = await ensureImport(database, state, request, 2);
     for (const change of changes) {
@@ -1046,12 +945,6 @@ async function processOffer(
         ],
       );
     }
-    const empty =
-      next.am.every((value) => value === null) &&
-      next.rec.every((value) => value === null) &&
-      next.ncMask === 0 &&
-      next.rrMask === 0 &&
-      next.u === null;
     if (empty && current.exists) {
       state.writes += await academicRun(
         database,
