@@ -391,6 +391,22 @@ You are an executor, not the architectural authority. Stay inside the current wo
             async with Agent(config) as agent:
                 response = await agent.chat(prompt)
                 response_text = await response.text()
+                changed_paths = list_changed_paths(root)
+                validate_changed_paths(changed_paths, meta["allowed_paths"])
+                if not response_text.strip() and not changed_paths:
+                    if attempt_index >= len(PROVIDER_MODELS) - 1:
+                        raise RuntimeError(
+                            "Antigravity provider returned an empty response and no changes."
+                        )
+                    next_model = PROVIDER_MODELS[attempt_index + 1]
+                    print(
+                        "Antigravity provider returned no usable result; "
+                        f"retrying safely with {next_model} "
+                        f"(attempt {attempt_index + 2}/{len(PROVIDER_MODELS)}).",
+                        flush=True,
+                    )
+                    await asyncio.sleep(MODEL_SWITCH_DELAY_SECONDS)
+                    continue
                 usage = getattr(response, "usage_metadata", None)
                 usage_payload = usage.model_dump() if hasattr(usage, "model_dump") else None
                 result = {

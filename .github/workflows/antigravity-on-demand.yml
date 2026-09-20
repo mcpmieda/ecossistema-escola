@@ -17,7 +17,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: antigravity-provider
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && github.event.comment.body == '/antigravity')) && 'antigravity-provider' || format('antigravity-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
