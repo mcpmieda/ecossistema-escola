@@ -33,7 +33,7 @@ const POSTGRES_TEXT_OID_V1 = 25;
  * This is NOT the current physical Gradebook catalog. Current relational code must use
  * explicit gradebook.<table> names; the current physical catalog is owned by BN-09.
  */
-const LEGACY_D1_COMPAT_RELATION_NAMES_V1 = [
+export const LEGACY_D1_COMPAT_RELATION_NAMES_V1 = [
   'academic_entity_streams',
   'academic_entity_versions',
   'academic_record_streams',
