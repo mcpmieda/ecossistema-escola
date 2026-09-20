@@ -1,5 +1,8 @@
 # Runtime D1 autorizado e gate produtivo V1
 
+> **Documento histórico.** O D1 acadêmico descrito abaixo não é mais a persistência física oficial. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`; D1 físico permanece apenas em runtime legado/local/preview e memória. Não executar as instruções produtivas antigas deste documento como runbook atual.
+
+
 ## Escopo
 
 O runtime compõe adaptadores D1 para ambientes autorizados. A onda 23 provisionou o D1 acadêmico produtivo e o binding server-side sem versionar identificadores remotos; o acesso acadêmico de produção continua condicionado ao gate explícito e à autorização opaca.

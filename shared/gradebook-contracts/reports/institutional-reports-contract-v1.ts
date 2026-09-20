@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../string-order-v1';
 import {
   AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
   inspectAuditWorkspaceListRequestV1,
@@ -150,8 +151,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const keys = [...expected].sort();
+  const actual = Object.keys(value).sort(compareCanonicalStringsV1);
+  const keys = [...expected].sort(compareCanonicalStringsV1);
   return actual.length === keys.length && actual.every((key, index) => key === keys[index]);
 }
 
