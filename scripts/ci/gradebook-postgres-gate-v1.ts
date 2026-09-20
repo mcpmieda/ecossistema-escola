@@ -72,6 +72,7 @@ const schemaPlan = [
   '0010_qualitative_corrections_2026_v1.sql',
   '0011_gradebook_rls_v1.sql',
   '0012_current_state_cleanup_v1.sql',
+  'current_cross_schema_indexes_v1.sql',
 ] as const;
 
 const sql = postgres(validatedTarget().toString(), {
