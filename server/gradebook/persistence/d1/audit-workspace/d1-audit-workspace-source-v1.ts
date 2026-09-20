@@ -103,16 +103,16 @@ function canonicalFilters(filters: AuditWorkspaceFiltersV1): unknown {
   return {
     importBatchId: filters.importBatchId ?? null,
     importBatchStatuses:
-      filters.importBatchStatuses === undefined ? null : [...filters.importBatchStatuses].sort(),
+      filters.importBatchStatuses === undefined ? null : [...filters.importBatchStatuses].sort((left, right) => left.localeCompare(right, 'en')),
     occurrenceStates:
-      filters.occurrenceStates === undefined ? null : [...filters.occurrenceStates].sort(),
-    severities: filters.severities === undefined ? null : [...filters.severities].sort(),
-    categories: filters.categories === undefined ? null : [...filters.categories].sort(),
-    recordTypes: filters.recordTypes === undefined ? null : [...filters.recordTypes].sort(),
+      filters.occurrenceStates === undefined ? null : [...filters.occurrenceStates].sort((left, right) => left.localeCompare(right, 'en')),
+    severities: filters.severities === undefined ? null : [...filters.severities].sort((left, right) => left.localeCompare(right, 'en')),
+    categories: filters.categories === undefined ? null : [...filters.categories].sort((left, right) => left.localeCompare(right, 'en')),
+    recordTypes: filters.recordTypes === undefined ? null : [...filters.recordTypes].sort((left, right) => left.localeCompare(right, 'en')),
     reconciliationStatuses:
       filters.reconciliationStatuses === undefined
         ? null
-        : [...filters.reconciliationStatuses].sort(),
+        : [...filters.reconciliationStatuses].sort((left, right) => left.localeCompare(right, 'en')),
     period: filters.period ?? null,
   };
 }
