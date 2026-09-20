@@ -2,6 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { subscribeLiveRefreshV1 } from '../../src/shared/live-data/live-refresh-v1';
 import { useRemoteLiveV1, type RemoteLiveStateV1 } from '../../src/shared/live-data/use-remote-live-v1';
 
@@ -29,7 +30,7 @@ function Probe() {
   return null;
 }
 beforeEach(() => {
-  vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.useFakeTimers(); mockSecureJitterV1(0);
   FakeWebSocket.instances = []; authorizationLostCalls = 0; authorizationLost = () => { authorizationLostCalls += 1; }; state = 'idle';
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import {
   LIVE_HEAVY_READ_INTERVAL_V1,
   notifyLiveChangeV1,
@@ -11,7 +12,7 @@ const disposers: Array<() => void> = [];
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-17T15:54:00Z'));
-  vi.spyOn(Math, 'random').mockReturnValue(0);
+  mockSecureJitterV1(0);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
@@ -108,7 +109,7 @@ it('a rejected read with a pending invalidation respects cooldown instead of loo
 });
 
 it('spreads event-driven reads without adding a polling clock', async () => {
-  vi.mocked(Math.random).mockReturnValue(0.8);
+  mockSecureJitterV1(800);
   const refresh = vi.fn(async () => undefined);
   const dispose = subscribeLiveRefreshV1({ domains: ['gradebook'], refresh });
   disposers.push(dispose);

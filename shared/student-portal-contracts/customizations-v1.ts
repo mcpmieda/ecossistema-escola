@@ -28,8 +28,8 @@ export const customizationRowV1 = z.object({
   if (new Set(row.publications.map((item) => item.period)).size !== row.publications.length ||
       row.publications.some((item) => !item.customized || item.ownVersion === null))
     ctx.addIssue({ code: 'custom', message: 'Only current own differences belong in the inventory' });
-  const fields = Object.keys(row.value ?? {}).sort().join(',');
-  if (fields !== Object.keys(row.inheritedValue ?? {}).sort().join(',') || fields !== Object.keys(row.schoolValue ?? {}).sort().join(','))
+  const fields = Object.keys(row.value ?? {}).sort((left, right) => left.localeCompare(right)).join(',');
+  if (fields !== Object.keys(row.inheritedValue ?? {}).sort((left, right) => left.localeCompare(right)).join(',') || fields !== Object.keys(row.schoolValue ?? {}).sort((left, right) => left.localeCompare(right)).join(','))
     ctx.addIssue({ code: 'custom', message: 'Missing option comparison' });
 });
 export const customizationsResponseV1 = z.object({

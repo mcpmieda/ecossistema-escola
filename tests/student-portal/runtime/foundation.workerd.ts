@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 
@@ -44,6 +44,13 @@ async function workerForTest(name: string) {
 }
 
 beforeAll(async () => {
+  for (const artifact of [
+    'node_modules/.cache/student-portal-edge/_worker.js',
+    'node_modules/.cache/student-portal/index.js',
+  ]) {
+    if (!existsSync(artifact))
+      throw new Error(`student-portal-runtime-artifact-missing: ${artifact}; execute "npm run build:student-portal" before "npm run test:student-portal-runtime"`);
+  }
   runtime = new Miniflare(
     convertV4MiniflareOptions({
       workers: [

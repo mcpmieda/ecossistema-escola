@@ -61,7 +61,7 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   if (left.mode !== right.mode) return true;
   if (left.mode === 'single' && right.mode === 'single') {
     return changedDate(left.at, right.at)
-      || (canonical([...left.periods].sort()) !== canonical([...right.periods].sort()) && (past(left.at) || past(right.at)));
+      || (canonical([...left.periods].sort((a, b) => a.localeCompare(b))) !== canonical([...right.periods].sort((a, b) => a.localeCompare(b))) && (past(left.at) || past(right.at)));
   }
   if (left.mode === 'per-period' && right.mode === 'per-period') {
     return (['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const).some((period) => changedDate(left.at[period], right.at[period]));

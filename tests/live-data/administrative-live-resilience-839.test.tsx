@@ -2,6 +2,7 @@
 import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { AdministrativeLiveProviderV1, useAdministrativeLiveV1 } from '../../src/shared/live-data/administrative-live-v1';
 import { useRemoteLiveV1 } from '../../src/shared/live-data/use-remote-live-v1';
 import { notifyLiveChangeV1, subscribeLiveChangesV1 } from '../../src/shared/live-data/live-refresh-v1';
@@ -21,7 +22,7 @@ const change = { contractVersion: 1, type: 'change', cursor: '000000000000000000
   domain: 'gradebook', version: 'revision:1', occurredAt: '2026-09-17T15:54:00.000Z' };
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 beforeEach(() => {
-  vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.useFakeTimers(); mockSecureJitterV1(0);
   Socket.instances = []; vi.stubGlobal('WebSocket', Socket);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });

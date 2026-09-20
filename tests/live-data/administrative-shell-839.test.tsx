@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mockSecureJitterV1 } from './secure-jitter-fixture';
 import { App } from '../../src/App';
 import { PLATFORM_CAPABILITIES } from '../../shared/platform-contract';
 import { buildPlatformSnapshot } from '../../server/platform/snapshot';
@@ -39,7 +40,7 @@ let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;
 const flush = () => act(async () => { for (let i = 0; i < 60; i++) await Promise.resolve(); });
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 beforeEach(() => {
-  vi.useFakeTimers(); vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.useFakeTimers(); mockSecureJitterV1(0);
   reads.mockClear(); Socket.instances = []; key = 'synthetic-a'; status = 200;
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
