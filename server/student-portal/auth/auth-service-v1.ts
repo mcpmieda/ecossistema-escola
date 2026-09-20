@@ -245,8 +245,7 @@ async function activationStateV1(
   if (
     rows[0]!.usable !== true ||
     context.account.state === 'active' ||
-    !credential ||
-    credential.state !== 'active' ||
+    credential?.state !== 'active' ||
     !credential.pin ||
     credential.pinVersion !== context.account.pinVersion ||
     !birth?.year ||
@@ -314,8 +313,7 @@ export class AuthServiceV1 {
       const context = await accessContextV1(this.sql, tx, store, accountId);
       if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
       if (
-        !credential ||
-        credential.state !== 'active' ||
+        credential?.state !== 'active' ||
         credential.credentialId !== qr.credentialId ||
         credential.keyVersion !== qr.keyVersion
       )
