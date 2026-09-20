@@ -84,7 +84,8 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
 ] as const;
 
 function integer(value: unknown, code: string): number {
-  const normalized = typeof value === 'bigint' ? Number(value) : typeof value === 'string' ? Number(value) : value;
+  let normalized: unknown = value;
+  if (typeof value === 'bigint' || typeof value === 'string') normalized = Number(value);
   if (typeof normalized !== 'number' || !Number.isSafeInteger(normalized)) throw new Error(code);
   return normalized;
 }
