@@ -43,6 +43,23 @@ async function portalGrants() {
   return rows.map((row) => String(row.signature));
 }
 
+async function gradebookPortalFunctionGrants() {
+  const rows = await owner.unsafe(`
+    SELECT format('%I.%I(%s)',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)) AS signature
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='student_portal'
+      AND has_function_privilege('gradebook_app',p.oid,'EXECUTE')
+    ORDER BY signature
+  `);
+  return rows.map((row) => {
+    if (typeof row.signature !== 'string' || row.signature.length === 0) {
+      throw new Error('student-portal-gradebook-function-signature-invalid');
+    }
+    return row.signature;
+  });
+}
+
 beforeAll(async () => {
   await cluster.unsafe('CREATE DATABASE ' + databaseName);
   created = true;
@@ -176,6 +193,25 @@ it('enables non-forced RLS with one backend policy on all 27 current Portal tabl
 
 it('preserves the exact student_portal_app table ACL', async () => {
   expect(await portalGrants()).toEqual(grantsBefore);
+});
+
+it('keeps gradebook_app on the exact current Portal function surface', async () => {
+  expect(await gradebookPortalFunctionGrants()).toEqual([
+      "student_portal.complete_year_reset_v1(p_year smallint, p_actor text, p_token text)",
+      "student_portal.consume_year_reset_v1(p_year smallint, p_actor text, p_token text)",
+      "student_portal.ensure_year_coordination_v1(p_year smallint)",
+      "student_portal.inspect_year_reset_guard_v1(p_academic_year smallint)",
+      "student_portal.prepare_year_reset_v1(p_year smallint, p_actor text, p_token text)",
+      "student_portal.record_gradebook_change_v1(p_event_id uuid, p_academic_year smallint, p_cause text, p_affects_academic boolean, p_student_ids integer[], p_occurred_at timestamp with time zone)",
+      "student_portal.synchronize_gradebook_profiles_v1()"
+  ]);
+  expect(
+    await owner.unsafe(`
+      SELECT count(*)::integer AS n
+      FROM information_schema.role_table_grants
+      WHERE table_schema='student_portal' AND grantee='gradebook_app'
+    `),
+  ).toEqual([{ n: 0 }]);
 });
 
 it('keeps runtime login, self/admin, publication and job data reachable through the restricted backend role', async () => {
