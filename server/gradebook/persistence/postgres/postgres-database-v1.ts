@@ -65,7 +65,7 @@ export const LEGACY_D1_COMPAT_RELATION_NAMES_V1 = [
   'source_file_versions',
 ] as const;
 const LEGACY_D1_COMPAT_RELATION_V1 = new RegExp(
-  `\\b(FROM|INTO|JOIN|TABLE|UPDATE)\\s+(?!gradebook\\.)(${LEGACY_D1_COMPAT_RELATION_NAMES_V1.join('|')})\\b`,
+  String.raw`\b(FROM|INTO|JOIN|TABLE|UPDATE)\s+(?!gradebook\.)(${LEGACY_D1_COMPAT_RELATION_NAMES_V1.join('|')})\b`,
   'giu',
 );
 
