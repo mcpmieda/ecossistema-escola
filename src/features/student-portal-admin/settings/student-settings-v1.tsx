@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -282,6 +282,170 @@ function ReviewDialogV1({
     </Modal.Backdrop>
   );
 }
+function SettingsMutationFeedbackV1({
+  mutation,
+  canWrite,
+  clock,
+  retry,
+  reload,
+}: Readonly<{
+  mutation: SettingsMutationStateV1;
+  canWrite: boolean;
+  clock: number;
+  retry: () => void;
+  reload: () => void;
+}>) {
+  if (mutation.state !== 'error') return null;
+  return (
+    <div className="pa-settings-error" role="alert">
+      <p>{mutationErrorLabelV1(mutation.error)}</p>
+      {mutation.retryable && canWrite ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={clock < mutation.retryAt}
+          onPress={retry}
+        >
+          Tentar novamente
+        </Button>
+      ) : null}
+      <Button size="sm" variant="ghost" onPress={reload}>
+        Recarregar
+      </Button>
+    </div>
+  );
+}
+
+function SettingsReadyV1({
+  data,
+  mutation,
+  client,
+  reader,
+  fixedScope,
+  canWrite,
+  busy,
+  review,
+  label,
+  discardVersion,
+  sourceLabel,
+  onDirtyChange,
+  onReview,
+  onRetry,
+  onReload,
+  clock,
+  onOpenCustomization,
+  linksClosed,
+  setClosing,
+  onReviewClose,
+  onReviewConfirm,
+}: Readonly<{
+  data: EffectiveSettingsV1;
+  mutation: SettingsMutationStateV1;
+  client: PortalAdminClientV1;
+  reader?: PortalAdminReadClientV2;
+  fixedScope: ScopeV1;
+  canWrite: boolean;
+  busy: boolean;
+  review: ReviewV1 | null;
+  label: string;
+  discardVersion: number;
+  sourceLabel: (scope: ScopeV1) => string;
+  onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
+  onReview: (review: ReviewV1) => void;
+  onRetry: () => void;
+  onReload: () => void;
+  clock: number;
+  onOpenCustomization?: OpenCustomizationV1;
+  linksClosed: () => void;
+  setClosing: (value: boolean) => void;
+  onReviewClose: () => void;
+  onReviewConfirm: () => void;
+}>) {
+  const fieldDisabled = busy || mutation.state === 'error' || review !== null;
+  return (
+    <>
+      <SettingsMutationFeedbackV1
+        mutation={mutation}
+        canWrite={canWrite}
+        clock={clock}
+        retry={onRetry}
+        reload={onReload}
+      />
+      <div className="pa-settings-fields">
+        {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
+          <FieldCardV1
+            key={`${discardVersion}:${field}`}
+            field={field}
+            settings={data}
+            canWrite={canWrite}
+            disabled={fieldDisabled}
+            sourceLabel={sourceLabel(data.sources[field])}
+            review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+            onDirtyChange={onDirtyChange}
+          />
+        ))}
+      </div>
+      {reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
+        <CustomizedSettingsV1
+          key={settingsScopeKeyV1(fixedScope)}
+          reader={reader}
+          client={client}
+          scope={fixedScope}
+          canWrite={canWrite}
+          onOpen={onOpenCustomization}
+        />
+      ) : null}
+      {fixedScope.kind === 'school' && canWrite ? (
+        <LinkClosureV1
+          key={data.version}
+          client={client}
+          disabled={mutation.state === 'pending' || review !== null || mutation.state === 'error'}
+          onClosed={linksClosed}
+          onBusyChange={setClosing}
+        />
+      ) : null}
+      {review && canWrite ? (
+        <ReviewDialogV1
+          review={review}
+          settings={data}
+          scopeLabel={label}
+          disabled={busy}
+          close={onReviewClose}
+          confirm={onReviewConfirm}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function SettingsLoadV1({
+  load,
+  reload,
+  children,
+}: Readonly<{
+  load: PortalLoadStateV1<EffectiveSettingsV1>;
+  reload: () => void;
+  children: ReactNode;
+}>) {
+  if (load.state === 'idle' || load.state === 'loading')
+    return (
+      <output className="pa-settings-loading">
+        <Spinner size="sm" />
+        Carregando configurações
+      </output>
+    );
+  if (load.state === 'error')
+    return (
+      <div role="alert" className="pa-settings-error">
+        <p>{loadErrorLabelV1(load.error)}</p>
+        <Button size="sm" variant="secondary" onPress={reload}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  return <>{children}</>;
+}
+
 function SettingsScopeV1({
   client,
   reader,
@@ -417,9 +581,7 @@ function SettingsScopeV1({
     }
   }
   const sourceLabel = (source: ScopeV1) =>
-    settingsScopeKeyV1(source) === settingsScopeKeyV1(fixedScope)
-      ? label
-      : (describeScope?.(source) ?? settingsScopeLabelV1(source));
+    sourceLabelV1(source, fixedScope, label, describeScope);
   return (
     <section className="pa-settings" aria-label="Configurações do Aluno">
       <header className="pa-settings-heading">
@@ -434,68 +596,34 @@ function SettingsScopeV1({
           </Button>
         ) : null}
       </header>
-      {notice ? <p role="status">{notice}</p> : null}
-      {load.state === 'idle' || load.state === 'loading' ? (
-        <div role="status" className="pa-settings-loading">
-          <Spinner size="sm" />
-          Carregando configurações
-        </div>
-      ) : load.state === 'error' ? (
-        <div role="alert" className="pa-settings-error">
-          <p>
-            {load.error.state === 'unauthenticated'
-              ? 'Sessão expirada. Entre novamente no ADM.'
-              : load.error.state === 'forbidden'
-                ? 'Sem permissão para esta consulta.'
-                : 'Configurações indisponíveis. Tente novamente.'}
-          </p>
-          <Button size="sm" variant="secondary" onPress={() => void reload(false)}>
-            Tentar novamente
-          </Button>
-        </div>
-      ) : load.state === 'ready' ? (
-        <>
-          {mutation.state === 'error' ? (
-            <div className="pa-settings-error" role="alert">
-              <p>
-                {mutation.error.state === 'conflict'
-                  ? 'A configuração mudou em outra operação. Recarregue e revise antes de salvar novamente.'
-                  : mutation.error.state === 'unauthenticated' ||
-                      mutation.error.state === 'forbidden'
-                    ? 'A operação não foi autorizada. Recarregue sua sessão e permissões.'
-                    : 'Não foi possível confirmar o resultado da operação. Tente a mesma operação novamente ou recarregue o estado antes de uma nova alteração.'}
-              </p>
-              {mutation.retryable && canWrite ? (
-                <Button size="sm" variant="secondary" isDisabled={clock < mutation.retryAt}
-                  onPress={() => void writer.retry()}>Tentar novamente</Button>
-              ) : null}
-              <Button size="sm" variant="ghost" onPress={discardAndReload}>Recarregar</Button>
-            </div>
-          ) : null}
-          <div className="pa-settings-fields">
-            {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
-              <FieldCardV1 key={`${discardVersion}:${field}`} field={field} settings={load.data}
-                canWrite={canWrite} disabled={busy || mutation.state === 'error' || review !== null}
-                sourceLabel={sourceLabel(load.data.sources[field])}
-                review={(intent) => setReview({ ...intent, expectedVersion: load.data.version })}
-                onDirtyChange={onDirtyChange} />
-            ))}
-          </div>
-          {reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
-            <CustomizedSettingsV1 key={settingsScopeKeyV1(fixedScope)} reader={reader} client={client}
-              scope={fixedScope} canWrite={canWrite} onOpen={onOpenCustomization} />
-          ) : null}
-          {fixedScope.kind === 'school' && canWrite ? (
-            <LinkClosureV1 key={load.data.version} client={client}
-              disabled={mutation.state === 'pending' || review !== null || mutation.state === 'error'}
-              onClosed={linksClosed} onBusyChange={setClosing} />
-          ) : null}
-          {review && canWrite ? (
-            <ReviewDialogV1 review={review} settings={load.data} scopeLabel={label} disabled={busy}
-              close={() => setReview(null)} confirm={() => void confirm()} />
-          ) : null}
-        </>
-      ) : null}
+      {notice ? <output>{notice}</output> : null}
+      <SettingsLoadV1 load={load} reload={() => void reload(false)}>
+        {load.state === 'ready' ? (
+          <SettingsReadyV1
+            data={load.data}
+            mutation={mutation}
+            client={client}
+            reader={reader}
+            fixedScope={fixedScope}
+            canWrite={canWrite}
+            busy={busy}
+            review={review}
+            label={label}
+            discardVersion={discardVersion}
+            sourceLabel={sourceLabel}
+            onDirtyChange={onDirtyChange}
+            onReview={setReview}
+            onRetry={() => void writer.retry()}
+            onReload={discardAndReload}
+            clock={clock}
+            onOpenCustomization={onOpenCustomization}
+            linksClosed={linksClosed}
+            setClosing={setClosing}
+            onReviewClose={() => setReview(null)}
+            onReviewConfirm={() => void confirm()}
+          />
+        ) : null}
+      </SettingsLoadV1>
     </section>
   );
 }
