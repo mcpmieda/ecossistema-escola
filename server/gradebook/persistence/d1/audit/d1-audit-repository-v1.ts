@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
 import { isSnapshotSourceEvidenceV5 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   AuditEntityReferenceV1,
@@ -137,7 +138,7 @@ function canonicalJsonValue(value: unknown): unknown {
   return Object.fromEntries(
     Object.keys(value)
       .filter((key) => value[key] !== undefined)
-      .sort((left, right) => left.localeCompare(right, 'en'))
+      .sort(compareCanonicalStringsV1)
       .map((key) => [key, canonicalJsonValue(value[key])]),
   );
 }
