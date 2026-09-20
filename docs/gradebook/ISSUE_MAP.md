@@ -1,10 +1,18 @@
 # Mapa de issues — programa final
 
-## Continuidade atual — 13/09/2026
+## Continuidade atual — 20/09/2026
 
-O programa funcional BN e a entrega #596 estão encerrados. Main auditada `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR741/deploy34749391273 SUCCESS, schema gradebook com30 tabelas. O seletor global opera2025/2026;2025 é massa de teste e não há comparação entre anos. Trilha humana, R/R e reset anual já foram integrados conforme decisões vigentes. Não retomar a #668 ou reconstruir persistência por um checkpoint antigo.
+O programa funcional BN e #596 continuam encerrados. A fila de manutenção atual é **#970**, com entregas curtas por issue/branch/PR. A antiga fila Portal Parte 2 #742 está concluída e não deve ser retomada por documentação histórica.
 
-A fila ativa é [Portal do Aluno Parte2 #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), execução sequencial autorizada, começando pela integradora documental#743. As identidades CODEX/CHAT ONLINE dos títulos permanecem. Os deltas BN de contrato/classificação estão em#745/#747 e não reabrem o programa final. Estado atual em PROJECT_STATE.yaml; checkpoint antigo preservado sob historical_checkpoint_668. G-B Portal continua parcial até#759; dados e autoridade BN permanecem preservados.
+Baseline auditada: `main@cad68337b48c7d4a40477b088d36835c705246f2`. A árvore atual contém `0012_current_state_cleanup_v1.sql` no Gradebook e `0015_student_portal_rls_v1.sql` no Portal; ambas possuem aplicação produtiva documentada (#863 e #859/#963). Presença no Git e aplicação produtiva permanecem conceitos separados.
+
+| Manutenção atual | Issue | Estado |
+| --- | --- | --- |
+| Consolidação geral BN | #970 | aberta; fonte operacional das correções pós-diagnóstico |
+| Estado canônico | #971 | reconciliação documental e teste de drift |
+| Ledger de migrations Portal | #972 | fila seguinte |
+| Mapa de contratos/versionamento | #973 | fila seguinte |
+| Código vivo × histórico | #974 | fila seguinte |
 
 Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 
