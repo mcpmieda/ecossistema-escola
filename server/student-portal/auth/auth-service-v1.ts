@@ -11,10 +11,16 @@ import {
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type {
   AttemptRecordV1,
+  CredentialRecordV1,
   CryptoPortV1,
   PortalTransactionV1,
+  VerifierV1,
 } from '../../../shared/student-portal-contracts/ports-v1';
-import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import {
+  StudentPortalPostgresPersistenceV1,
+  type StudentPortalPostgresQueryV1,
+  type StudentPortalPostgresSqlV1,
+} from '../persistence/postgres-persistence-v1';
 import {
   accessContextV1,
   authAuditV1,
@@ -144,6 +150,102 @@ async function auditedDenied(
   return denied(requestId);
 }
 
+function sameVerifier(left: VerifierV1, right: VerifierV1): boolean {
+  return left.algorithm === right.algorithm
+    && left.salt === right.salt
+    && left.pepperVersion === right.pepperVersion
+    && left.digest === right.digest
+    && JSON.stringify(left.parameters) === JSON.stringify(right.parameters);
+}
+
+type QrIdentityV1 = ReturnType<typeof parseQrV1>;
+type CredentialProofV1 = { accountId: string; verifier: VerifierV1; valid: boolean };
+
+async function credentialProofV1(
+  sql: StudentPortalPostgresSqlV1,
+  cryptoPort: CryptoPortV1,
+  qr: QrIdentityV1,
+  secret: string,
+  kind: 'pin' | 'password',
+): Promise<CredentialProofV1 | null> {
+  const rows = await sql.unsafe(
+    "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
+    [qr.credentialId, qr.keyVersion],
+  );
+  if (rows.length !== 1) return null;
+  const accountId = z.uuid().parse(rows[0]!.account_id);
+  const store = new StudentPortalPostgresPersistenceV1(sql);
+  const [account, credential] = await Promise.all([
+    store.findAccount(accountId),
+    store.readCredentials(accountId),
+  ]);
+  const expectedState = kind === 'password' ? 'active' : 'pending';
+  if (
+    !account ||
+    account.state !== expectedState ||
+    credential?.state !== 'active' ||
+    credential.credentialId !== qr.credentialId ||
+    credential.keyVersion !== qr.keyVersion
+  )
+    return null;
+  const verifier = kind === 'pin' ? credential.pin : credential.password;
+  if (!verifier) return null;
+  return { accountId, verifier, valid: await cryptoPort.verifySecret(secret, verifier) };
+}
+
+type ActivationStateV1 = {
+  accountId: string;
+  context: AccessContextV1;
+  credential: CredentialRecordV1;
+  attempt: AttemptRecordV1;
+};
+
+async function activationStateV1(
+  sql: StudentPortalPostgresSqlV1,
+  tx: StudentPortalPostgresQueryV1,
+  store: PortalTransactionV1,
+  hash: string,
+  requestId: string,
+): Promise<ActivationStateV1 | FailureV1> {
+  const rows = await tx.unsafe(
+    `SELECT account_id,
+    (consumed_at IS NULL AND expires_at>statement_timestamp()) AS usable
+    FROM student_portal.auth_challenge WHERE token_hash=$1`,
+    [hash],
+  );
+  if (rows.length !== 1) return denied(requestId);
+  const accountId = z.uuid().parse(rows[0]!.account_id);
+  await store.lockAccounts([accountId]);
+  const account = await store.findAccount(accountId);
+  if (!account) return denied(requestId);
+  const context = await accessContextV1(sql, tx, store, accountId);
+  const credential = await store.readCredentials(accountId);
+  const birth = await store.readBirth(accountId);
+  if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
+  if (
+    rows[0]!.usable !== true ||
+    context.account.state === 'active' ||
+    !credential ||
+    credential.state !== 'active' ||
+    !credential.pin ||
+    credential.pinVersion !== context.account.pinVersion ||
+    !birth?.year ||
+    birth.confirmation !== 'confirmed'
+  )
+    return auditedDenied(store, context.account, context.now, requestId);
+  const attempt = await attempts(store, context);
+  const limited = blocked(attempt, context, requestId);
+  if (limited) return limited;
+  const valid = await tx.unsafe(
+    `SELECT token_hash FROM student_portal.auth_challenge WHERE token_hash=$1
+    AND account_id=$2::uuid AND security_version=$3 AND pin_version=$4
+    AND consumed_at IS NULL AND expires_at>statement_timestamp()`,
+    [hash, accountId, context.account.securityVersion, context.account.pinVersion],
+  );
+  if (valid.length !== 1) return auditedDenied(store, context.account, context.now, requestId);
+  return { accountId, context, credential, attempt };
+}
+
 export class AuthServiceV1 {
   constructor(
     private readonly sql: StudentPortalPostgresSqlV1,
@@ -180,6 +282,9 @@ export class AuthServiceV1 {
     // Remote verification finishes before acquiring any database lock.
     const riskPassed =
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
+    const pinProof = request.pin === undefined
+      ? null
+      : await credentialProofV1(this.sql, this.cryptoPort, qr, request.pin, 'pin');
     return accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe(
         "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
@@ -219,8 +324,13 @@ export class AuthServiceV1 {
       if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
         return required(requestId, 'risk');
       if (request.pin === undefined) return required(requestId, 'pin');
-      if (!(await this.cryptoPort.verifySecret(request.pin, credential.pin)))
-        return failed(store, context, attempt, requestId);
+      if (
+        !pinProof ||
+        pinProof.accountId !== accountId ||
+        !sameVerifier(pinProof.verifier, credential.pin)
+      )
+        return auditedDenied(store, context.account, context.now, requestId);
+      if (!pinProof.valid) return failed(store, context, attempt, requestId);
       context.now = await authNowV1(tx);
       const token = this.cryptoPort.randomToken(32);
       const expiresAt = new Date(
@@ -261,63 +371,53 @@ export class AuthServiceV1 {
         retryAfterSeconds: 60,
       };
     const hash = await this.cryptoPort.hashOpaqueToken(request.challenge);
+    const preflight = await accountTransactionV1(
+      this.sql,
+      (tx, store) => activationStateV1(this.sql, tx, store, hash, requestId),
+    );
+    if ('contractVersion' in preflight) return preflight;
+
+    const password = await this.cryptoPort.deriveVerifier(request.password, this.pepperVersion);
+
     return accountTransactionV1(this.sql, async (tx, store) => {
-      const rows = await tx.unsafe(
-        `SELECT account_id,
-        (consumed_at IS NULL AND expires_at>statement_timestamp()) AS usable
-        FROM student_portal.auth_challenge WHERE token_hash=$1`,
-        [hash],
-      );
-      if (rows.length !== 1) return denied(requestId);
-      const accountId = z.uuid().parse(rows[0]!.account_id);
-      await store.lockAccounts([accountId]);
-      const account = await store.findAccount(accountId);
-      if (!account) return denied(requestId);
-      const context = await accessContextV1(this.sql, tx, store, accountId);
-      const credential = await store.readCredentials(accountId);
-      const birth = await store.readBirth(accountId);
-      if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
-      if (
-        rows[0]!.usable !== true ||
-        context.account.state === 'active' ||
-        !credential ||
-        credential.state !== 'active' ||
-        !credential.pin ||
-        credential.pinVersion !== context.account.pinVersion ||
-        !birth?.year ||
-        birth.confirmation !== 'confirmed'
-      )
-        return auditedDenied(store, context.account, context.now, requestId);
-      const attempt = await attempts(store, context);
-      const limited = blocked(attempt, context, requestId);
-      if (limited) return limited;
-      // Check proof versions before spending KDF CPU, then consume again at the commit boundary.
-      const valid = await tx.unsafe(
-        `SELECT token_hash FROM student_portal.auth_challenge WHERE token_hash=$1
-        AND account_id=$2::uuid AND security_version=$3 AND pin_version=$4 AND consumed_at IS NULL AND expires_at>statement_timestamp()`,
-        [hash, accountId, context.account.securityVersion, context.account.pinVersion],
-      );
-      if (valid.length !== 1) return auditedDenied(store, context.account, context.now, requestId);
-      const password = await this.cryptoPort.deriveVerifier(request.password, this.pepperVersion);
-      context.now = await authNowV1(tx);
+      const current = await activationStateV1(this.sql, tx, store, hash, requestId);
+      if ('contractVersion' in current) return current;
+      if (current.accountId !== preflight.accountId) return denied(requestId);
+      current.context.now = await authNowV1(tx);
       if (
         !(await store.consumeChallenge(
           hash,
-          context.account.securityVersion,
-          context.account.pinVersion,
-          context.now.toISOString(),
+          current.context.account.securityVersion,
+          current.context.account.pinVersion,
+          current.context.now.toISOString(),
         ))
       )
-        return auditedDenied(store, context.account, context.now, requestId);
-      const expectedVersion = context.account.version;
-      context.account = { ...context.account, state: 'active', version: expectedVersion + 1 };
-      if (!(await store.compareAndSetAccount(context.account, expectedVersion)))
+        return auditedDenied(store, current.context.account, current.context.now, requestId);
+      const expectedVersion = current.context.account.version;
+      current.context.account = {
+        ...current.context.account,
+        state: 'active',
+        version: expectedVersion + 1,
+      };
+      if (!(await store.compareAndSetAccount(current.context.account, expectedVersion)))
         throw new Error('student-portal-auth-conflict');
-      await store.saveCredentials({ ...credential, password });
-      await revokeChallengesV1(tx, accountId, context.now);
-      await clearAttempts(store, context, attempt);
-      await authAuditV1(store, context.account, 'activated', context.now, requestId);
-      return createSessionV1(store, context, this.cryptoPort, request.keepConnected, requestId);
+      await store.saveCredentials({ ...current.credential, password });
+      await revokeChallengesV1(tx, current.accountId, current.context.now);
+      await clearAttempts(store, current.context, current.attempt);
+      await authAuditV1(
+        store,
+        current.context.account,
+        'activated',
+        current.context.now,
+        requestId,
+      );
+      return createSessionV1(
+        store,
+        current.context,
+        this.cryptoPort,
+        request.keepConnected,
+        requestId,
+      );
     });
   }
 
@@ -334,6 +434,13 @@ export class AuthServiceV1 {
     if (!qr) return denied(requestId);
     const riskPassed =
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
+    const passwordProof = await credentialProofV1(
+      this.sql,
+      this.cryptoPort,
+      qr,
+      request.password,
+      'password',
+    );
     return accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe(
         "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
@@ -360,8 +467,13 @@ export class AuthServiceV1 {
       if (limited) return limited;
       if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
         return auditedDenied(store, context.account, context.now, requestId);
-      if (!(await this.cryptoPort.verifySecret(request.password, credential.password)))
-        return failed(store, context, attempt, requestId);
+      if (
+        !passwordProof ||
+        passwordProof.accountId !== accountId ||
+        !sameVerifier(passwordProof.verifier, credential.password)
+      )
+        return auditedDenied(store, context.account, context.now, requestId);
+      if (!passwordProof.valid) return failed(store, context, attempt, requestId);
       context.now = await authNowV1(tx);
       await clearAttempts(store, context, attempt);
       await authAuditV1(store, context.account, 'login', context.now, requestId);
