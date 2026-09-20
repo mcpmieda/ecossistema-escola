@@ -65,6 +65,23 @@ describe('gradebook PostgreSQL database adapter', () => {
     );
   });
 
+  it('keeps legacy D1 qualification separate from the current physical catalog', () => {
+    expect(
+      translateGradebookD1SqlToPostgresV1(
+        'SELECT * FROM source_file_versions WHERE manifest_id = ?',
+      ),
+    ).toBe('SELECT * FROM gradebook.source_file_versions WHERE manifest_id = $1');
+
+    // Current relational SQL must name the physical schema explicitly. The
+    // compatibility translator must not silently reinterpret current tables.
+    expect(translateGradebookD1SqlToPostgresV1('SELECT * FROM nota')).toBe(
+      'SELECT * FROM nota',
+    );
+    expect(translateGradebookD1SqlToPostgresV1('SELECT * FROM gradebook.nota')).toBe(
+      'SELECT * FROM gradebook.nota',
+    );
+  });
+
   it('translates the bounded JSON set operations used by import planning', () => {
     const translated = translateGradebookD1SqlToPostgresV1(`
       WITH requested AS (

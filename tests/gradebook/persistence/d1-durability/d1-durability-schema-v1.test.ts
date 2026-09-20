@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import { GradebookD1MigrationRunnerV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-migration-runner-v1';
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../../server/gradebook/persistence/d1/schema/migrations';
+import { LEGACY_D1_COMPAT_RELATION_NAMES_V1 } from '../../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import { compareCanonicalStringsV1 } from '../../../../shared/gradebook-contracts/string-order-v1';
 import { createGradebookD1BulletinCouncilDurabilityV1 } from '../../../../server/gradebook/persistence/d1/durability/d1-bulletin-council-durability-v1';
 import { SqliteD1Database } from '../d1-transaction/d1-write-test-support';
 
@@ -71,6 +73,29 @@ describe('migrations de durabilidade Bulletin/Council', () => {
           )
           .get(),
       ).toEqual({ count: 29 });
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('keeps the PostgreSQL legacy-compat allowlist equal to the complete D1 0001-0006 catalog', async () => {
+    const { raw, database } = await blankDatabase();
+    try {
+      const runner = new GradebookD1MigrationRunnerV1(database, { migrationSql: migrationSql() });
+      await runner.run(authorization);
+      const tables = raw
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+           ORDER BY name`,
+        )
+        .all() as { readonly name: unknown }[];
+      const tableNames = tables.map(({ name }) => String(name));
+
+      expect(tableNames).toHaveLength(29);
+      expect(tableNames).toEqual(
+        [...LEGACY_D1_COMPAT_RELATION_NAMES_V1].sort(compareCanonicalStringsV1),
+      );
     } finally {
       raw.close();
     }
