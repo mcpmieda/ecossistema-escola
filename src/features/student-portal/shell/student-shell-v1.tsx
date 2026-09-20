@@ -8,6 +8,7 @@ import { Skeleton } from '@heroui/react/skeleton';
 import { BrandMark } from '../../../lib/brand-mark';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
+import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
 import './student-shell-v1.css';
 
 export const STUDENT_SCHOOL_NAME_V1 = 'Escola Iêda Alves de Oliveira MCPM';
@@ -121,7 +122,7 @@ export function StudentProfileV1({
       <h2 id={heading} className="pa-section-title">
         Perfil do aluno
       </h2>
-      <Card className="pa-profile-card">
+      <Card variant="secondary" className="pa-profile-card">
         <Card.Content className="pa-profile-content">
           <Avatar
             className="pa-student-avatar"
@@ -251,6 +252,7 @@ export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'm
 export interface StudentPagePropsV1 extends Omit<StudentShellPropsV1, 'children' | 'busy'> {
   load: StudentPageStateV1;
   grades: (data: SelfResponseV1) => ReactNode;
+  status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
   showUpdatedAt?: boolean;
@@ -260,6 +262,7 @@ export interface StudentPagePropsV1 extends Omit<StudentShellPropsV1, 'children'
 export function StudentPortalPageV1({
   load,
   grades,
+  status,
   onRetry,
   onLogin,
   showUpdatedAt = false,
@@ -282,20 +285,32 @@ export function StudentPortalPageV1({
   } else if (load.state === 'ready')
     content = (
       <>
-        <StudentProfileV1
-          profile={load.data.profile}
-          updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
-        />
-        <section className="pa-grades-section" aria-labelledby={gradesHeading}>
-          <h2 id={gradesHeading} className="pa-section-title">
-            Minhas notas
-          </h2>
-          {load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
-            <StudentPortalMessageV1 kind="empty" />
-          ) : (
-            grades(load.data)
-          )}
-        </section>
+        {status}
+        {load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
+          <>
+            <StudentProfileV1
+              profile={load.data.profile}
+              updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
+            />
+            <section className="pa-grades-section" aria-labelledby={gradesHeading}>
+              <h2 id={gradesHeading} className="pa-section-title">
+                Minhas notas
+              </h2>
+              <StudentPortalMessageV1 kind="empty" />
+            </section>
+          </>
+        ) : (
+          <StudentPortalWorkspaceV1
+            data={load.data}
+            profile={
+              <StudentProfileV1
+                profile={load.data.profile}
+                updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
+              />
+            }
+            grades={grades}
+          />
+        )}
       </>
     );
   return (
