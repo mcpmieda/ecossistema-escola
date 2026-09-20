@@ -1,20 +1,23 @@
 schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-09-14
+updated_at: 2026-09-20
 coordination:
   master_issue: 182
   executable_issue: null
   current_delivery_issue: null
-  current_integrator_issue: null
+  current_integrator_issue: 970
+  maintenance_issue: 970
   central_state_editor: integrator-only
-  active_queue: student-portal-part-2-742-completed
+  active_queue: bn-maintenance-consolidated-970
   program_status: completed-functional-program-596
   execution_authority: PA-DEC-009
 baseline:
-  last_audited_main_commit: 436e9db8aebd67ea8e9765676aca47d385cd3119
-  last_verified_pr: 787
-  authorized_deploy_run: 34871838273
+  last_audited_main_commit: cad68337b48c7d4a40477b088d36835c705246f2
+  last_audited_at: 2026-09-20
+  last_audited_main_commit_semantics: runtime-source-reviewed-before-bn-01-documentation-only-reconciliation
+  last_verified_pr: 963
+  authorized_deploy_run: 35487533274
   authorized_deploy_result: success
   functional_acceptance_main: 80b2916185fc6a49df7c5ab0af71e2be4dcdeb66
   functional_acceptance_evidence: docs/gradebook/FINAL4_PILOT_406.md
@@ -31,7 +34,11 @@ storage:
   diagnostic_treatment_table_count: 1
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
-  latest_gradebook_migration: year_reset_acl_v1
+  latest_gradebook_migration: current_state_cleanup_v1
+  latest_gradebook_migration_file: 0012_current_state_cleanup_v1.sql
+  latest_gradebook_migration_production_version: 20260918163014
+  latest_gradebook_migration_production_evidence: issue-863-postflight
+  latest_gradebook_migration_status: applied-and-postflight-verified
   legacy_streams_versions_are_current_schema: false
 runtime:
   design_system: HeroUI React v3
@@ -64,8 +71,11 @@ student_portal_integration:
   part_2_status: technically-complete-release-closed-by-policy
   gate_g_b: accepted-with-explicit-physical-device-deferrals
   gate_g_p: passed-technical-release-general-opening-not-authorized
-  schema_table_count: 20
-  schema: student_portal_migrations_0001_through_0007_applied
+  schema_table_count: 27
+  schema: student_portal_migrations_0001_through_0015_applied
+  schema_migration_file: 0015_student_portal_rls_v1.sql
+  schema_migration_production_version: 20260920004859
+  schema_migration_production_evidence: issue-859-pr-963-postflight
   academic_authority: unchanged-official-imported-source
   reset_guard: integrated-706-before-population
   transactional_producers: integrated-707
@@ -74,9 +84,15 @@ student_portal_integration:
   canonical_state: docs/student-portal/PROJECT_STATE.yaml
   integrated_bn_contract: 745
   integrated_academic_presentation: 747
+repository_snapshot:
+  gradebook_latest_migration_in_tree: 0012_current_state_cleanup_v1.sql
+  student_portal_latest_migration_in_tree: 0015_student_portal_rls_v1.sql
+  git_presence_alone_is_production_proof: false
+  current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
+  historical_checkpoint_668_is_runtime_authority: false
 next_safe_action:
-  issue: null
-  description: maintain-current-release-and-open-new-reproducible-issue-for-future-defects
+  issue: 970
+  description: execute-bn-maintenance-children-in-order-with-current-main-revalidation
 
 # Immutable context of the older #668 snapshot follows; these keys are historical,
 # not current tasks, runtime flags, catalog counts or release authorization.

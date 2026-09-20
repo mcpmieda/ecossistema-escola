@@ -1,10 +1,16 @@
 # Banco de Notas — estado operacional
 
-## Continuidade atual — 13/09/2026
+## Continuidade atual — 20/09/2026
 
-O programa funcional BN e a entrega #596 estão encerrados. Main auditada `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR741/deploy34749391273 SUCCESS, schema gradebook com30 tabelas. O seletor global opera2025/2026;2025 é massa de teste e não há comparação entre anos. Trilha humana, R/R e reset anual já foram integrados conforme decisões vigentes. Não retomar a #668 ou reconstruir persistência por um checkpoint antigo.
+O programa funcional BN permanece encerrado. A manutenção atual está consolidada na **#970**; suas issues filhas devem partir da `main` factual e não reabrir a antiga fila Portal Parte 2 #742.
 
-A fila ativa é [Portal do Aluno Parte2 #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), execução sequencial autorizada, começando pela integradora documental#743. As identidades CODEX/CHAT ONLINE dos títulos permanecem. Os deltas BN de contrato/classificação estão em#745/#747 e não reabrem o programa final. Estado atual em PROJECT_STATE.yaml; checkpoint antigo preservado sob historical_checkpoint_668. G-B Portal continua parcial até#759; dados e autoridade BN permanecem preservados.
+Baseline de reconciliação: `main@cad68337b48c7d4a40477b088d36835c705246f2`. Estado comprovado nesta rodada:
+- Gradebook: 30 tabelas; migration corrente `0012_current_state_cleanup_v1.sql`, aplicada e verificada em #863;
+- Student Portal: 27 tabelas privadas; migration corrente `0015_student_portal_rls_v1.sql`, aplicada e verificada em #859/#963;
+- backup gerenciado/RPO/RTO continua não implementado;
+- `historical_checkpoint_668` é memória, não autorização atual.
+
+O Git, o CI e a produção são estados diferentes. Use `PROJECT_STATE.yaml` para a baseline auditada e as issues/deploys citados para a prova de aplicação. A presença de uma migration na árvore não autoriza inferir que ela foi executada.
 
 Data da consolidação: 11/09/2026 (America/Sao_Paulo).
 
