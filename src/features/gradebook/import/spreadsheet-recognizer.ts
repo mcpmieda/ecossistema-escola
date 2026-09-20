@@ -733,7 +733,7 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
       students: group.students.size,
       declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
       disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      trimesters: [...group.trimesters].sort(),
+      trimesters: [...group.trimesters].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
       recovery: group.recovery,
       sheets: group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     }))
