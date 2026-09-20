@@ -13,14 +13,22 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: Owner-authored issue that should receive the sanitized capability report.
+        description: Owner-authored issue that should receive the sanitized report.
         required: true
         type: string
+      operation:
+        description: Fixed read-only operation.
+        required: true
+        default: capabilities
+        type: choice
+        options:
+          - capabilities
+          - portal
 
 permissions: {}
 
 concurrency:
-  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && github.event.comment.body == '/cloudflare')) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -49,13 +57,19 @@ jobs:
       - name: Run focused operator tests
         run: npx vitest run tests/cloudflare-operator-v1.test.ts
 
-  probe:
-    name: Probe existing Cloudflare credentials
+  execute:
+    name: Execute bounded Cloudflare read-only operation
     if: >-
       github.actor == github.repository_owner &&
       (
         github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'issue_comment' && github.event.comment.body == '/cloudflare')
+        (
+          github.event_name == 'issue_comment' &&
+          (
+            github.event.comment.body == '/cloudflare' ||
+            github.event.comment.body == '/cloudflare portal'
+          )
+        )
       )
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -72,17 +86,28 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_ISSUE: ${{ github.event.issue.number }}
           INPUT_ISSUE: ${{ inputs.issue_number }}
+          INPUT_OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "issue_comment" ]; then
-            [ "$COMMENT_BODY" = "/cloudflare" ] || { echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; }
             issue="$COMMENT_ISSUE"
+            case "$COMMENT_BODY" in
+              "/cloudflare") operation="capabilities" ;;
+              "/cloudflare portal") operation="portal" ;;
+              *) echo "run=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
           else
             issue="$INPUT_ISSUE"
+            operation="$INPUT_OPERATION"
           fi
           [[ "$issue" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid issue number"; exit 1; }
+          [[ "$operation" = "capabilities" || "$operation" = "portal" ]] || {
+            echo "::error::Unsupported Cloudflare operation"
+            exit 1
+          }
           echo "run=true" >> "$GITHUB_OUTPUT"
           echo "issue=$issue" >> "$GITHUB_OUTPUT"
+          echo "operation=$operation" >> "$GITHUB_OUTPUT"
 
       - name: Checkout trusted main
         if: steps.request.outputs.run == 'true'
@@ -107,27 +132,51 @@ jobs:
             "$RUNNER_TEMP/cloudflare-issue.json" >/dev/null
 
       - name: Probe deploy credential without mutation
-        if: steps.request.outputs.run == 'true'
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'capabilities'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: >-
           node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --operation capabilities
           --token-kind deploy
           --output "$RUNNER_TEMP/cloudflare-deploy.json"
 
       - name: Probe Hyperdrive credential without mutation
-        if: steps.request.outputs.run == 'true'
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'capabilities'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: >-
           node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --operation capabilities
           --token-kind hyperdrive
           --output "$RUNNER_TEMP/cloudflare-hyperdrive.json"
 
+      - name: Diagnose Portal deployment surfaces
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'portal'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --operation portal-deploy
+          --token-kind deploy
+          --output "$RUNNER_TEMP/cloudflare-portal-deploy.json"
+
+      - name: Diagnose Portal Hyperdrive surface
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'portal'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --operation portal-hyperdrive
+          --token-kind hyperdrive
+          --output "$RUNNER_TEMP/cloudflare-portal-hyperdrive.json"
+
       - name: Render sanitized capability matrix
-        if: steps.request.outputs.run == 'true'
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'capabilities'
         shell: bash
         env:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -179,6 +228,41 @@ jobs:
           await writeFile(`${root}/cloudflare-comment.md`, `${lines.join('\n')}\n`, 'utf8');
           NODE
 
+      - name: Render sanitized Portal diagnostic
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'portal'
+        shell: bash
+        env:
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const root = process.env.RUNNER_TEMP;
+          const deploy = JSON.parse(await readFile(`${root}/cloudflare-portal-deploy.json`, 'utf8'));
+          const hyperdrive = JSON.parse(await readFile(`${root}/cloudflare-portal-hyperdrive.json`, 'utf8'));
+          const cell = (value) => value === undefined || value === null
+            ? '—'
+            : String(value).replace(/[|\r\n]/g, ' ').slice(0, 160);
+          const yesNo = (value) => value === true ? 'sim' : value === false ? 'não' : '—';
+
+          const lines = [
+            '### Cloudflare — diagnóstico read-only do Portal',
+            '',
+            '| Superfície | Estado | Evidência sanitizada |',
+            '| --- | --- | --- |',
+            `| Worker \`student-portal-production\` | ${cell(deploy.worker.state)} | presente: ${yesNo(deploy.worker.present)} · modificado: ${cell(deploy.worker.modifiedAt)} · compatibility date: ${cell(deploy.worker.compatibilityDate)} |`,
+            `| Pages \`student-portal-edge\` | ${cell(deploy.pages.state)} | presente: ${yesNo(deploy.pages.present)} · branch: ${cell(deploy.pages.productionBranch)} · deploy: ${cell(deploy.pages.deploymentStatus)} · criado: ${cell(deploy.pages.deploymentCreatedAt)} |`,
+            `| Hyperdrive \`PORTAL_DB\` | ${cell(hyperdrive.hyperdrive.state)} | presente: ${yesNo(hyperdrive.hyperdrive.present)} · cache desabilitado: ${yesNo(hyperdrive.hyperdrive.cacheDisabled)} · limite origem: ${cell(hyperdrive.hyperdrive.originConnections)} |`,
+            `| Workers Analytics | ${cell(deploy.analytics.state)} | janela: ${cell(deploy.analytics.windowMinutes)} min · requests: ${cell(deploy.analytics.requests)} · errors: ${cell(deploy.analytics.errors)} |`,
+            '',
+            'O relatório contém apenas metadados operacionais permitidos. Não inclui código do Worker, resposta bruta da Cloudflare, token, header, host/database/user do Hyperdrive, eventos individuais ou dados de estudantes.',
+            '',
+            `Workflow: ${process.env.RUN_URL}`,
+          ];
+          await writeFile(`${root}/cloudflare-comment.md`, `${lines.join('\n')}\n`, 'utf8');
+          NODE
+
       - name: Publish sanitized result
         if: steps.request.outputs.run == 'true'
         env:
@@ -193,4 +277,4 @@ jobs:
           ISSUE: ${{ steps.request.outputs.issue }}
         run: >-
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body
-          "O probe Cloudflare falhou fechado. Nenhuma operação mutável foi executada e nenhuma credencial foi alterada. Workflow run ${GITHUB_RUN_ID}."
+          "O operador Cloudflare falhou fechado. Nenhuma operação mutável foi executada e nenhuma credencial foi alterada. Workflow run ${GITHUB_RUN_ID}."
