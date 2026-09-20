@@ -1,10 +1,8 @@
 import { LiveReadNoticeV1 } from '../shared/live-data/live-read-notice-v1';
 import { RemoteLiveNoticeV1, useRemoteLiveV1 } from '../shared/live-data/use-remote-live-v1';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Alert, Button, Spinner } from '@heroui/react';
-import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
-import { StudentGradesV1 } from '../features/student-portal/grades/student-grades-v1';
 import {
   StudentPortalPageV1,
   StudentPortalShellV1,
@@ -13,6 +11,13 @@ import {
   createPortalSelfClientV1,
   type PortalSelfClientV1,
 } from '../features/student-portal/shared/self-client-v1';
+
+const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
+  (module) => ({ default: module.StudentAuthenticationV1 }),
+));
+const StudentGradesV1 = lazy(() => import('../features/student-portal/grades/student-grades-v1').then(
+  (module) => ({ default: module.StudentGradesV1 }),
+));
 
 export interface StudentEntryV1 {
   qr: string | null;
@@ -100,18 +105,20 @@ export function StudentPortalApp({
             </Alert.Content>
           </Alert>
         )}
-        <StudentAuthenticationV1
-          client={client}
-          initialQr={initialQr}
-          sitekey={PUBLIC_SITEKEY}
-          onQrDiscarded={discardQr}
-          onAuthenticated={() => {
-            discardQr();
-            setAccess(false);
-            window.history.replaceState(null, '', '/');
-            void session.authenticated();
-          }}
-        />
+        <Suspense fallback={<output>Preparando entrada segura…</output>}>
+          <StudentAuthenticationV1
+            client={client}
+            initialQr={initialQr}
+            sitekey={PUBLIC_SITEKEY}
+            onQrDiscarded={discardQr}
+            onAuthenticated={() => {
+              discardQr();
+              setAccess(false);
+              window.history.replaceState(null, '', '/');
+              void session.authenticated();
+            }}
+          />
+        </Suspense>
       </StudentPortalShellV1>
     );
   if (session.load.state === 'idle' || session.load.state === 'loading')
@@ -126,7 +133,7 @@ export function StudentPortalApp({
       load={session.load}
       status={<><RemoteLiveNoticeV1 state={liveState} /><LiveReadNoticeV1 failed={session.load.state === 'ready' && Boolean(session.load.refreshError)} />
         {session.load.state === 'ready' && session.load.refreshError ? <Button variant="secondary" onPress={() => { void session.refresh(); }}>Tentar novamente</Button> : null}</>}
-      grades={(data) => <StudentGradesV1 data={data} />}
+      grades={(data) => <Suspense fallback={<output>Carregando notas…</output>}><StudentGradesV1 data={data} /></Suspense>}
       onRetry={() => {
         void session.refresh();
       }}
