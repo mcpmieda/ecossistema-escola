@@ -19,7 +19,12 @@ concurrency:
 jobs:
   execute:
     name: Execute bounded Gemini task
-    if: github.actor == github.repository_owner
+    if: >-
+      github.actor == github.repository_owner &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issue_comment' && github.event.comment.body == '/gemini')
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
