@@ -102,9 +102,15 @@ describe('gradebook importer structure', () => {
   });
 
   it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
-    expect(source('src/features/gradebook/import/sheetjs-loader.ts')).toContain(
+    const sheetJsLoader = source('src/features/gradebook/import/sheetjs-loader.ts');
+    expect(sheetJsLoader).toContain(
       'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
     );
+    expect(sheetJsLoader).toContain(
+      'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT',
+    );
+    expect(sheetJsLoader).toContain("script.integrity = SHEETJS_INTEGRITY");
+    expect(sheetJsLoader).toContain("script.crossOrigin = 'anonymous'");
     expect(WORKBOOK_READ_OPTIONS).toEqual({
       type: 'array',
       cellFormula: true,

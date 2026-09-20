@@ -1,6 +1,8 @@
 import type { SheetJs } from './spreadsheet-recognizer';
 
 const SHEETJS_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+const SHEETJS_INTEGRITY =
+  'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
 
 declare global {
   interface Window {
@@ -17,6 +19,8 @@ export function loadSheetJs(): Promise<SheetJs> {
   const pending = new Promise<SheetJs>((resolve, reject) => {
     const script = document.createElement('script');
     script.src = SHEETJS_SRC;
+    script.integrity = SHEETJS_INTEGRITY;
+    script.crossOrigin = 'anonymous';
     script.async = true;
     script.addEventListener('load', () => {
       if (window.XLSX) resolve(window.XLSX);
