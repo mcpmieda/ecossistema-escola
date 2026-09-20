@@ -175,10 +175,8 @@ async function credentialProofV1(
   if (rows.length !== 1) return null;
   const accountId = z.uuid().parse(rows[0]!.account_id);
   const store = new StudentPortalPostgresPersistenceV1(sql);
-  const [account, credential] = await Promise.all([
-    store.findAccount(accountId),
-    store.readCredentials(accountId),
-  ]);
+  const account = await store.findAccount(accountId);
+  const credential = await store.readCredentials(accountId);
   const expectedState = kind === 'password' ? 'active' : 'pending';
   if (
     !account ||
