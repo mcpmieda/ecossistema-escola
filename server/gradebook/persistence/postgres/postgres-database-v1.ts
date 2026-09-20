@@ -28,7 +28,12 @@ const NUMERIC_COLUMNS =
 const JSON_COLUMNS = /(?:^|_)(?:json|intent)$/u;
 const CHANGE_GUARD = /changes\(\)\s*=\s*\?/iu;
 const POSTGRES_TEXT_OID_V1 = 25;
-const GRADEBOOK_TABLE_NAMES_V1 = [
+/**
+ * Legacy D1/stream relation allowlist used only by the PostgreSQL compatibility facade.
+ * This is NOT the current physical Gradebook catalog. Current relational code must use
+ * explicit gradebook.<table> names; the current physical catalog is owned by BN-09.
+ */
+const LEGACY_D1_COMPAT_RELATION_NAMES_V1 = [
   'academic_entity_streams',
   'academic_entity_versions',
   'academic_record_streams',
@@ -59,8 +64,8 @@ const GRADEBOOK_TABLE_NAMES_V1 = [
   'source_file_streams',
   'source_file_versions',
 ] as const;
-const GRADEBOOK_RELATION_V1 = new RegExp(
-  `\\b(FROM|INTO|JOIN|TABLE|UPDATE)\\s+(?!gradebook\\.)(${GRADEBOOK_TABLE_NAMES_V1.join('|')})\\b`,
+const LEGACY_D1_COMPAT_RELATION_V1 = new RegExp(
+  `\\b(FROM|INTO|JOIN|TABLE|UPDATE)\\s+(?!gradebook\\.)(${LEGACY_D1_COMPAT_RELATION_NAMES_V1.join('|')})\\b`,
   'giu',
 );
 
@@ -268,7 +273,7 @@ function translateJsonEach(query: string): string {
 }
 
 function qualifyGradebookRelations(query: string): string {
-  return query.replace(GRADEBOOK_RELATION_V1, '$1 gradebook.$2');
+  return query.replace(LEGACY_D1_COMPAT_RELATION_V1, '$1 gradebook.$2');
 }
 
 /**
