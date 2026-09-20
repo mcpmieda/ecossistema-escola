@@ -297,9 +297,13 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         state: 'unauthenticated',
       });
     expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ next: 'risk' });
-    expect(await other.login({ ...bad, password: '123456' }, id())).toMatchObject({
+    const guardedVerify = vi.fn((secret: string, verifier: Parameters<CryptoPortV1['verifySecret']>[1]) =>
+      cryptoPort.verifySecret(secret, verifier));
+    const guarded = new AuthServiceV1(sql, cryptoWithV1({ verifySecret: guardedVerify }), 1, risk);
+    expect(await guarded.login({ ...bad, password: '123456' }, id())).toMatchObject({
       state: 'unauthenticated',
     });
+    expect(guardedVerify).not.toHaveBeenCalled();
     expect(
       Number(
         (await pg.query<{ failures: number }>('SELECT failures FROM student_portal.auth_attempt'))
@@ -313,9 +317,11 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       state: 'rate-limited',
       retryAfterSeconds: expect.any(Number),
     });
+    guardedVerify.mockClear();
     expect(
-      await auth.login({ ...bad, password: '123456', riskToken: 'synthetic-valid-risk' }, id()),
+      await guarded.login({ ...bad, password: '123456', riskToken: 'synthetic-valid-risk' }, id()),
     ).toMatchObject({ state: 'rate-limited' });
+    expect(guardedVerify).not.toHaveBeenCalled();
     await pg.exec(
       "UPDATE student_portal.auth_attempt SET blocked_until=statement_timestamp()-interval '1 second'",
     );
