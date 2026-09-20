@@ -56,12 +56,16 @@ function booleanValue(value: unknown, code: string): boolean {
   return value;
 }
 
+function stringValue(value: unknown, code: string): string {
+  if (typeof value !== 'string' || value.length === 0) throw new Error(code);
+  return value;
+}
+
 function aclObject(
   row: Record<string, unknown>,
   privilegeColumns: readonly (readonly [column: string, privilege: string])[],
 ): AclObjectV1 {
-  const object = String(row.object ?? '');
-  if (!object) throw new Error('gradebook-ci-postgres-acl-object-invalid');
+  const object = stringValue(row.object, 'gradebook-ci-postgres-acl-object-invalid');
   return {
     object,
     privileges: privilegeColumns
@@ -143,9 +147,7 @@ async function readGradebookAclMatrix(): Promise<{
     `),
   ) as Record<string, unknown>[];
   const portalFunctions = portalFunctionRows.map((row) => {
-    const object = String(row.object ?? '');
-    if (!object) throw new Error('gradebook-ci-postgres-portal-function-invalid');
-    return object;
+    return stringValue(row.object, 'gradebook-ci-postgres-portal-function-invalid');
   });
 
   const boundary = await firstRow(`
