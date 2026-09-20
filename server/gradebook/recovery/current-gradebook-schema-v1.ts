@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1';
+import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1.ts';
 
 export interface CurrentGradebookRecoveryQueryV1 {
   unsafe(query: string, parameters?: readonly unknown[]): PromiseLike<readonly Record<string, unknown>[]>;
