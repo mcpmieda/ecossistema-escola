@@ -514,19 +514,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
     token: process.env.CLOUDFLARE_API_TOKEN ?? '',
   };
-  const result =
-    operation === 'capabilities'
-      ? await probeCloudflareCapabilitiesV1({ ...common, tokenKind })
-      : operation === 'portal-deploy'
-        ? await diagnoseCloudflarePortalDeployV1(common)
-        : await diagnoseCloudflarePortalHyperdriveV1(common);
-
-  await writeFile(output, JSON.stringify(result, null, 2) + '\n', {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
 
   if (operation === 'capabilities') {
+    const result = await probeCloudflareCapabilitiesV1({ ...common, tokenKind });
+    await writeFile(output, JSON.stringify(result, null, 2) + '\n', {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
     console.log(
       JSON.stringify({
         event: 'cloudflare-readonly-probe-v1',
@@ -534,19 +528,34 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         capabilities: result.capabilities.map(({ id, state }) => ({ id, state })),
       }),
     );
-  } else {
+  } else if (operation === 'portal-deploy') {
+    const result = await diagnoseCloudflarePortalDeployV1(common);
+    await writeFile(output, JSON.stringify(result, null, 2) + '\n', {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
     console.log(
       JSON.stringify({
         event: 'cloudflare-readonly-diagnostic-v1',
         operation,
-        state:
-          operation === 'portal-deploy'
-            ? {
-                worker: result.worker.state,
-                pages: result.pages.state,
-                analytics: result.analytics.state,
-              }
-            : { hyperdrive: result.hyperdrive.state },
+        state: {
+          worker: result.worker.state,
+          pages: result.pages.state,
+          analytics: result.analytics.state,
+        },
+      }),
+    );
+  } else {
+    const result = await diagnoseCloudflarePortalHyperdriveV1(common);
+    await writeFile(output, JSON.stringify(result, null, 2) + '\n', {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    console.log(
+      JSON.stringify({
+        event: 'cloudflare-readonly-diagnostic-v1',
+        operation,
+        state: { hyperdrive: result.hyperdrive.state },
       }),
     );
   }
