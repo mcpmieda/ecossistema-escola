@@ -1,4 +1,4 @@
-import { comparePtBrNumericLabelsV1 } from '../../../shared/gradebook-contracts/string-order-v1';
+import { comparePtBrNumericLabelsV1 } from '../../../../shared/gradebook-contracts/string-order-v1';
 import {
   SOURCE_CONTRACT_VERSION_V2,
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
