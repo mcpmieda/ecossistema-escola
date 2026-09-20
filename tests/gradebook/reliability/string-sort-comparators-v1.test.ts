@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import {
+  compareCanonicalStringsV1,
+  comparePtBrNumericLabelsV1,
+} from '../../../shared/gradebook-contracts/string-order-v1';
+
 const root = process.cwd();
 const targets = [
   'server/gradebook/recovery/logical-backup-recovery-v2.ts',
@@ -25,14 +30,15 @@ describe('BN string ordering reliability', () => {
   });
 
   it('uses explicit locale-aware comparators for canonical and human-readable string order', () => {
-    const canonical = ['z:2', 'a:10', 'a:2'].sort((left, right) =>
-      left.localeCompare(right, 'en'),
-    );
-    expect(canonical).toEqual(['a:10', 'a:2', 'z:2']);
-
-    const terms = ['10º', '2º', '1º'].sort((left, right) =>
-      left.localeCompare(right, 'pt-BR', { numeric: true }),
-    );
-    expect(terms).toEqual(['1º', '2º', '10º']);
+    expect(['z:2', 'a:10', 'a:2'].sort(compareCanonicalStringsV1)).toEqual([
+      'a:10',
+      'a:2',
+      'z:2',
+    ]);
+    expect(['10º', '2º', '1º'].sort(comparePtBrNumericLabelsV1)).toEqual([
+      '1º',
+      '2º',
+      '10º',
+    ]);
   });
 });
