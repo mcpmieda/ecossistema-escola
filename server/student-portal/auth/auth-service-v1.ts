@@ -186,6 +186,8 @@ async function credentialProofV1(
   qr: QrIdentityV1,
   secret: string,
   kind: 'pin' | 'password',
+  requestId: string,
+  riskPassed: boolean,
 ): Promise<CredentialProofV1 | null> {
   const snapshot = await accountTransactionV1(sql, async (tx, store) => {
     const accountId = await activeQrAccountIdV1(tx, qr);
@@ -203,6 +205,12 @@ async function credentialProofV1(
       credential.credentialId !== qr.credentialId ||
       credential.keyVersion !== qr.keyVersion
     )
+      return null;
+    const context = await accessContextV1(sql, tx, store, accountId);
+    if (!context) return null;
+    const attempt = await attempts(store, context);
+    if (blocked(attempt, context, requestId)) return null;
+    if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
       return null;
     const verifier = kind === 'pin' ? credential.pin : credential.password;
     return verifier ? { accountId, verifier } : null;
@@ -303,7 +311,15 @@ export class AuthServiceV1 {
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
     const pinProof = request.pin === undefined
       ? null
-      : await credentialProofV1(this.sql, this.cryptoPort, qr, request.pin, 'pin');
+      : await credentialProofV1(
+          this.sql,
+          this.cryptoPort,
+          qr,
+          request.pin,
+          'pin',
+          requestId,
+          riskPassed,
+        );
     return accountTransactionV1(this.sql, async (tx, store) => {
       const accountId = await activeQrAccountIdV1(tx, qr);
       if (!accountId) return denied(requestId);
@@ -453,6 +469,8 @@ export class AuthServiceV1 {
       qr,
       request.password,
       'password',
+      requestId,
+      riskPassed,
     );
     return accountTransactionV1(this.sql, async (tx, store) => {
       const accountId = await activeQrAccountIdV1(tx, qr);
