@@ -101,10 +101,49 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+
+  gradebook-postgres:
+    needs: scope
+    if: needs.scope.outputs.has_changes == 'true'
+    name: Gradebook native PostgreSQL and contention
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: gradebook_test_admin
+          POSTGRES_DB: gradebook_recovery_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U gradebook_test_admin -d gradebook_recovery_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Replay current Gradebook schema and validate isolation
+        env:
+          GRADEBOOK_RECOVERY_DATABASE_URL: postgres://gradebook_test_admin@127.0.0.1:55432/gradebook_recovery_ci
+        run: node --experimental-strip-types scripts/ci/gradebook-postgres-gate-v1.ts
+      - name: Run Gradebook recovery contention without skip
+        env:
+          GRADEBOOK_RECOVERY_DATABASE_URL: postgres://gradebook_test_admin@127.0.0.1:55432/gradebook_recovery_ci
+        run: npm run gradebook:recovery-contention
+
   runtime-proof:
     name: Bounded private Hyperdrive proof
     if: github.event_name == 'workflow_dispatch' && inputs.prove_production_hyperdrive
-    needs: postgres
+    needs: [postgres, gradebook-postgres]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
