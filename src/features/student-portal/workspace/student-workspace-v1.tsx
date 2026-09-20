@@ -160,14 +160,17 @@ function ReportV1({
   grades: (data: SelfResponseV1) => ReactNode;
 }) {
   const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const visible = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase('pt-BR');
-    if (!normalized) return data.subjects;
+    if (!normalizedQuery) return data.subjects;
     return data.subjects.filter((subject) =>
-      subject.label.toLocaleLowerCase('pt-BR').includes(normalized),
+      subject.label.toLocaleLowerCase('pt-BR').includes(normalizedQuery),
     );
-  }, [data.subjects, query]);
-  const filtered = useMemo(() => ({ ...data, subjects: visible }), [data, visible]);
+  }, [data.subjects, normalizedQuery]);
+  const filtered = useMemo(
+    () => (normalizedQuery ? { ...data, subjects: visible } : data),
+    [data, normalizedQuery, visible],
+  );
 
   return (
     <div className="pa-workspace-view">
