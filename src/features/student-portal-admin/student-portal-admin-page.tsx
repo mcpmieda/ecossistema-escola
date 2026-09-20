@@ -3,13 +3,12 @@ import { ClassTabsV1 } from '../../shared/ui/class-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
 import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1 } from '../../../shared/student-portal-contracts/customizations-v1';
 import { notifyLiveChangeV1 } from '../../shared/live-data/live-refresh-v1';
-import { CustomizationTargetV1 } from './settings/customization-target-v1';
 import type { CustomizationAreaV1 } from './settings/customization-values-v1';
 import {
   portalSectionFromHash,
@@ -28,21 +27,23 @@ import {
   createPortalAdminReadClientV2,
   createPortalClassCatalogV2,
 } from './accounts/accounts-client-v2';
-import { StudentAccountsV1 } from './accounts/student-accounts-v1';
 import type { AccountSlotContextV1, AccountSlotsV1 } from './accounts/account-detail-v1';
-import { StudentBirthYearsV1 } from './birth-year/student-birth-years-v1';
-import { StudentCredentialsV1 } from './credentials/student-credentials-v1';
-import { PersonalizedPublicationV1 } from './publication/personalized-publication-v1';
-import { StudentSettingsV1 } from './settings/student-settings-v1';
-import { StudentSessionsV1 } from './sessions/student-sessions-v1';
-import { StudentAuditV1 } from './audit/student-audit-v1';
-import { StudentOverviewV1 } from './overview/student-overview-v1';
 import { OperationsScopeV1 } from './overview/operations-scope-v1';
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import './shared/admin-page-v1.css';
 import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 
+const StudentAccountsV1 = lazy(() => import('./accounts/student-accounts-v1').then((module) => ({ default: module.StudentAccountsV1 })));
+const StudentBirthYearsV1 = lazy(() => import('./birth-year/student-birth-years-v1').then((module) => ({ default: module.StudentBirthYearsV1 })));
+const StudentCredentialsV1 = lazy(() => import('./credentials/student-credentials-v1').then((module) => ({ default: module.StudentCredentialsV1 })));
+const PersonalizedPublicationV1 = lazy(() => import('./publication/personalized-publication-v1').then((module) => ({ default: module.PersonalizedPublicationV1 })));
+const StudentSettingsV1 = lazy(() => import('./settings/student-settings-v1').then((module) => ({ default: module.StudentSettingsV1 })));
+const StudentSessionsV1 = lazy(() => import('./sessions/student-sessions-v1').then((module) => ({ default: module.StudentSessionsV1 })));
+const StudentAuditV1 = lazy(() => import('./audit/student-audit-v1').then((module) => ({ default: module.StudentAuditV1 })));
+const StudentOverviewV1 = lazy(() => import('./overview/student-overview-v1').then((module) => ({ default: module.StudentOverviewV1 })));
+const CustomizationTargetV1 = lazy(() => import('./settings/customization-target-v1').then((module) => ({ default: module.CustomizationTargetV1 })));
+const sectionFallback = <p role="status" className="py-6 text-sm text-muted">Carregando área do Painel…</p>;
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
@@ -204,14 +205,14 @@ function PortalWorkspace({ identity, onLost, fetcher }: {
                 onPress={() => { if (allowDraftNavigationV1()) setSectionScope(null); }}>
                 {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
               </Button>}
-              <div key={section}>{content}</div>
+              <Suspense fallback={sectionFallback}><div key={section}>{content}</div></Suspense>
             </ClassTabsV1>
           </Tabs.Panel>
         </Tabs>
-        {customizationTarget ? <CustomizationTargetV1 key={customizationTarget.row.id + ':' + customizationTarget.area}
+        {customizationTarget ? <Suspense fallback={sectionFallback}><CustomizationTargetV1 key={customizationTarget.row.id + ':' + customizationTarget.area}
           row={customizationTarget.row} area={customizationTarget.area} client={clients.client} reader={clients.reader}
           canWrite={common.canWrite} slots={slots} onClose={closeCustomization} onChanged={customizationChanged}
-          onAuthorizationLost={onLost} onQr={qr.accept} onReprint={reprint} /> : null}
+          onAuthorizationLost={onLost} onQr={qr.accept} onReprint={reprint} /></Suspense> : null}
         {qr.dialog}
       </section>
     </PanelScopeContextV1.Provider>
