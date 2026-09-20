@@ -32,6 +32,13 @@ function validatedTarget(): URL {
   return target;
 }
 
+const sql = postgres(validatedTarget().toString(), {
+  max: 1,
+  prepare: true,
+  ssl: false,
+  onnotice: () => undefined,
+});
+
 async function firstRow(query: string): Promise<Record<string, unknown>> {
   const rows = await sql.unsafe(query);
   const row = rows[0] as Record<string, unknown> | undefined;
