@@ -134,7 +134,7 @@ async function validateCatalog(): Promise<void> {
     triggers: 3,
   };
   for (const [key, value] of Object.entries(expected)) {
-    if (Number(catalog[key]) !== value) throw new Error('gradebook-ci-postgres-catalog-' + key + '-mismatch');
+    if (Number(catalog[key]) !== value) throw new Error('gradebook-ci-postgres-catalog-' + key + '-mismatch: expected=' + String(value) + ', actual=' + String(catalog[key]));
   }
 
   const tableRows = await sql.unsafe("SELECT tablename FROM pg_tables WHERE schemaname='gradebook' ORDER BY tablename");
