@@ -1,3 +1,9 @@
+/**
+ * Historical recovery contract for the private #662 artifact captured before the
+ * later current-schema migrations. V2 is intentionally immutable and must not be
+ * treated as the current Gradebook backup contract. Current schema reconstruction
+ * lives in current-gradebook-schema-v1.ts.
+ */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';

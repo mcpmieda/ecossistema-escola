@@ -1,5 +1,23 @@
 # Ensaio de recuperação lógica e contenção — #662
 
+> **Checkpoint histórico.** O restore V2 abaixo continua válido para o artefato privado capturado em 11/09/2026, mas não representa o catálogo atual da produção. O catálogo/replay atual é versionado em `server/gradebook/recovery/current-gradebook-schema-v1.ts` e validado no gate PostgreSQL nativo do CI. Nenhum “backup V3” de dados atuais é presumido sem existir um artefato privado atual que o sustente.
+
+## Estado atual após BN-09
+
+O replay atual do schema Gradebook é fail-closed e exige o catálogo físico observado:
+- 30 tabelas;
+- 251 colunas;
+- 223 constraints estruturais;
+- 70 índices;
+- 52 FKs;
+- 13 sequences;
+- 4 funções;
+- 3 triggers;
+- RLS ativo em 30/30 tabelas.
+
+Quatro dos 70 índices pertencem fisicamente ao schema `gradebook`, mas foram introduzidos pela migration Portal `0010_incremental_publication_v3.sql`. O supplement `current_cross_schema_indexes_v1.sql` existe somente para reconstrução descartável e é testado contra a migration dona; não é migration produtiva independente.
+
+
 ## Alcance comprovado
 
 A #662 executa, em PostgreSQL 18 local e descartável, a restauração da cópia lógica privada capturada antes de `0005`. O ensaio não conecta à produção, não aplica DDL/DML remoto e não publica nomes, notas, hashes de fonte ou payloads. A massa existente foi autorizada como massa de teste; ela não é evidência acadêmica oficial.
