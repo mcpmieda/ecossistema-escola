@@ -1093,7 +1093,7 @@ it('keeps the granular drawer, focus and scroll stable during automatic revalida
     (b) => b.textContent === 'Ver cadastro nas Centrais',
   )!;
   body.scrollTop = 137;
-  openCenter.focus();
+  await act(async () => openCenter.focus());
   const baseline = requests.filter((r) => r.operation === 'cell-detail').length;
   await act(async () => notifyLiveChangeV1('gradebook'));
   await waitFor(() => requests.filter((r) => r.operation === 'cell-detail').length > baseline);
