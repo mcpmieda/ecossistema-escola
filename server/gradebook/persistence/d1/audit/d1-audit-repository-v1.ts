@@ -137,7 +137,7 @@ function canonicalJsonValue(value: unknown): unknown {
   return Object.fromEntries(
     Object.keys(value)
       .filter((key) => value[key] !== undefined)
-      .sort()
+      .sort((left, right) => left.localeCompare(right, 'en'))
       .map((key) => [key, canonicalJsonValue(value[key])]),
   );
 }
