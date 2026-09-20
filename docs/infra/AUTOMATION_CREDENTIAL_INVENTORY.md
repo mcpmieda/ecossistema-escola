@@ -8,8 +8,8 @@ This file records names, consumers and authority boundaries only. It must never 
 
 | Name | Consumer | Purpose / authority |
 | --- | --- | --- |
-| `CLOUDFLARE_DEPLOY_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/deploy-student-portal.yml`, `.github/workflows/entra-maintenance.yml` | Pages/Workers deployment and the bounded Maintenance update of one inactive runtime credential slot. |
-| `CLOUDFLARE_HYPERDRIVE_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml` | Hyperdrive production verification/configuration only. |
+| `CLOUDFLARE_DEPLOY_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/deploy-student-portal.yml`, `.github/workflows/entra-maintenance.yml`, `.github/workflows/cloudflare-on-demand.yml` | Pages/Workers deployment, bounded Maintenance update of one inactive runtime credential slot, and read-only capability probing without mutation. |
+| `CLOUDFLARE_HYPERDRIVE_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/cloudflare-on-demand.yml` | Hyperdrive production verification/configuration and read-only capability probing without mutation. |
 | `GEMINI_API_KEY` | `.github/workflows/antigravity-on-demand.yml` and `.github/workflows/gemini-on-demand.yml` | Shared provider credential for the bounded Antigravity and Gemini CLI executors. Provider quota is shared; host-side validation runs outside the model step. |
 | `OPENHANDS_API_KEY` | `.github/workflows/openhands-on-demand.yml` → `infra/agents/openhands_cloud.py` | Starts bounded OpenHands Cloud conversations. The provider job has read-only GitHub permissions; reporting runs in a separate issue-write job. |
 
@@ -17,7 +17,7 @@ This file records names, consumers and authority boundaries only. It must never 
 
 | Name | Consumer | Purpose |
 | --- | --- | --- |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare deploy and Maintenance workflows | Cloudflare account selector; non-secret. |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare deploy, Maintenance and read-only operator workflows | Cloudflare account selector; non-secret. |
 | `ENTRA_TENANT_ID` | Entra Operations and Maintenance | Tenant selector; non-secret. |
 | `ENTRA_OPERATIONS_CLIENT_ID` | `.github/workflows/entra-operations-audit.yml` | OIDC Operations identity. |
 | `ENTRA_MAINTENANCE_CLIENT_ID` | `.github/workflows/entra-maintenance.yml` | OIDC Maintenance identity. |
@@ -57,6 +57,8 @@ The matching public certificates are stored on the two Entra Application objects
 - Deployment authority: `CLOUDFLARE_DEPLOY_TOKEN`.
 - Hyperdrive authority: `CLOUDFLARE_HYPERDRIVE_TOKEN`.
 - Production deploy remains gated by the official GitHub workflow and exact validated inputs.
+- Read-only diagnostics may reuse both existing tokens through `.github/workflows/cloudflare-on-demand.yml`; this operator has a fixed API/query allowlist, never mutates Cloudflare and never widens token authority.
+- A 401/403 from the operator is recorded as `permission-required`; it does not authorize creating or expanding a credential.
 - Proof: deploy runs `35448332710`, `35449745901`, `35450722614`, `35451437586`, `35452195041`.
 
 ### Entra Operations
@@ -97,6 +99,7 @@ The matching public certificates are stored on the two Entra Application objects
 - Maintenance cannot grant permissions, change app-role assignments or manage arbitrary applications.
 - Sonar cannot deploy or merge.
 - Auxiliary agents do not receive production secrets directly.
+- The Cloudflare read-only operator receives existing Cloudflare secrets only inside bounded GitHub Actions steps; issue comments contain only sanitized capability states.
 - A/B runtime credentials remain private in Cloudflare; issues, logs, artifacts and documentation contain no private key material.
 
 ## Manual GitHub cleanup after this file lands
