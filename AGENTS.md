@@ -26,6 +26,10 @@ Equipe homologada em 19/09/2026. **ChatGPT** é o líder/coordenador padrão; os
 
 Smokes homologados: OpenHands na #927 e Gemini CLI na #931. O PR sintético do Gemini (#934) foi validado e fechado sem merge.
 
+### Operador Cloudflare read-only
+
+Existe um operador Cloudflare via GitHub Actions para diagnóstico sanitizado sem expor secrets: use `/cloudflare` para capacidades e `/cloudflare portal` para o diagnóstico do Portal. Consulte `docs/infra/CLOUDFLARE_OPERATOR.md` antes de ampliar esse fluxo; ele é somente leitura e reutiliza as credenciais já existentes.
+
 ## Regras gerais
 
 - Faça a menor mudança suficiente para a issue atribuída.
