@@ -61,7 +61,7 @@ function preparedSourceV2(
     account_id: accountId,
     data_version: revision,
   });
-  if (!source || source.student.profile.classId !== context.policy.classId)
+  if (source?.student.profile.classId !== context.policy.classId)
     throw new Error('student-portal-prepared-source-invalid');
   decoded.set(revision, source);
   return source;
