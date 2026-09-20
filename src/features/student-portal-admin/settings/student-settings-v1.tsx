@@ -35,14 +35,14 @@ type ReviewIntentV1 =
   | { field: SettingsFieldV1; inherit: false; value: ReturnType<typeof parseSettingsDraftV1> };
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
 export interface StudentSettingsPropsV1 {
-  client: PortalAdminClientV1;
-  reader?: PortalAdminReadClientV2;
-  scope: ScopeV1;
-  canWrite: boolean;
-  scopeLabel?: string;
-  describeScope?: (scope: ScopeV1) => string;
-  onCommitted?: () => void;
-  onOpenCustomization?: OpenCustomizationV1;
+  readonly client: PortalAdminClientV1;
+  readonly reader?: PortalAdminReadClientV2;
+  readonly scope: ScopeV1;
+  readonly canWrite: boolean;
+  readonly scopeLabel?: string;
+  readonly describeScope?: (scope: ScopeV1) => string;
+  readonly onCommitted?: () => void;
+  readonly onOpenCustomization?: OpenCustomizationV1;
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
@@ -58,6 +58,47 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
   calendar:
     'Organiza os períodos de acesso e divulgação. Uma personalização substitui o calendário inteiro neste aluno ou turma. Campo vazio não define uma data.',
 };
+
+function sourceBadgeV1(
+  settings: EffectiveSettingsV1,
+  field: SettingsFieldV1,
+  owns: boolean,
+  sourceLabel: string,
+) {
+  if (owns) return settings.scope.kind === 'school' ? 'Padrão da escola' : 'Definido aqui';
+  return settings.sources[field].kind === 'school' ? 'Padrão da escola' : 'Padrão de ' + sourceLabel;
+}
+
+function calendarChangeLabelV1(key: string) {
+  if (key in CALENDAR_LABELS_V1)
+    return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
+  if (key === 'disclosure') return 'Data única de divulgação';
+  return `Divulgação de ${key.slice('disclosure.'.length)}`;
+}
+
+function loadErrorLabelV1(error: PortalClientErrorV1) {
+  if (error.state === 'unauthenticated') return 'Sessão expirada. Entre novamente no ADM.';
+  if (error.state === 'forbidden') return 'Sem permissão para esta consulta.';
+  return 'Configurações indisponíveis. Tente novamente.';
+}
+
+function mutationErrorLabelV1(error: PortalClientErrorV1) {
+  if (error.state === 'conflict')
+    return 'A configuração mudou em outra operação. Recarregue e revise antes de salvar novamente.';
+  if (error.state === 'unauthenticated' || error.state === 'forbidden')
+    return 'A operação não foi autorizada. Recarregue sua sessão e permissões.';
+  return 'Não foi possível confirmar o resultado da operação. Tente a mesma operação novamente ou recarregue o estado antes de uma nova alteração.';
+}
+
+function sourceLabelV1(
+  source: ScopeV1,
+  fixedScope: ScopeV1,
+  label: string,
+  describeScope?: (scope: ScopeV1) => string,
+) {
+  if (settingsScopeKeyV1(source) === settingsScopeKeyV1(fixedScope)) return label;
+  return describeScope?.(source) ?? settingsScopeLabelV1(source);
+}
 function FieldCardV1({
   field,
   settings,
@@ -66,7 +107,7 @@ function FieldCardV1({
   sourceLabel,
   review,
   onDirtyChange,
-}: {
+}: Readonly<{
   field: SettingsFieldV1;
   settings: EffectiveSettingsV1;
   disabled: boolean;
@@ -74,7 +115,7 @@ function FieldCardV1({
   sourceLabel: string;
   review: (review: ReviewIntentV1) => void;
   onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
-}) {
+}>) {
   const sourceDraft = useMemo(() => settingsDraftV1(field, settings.value), [field, settings]);
   const sourceKey = JSON.stringify(sourceDraft);
   const [draft, setDraft] = useState(sourceDraft);
@@ -107,13 +148,7 @@ function FieldCardV1({
         <div className="pa-settings-card-heading">
           <h3>{SETTINGS_LABELS_V1[field]}</h3>
           <Chip size="sm" variant="soft">
-            {owns
-              ? settings.scope.kind === 'school'
-                ? 'Padrão da escola'
-                : 'Definido aqui'
-              : settings.sources[field].kind === 'school'
-                ? 'Padrão da escola'
-                : 'Padrão de ' + sourceLabel}
+            {sourceBadgeV1(settings, field, owns, sourceLabel)}
           </Chip>
         </div>
         <InfoV1 label={`Sobre ${SETTINGS_LABELS_V1[field]}`}>{fieldHelp[field]}</InfoV1>
@@ -178,14 +213,14 @@ function ReviewDialogV1({
   disabled,
   close,
   confirm,
-}: {
+}: Readonly<{
   review: ReviewV1;
   settings: EffectiveSettingsV1;
   scopeLabel: string;
   disabled: boolean;
   close: () => void;
   confirm: () => void;
-}) {
+}>) {
   const next = review.inherit ? null : review.value[review.field];
   const past =
     !review.inherit && review.field === 'calendar' && review.value.calendar
@@ -224,11 +259,7 @@ function ReviewDialogV1({
                 <ul>
                   {past.map((key) => (
                     <li key={key}>
-                      {key in CALENDAR_LABELS_V1
-                        ? CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1]
-                        : key === 'disclosure'
-                          ? 'Data única de divulgação'
-                          : `Divulgação de ${key.slice('disclosure.'.length)}`}
+                      {calendarChangeLabelV1(key)}
                     </li>
                   ))}
                 </ul>
