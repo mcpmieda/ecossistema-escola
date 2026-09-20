@@ -52,7 +52,7 @@ const envSchema = z
     GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
     SESSION_SECRET: z.string().min(43),
     GRADEBOOK_PRODUCTION_ENABLED: z.enum(['true', 'false']).optional(),
-    GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).default('d1'),
+    GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).optional(),
     GRADEBOOK_D1: z.unknown().optional(),
     PROD_DB: z.unknown().optional(),
     PORTAL_SERVICE: z.unknown().optional(),
