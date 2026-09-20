@@ -160,6 +160,24 @@ function sameVerifier(left: VerifierV1, right: VerifierV1): boolean {
 type QrIdentityV1 = ReturnType<typeof parseQrV1>;
 type CredentialProofV1 = { accountId: string; verifier: VerifierV1; valid: boolean };
 
+async function activeQrAccountIdV1(
+  sql: StudentPortalPostgresQueryV1,
+  qr: QrIdentityV1,
+): Promise<string | null> {
+  const rows = await sql.unsafe(
+    "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
+    [qr.credentialId, qr.keyVersion],
+  );
+  return rows.length === 1 ? z.uuid().parse(rows[0]!.account_id) : null;
+}
+
+async function lockedCredentialV1(store: PortalTransactionV1, accountId: string) {
+  await store.lockAccounts([accountId]);
+  const account = await store.findAccount(accountId);
+  if (!account) return null;
+  return { account, credential: await store.readCredentials(accountId) };
+}
+
 async function credentialProofV1(
   sql: StudentPortalPostgresSqlV1,
   cryptoPort: CryptoPortV1,
@@ -168,18 +186,13 @@ async function credentialProofV1(
   kind: 'pin' | 'password',
 ): Promise<CredentialProofV1 | null> {
   const snapshot = await accountTransactionV1(sql, async (tx, store) => {
-    const rows = await tx.unsafe(
-      "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
-      [qr.credentialId, qr.keyVersion],
-    );
-    if (rows.length !== 1) return null;
-    const accountId = z.uuid().parse(rows[0]!.account_id);
-    await store.lockAccounts([accountId]);
-    const account = await store.findAccount(accountId);
-    const credential = await store.readCredentials(accountId);
+    const accountId = await activeQrAccountIdV1(tx, qr);
+    if (!accountId) return null;
+    const locked = await lockedCredentialV1(store, accountId);
+    if (!locked) return null;
+    const { account, credential } = locked;
     const expectedState = kind === 'password' ? 'active' : 'pending';
     if (
-      !account ||
       account.state !== expectedState ||
       credential?.state !== 'active' ||
       credential.credentialId !== qr.credentialId ||
@@ -218,11 +231,10 @@ async function activationStateV1(
   );
   if (rows.length !== 1) return denied(requestId);
   const accountId = z.uuid().parse(rows[0]!.account_id);
-  await store.lockAccounts([accountId]);
-  const account = await store.findAccount(accountId);
-  if (!account) return denied(requestId);
+  const locked = await lockedCredentialV1(store, accountId);
+  if (!locked) return denied(requestId);
+  const { account, credential } = locked;
   const context = await accessContextV1(sql, tx, store, accountId);
-  const credential = await store.readCredentials(accountId);
   const birth = await store.readBirth(accountId);
   if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
   if (
@@ -289,17 +301,12 @@ export class AuthServiceV1 {
       ? null
       : await credentialProofV1(this.sql, this.cryptoPort, qr, request.pin, 'pin');
     return accountTransactionV1(this.sql, async (tx, store) => {
-      const rows = await tx.unsafe(
-        "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
-        [qr.credentialId, qr.keyVersion],
-      );
-      if (rows.length !== 1) return denied(requestId);
-      const accountId = z.uuid().parse(rows[0]!.account_id);
-      await store.lockAccounts([accountId]);
-      const account = await store.findAccount(accountId);
-      if (!account) return denied(requestId);
+      const accountId = await activeQrAccountIdV1(tx, qr);
+      if (!accountId) return denied(requestId);
+      const locked = await lockedCredentialV1(store, accountId);
+      if (!locked) return denied(requestId);
+      const { account, credential } = locked;
       const context = await accessContextV1(this.sql, tx, store, accountId);
-      const credential = await store.readCredentials(accountId);
       if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
       if (
         !credential ||
@@ -445,17 +452,12 @@ export class AuthServiceV1 {
       'password',
     );
     return accountTransactionV1(this.sql, async (tx, store) => {
-      const rows = await tx.unsafe(
-        "SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state='active'",
-        [qr.credentialId, qr.keyVersion],
-      );
-      if (rows.length !== 1) return denied(requestId);
-      const accountId = z.uuid().parse(rows[0]!.account_id);
-      await store.lockAccounts([accountId]);
-      const account = await store.findAccount(accountId);
-      if (!account) return denied(requestId);
+      const accountId = await activeQrAccountIdV1(tx, qr);
+      if (!accountId) return denied(requestId);
+      const locked = await lockedCredentialV1(store, accountId);
+      if (!locked) return denied(requestId);
+      const { account, credential } = locked;
       const context = await accessContextV1(this.sql, tx, store, accountId);
-      const credential = await store.readCredentials(accountId);
       if (!context) return auditedDenied(store, account, await authNowV1(tx), requestId);
       if (
         context.account.state !== 'active' ||
