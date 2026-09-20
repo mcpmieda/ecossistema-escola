@@ -82,9 +82,6 @@
 .pa-header-action button {
   min-width: 3.5rem;
   min-height: 2.5rem;
-  color: white;
-  border-color: rgb(255 255 255 / 0.24);
-  background: rgb(255 255 255 / 0.11);
 }
 .pa-shell-content {
   max-width: 64rem;
@@ -113,17 +110,8 @@
   border: 0;
 }
 .pa-profile-card {
-  position: relative;
-  overflow: hidden;
   padding: 0;
   gap: 0;
-  border: 1px solid rgb(219 234 254 / 0.96);
-  border-radius: 1.45rem;
-  background:
-    radial-gradient(22rem 9rem at 95% -20%, rgb(14 165 233 / 0.12), transparent 72%),
-    rgb(255 255 255 / 0.92);
-  box-shadow: 0 15px 40px rgb(30 64 175 / 0.08);
-  backdrop-filter: blur(12px);
 }
 .pa-profile-content {
   display: flex;
@@ -137,9 +125,6 @@
   flex-shrink: 0;
   width: 3.6rem;
   height: 3.6rem;
-  border: 3px solid white;
-  border-radius: 1.05rem;
-  box-shadow: 0 7px 20px rgb(37 99 235 / 0.16);
 }
 .pa-profile-identity {
   min-width: 0;
