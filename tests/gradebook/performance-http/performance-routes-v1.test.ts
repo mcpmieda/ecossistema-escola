@@ -161,6 +161,73 @@ describe('Performance HTTP V1', () => {
     });
   });
 
+  it('mantém dispatch explícito e gate fail-closed para transportes V2 a V6', async () => {
+    const route = handler(fakeProvider());
+    const validCurrentRequests = [
+      { transportVersion: 2, operation: 'classes', year: 2026, offset: 0, limit: 100 },
+      {
+        transportVersion: 3,
+        operation: 'analysis',
+        year: 2026,
+        classId: 10,
+        period: 1,
+        mode: 'regular',
+        statuses: [null, 7],
+        lens: 'result',
+        offerId: null,
+      },
+      {
+        transportVersion: 4,
+        operation: 'term-comparison',
+        year: 2026,
+        classId: 10,
+        period: 3,
+        referencePeriod: 1,
+        mode: 'regular',
+        statuses: [null, 7],
+        lens: 'result',
+        offerId: null,
+      },
+      {
+        transportVersion: 5,
+        operation: 'dashboard',
+        year: 2026,
+        classId: 10,
+        period: 1,
+        referencePeriod: null,
+        mode: 'regular',
+        statuses: [null, 7],
+        lens: 'result',
+        offerId: null,
+      },
+      {
+        transportVersion: 6,
+        operation: 'analytics',
+        year: 2026,
+        classId: 10,
+        period: 1,
+      },
+    ] as const;
+
+    for (const value of validCurrentRequests) {
+      const response = await route(request(value), env);
+      expect(response?.status).toBe(503);
+      expect(await json(response as Response)).toEqual({
+        transportVersion: value.transportVersion,
+        state: 'unavailable',
+      });
+    }
+
+    for (const transportVersion of [2, 3, 4, 5, 6] as const) {
+      const response = await route(request({ transportVersion }), env);
+      expect(response?.status).toBe(400);
+      expect(await json(response as Response)).toEqual({
+        transportVersion,
+        state: 'invalid-request',
+      });
+    }
+  });
+
   it('valida payload e sanitiza cursores de linha/coluna inválidos sem expor detalhes', async () => {
     let providerCalls = 0;
     const route = handler(
