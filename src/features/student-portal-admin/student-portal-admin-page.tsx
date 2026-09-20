@@ -48,6 +48,7 @@ const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
+/** Administrative Portal entry; heavyweight sections load only when the selected route needs them. */
 export function StudentPortalAdminPage({
   fetcher,
   onLogin = enterInstitutionalLogin,
@@ -74,6 +75,7 @@ export function StudentPortalAdminPage({
   return <PortalWorkspace key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
     identity={auth.state.identity} onLost={auth.lost} fetcher={fetcher} />;
 }
+/** Keeps identity, scope and drafts mounted while section bundles are loaded on demand. */
 function PortalWorkspace({ identity, onLost, fetcher }: {
   identity: PortalAdminIdentityV1;
   onLost: (error: PortalClientErrorV1) => void;
