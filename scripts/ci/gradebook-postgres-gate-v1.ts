@@ -315,8 +315,9 @@ async function readGradebookDefaultAclV1(): Promise<{
         SELECT 1
         FROM pg_catalog.pg_default_acl d
         CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
-        JOIN pg_catalog.pg_namespace n ON n.oid=d.defaclnamespace
-        WHERE n.nspname='gradebook'
+        JOIN pg_catalog.pg_roles owner_role ON owner_role.oid=d.defaclrole
+        WHERE d.defaclnamespace=0
+          AND owner_role.rolname=current_user
           AND a.grantee=0
           AND d.defaclobjtype='f'
           AND a.privilege_type='EXECUTE'
