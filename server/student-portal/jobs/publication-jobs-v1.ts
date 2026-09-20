@@ -25,25 +25,32 @@ import { claimJobV1, failJobV1, finishJobV1, type ClaimedJobV1 } from './queue-v
 import { compareSourceSubjectPresentationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 
 const SYSTEM_ACTOR = '00000000-0000-4000-8000-000000000712';
+
+function periodStartV1(policy: PolicyValueV1, period: PeriodV1) {
+  const calendar = policy.calendar;
+  if (period === 'T1') return calendar.yearStartsAt;
+  if (period === 'T2') return calendar.t2StartsAt ?? calendar.t1EndsAt;
+  if (period === 'T3') return calendar.t3StartsAt ?? calendar.t2EndsAt;
+  return calendar.recoveriesStartAt;
+}
+
+function periodDisclosureV1(policy: PolicyValueV1, period: PeriodV1) {
+  const disclosure = policy.calendar.disclosure;
+  if (disclosure.mode === 'single')
+    return disclosure.periods.includes(period) ? disclosure.at : undefined;
+  return disclosure.at[period];
+}
+
 export function disclosureDueV1(policy: PolicyValueV1, periods: readonly PeriodV1[]): Date | null {
   const calendar = policy.calendar;
   if (!policy.accessEnabled || !calendar.yearStartsAt || !calendar.yearEndsAt) return null;
   let due = Date.parse(calendar.yearStartsAt);
   for (const period of periods) {
     if (!policy.allowedPeriods.includes(period)) return null;
-    const start =
-      period === 'T1'
-        ? calendar.yearStartsAt
-        : period === 'T2'
-          ? (calendar.t2StartsAt ?? calendar.t1EndsAt)
-          : period === 'T3'
-            ? (calendar.t3StartsAt ?? calendar.t2EndsAt)
-            : calendar.recoveriesStartAt;
-    const disclosure = calendar.disclosure;
-    if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return null;
-    const at = disclosure.mode === 'single' ? disclosure.at : disclosure.at[period];
-    if (!start) return null;
-    due = Math.max(due, Date.parse(start), at ? Date.parse(at) : Date.parse(start));
+    const start = periodStartV1(policy, period);
+    const disclosure = periodDisclosureV1(policy, period);
+    if (!start || disclosure === undefined) return null;
+    due = Math.max(due, Date.parse(start), disclosure ? Date.parse(disclosure) : Date.parse(start));
   }
   return due < Date.parse(calendar.yearEndsAt) ? new Date(due) : null;
 }
