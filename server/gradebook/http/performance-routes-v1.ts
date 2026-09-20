@@ -190,6 +190,157 @@ function errorResponse(cause: unknown): Response {
   }
 }
 
+type CurrentPerformanceVersionV1 = 2 | 3 | 4 | 5 | 6;
+
+interface CurrentPerformanceReadResponseV1 {
+  readonly state: string;
+}
+
+type CurrentPerformanceHandlerV1 = (
+  payload: unknown,
+  env: RuntimeEnv,
+) => Promise<Response | null>;
+
+function hasCurrentPerformanceVersionV1(
+  payload: unknown,
+  version: CurrentPerformanceVersionV1,
+): boolean {
+  return (
+    payload !== null &&
+    typeof payload === 'object' &&
+    'transportVersion' in payload &&
+    payload.transportVersion === version
+  );
+}
+
+function currentPerformanceFailureV1(
+  version: CurrentPerformanceVersionV1,
+  state: 'invalid-request' | 'unavailable',
+  status: 400 | 503,
+): Response {
+  return noStoreJson({ transportVersion: version, state }, status);
+}
+
+function currentPerformanceDatabaseV1(env: RuntimeEnv): D1WriteDatabaseV1 | null {
+  const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+  if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres') return null;
+  if (!['production', 'local', 'preview'].includes(environment)) return null;
+  if (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') return null;
+  if (!env.GRADEBOOK_D1) return null;
+  return env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+}
+
+function currentPerformanceStatusV1(state: string): number {
+  switch (state) {
+    case 'ready':
+      return 200;
+    case 'not-found':
+      return 404;
+    case 'invalid-request':
+      return 400;
+    case 'ambiguous-offers':
+      return 409;
+    case 'scope-too-large':
+      return 422;
+    default:
+      return 503;
+  }
+}
+
+async function executeCurrentPerformanceReadV1(
+  version: CurrentPerformanceVersionV1,
+  env: RuntimeEnv,
+  execute: (database: D1WriteDatabaseV1) => Promise<CurrentPerformanceReadResponseV1>,
+): Promise<Response> {
+  const database = currentPerformanceDatabaseV1(env);
+  if (database === null) return currentPerformanceFailureV1(version, 'unavailable', 503);
+  try {
+    const response = await execute(database);
+    return noStoreJson(response, currentPerformanceStatusV1(response.state));
+  } catch {
+    return currentPerformanceFailureV1(version, 'unavailable', 503);
+  }
+}
+
+async function handlePerformanceAnalyticsV6(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (!hasCurrentPerformanceVersionV1(payload, 6)) return null;
+  const parsed = performanceAnalyticsRequestSchemaV6.safeParse(payload);
+  if (!parsed.success) return currentPerformanceFailureV1(6, 'invalid-request', 400);
+  return executeCurrentPerformanceReadV1(6, env, (database) =>
+    createPerformanceAnalyticsV6(database).execute(parsed.data),
+  );
+}
+
+async function handlePerformanceDashboardV5(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (!hasCurrentPerformanceVersionV1(payload, 5)) return null;
+  const parsed = performanceDashboardRequestSchemaV5.safeParse(payload);
+  if (!parsed.success) return currentPerformanceFailureV1(5, 'invalid-request', 400);
+  return executeCurrentPerformanceReadV1(5, env, (database) =>
+    createPerformanceDashboardV5(database).execute(parsed.data),
+  );
+}
+
+async function handlePerformanceTermComparisonV4(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (!hasCurrentPerformanceVersionV1(payload, 4)) return null;
+  const parsed = performanceTermComparisonRequestSchemaV4.safeParse(payload);
+  if (!parsed.success) return currentPerformanceFailureV1(4, 'invalid-request', 400);
+  return executeCurrentPerformanceReadV1(4, env, (database) =>
+    createPerformanceTermComparisonV4(database).execute(parsed.data),
+  );
+}
+
+async function handlePerformanceAnalysisV3(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (!hasCurrentPerformanceVersionV1(payload, 3)) return null;
+  const parsed = performanceAnalysisRequestSchemaV3.safeParse(payload);
+  if (!parsed.success) return currentPerformanceFailureV1(3, 'invalid-request', 400);
+  return executeCurrentPerformanceReadV1(3, env, (database) =>
+    createPerformanceAnalysisV3(database).execute(parsed.data),
+  );
+}
+
+async function handleRelationalPerformanceV2(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (!hasCurrentPerformanceVersionV1(payload, 2)) return null;
+  const parsed = performanceRequestSchemaV2.safeParse(payload);
+  if (!parsed.success) return currentPerformanceFailureV1(2, 'invalid-request', 400);
+  return executeCurrentPerformanceReadV1(2, env, (database) =>
+    createRelationalPerformanceV2(database).execute(parsed.data),
+  );
+}
+
+const CURRENT_PERFORMANCE_HANDLERS_V1: readonly CurrentPerformanceHandlerV1[] = [
+  handlePerformanceAnalyticsV6,
+  handlePerformanceDashboardV5,
+  handlePerformanceTermComparisonV4,
+  handlePerformanceAnalysisV3,
+  handleRelationalPerformanceV2,
+];
+
+async function handleCurrentPerformanceRequestV1(
+  payload: unknown,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  for (const handler of CURRENT_PERFORMANCE_HANDLERS_V1) {
+    const response = await handler(payload, env);
+    if (response !== null) return response;
+  }
+  return null;
+}
+
 export function createPerformanceRequestHandlerV1(
   dependencies: PerformanceRequestHandlerDependenciesV1 = defaultDependencies,
 ): (request: Request, env: RuntimeEnv) => Promise<Response | null> {
@@ -217,82 +368,9 @@ export function createPerformanceRequestHandlerV1(
     } catch {
       return invalidRequest('invalid-request');
     }
-    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 6) {
-      const parsed = performanceAnalyticsRequestSchemaV6.safeParse(payload);
-      if (!parsed.success) return noStoreJson({ transportVersion: 6, state: 'invalid-request' }, 400);
-      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
-        return noStoreJson({ transportVersion: 6, state: 'unavailable' }, 503);
-      }
-      try {
-        const response = await createPerformanceAnalyticsV6(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
-        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
-          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
-        return noStoreJson(response, status);
-      } catch { return noStoreJson({ transportVersion: 6, state: 'unavailable' }, 503); }
-    }
-    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 5) {
-      const parsed = performanceDashboardRequestSchemaV5.safeParse(payload);
-      if (!parsed.success) return noStoreJson({ transportVersion: 5, state: 'invalid-request' }, 400);
-      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
-        return noStoreJson({ transportVersion: 5, state: 'unavailable' }, 503);
-      }
-      try {
-        const response = await createPerformanceDashboardV5(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
-        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
-          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
-        return noStoreJson(response, status);
-      } catch { return noStoreJson({ transportVersion: 5, state: 'unavailable' }, 503); }
-    }
-    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 4) {
-      const parsed = performanceTermComparisonRequestSchemaV4.safeParse(payload);
-      if (!parsed.success) return noStoreJson({ transportVersion: 4, state: 'invalid-request' }, 400);
-      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
-        return noStoreJson({ transportVersion: 4, state: 'unavailable' }, 503);
-      }
-      try {
-        const response = await createPerformanceTermComparisonV4(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
-        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
-          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
-        return noStoreJson(response, status);
-      } catch { return noStoreJson({ transportVersion: 4, state: 'unavailable' }, 503); }
-    }
-    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 3) {
-      const parsed = performanceAnalysisRequestSchemaV3.safeParse(payload);
-      if (!parsed.success) return noStoreJson({ transportVersion: 3, state: 'invalid-request' }, 400);
-      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
-        return noStoreJson({ transportVersion: 3, state: 'unavailable' }, 503);
-      }
-      try {
-        const response = await createPerformanceAnalysisV3(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
-        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
-          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
-        return noStoreJson(response, status);
-      } catch { return noStoreJson({ transportVersion: 3, state: 'unavailable' }, 503); }
-    }
-    // V2 uses the same auth/origin boundary, never the legacy entity/version provider.
-    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 2) {
-      const parsed = performanceRequestSchemaV2.safeParse(payload);
-      if (!parsed.success) return noStoreJson({ transportVersion: 2, state: 'invalid-request' }, 400);
-      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
-        return noStoreJson({ transportVersion: 2, state: 'unavailable' }, 503);
-      }
-      try {
-        const response = await createRelationalPerformanceV2(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
-        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
-          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
-        return noStoreJson(response, status);
-      } catch { return noStoreJson({ transportVersion: 2, state: 'unavailable' }, 503); }
-    }
+    const currentResponse = await handleCurrentPerformanceRequestV1(payload, env);
+    if (currentResponse !== null) return currentResponse;
+
     if (!isPerformanceTransportRequestV1(payload)) return invalidRequest('invalid-request');
     const transportRequest: PerformanceTransportRequestV1 = payload;
 
