@@ -83,7 +83,7 @@ it.each([401, 503])(
       return session.promise;
     });
     render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
-    expect(screen.getByText('Verificando acesso…').tagName).toBe('OUTPUT');
+    expect(screen.getByText('Verificando acesso…').getAttribute('role')).toBe('status');
     expect(screen.queryByRole('banner')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Perfil do aluno' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Minhas notas' })).toBeNull();
