@@ -1,3 +1,4 @@
+import { secureJitterV1 } from './secure-jitter-v1';
 export type LiveDomainV1 = 'gradebook' | 'portal';
 export const LIVE_REFRESH_INTERVAL_V1 = 30_000;
 /** Heavy, read-only analytics opt in; interactive Portal/Council readers keep their cadence. */
@@ -26,7 +27,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
 let listening = false;
 const visible = () => document.visibilityState !== 'hidden' && navigator.onLine !== false;
-const jitter = () => Math.floor(Math.random() * 1_000);
+const jitter = () => secureJitterV1(1_000);
 
 /** In-memory invalidation metadata only; no independent clock, socket, payload or storage. */
 export function subscribeLiveChangesV1(listener: (domain: LiveDomainV1) => void): () => void {
