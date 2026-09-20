@@ -89,11 +89,11 @@ describe('migrations de durabilidade Bulletin/Council', () => {
            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
            ORDER BY name`,
         )
-        .all()
-        .map(({ name }) => String(name));
+        .all() as { readonly name: unknown }[];
+      const tableNames = tables.map(({ name }) => String(name));
 
-      expect(tables).toHaveLength(29);
-      expect(tables).toEqual(
+      expect(tableNames).toHaveLength(29);
+      expect(tableNames).toEqual(
         [...LEGACY_D1_COMPAT_RELATION_NAMES_V1].sort(compareCanonicalStringsV1),
       );
     } finally {
