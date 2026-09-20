@@ -1,6 +1,6 @@
 # Mapa atual de persistência física e interfaces — BN-05
 
-Baseline: `main@4eb8ea70131a0479ecf60407e91e3c2ab65e6b93`.
+Baseline original BN-05: `main@4eb8ea70131a0479ecf60407e91e3c2ab65e6b93`. Atualizações posteriores deste documento refletem BN-08/BN-14 e devem ser lidas junto ao `PROJECT_STATE.yaml` corrente.
 
 ## Fonte física oficial
 
@@ -39,7 +39,7 @@ Em produção:
 - provider ausente/inválido/`d1` → operação acadêmica que precisa de banco falha fechada;
 - não existe fallback automático para D1 físico.
 
-O default `d1` ainda presente no parser de ambiente é uma dívida de configuração rastreada em **#970/B-08**; ele não constitui autorização de produção e não contorna o fail-closed do wrapper oficial.
+Desde a BN-08, o parser de ambiente **não injeta mais `d1` por default**. Provider ausente permanece `undefined`; produção continua fail-closed e exige `postgres` explicitamente.
 
 ## Admin de persistência
 
@@ -61,6 +61,18 @@ Em produção:
 | `server/gradebook/persistence/d1/schema/**` | HISTORICAL/LOCAL — schema D1 antigo |
 | `server/gradebook/persistence/d1/{read,write,transaction,...}` | MIXED — alguns adapters ainda são portas reutilizadas pelo facade PostgreSQL; avaliar por consumidor |
 | `Aprendizados/**` | MEMORY — nunca autoridade operacional |
+
+## Allowlist de relações legacy não é catálogo físico atual
+
+O facade PostgreSQL contém uma allowlist de nomes como `academic_entity_streams`, `source_file_versions` e `import_batch_streams`. Ela serve somente para qualificar SQL **D1-shaped legado** que chega sem schema.
+
+Essa allowlist:
+- não representa as tabelas físicas atuais `aluno/nota/oferta/fechamento/...`;
+- não deve ser sincronizada com migrations do schema simplificado;
+- não autoriza reativar o modelo stream/version;
+- existe apenas enquanto consumers de compatibilidade ainda passam pelo tradutor.
+
+Consultas relacionais atuais devem usar `gradebook.<tabela>` explicitamente. O catálogo físico atual é validado separadamente pelo recovery/gate PostgreSQL da BN-09.
 
 ## Como decidir se um arquivo D1 pode sair
 
