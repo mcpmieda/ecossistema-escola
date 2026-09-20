@@ -1,3 +1,4 @@
+import { structurallyEqualJsonV1 } from '../canonical-json-v1';
 import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
 import { isSnapshotSourceEvidenceV5 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
@@ -160,25 +161,6 @@ function optionalString(value: unknown): boolean {
 
 function nullableString(value: unknown): boolean {
   return value === null || typeof value === 'string';
-}
-
-function canonicalJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalJsonValue);
-  if (!isObject(value)) return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .filter((key) => value[key] !== undefined)
-      .sort(compareCanonicalStringsV1)
-      .map((key) => [key, canonicalJsonValue(value[key])]),
-  );
-}
-
-function structurallyEqual(left: unknown, right: unknown): boolean {
-  try {
-    return JSON.stringify(canonicalJsonValue(left)) === JSON.stringify(canonicalJsonValue(right));
-  } catch {
-    return false;
-  }
 }
 
 function serialize(value: unknown): string {
@@ -468,7 +450,7 @@ function canonicalBatch(
       .filter(({ importFileId }) => importFileId === file.id)
       .map(({ id }) => id)
       .sort(compareCanonicalStringsV1);
-    if (!structurallyEqual(diagnosticIds, actualIds)) return fail('incompatible-write');
+    if (!structurallyEqualJsonV1(diagnosticIds, actualIds)) return fail('incompatible-write');
     return { ...file, diagnosticIds };
   });
 
@@ -652,7 +634,7 @@ function mapBatchFile(
     const source = parseJson(row.linked_source_payload_json);
     if (
       !validSourceFileVersion(source, context) ||
-      !structurallyEqual(source.manifest, value.manifest)
+      !structurallyEqualJsonV1(source.manifest, value.manifest)
     ) {
       return fail('broken-reference');
     }
@@ -677,7 +659,7 @@ function mapDiagnostic(row: D1RowV1): ImportFileDiagnosticV1 {
     row.cell_address !== location.cellAddress ||
     row.entity_kind !== entity.kind ||
     row.entity_id !== entity.id ||
-    !structurallyEqual(
+    !structurallyEqualJsonV1(
       row.source_evidence_json === null ? undefined : parseJson(row.source_evidence_json),
       value.sourceEvidence,
     )
@@ -779,7 +761,7 @@ class GradebookD1ImportRepositoryExtensionV1 {
       .all<D1RowV1>();
     for (const row of rows.results) {
       const source = parseJson(row.payload_json);
-      if (validSourceFileVersion(source, context) && structurallyEqual(source.manifest, manifest)) {
+      if (validSourceFileVersion(source, context) && structurallyEqualJsonV1(source.manifest, manifest)) {
         return rowVersion(row.version);
       }
     }
@@ -995,7 +977,7 @@ class GradebookD1ImportRepositoryExtensionV1 {
         },
         context,
       );
-      if (!structurallyEqual(parent, reconstructed)) return fail('incompatible-row');
+      if (!structurallyEqualJsonV1(parent, reconstructed)) return fail('incompatible-row');
       return {
         value: reconstructed,
         version,
