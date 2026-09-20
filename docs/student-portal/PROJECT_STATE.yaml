@@ -1,14 +1,14 @@
 module: student_portal
 contract_version: 1
 academic_year: 2026
-updated_at: 2026-09-14
+updated_at: 2026-09-20
 program_status: technically_complete_release_closed_by_policy
 current_issue: null
 delivery_branch: docs/pa-final-operation-760
 delivery_scope: part_2_final_operation_and_continuity
-last_verified_runtime_main: 436e9db8aebd67ea8e9765676aca47d385cd3119
-last_verified_runtime_pr: 787
-last_verified_runtime_deploy: 34871838273
+last_verified_runtime_main: cad68337b48c7d4a40477b088d36835c705246f2
+last_verified_runtime_pr: 963
+last_verified_runtime_deploy: 35487533274
 final_documentation_evidence: issue_760_handoff
 completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701, 743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
 gates:
@@ -16,7 +16,11 @@ gates:
   G-B: accepted_real_flow_with_explicit_physical_device_deferrals
   G-P: passed_technical_release_general_opening_closed_by_policy
 runtime: production_composed_and_verified
-student_portal_schema: migrations_0001_through_0007_applied
+student_portal_schema: migrations_0001_through_0015_applied
+student_portal_schema_table_count: 27
+student_portal_schema_latest_migration: 0015_student_portal_rls_v1.sql
+student_portal_schema_production_version: 20260920004859
+student_portal_schema_production_evidence: issue_859_pr_963_postflight
 population_enabled: false
 general_school_opening: false
 accounts_last_observed: 3
