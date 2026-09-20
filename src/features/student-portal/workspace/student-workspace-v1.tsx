@@ -1,14 +1,17 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Button, Card, Chip, Input, Tabs } from '@heroui/react';
 import {
-  BarChart3,
-  BookOpenCheck,
-  ChevronRight,
-  GraduationCap,
-  LayoutDashboard,
-  Search,
-  Sparkles,
-} from 'lucide-react';
+  Card,
+  Chip,
+  Description,
+  Label,
+  ListBox,
+  ProgressBar,
+  ProgressCircle,
+  SearchField,
+  Surface,
+  Tabs,
+} from '@heroui/react';
+import { BarChart3, BookOpenCheck, GraduationCap, LayoutDashboard } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-grades-v1';
 import './student-workspace-v1.css';
@@ -28,73 +31,51 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC2: 'REC 2º',
   REC3: 'REC 3º',
 };
-const outcomeLabel = {
-  'in-progress': 'Em curso',
+const resultLabels = {
   approved: 'Aprovado',
   failed: 'Reprovado',
   'failed-attendance': 'Reprovado por frequência',
-  'not-applicable': 'Não se aplica',
 } as const;
-const markNumber = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
-
-function scoreOfV1(period?: PeriodV1): ScoreMarkV1 | null {
-  return period?.final.kind === 'score' ? period.final : null;
-}
+const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
 
 function subjectPeriodV1(subject: SubjectV1, period: PeriodIdV1) {
   return subject.periods.find((item) => item.period === period);
 }
-
-function safeRatioV1(mark: ScoreMarkV1 | null) {
-  if (!mark || mark.maximum === null || mark.maximum <= 0) return null;
-  return Math.max(0, Math.min(1, mark.value / mark.maximum));
+function scoreOfV1(period?: PeriodV1): ScoreMarkV1 | null {
+  return period?.final.kind === 'score' ? period.final : null;
 }
-
-function scoreClassV1(mark: ScoreMarkV1 | null) {
-  if (!mark || mark.meetsMinimum === null) return 'neutral';
-  return mark.meetsMinimum ? 'met' : 'below';
-}
-
 function visibleMainPeriodsV1(subjects: readonly SubjectV1[]) {
   return MAIN_PERIODS_V1.filter((period) =>
     subjects.some((subject) => subject.periods.some((item) => item.period === period)),
   );
 }
-
-function SubjectGlyphV1({ index }: { index: number }) {
-  return (
-    <span className={'pa-subject-glyph pa-subject-glyph-' + String((index % 4) + 1)} aria-hidden="true">
-      <BookOpenCheck size={18} />
-    </span>
-  );
+function progressColorV1(mark: ScoreMarkV1 | null) {
+  if (!mark || mark.meetsMinimum === null) return 'default' as const;
+  return mark.meetsMinimum ? ('success' as const) : ('danger' as const);
+}
+function progressMaxV1(mark: ScoreMarkV1 | null) {
+  if (!mark) return 100;
+  if (mark.maximum !== null && mark.maximum > 0) return mark.maximum;
+  return Math.max(mark.value, 1);
 }
 
-function GradeRingV1({ mark }: { mark: ScoreMarkV1 | null }) {
-  const ratio = safeRatioV1(mark);
-  const progress = ratio === null ? 0 : Math.round(ratio * 100);
+function PageIntroV1({
+  icon,
+  eyebrow,
+  title,
+}: {
+  icon: ReactNode;
+  eyebrow: string;
+  title: string;
+}) {
   return (
-    <div className={'pa-grade-ring pa-grade-ring-' + scoreClassV1(mark)}>
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle className="pa-grade-ring-track" cx="60" cy="60" r="48" pathLength="100" />
-        <circle
-          className="pa-grade-ring-value"
-          cx="60"
-          cy="60"
-          r="48"
-          pathLength="100"
-          strokeDasharray="100"
-          strokeDashoffset={100 - progress}
-        />
-      </svg>
-      <div className="pa-grade-ring-copy">
-        <strong>{mark ? markNumber.format(mark.value) : '—'}</strong>
-        {mark?.maximum !== null && mark?.maximum !== undefined ? (
-          <span>de {markNumber.format(mark.maximum)}</span>
-        ) : (
-          <span>nota publicada</span>
-        )}
+    <Surface variant="secondary" className="pa-workspace-intro">
+      <span aria-hidden="true">{icon}</span>
+      <div>
+        <p className="pa-workspace-eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
       </div>
-    </div>
+    </Surface>
   );
 }
 
@@ -112,25 +93,23 @@ function SummaryV1({
   const [selected, setSelected] = useState<PeriodIdV1>(available[0] ?? 'T1');
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
   const published = subjects.filter((subject) => subjectPeriodV1(subject, active));
+
   return (
-    <div className="pa-workspace-view pa-summary-view">
+    <div className="pa-workspace-view">
       {profile}
-      <section className="pa-summary-section" aria-labelledby="pa-summary-grades-title">
+      <section aria-labelledby="pa-summary-title">
         <div className="pa-workspace-heading-row">
           <div>
             <p className="pa-workspace-eyebrow">Notas publicadas</p>
-            <h2 id="pa-summary-grades-title">Minhas notas</h2>
+            <h2 id="pa-summary-title">Minhas notas</h2>
           </div>
-          <Chip size="sm" variant="soft" color="accent">
+          <Chip size="sm" color="accent" variant="soft">
             {published.length} {published.length === 1 ? 'disciplina' : 'disciplinas'}
           </Chip>
         </div>
+
         {available.length ? (
-          <Tabs
-            className="pa-period-tabs"
-            selectedKey={active}
-            onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}
-          >
+          <Tabs selectedKey={active} onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}>
             <Tabs.ListContainer>
               <Tabs.List aria-label="Período das notas">
                 {available.map((period) => (
@@ -143,29 +122,31 @@ function SummaryV1({
             </Tabs.ListContainer>
           </Tabs>
         ) : null}
-        <div className="pa-subject-card-list">
-          {published.map((subject, index) => {
+
+        <ListBox
+          aria-label="Disciplinas publicadas"
+          selectionMode="none"
+          onAction={(key) => onOpenSubject(Number(key))}
+          className="pa-workspace-list"
+        >
+          {published.map((subject) => {
             const period = subjectPeriodV1(subject, active);
             return (
-              <Button
+              <ListBox.Item
+                id={String(subject.subjectId)}
                 key={subject.subjectId}
-                variant="ghost"
-                className="pa-subject-card-action"
-                onPress={() => onOpenSubject(subject.subjectId)}
+                textValue={subject.label}
               >
-                <SubjectGlyphV1 index={index} />
-                <span className="pa-subject-card-copy">
-                  <strong>{subject.label}</strong>
-                  <span>{PERIOD_LABELS_V1[active]}</span>
-                </span>
-                <span className="pa-subject-card-grade">
-                  <StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} />
-                </span>
-                <ChevronRight size={17} aria-hidden="true" />
-              </Button>
+                <BookOpenCheck size={18} aria-hidden="true" />
+                <div className="pa-workspace-list-copy">
+                  <Label>{subject.label}</Label>
+                  <Description>{PERIOD_LABELS_V1[active]}</Description>
+                </div>
+                <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
+              </ListBox.Item>
             );
           })}
-        </div>
+        </ListBox>
       </section>
     </div>
   );
@@ -187,29 +168,25 @@ function ReportV1({
     );
   }, [data.subjects, query]);
   const filtered = useMemo(() => ({ ...data, subjects: visible }), [data, visible]);
+
   return (
     <div className="pa-workspace-view">
-      <section className="pa-view-hero" aria-labelledby="pa-report-title">
-        <span className="pa-view-icon" aria-hidden="true"><GraduationCap size={22} /></span>
-        <div>
-          <p className="pa-workspace-eyebrow">Ano letivo {data.profile.link.academicYear}</p>
-          <h2 id="pa-report-title">Boletim</h2>
-        </div>
-      </section>
-      <div className="pa-report-search">
-        <Search size={17} aria-hidden="true" />
-        <Input
-          aria-label="Buscar disciplina"
-          type="search"
-          placeholder="Buscar disciplina..."
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
-      </div>
+      <PageIntroV1
+        icon={<GraduationCap size={22} />}
+        eyebrow={'Ano letivo ' + data.profile.link.academicYear}
+        title="Boletim"
+      />
+      <SearchField fullWidth value={query} onChange={setQuery} aria-label="Buscar disciplina">
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder="Buscar disciplina..." />
+          <SearchField.ClearButton />
+        </SearchField.Group>
+      </SearchField>
       {visible.length ? (
         grades(filtered)
       ) : (
-        <Card className="pa-search-empty">
+        <Card>
           <Card.Content>Nenhuma disciplina corresponde à busca.</Card.Content>
         </Card>
       )}
@@ -219,8 +196,8 @@ function ReportV1({
 
 function SubjectV1View({
   subject,
-  onSubjectChange,
   subjects,
+  onSubjectChange,
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
@@ -231,35 +208,29 @@ function SubjectV1View({
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
-  const result = subject.officialOutcome
-    ? { approved: 'Aprovado', failed: 'Reprovado', 'failed-attendance': 'Reprovado por frequência' }[subject.officialOutcome]
-    : 'Em curso';
+  const result = subject.officialOutcome ? resultLabels[subject.officialOutcome] : 'Em curso';
+
   return (
     <div className="pa-workspace-view">
-      <section className="pa-subject-hero" aria-labelledby="pa-subject-title">
-        <div className="pa-subject-hero-icon" aria-hidden="true"><BookOpenCheck size={24} /></div>
-        <div className="pa-subject-hero-copy">
-          <p className="pa-workspace-eyebrow">Disciplina</p>
-          <h2 id="pa-subject-title">{subject.label}</h2>
-        </div>
-        <div className="pa-subject-switcher" aria-label="Trocar disciplina">
-          {subjects.slice(0, 6).map((item) => (
-            <Button
-              size="sm"
-              variant={item.subjectId === subject.subjectId ? 'secondary' : 'ghost'}
-              key={item.subjectId}
-              onPress={() => onSubjectChange(item.subjectId)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </section>
+      <PageIntroV1 icon={<BookOpenCheck size={22} />} eyebrow="Disciplina" title={subject.label} />
+
       <Tabs
-        className="pa-period-tabs pa-subject-period-tabs"
-        selectedKey={active}
-        onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}
+        selectedKey={String(subject.subjectId)}
+        onSelectionChange={(key) => onSubjectChange(Number(key))}
       >
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="Trocar disciplina">
+            {subjects.map((item) => (
+              <Tabs.Tab id={String(item.subjectId)} key={item.subjectId}>
+                {item.label}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Tabs>
+
+      <Tabs selectedKey={active} onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}>
         <Tabs.ListContainer>
           <Tabs.List aria-label={'Períodos de ' + subject.label}>
             {available.map((item) => (
@@ -271,23 +242,33 @@ function SubjectV1View({
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id={active}>
-          <div className="pa-subject-grid">
-            <Card className="pa-score-card">
-              <Card.Content>
-                <GradeRingV1 mark={mark} />
-                <div className="pa-score-card-copy">
-                  <p>Nota do período</p>
-                  <Chip
-                    size="sm"
-                    variant="soft"
-                    color={
-                      mark?.meetsMinimum === true
-                        ? 'success'
-                        : mark?.meetsMinimum === false
-                          ? 'danger'
-                          : 'default'
-                    }
-                  >
+          <div className="pa-workspace-grid">
+            <Card variant="secondary">
+              <Card.Header>
+                <Card.Title>Nota do período</Card.Title>
+                <Card.Description>{PERIOD_LABELS_V1[active]}</Card.Description>
+              </Card.Header>
+              <Card.Content className="pa-progress-card-content">
+                <ProgressCircle
+                  aria-label="Progresso da nota do período"
+                  value={mark?.value ?? 0}
+                  maxValue={progressMaxV1(mark)}
+                  size="lg"
+                  color={progressColorV1(mark)}
+                >
+                  <ProgressCircle.Track>
+                    <ProgressCircle.TrackCircle />
+                    <ProgressCircle.FillCircle />
+                  </ProgressCircle.Track>
+                </ProgressCircle>
+                <div>
+                  <strong className="pa-published-score">
+                    {mark ? number.format(mark.value) : '—'}
+                  </strong>
+                  {mark?.maximum !== null && mark?.maximum !== undefined ? (
+                    <Description>de {number.format(mark.maximum)}</Description>
+                  ) : null}
+                  <Chip size="sm" variant="soft" color={progressColorV1(mark)}>
                     {mark?.meetsMinimum === true
                       ? 'Atinge o mínimo'
                       : mark?.meetsMinimum === false
@@ -297,103 +278,50 @@ function SubjectV1View({
                 </div>
               </Card.Content>
             </Card>
-            <Card className="pa-detail-card">
+
+            <Card>
               <Card.Header>
                 <Card.Title>Avaliações publicadas</Card.Title>
               </Card.Header>
               <Card.Content>
                 {period?.partials?.length ? (
-                  <div className="pa-assessment-list">
+                  <ListBox aria-label="Avaliações publicadas" selectionMode="none">
                     {period.partials.map((partial) => (
-                      <div className="pa-assessment-row" key={partial.assessmentId}>
-                        <span>{partial.label}</span>
+                      <ListBox.Item
+                        id={String(partial.assessmentId)}
+                        key={partial.assessmentId}
+                        textValue={partial.label}
+                      >
+                        <div className="pa-workspace-list-copy">
+                          <Label>{partial.label}</Label>
+                          <Description>{partial.notDone ? 'Não fez' : 'Nota publicada'}</Description>
+                        </div>
                         <strong>
-                          {partial.notDone ? 'Não fez' : <StudentMarkV1 mark={partial.mark} showMaximum />}
+                          {partial.notDone ? '—' : <StudentMarkV1 mark={partial.mark} showMaximum />}
                         </strong>
-                      </div>
+                      </ListBox.Item>
                     ))}
-                  </div>
+                  </ListBox>
                 ) : (
-                  <p className="pa-detail-empty">Não há avaliações parciais publicadas neste período.</p>
+                  <Description>Não há avaliações parciais publicadas neste período.</Description>
                 )}
-                <div className="pa-period-summary">
-                  <span>Nota do período</span>
-                  <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
-                </div>
               </Card.Content>
+              <Card.Footer className="pa-card-footer-between">
+                <span>Nota do período</span>
+                <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
+              </Card.Footer>
             </Card>
           </div>
         </Tabs.Panel>
       </Tabs>
-      <Card className="pa-outcome-card">
-        <Card.Content>
+
+      <Card variant="secondary">
+        <Card.Content className="pa-card-footer-between">
           <span>Resultado oficial</span>
           <strong>{result}</strong>
         </Card.Content>
       </Card>
     </div>
-  );
-}
-
-function EvolutionChartV1({ subject }: { subject: SubjectV1 }) {
-  const points = MAIN_PERIODS_V1.flatMap((period) => {
-    const source = subjectPeriodV1(subject, period);
-    const mark = scoreOfV1(source);
-    if (!mark) return [];
-    return [{ period, mark }];
-  });
-  if (points.length === 0)
-    return (
-      <Card className="pa-search-empty">
-        <Card.Content>Não há notas numéricas publicadas para esta disciplina.</Card.Content>
-      </Card>
-    );
-  const ratios = points.map(({ mark }) => safeRatioV1(mark));
-  const fallbackMax = Math.max(...points.map(({ mark }) => mark.value), 1);
-  const coords = points.map(({ mark }, index) => {
-    const ratio = ratios[index] ?? Math.max(0, Math.min(1, mark.value / fallbackMax));
-    const x = points.length === 1 ? 160 : 36 + index * (248 / (points.length - 1));
-    const y = 122 - ratio * 82;
-    return { x, y, mark };
-  });
-  const path = coords.map((point) => point.x + ',' + point.y).join(' ');
-  return (
-    <Card className="pa-evolution-card">
-      <Card.Header>
-        <div>
-          <Card.Title>Evolução das notas</Card.Title>
-          <Card.Description>Somente períodos publicados</Card.Description>
-        </div>
-      </Card.Header>
-      <Card.Content>
-        <svg className="pa-evolution-chart" viewBox="0 0 320 150" role="img" aria-label={'Evolução de ' + subject.label}>
-          <line x1="36" y1="122" x2="284" y2="122" className="pa-chart-axis" />
-          <line x1="36" y1="81" x2="284" y2="81" className="pa-chart-grid" />
-          <line x1="36" y1="40" x2="284" y2="40" className="pa-chart-grid" />
-          <polyline points={path} className="pa-chart-line" />
-          {coords.map((point, index) => (
-            <g key={points[index]!.period}>
-              <circle cx={point.x} cy={point.y} r="5" className="pa-chart-point" />
-              <text x={point.x} y={point.y - 12} textAnchor="middle" className="pa-chart-value">
-                {markNumber.format(point.mark.value)}
-              </text>
-              <text x={point.x} y="143" textAnchor="middle" className="pa-chart-label">
-                {PERIOD_LABELS_V1[points[index]!.period]}
-              </text>
-            </g>
-          ))}
-        </svg>
-        <div className="pa-evolution-metrics">
-          {points.map(({ period, mark }) => (
-            <div className="pa-evolution-metric" key={period}>
-              <span>{PERIOD_LABELS_V1[period]}</span>
-              <strong>{markNumber.format(mark.value)}</strong>
-              {mark.maximum !== null ? <small>de {markNumber.format(mark.maximum)}</small> : null}
-            </div>
-          ))}
-        </div>
-      </Card.Content>
-    </Card>
   );
 }
 
@@ -408,17 +336,17 @@ function EvolutionV1({
 }) {
   const subject = subjects.find((item) => item.subjectId === selectedSubjectId) ?? subjects[0];
   if (!subject) return null;
+  const points = MAIN_PERIODS_V1.flatMap((period) => {
+    const source = subjectPeriodV1(subject, period);
+    const mark = scoreOfV1(source);
+    return mark ? [{ period, mark }] : [];
+  });
+
   return (
     <div className="pa-workspace-view">
-      <section className="pa-view-hero" aria-labelledby="pa-evolution-title">
-        <span className="pa-view-icon" aria-hidden="true"><BarChart3 size={22} /></span>
-        <div>
-          <p className="pa-workspace-eyebrow">Histórico publicado</p>
-          <h2 id="pa-evolution-title">Evolução</h2>
-        </div>
-      </section>
+      <PageIntroV1 icon={<BarChart3 size={22} />} eyebrow="Histórico publicado" title="Evolução" />
+
       <Tabs
-        className="pa-subject-tabs"
         selectedKey={String(subject.subjectId)}
         onSelectionChange={(key) => onSubjectChange(Number(key))}
       >
@@ -433,7 +361,36 @@ function EvolutionV1({
           </Tabs.List>
         </Tabs.ListContainer>
       </Tabs>
-      <EvolutionChartV1 subject={subject} />
+
+      <Card>
+        <Card.Header>
+          <Card.Title>{subject.label}</Card.Title>
+          <Card.Description>Notas numéricas publicadas por trimestre</Card.Description>
+        </Card.Header>
+        <Card.Content className="pa-evolution-bars">
+          {points.length ? (
+            points.map(({ period, mark }) => (
+              <ProgressBar
+                key={period}
+                aria-label={PERIOD_LABELS_V1[period] + ': ' + number.format(mark.value)}
+                value={mark.value}
+                maxValue={progressMaxV1(mark)}
+                color={progressColorV1(mark)}
+              >
+                <div className="pa-progress-label-row">
+                  <Label>{PERIOD_LABELS_V1[period]}</Label>
+                  <ProgressBar.Output />
+                </div>
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
+            ))
+          ) : (
+            <Description>Não há notas numéricas publicadas para esta disciplina.</Description>
+          )}
+        </Card.Content>
+      </Card>
     </div>
   );
 }
@@ -464,30 +421,32 @@ export function StudentPortalWorkspaceV1({
       selectedKey={area}
       onSelectionChange={(key) => setArea(String(key) as WorkspaceAreaV1)}
     >
-      <Tabs.ListContainer className="pa-workspace-nav-shell">
-        <Tabs.List aria-label="Áreas do Portal do Aluno" className="pa-workspace-nav">
-          <Tabs.Tab id="summary">
-            <LayoutDashboard size={18} aria-hidden="true" />
-            <span>Resumo</span>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id="report">
-            <GraduationCap size={18} aria-hidden="true" />
-            <span>Boletim</span>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id="subject" isDisabled={!selectedSubject}>
-            <BookOpenCheck size={18} aria-hidden="true" />
-            <span>Disciplina</span>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-          <Tabs.Tab id="evolution" isDisabled={!selectedSubject}>
-            <BarChart3 size={18} aria-hidden="true" />
-            <span>Evolução</span>
-            <Tabs.Indicator />
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs.ListContainer>
+      <Surface variant="default" className="pa-workspace-nav-surface">
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="Áreas do Portal do Aluno">
+            <Tabs.Tab id="summary">
+              <LayoutDashboard size={17} aria-hidden="true" />
+              Resumo
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="report">
+              <GraduationCap size={17} aria-hidden="true" />
+              Boletim
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="subject" isDisabled={!selectedSubject}>
+              <BookOpenCheck size={17} aria-hidden="true" />
+              Disciplina
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="evolution" isDisabled={!selectedSubject}>
+              <BarChart3 size={17} aria-hidden="true" />
+              Evolução
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Surface>
 
       <Tabs.Panel id="summary">
         <SummaryV1 data={data} profile={profile} onOpenSubject={openSubject} />
@@ -511,11 +470,6 @@ export function StudentPortalWorkspaceV1({
           onSubjectChange={setSelectedSubjectId}
         />
       </Tabs.Panel>
-
-      <div className="pa-workspace-footnote" aria-hidden="true">
-        <Sparkles size={15} />
-        <span>Dados publicados pelo Banco de Notas</span>
-      </div>
     </Tabs>
   );
 }
