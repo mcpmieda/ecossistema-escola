@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../string-order-v1';
 import type {
   AcademicYearId,
   ClassGroupId,
@@ -319,8 +320,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort((left, right) => left.localeCompare(right, 'en'));
-  const expected = [...keys].sort((left, right) => left.localeCompare(right, 'en'));
+  const actual = Object.keys(value).sort(compareCanonicalStringsV1);
+  const expected = [...keys].sort(compareCanonicalStringsV1);
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 }
 
