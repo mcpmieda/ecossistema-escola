@@ -140,7 +140,7 @@ async function validateCatalog(): Promise<void> {
 
   const tableRows = await sql.unsafe("SELECT tablename FROM pg_tables WHERE schemaname='gradebook' ORDER BY tablename");
   const actualTables = tableRows.map((row) => String(row.tablename));
-  if (JSON.stringify(actualTables) !== JSON.stringify([...expectedTables].sort())) {
+  if (JSON.stringify(actualTables) !== JSON.stringify([...expectedTables].sort((left, right) => left.localeCompare(right, 'en')))) {
     throw new Error('gradebook-ci-postgres-table-set-mismatch');
   }
 
