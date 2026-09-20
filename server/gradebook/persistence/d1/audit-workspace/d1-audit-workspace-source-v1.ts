@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../../../../../shared/gradebook-contracts/string-order-v1';
 import type {
   AuditWorkspaceCursorV1,
   AuditWorkspaceFiltersV1,
@@ -103,16 +104,16 @@ function canonicalFilters(filters: AuditWorkspaceFiltersV1): unknown {
   return {
     importBatchId: filters.importBatchId ?? null,
     importBatchStatuses:
-      filters.importBatchStatuses === undefined ? null : [...filters.importBatchStatuses].sort((left, right) => left.localeCompare(right, 'en')),
+      filters.importBatchStatuses === undefined ? null : [...filters.importBatchStatuses].sort(compareCanonicalStringsV1),
     occurrenceStates:
-      filters.occurrenceStates === undefined ? null : [...filters.occurrenceStates].sort((left, right) => left.localeCompare(right, 'en')),
-    severities: filters.severities === undefined ? null : [...filters.severities].sort((left, right) => left.localeCompare(right, 'en')),
-    categories: filters.categories === undefined ? null : [...filters.categories].sort((left, right) => left.localeCompare(right, 'en')),
-    recordTypes: filters.recordTypes === undefined ? null : [...filters.recordTypes].sort((left, right) => left.localeCompare(right, 'en')),
+      filters.occurrenceStates === undefined ? null : [...filters.occurrenceStates].sort(compareCanonicalStringsV1),
+    severities: filters.severities === undefined ? null : [...filters.severities].sort(compareCanonicalStringsV1),
+    categories: filters.categories === undefined ? null : [...filters.categories].sort(compareCanonicalStringsV1),
+    recordTypes: filters.recordTypes === undefined ? null : [...filters.recordTypes].sort(compareCanonicalStringsV1),
     reconciliationStatuses:
       filters.reconciliationStatuses === undefined
         ? null
-        : [...filters.reconciliationStatuses].sort((left, right) => left.localeCompare(right, 'en')),
+        : [...filters.reconciliationStatuses].sort(compareCanonicalStringsV1),
     period: filters.period ?? null,
   };
 }
