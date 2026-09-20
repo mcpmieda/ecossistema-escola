@@ -252,6 +252,7 @@ export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'm
 export interface StudentPagePropsV1 extends Omit<StudentShellPropsV1, 'children' | 'busy'> {
   load: StudentPageStateV1;
   grades: (data: SelfResponseV1) => ReactNode;
+  status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
   showUpdatedAt?: boolean;
@@ -261,6 +262,7 @@ export interface StudentPagePropsV1 extends Omit<StudentShellPropsV1, 'children'
 export function StudentPortalPageV1({
   load,
   grades,
+  status,
   onRetry,
   onLogin,
   showUpdatedAt = false,
@@ -281,32 +283,36 @@ export function StudentPortalPageV1({
       <StudentPortalMessageV1 kind={kind} onAction={kind === 'expired' ? onLogin : onRetry} />
     );
   } else if (load.state === 'ready')
-    content =
-      load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
-        <>
-          <StudentProfileV1
-            profile={load.data.profile}
-            updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
-          />
-          <section className="pa-grades-section" aria-labelledby={gradesHeading}>
-            <h2 id={gradesHeading} className="pa-section-title">
-              Minhas notas
-            </h2>
-            <StudentPortalMessageV1 kind="empty" />
-          </section>
-        </>
-      ) : (
-        <StudentPortalWorkspaceV1
-          data={load.data}
-          profile={
+    content = (
+      <>
+        {status}
+        {load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
+          <>
             <StudentProfileV1
               profile={load.data.profile}
               updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
             />
-          }
-          grades={grades}
-        />
-      );
+            <section className="pa-grades-section" aria-labelledby={gradesHeading}>
+              <h2 id={gradesHeading} className="pa-section-title">
+                Minhas notas
+              </h2>
+              <StudentPortalMessageV1 kind="empty" />
+            </section>
+          </>
+        ) : (
+          <StudentPortalWorkspaceV1
+            data={load.data}
+            profile={
+              <StudentProfileV1
+                profile={load.data.profile}
+                updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
+              />
+            }
+            grades={grades}
+          />
+        )}
+      </>
+    );
   return (
     <StudentPortalShellV1 {...shell} busy={load.state === 'idle' || load.state === 'loading'}>
       {content}
