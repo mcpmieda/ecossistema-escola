@@ -59,11 +59,11 @@ export function StudentPortalAdminPage({
   const auth = usePortalAdminIdentityV1(fetcher);
   const unauthenticated = auth.state.state === 'error' && auth.state.error.state === 'unauthenticated';
   useEffect(() => { if (unauthenticated) onLogin(); }, [unauthenticated, onLogin]);
-  if (unauthenticated) return <output>Abrindo entrada institucional…</output>;
+  if (unauthenticated) return <p role="status">Abrindo entrada institucional…</p>;
   if (auth.state.state !== 'ready') return (
     <section className="pa-admin-page">
       <h1>Painel do Aluno</h1>
-      {auth.state.state === 'checking' ? <output>Verificando sessão administrativa…</output> : (
+      {auth.state.state === 'checking' ? <p role="status">Verificando sessão administrativa…</p> : (
         <Alert status="warning"><Alert.Content>
           <Alert.Title>{auth.state.state === 'paused' ? 'Consulta pausada' : 'Acesso administrativo indisponível'}</Alert.Title>
           <Alert.Description>Confirme sua sessão para consultar o Portal de 2026.</Alert.Description>
@@ -202,7 +202,7 @@ function PortalWorkspace({ identity, onLost, fetcher }: {
               }}>
               {classRead.state.state === 'error' ? <AccountsErrorV1 error={classRead.state.error}
                 canReload={classRead.canReload} onReload={classRead.reload} /> : null}
-              {!common.canWrite && <output className="block text-xs text-muted">Somente leitura</output>}
+              {!common.canWrite && <p role="status" className="text-xs text-muted">Somente leitura</p>}
               {sectionScope && <Button size="sm" variant="secondary"
                 onPress={() => { if (allowDraftNavigationV1()) setSectionScope(null); }}>
                 {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
