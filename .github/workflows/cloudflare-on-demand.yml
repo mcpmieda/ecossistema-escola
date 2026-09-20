@@ -1,0 +1,196 @@
+name: Cloudflare read-only operator
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/cloudflare-on-demand.yml'
+      - 'scripts/cloudflare-operator-v1.ts'
+      - 'tests/cloudflare-operator-v1.test.ts'
+      - 'docs/infra/CLOUDFLARE_OPERATOR.md'
+      - 'docs/infra/AUTOMATION_CREDENTIAL_INVENTORY.md'
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Owner-authored issue that should receive the sanitized capability report.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && github.event.comment.body == '/cloudflare')) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  validate-definition:
+    name: Validate Cloudflare operator definition
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run focused operator tests
+        run: npx vitest run tests/cloudflare-operator-v1.test.ts
+
+  probe:
+    name: Probe existing Cloudflare credentials
+    if: >-
+      github.actor == github.repository_owner &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issue_comment' && github.event.comment.body == '/cloudflare')
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Resolve request
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ISSUE: ${{ github.event.issue.number }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            [ "$COMMENT_BODY" = "/cloudflare" ] || { echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; }
+            issue="$COMMENT_ISSUE"
+          else
+            issue="$INPUT_ISSUE"
+          fi
+          [[ "$issue" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid issue number"; exit 1; }
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "issue=$issue" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted main
+        if: steps.request.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate owner-authored issue
+        if: steps.request.outputs.run == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}" > "$RUNNER_TEMP/cloudflare-issue.json"
+          jq -e --arg owner "$OWNER" \
+            '.pull_request == null and .user.login == $owner' \
+            "$RUNNER_TEMP/cloudflare-issue.json" >/dev/null
+
+      - name: Probe deploy credential without mutation
+        if: steps.request.outputs.run == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --token-kind deploy
+          --output "$RUNNER_TEMP/cloudflare-deploy.json"
+
+      - name: Probe Hyperdrive credential without mutation
+        if: steps.request.outputs.run == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          node --experimental-strip-types scripts/cloudflare-operator-v1.ts
+          --token-kind hyperdrive
+          --output "$RUNNER_TEMP/cloudflare-hyperdrive.json"
+
+      - name: Render sanitized capability matrix
+        if: steps.request.outputs.run == 'true'
+        shell: bash
+        env:
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const root = process.env.RUNNER_TEMP;
+          const deploy = JSON.parse(await readFile(`${root}/cloudflare-deploy.json`, 'utf8'));
+          const hyperdrive = JSON.parse(await readFile(`${root}/cloudflare-hyperdrive.json`, 'utf8'));
+          const byId = (result) => new Map(result.capabilities.map((item) => [item.id, item]));
+          const left = byId(deploy);
+          const right = byId(hyperdrive);
+          const ids = [
+            'workers.scripts.read',
+            'pages.projects.read',
+            'hyperdrive.configs.read',
+            'zones.read',
+            'analytics.workers.read',
+          ];
+          const labels = {
+            'workers.scripts.read': 'Workers scripts',
+            'pages.projects.read': 'Pages projects',
+            'hyperdrive.configs.read': 'Hyperdrive configs',
+            'zones.read': 'Zones',
+            'analytics.workers.read': 'Workers analytics',
+          };
+          const lines = [
+            '### Cloudflare — capability probe read-only',
+            '',
+            '| Capacidade | CLOUDFLARE_DEPLOY_TOKEN | CLOUDFLARE_HYPERDRIVE_TOKEN |',
+            '| --- | --- | --- |',
+          ];
+          for (const id of ids) {
+            lines.push(`| ${labels[id]} | ${left.get(id)?.state ?? 'inconclusive'} | ${right.get(id)?.state ?? 'inconclusive'} |`);
+          }
+          lines.push(
+            '',
+            '`accessible` = a credencial atual já consegue consultar essa superfície.',
+            '`permission-required` = a API respondeu 401/403; não houve tentativa de ampliar permissão.',
+            '`inconclusive` = a chamada respondeu, mas não comprovou a capacidade; não justifica criar token novo.',
+            '`unavailable` = indisponibilidade, limite ou falha de transporte; não justifica criar token novo.',
+            '',
+            'Nenhuma operação mutável foi executada. Nenhuma resposta bruta, token, header de autorização ou origem do Hyperdrive é incluída neste relatório.',
+            '',
+            `Workflow: ${process.env.RUN_URL}`,
+          );
+          await writeFile(`${root}/cloudflare-comment.md`, `${lines.join('\n')}\n`, 'utf8');
+          NODE
+
+      - name: Publish sanitized result
+        if: steps.request.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+        run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/cloudflare-comment.md"
+
+      - name: Report fail-closed execution
+        if: failure() && steps.request.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+        run: >-
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body
+          "O probe Cloudflare falhou fechado. Nenhuma operação mutável foi executada e nenhuma credencial foi alterada. Workflow run ${GITHUB_RUN_ID}."
