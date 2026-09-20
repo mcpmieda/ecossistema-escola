@@ -592,7 +592,7 @@ class GradebookD1WriterV1 {
       );
 
       if (logicalSource.state === 'candidate') {
-        for (const logicalSourceId of [...logicalSource.candidateLogicalSourceIds].sort()) {
+        for (const logicalSourceId of [...logicalSource.candidateLogicalSourceIds].sort((left, right) => left.localeCompare(right, 'en'))) {
           changes(
             await this.database
               .prepare(
