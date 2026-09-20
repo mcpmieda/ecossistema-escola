@@ -272,7 +272,9 @@ async function assertPortalCoordinationAclV1(): Promise<number> {
 
 async function readGradebookDefaultAclV1(): Promise<{
   readonly broadDefaultTablePrivileges: boolean;
+  readonly broadDefaultSequencePrivileges: boolean;
   readonly broadDefaultFunctionPrivileges: boolean;
+  readonly publicDefaultFunctionExecute: boolean;
 }> {
   const defaults = await firstRow(`
     SELECT
@@ -285,8 +287,19 @@ async function readGradebookDefaultAclV1(): Promise<{
         WHERE n.nspname='gradebook'
           AND r.rolname='gradebook_app'
           AND d.defaclobjtype='r'
-          AND a.privilege_type IN ('INSERT','UPDATE','DELETE')
+          AND a.privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')
       ) AS broad_table_defaults,
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_default_acl d
+        CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+        JOIN pg_catalog.pg_roles r ON r.oid=a.grantee
+        JOIN pg_catalog.pg_namespace n ON n.oid=d.defaclnamespace
+        WHERE n.nspname='gradebook'
+          AND r.rolname='gradebook_app'
+          AND d.defaclobjtype='S'
+          AND a.privilege_type IN ('USAGE','SELECT','UPDATE')
+      ) AS broad_sequence_defaults,
       EXISTS (
         SELECT 1
         FROM pg_catalog.pg_default_acl d
@@ -297,12 +310,102 @@ async function readGradebookDefaultAclV1(): Promise<{
           AND r.rolname='gradebook_app'
           AND d.defaclobjtype='f'
           AND a.privilege_type='EXECUTE'
-      ) AS broad_function_defaults
+      ) AS broad_function_defaults,
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_default_acl d
+        CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+        JOIN pg_catalog.pg_roles owner_role ON owner_role.oid=d.defaclrole
+        WHERE d.defaclnamespace=0
+          AND owner_role.rolname=current_user
+          AND a.grantee=0
+          AND d.defaclobjtype='f'
+          AND a.privilege_type='EXECUTE'
+      ) AS public_function_execute
   `);
   return {
     broadDefaultTablePrivileges: booleanField(defaults, 'broad_table_defaults'),
+    broadDefaultSequencePrivileges: booleanField(defaults, 'broad_sequence_defaults'),
     broadDefaultFunctionPrivileges: booleanField(defaults, 'broad_function_defaults'),
+    publicDefaultFunctionExecute: booleanField(defaults, 'public_function_execute'),
   };
+}
+
+function assertGradebookDefaultAclHardenedV1(defaults: {
+  readonly broadDefaultTablePrivileges: boolean;
+  readonly broadDefaultSequencePrivileges: boolean;
+  readonly broadDefaultFunctionPrivileges: boolean;
+  readonly publicDefaultFunctionExecute: boolean;
+}): void {
+  if (
+    defaults.broadDefaultTablePrivileges ||
+    defaults.broadDefaultSequencePrivileges ||
+    defaults.broadDefaultFunctionPrivileges ||
+    defaults.publicDefaultFunctionExecute
+  ) {
+    throw new Error(`gradebook-ci-acl-defaults-not-hardened:${JSON.stringify(defaults)}`);
+  }
+}
+
+async function assertFutureGradebookObjectAclV1(): Promise<void> {
+  await sql.unsafe(`
+    CREATE TABLE gradebook.__bn_acl_probe_table_v1 (id integer);
+    CREATE SEQUENCE gradebook.__bn_acl_probe_sequence_v1;
+    CREATE FUNCTION gradebook.__bn_acl_probe_function_v1()
+      RETURNS integer
+      LANGUAGE sql
+      SET search_path TO 'pg_catalog'
+      AS 'SELECT 1';
+  `);
+  try {
+    const probe = await firstRow(`
+      SELECT
+        (
+          has_table_privilege('gradebook_app','gradebook.__bn_acl_probe_table_v1','SELECT')
+          OR has_table_privilege('gradebook_app','gradebook.__bn_acl_probe_table_v1','INSERT')
+          OR has_table_privilege('gradebook_app','gradebook.__bn_acl_probe_table_v1','UPDATE')
+          OR has_table_privilege('gradebook_app','gradebook.__bn_acl_probe_table_v1','DELETE')
+        ) AS app_table_any,
+        (
+          has_sequence_privilege('gradebook_app','gradebook.__bn_acl_probe_sequence_v1','USAGE')
+          OR has_sequence_privilege('gradebook_app','gradebook.__bn_acl_probe_sequence_v1','SELECT')
+          OR has_sequence_privilege('gradebook_app','gradebook.__bn_acl_probe_sequence_v1','UPDATE')
+        ) AS app_sequence_any,
+        has_function_privilege(
+          'gradebook_app',
+          'gradebook.__bn_acl_probe_function_v1()',
+          'EXECUTE'
+        ) AS app_function_execute,
+        has_function_privilege(
+          'anon',
+          'gradebook.__bn_acl_probe_function_v1()',
+          'EXECUTE'
+        ) AS anon_function_execute,
+        has_function_privilege(
+          'authenticated',
+          'gradebook.__bn_acl_probe_function_v1()',
+          'EXECUTE'
+        ) AS authenticated_function_execute
+    `);
+    const inherited = {
+      appTable: booleanField(probe, 'app_table_any'),
+      appSequence: booleanField(probe, 'app_sequence_any'),
+      appFunction: booleanField(probe, 'app_function_execute'),
+      anonFunction: booleanField(probe, 'anon_function_execute'),
+      authenticatedFunction: booleanField(probe, 'authenticated_function_execute'),
+    };
+    if (Object.values(inherited).some(Boolean)) {
+      throw new Error(
+        `gradebook-ci-acl-future-object-inherited-privilege:${JSON.stringify(inherited)}`,
+      );
+    }
+  } finally {
+    await sql.unsafe(`
+      DROP FUNCTION gradebook.__bn_acl_probe_function_v1();
+      DROP TABLE gradebook.__bn_acl_probe_table_v1;
+      DROP SEQUENCE gradebook.__bn_acl_probe_sequence_v1;
+    `);
+  }
 }
 
 async function assertCurrentGradebookAclV1(): Promise<{
@@ -311,7 +414,9 @@ async function assertCurrentGradebookAclV1(): Promise<{
   readonly functions: number;
   readonly portalCoordinationFunctions: number;
   readonly broadDefaultTablePrivileges: boolean;
+  readonly broadDefaultSequencePrivileges: boolean;
   readonly broadDefaultFunctionPrivileges: boolean;
+  readonly publicDefaultFunctionExecute: boolean;
 }> {
   await assertGradebookSchemaAclV1();
   const [tables, sequences, functions, portalCoordinationFunctions, defaults] =
@@ -322,6 +427,7 @@ async function assertCurrentGradebookAclV1(): Promise<{
       assertPortalCoordinationAclV1(),
       readGradebookDefaultAclV1(),
     ]);
+  assertGradebookDefaultAclHardenedV1(defaults);
   return {
     tables,
     sequences,
@@ -387,6 +493,7 @@ async function run(): Promise<void> {
     await seedSyntheticCurrentState();
     await installPortalCoordination();
     const acl = await assertCurrentGradebookAclV1();
+    await assertFutureGradebookObjectAclV1();
     process.stdout.write(JSON.stringify({
       state: 'ready',
       database: 'gradebook_recovery_ci',
@@ -396,6 +503,7 @@ async function run(): Promise<void> {
       syntheticOnly: true,
       portalCoordinationMigrations: 6,
       acl,
+      futureDefaultAclHardened: true,
     }) + '\n');
   } finally {
     await sql.end({ timeout: 2 });

@@ -16,7 +16,7 @@ describe('current canonical project state', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
     const latest = latestMigration('migrations/gradebook-simplified');
 
-    expect(latest).toBe('0012_current_state_cleanup_v1.sql');
+    expect(latest).toBe('0013_default_privileges_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
     expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
   });

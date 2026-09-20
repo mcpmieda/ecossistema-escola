@@ -34,10 +34,10 @@ storage:
   diagnostic_treatment_table_count: 1
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
-  latest_gradebook_migration: current_state_cleanup_v1
-  latest_gradebook_migration_file: 0012_current_state_cleanup_v1.sql
-  latest_gradebook_migration_production_version: 20260918163014
-  latest_gradebook_migration_production_evidence: issue-863-postflight
+  latest_gradebook_migration: default_privileges_hardening_v1
+  latest_gradebook_migration_file: 0013_default_privileges_hardening_v1.sql
+  latest_gradebook_migration_production_version: 20260920162250
+  latest_gradebook_migration_production_evidence: issue-1036-postflight
   latest_gradebook_migration_status: applied-and-postflight-verified
   legacy_streams_versions_are_current_schema: false
 runtime:
