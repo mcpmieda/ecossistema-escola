@@ -1,6 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { liveServerMessageV1 } from '../../../shared/student-portal-contracts/live-v1';
 import { notifyLiveChangeV1 } from './live-refresh-v1';
+import { secureJitterV1 } from './secure-jitter-v1';
 
 export type RemoteLiveStateV1 = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'unsupported';
 
@@ -38,7 +39,7 @@ export function useRemoteLiveV1(options: {
       if (disposed || denied) return;
       clearTimeout(retry);
       setState('reconnecting');
-      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt++, 5)) + Math.floor(Math.random() * 500);
+      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt++, 5)) + secureJitterV1(500);
       retryAt = Date.now() + delay;
       if (available()) retry = setTimeout(connect, delay);
     };
