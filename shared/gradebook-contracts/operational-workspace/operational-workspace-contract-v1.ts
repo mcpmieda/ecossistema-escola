@@ -1,3 +1,4 @@
+import { compareCanonicalStringsV1 } from '../string-order-v1';
 import type {
   AcademicYearId,
   ClassGroupId,
@@ -149,8 +150,8 @@ export const OPERATIONAL_WORKSPACE_CONTRACT_V1 = {
 } as const;
 
 function hasOwnKeys(value: object, expected: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const sortedExpected = [...expected].sort();
+  const actual = Object.keys(value).sort(compareCanonicalStringsV1);
+  const sortedExpected = [...expected].sort(compareCanonicalStringsV1);
   return (
     actual.length === sortedExpected.length &&
     actual.every((key, index) => key === sortedExpected[index])
