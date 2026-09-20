@@ -167,7 +167,7 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 
 function hasExactNames(actual: readonly string[], expected: readonly string[]): boolean {
   const left = [...actual].sort((left, right) => left.localeCompare(right, 'en'));
-  const right = [...expected].sort();
+  const right = [...expected].sort((left, right) => left.localeCompare(right, 'en'));
   return left.length === right.length && left.every((name, index) => name === right[index]);
 }
 
