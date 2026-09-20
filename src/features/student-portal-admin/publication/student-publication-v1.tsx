@@ -70,6 +70,57 @@ function publicationLoadErrorLabelV1(error: { state: string }) {
   if (error.state === 'forbidden') return 'Sem permissão para consultar este escopo.';
   return 'Consulta indisponível. Tente novamente.';
 }
+function PublicationActionsV1({
+  item,
+  scope,
+  disabled,
+  review,
+}: Readonly<{
+  item: PublicationItemV1;
+  scope: ScopeV1;
+  disabled: boolean;
+  review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
+}>) {
+  const hasData = item.state !== 'no-data' && item.availableRevision !== null;
+  const published = item.publishedRevision !== null;
+  return (
+    <Card.Footer className="pa-publication-actions">
+      {hasData && (!published || scope.kind !== 'account') ? (
+        <Button
+          size="sm"
+          variant={published ? 'secondary' : 'primary'}
+          isDisabled={disabled}
+          aria-label={`Publicar ${item.period}`}
+          onPress={() => review(item, 'publish')}
+        >
+          {published ? 'Publicar para todos' : 'Publicar'}
+        </Button>
+      ) : null}
+      {hasData && published && item.state === 'update-pending' ? (
+        <Button
+          size="sm"
+          isDisabled={disabled}
+          aria-label={`Publicar atualização de ${item.period}`}
+          onPress={() => review(item, 'publish-update')}
+        >
+          Publicar atualização
+        </Button>
+      ) : null}
+      {published ? (
+        <Button
+          size="sm"
+          variant="danger-soft"
+          isDisabled={disabled}
+          aria-label={`Retirar publicação de ${item.period}`}
+          onPress={() => review(item, 'unpublish')}
+        >
+          Retirar
+        </Button>
+      ) : null}
+    </Card.Footer>
+  );
+}
+
 function PublicationPeriodV1({
   item,
   data,
@@ -85,8 +136,7 @@ function PublicationPeriodV1({
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
 }>) {
-  const hasData = item.state !== 'no-data' && item.availableRevision !== null;
-  const published = item.publishedRevision !== null;
+  const disclosure = disclosureAtV1(data.settings, item.period);
   return (
     <Card className="pa-publication-card">
       <Card.Header>
@@ -106,10 +156,7 @@ function PublicationPeriodV1({
           <div>
             <dt>Liberar a partir de</dt>
             <dd>
-              {(() => {
-                const disclosure = disclosureAtV1(data.settings, item.period);
-                return disclosure ? dateLabel(disclosure) : 'Publicação manual';
-              })()}
+              {disclosure ? dateLabel(disclosure) : 'Publicação manual'}
             </dd>
           </div>
           <div>
@@ -127,40 +174,7 @@ function PublicationPeriodV1({
         </Tooltip>
       </Card.Content>
       {canWrite ? (
-        <Card.Footer className="pa-publication-actions">
-          {hasData && (!published || scope.kind !== 'account') ? (
-            <Button
-              size="sm"
-              variant={published ? 'secondary' : 'primary'}
-              isDisabled={disabled}
-              aria-label={`Publicar ${item.period}`}
-              onPress={() => review(item, 'publish')}
-            >
-              {published ? 'Publicar para todos' : 'Publicar'}
-            </Button>
-          ) : null}
-          {hasData && published && item.state === 'update-pending' ? (
-            <Button
-              size="sm"
-              isDisabled={disabled}
-              aria-label={`Publicar atualização de ${item.period}`}
-              onPress={() => review(item, 'publish-update')}
-            >
-              Publicar atualização
-            </Button>
-          ) : null}
-          {published ? (
-            <Button
-              size="sm"
-              variant="danger-soft"
-              isDisabled={disabled}
-              aria-label={`Retirar publicação de ${item.period}`}
-              onPress={() => review(item, 'unpublish')}
-            >
-              Retirar
-            </Button>
-          ) : null}
-        </Card.Footer>
+        <PublicationActionsV1 item={item} scope={scope} disabled={disabled} review={review} />
       ) : null}
     </Card>
   );
