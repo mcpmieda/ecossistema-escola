@@ -150,11 +150,13 @@ async function auditedDenied(
 }
 
 function sameVerifier(left: VerifierV1, right: VerifierV1): boolean {
+  const parameters = (value: VerifierV1) =>
+    Object.entries(value.parameters).sort(([a], [b]) => a.localeCompare(b));
   return left.algorithm === right.algorithm
     && left.salt === right.salt
     && left.pepperVersion === right.pepperVersion
     && left.digest === right.digest
-    && JSON.stringify(left.parameters) === JSON.stringify(right.parameters);
+    && JSON.stringify(parameters(left)) === JSON.stringify(parameters(right));
 }
 
 type QrIdentityV1 = ReturnType<typeof parseQrV1>;
