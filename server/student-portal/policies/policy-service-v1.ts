@@ -354,62 +354,64 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
   /** Composition can enqueue publication work on this same physical transaction before commit. */
   async mutateInTransaction(tx: StudentPortalPostgresQueryV1, actorId: string, input: unknown) {
     const actor = z.uuid().parse(actorId).toLowerCase();
-    const command = adminCommandV1.parse(input);
-    if (command.operation !== 'settings-set' && command.operation !== 'settings-inherit') throw new Error('student-portal-policy-command-invalid');
+    const command = settingsCommandV1(input);
     const scope = normalizedScope(command.scope);
-    if (command.operation === 'settings-inherit' && scope.kind === 'school') throw new Error('student-portal-school-cannot-inherit');
+    if (command.operation === 'settings-inherit' && scope.kind === 'school')
+      throw new Error('student-portal-school-cannot-inherit');
+
     await lockYear(tx);
-    const store = new StudentPortalPostgresPersistenceV1({ unsafe: (query, parameters) => tx.unsafe(query, parameters), begin: (operation) => operation(tx) });
+    const store = new StudentPortalPostgresPersistenceV1({
+      unsafe: (query, parameters) => tx.unsafe(query, parameters),
+      begin: (operation) => operation(tx),
+    });
     return store.transaction(async (persistence) => {
-      const clock = await tx.unsafe('SELECT statement_timestamp() AS now');
-      const nowRaw = clock[0]!.now;
-      const now = nowRaw instanceof Date ? nowRaw : new Date(z.string().parse(nowRaw));
+      const now = await statementNowV1(tx);
       const receiptActor = `policy:${actor}`;
       const requestDigest = await hash({ ...command, scope });
-      const existingReceipt = await persistence.readIdempotency(command.idempotencyKey, receiptActor);
-      if (existingReceipt && Date.parse(existingReceipt.expiresAt) > now.getTime()) {
-        if (existingReceipt.requestDigest !== requestDigest) throw new Error('student-portal-policy-idempotency-conflict');
-        return { operationId: existingReceipt.operationId, version: existingReceipt.version };
-      }
-      if (existingReceipt) await tx.unsafe('DELETE FROM student_portal.operation_receipt WHERE idempotency_key=$1 AND actor_id=$2', [command.idempotencyKey, receiptActor]);
+      const replay = await receiptReplayV1(
+        tx,
+        persistence,
+        command,
+        receiptActor,
+        requestDigest,
+        now,
+      );
+      if (replay) return replay;
+
       if (scope.kind === 'account') await persistence.lockAccounts([scope.accountId]);
       const before = await this.readSnapshotInTransaction(tx, scope);
-      if (before.settings.version !== command.expectedVersion) throw new Error('student-portal-policy-version-conflict');
-      const stored = await tx.unsafe('SELECT field_key,value_json,source_scope_json FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE', [key(scope)]);
+      if (before.settings.version !== command.expectedVersion)
+        throw new Error('student-portal-policy-version-conflict');
+
+      const stored = await tx.unsafe(
+        'SELECT field_key,value_json,source_scope_json FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE',
+        [key(scope)],
+      );
       const nextEpoch = versionV1.parse(before.epoch + 1);
-      let changed = false;
-      if (command.operation === 'settings-set') {
-        for (const field of FIELDS) {
-          if (!(field in command.value)) continue;
-          const value = field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
-          const previous = stored.find((row) => row.field_key === field);
-          if (previous && canonical(previous.value_json) === canonical(value) && canonical(previous.source_scope_json) === canonical(scope)) continue;
-          if (!command.acknowledgeImmediateEffect && (field !== 'calendar' || immediateCalendarChange(before.settings.value.calendar, value, now.getTime()))) {
-            throw new Error('student-portal-policy-immediate-confirmation-required');
-          }
-          await writeField(tx, scope, field, value, nextEpoch);
-          changed = true;
-        }
-      } else {
-        for (const field of command.keys) {
-          const deleted = await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2 RETURNING field_key', [key(scope), field]);
-          changed ||= deleted.length > 0;
-        }
-      }
-      if (changed) {
-        const advanced = await tx.unsafe("UPDATE student_portal.setting SET version=$1,updated_at=statement_timestamp() WHERE scope_key='school:2026' RETURNING field_key", [nextEpoch]);
-        if (advanced.length !== FIELDS.length) throw new Error('student-portal-policy-defaults-unavailable');
-        // Preserve the last published payload; the new policyVersion invalidates its authorization.
-        await tx.unsafe("UPDATE student_portal.publication_job SET state='failed',lease_until=NULL,updated_at=statement_timestamp() WHERE state IN ('queued','running')");
-      }
+      const changed = await applySettingsCommandV1(
+        tx,
+        scope,
+        command,
+        stored,
+        nextEpoch,
+        before.settings.value.calendar,
+        now,
+      );
+      if (changed) await advancePolicyEpochV1(tx, nextEpoch);
+
       const after = await this.readSnapshotInTransaction(tx, scope);
-      const operationId = crypto.randomUUID();
-      if (changed) await persistence.appendAudit({ eventId: crypto.randomUUID(), at: now.toISOString(), actorId: actor,
-        accountId: scope.kind === 'account' ? scope.accountId : null, scope, kind: 'settings-changed', result: 'success',
-        requestId: command.idempotencyKey, version: after.settings.version, maskedIp: null });
-      await persistence.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest, operationId,
-        version: after.settings.version, expiresAt: new Date(now.getTime() + 86_400_000).toISOString() });
-      return { operationId, version: after.settings.version };
+      return savePolicyMutationV1(
+        persistence,
+        actor,
+        scope,
+        command,
+        receiptActor,
+        requestDigest,
+        now,
+        after.settings.version,
+        changed,
+      );
     });
   }
+
 }
