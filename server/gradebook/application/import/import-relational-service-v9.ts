@@ -4,11 +4,10 @@ import {
 } from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportCellV9,
-  GradebookImportInstrumentV9,
   GradebookImportOfferV9,
+  GradebookImportTermV9,
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
-  GradebookImportRecoveryCellV9,
   GradebookNotesImportRequestV9,
   GradebookRelationImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
@@ -17,6 +16,14 @@ import {
   type RelationalClosingPatchV9,
   type RelationalClosingStateV9,
 } from './import-relational-closing-v9';
+import {
+  isRelationalInstrumentActiveV9,
+  isRelationalInstrumentMeaningfulV9,
+  parseRelationalInstrumentKeyV9,
+  resolveRelationalInstrumentMetadataV9,
+  resolveRelationalNoteMutationV9,
+  shouldRetireQualitativeInstrumentV9,
+} from './import-relational-instrument-decisions-v9';
 import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
@@ -642,15 +649,235 @@ async function resolveOffer(
   return asNumber(created.id, 'oferta-id');
 }
 
-function isUnavailable(value: GradebookImportCellV9 | GradebookImportRecoveryCellV9): boolean {
-  return Array.isArray(value) && value[0] === 'u';
-}
-
-
 interface InstrumentStateV9 {
   readonly id: number;
   maximo: number | null;
   descricao: string | null;
+}
+
+interface InstrumentTermContextV9 {
+  readonly authoritativeDefinitions: boolean;
+  readonly unavailableMaximum: Set<GradebookImportTermV9['instrumentos'][number][0]>;
+  readonly unavailableDescription: Set<GradebookImportTermV9['instrumentos'][number][0]>;
+  readonly unavailableValues: Set<GradebookImportTermV9['instrumentos'][number][0]>;
+}
+
+interface OfferInstrumentReconciliationV9 {
+  readonly database: D1WriteDatabaseV1;
+  readonly state: ImportStateV9;
+  readonly request: GradebookNotesImportRequestV9;
+  readonly offer: GradebookImportOfferV9;
+  readonly ofertaId: number;
+  readonly turmaId: number;
+  readonly bindings: ReadonlyMap<string, number>;
+  readonly existingInstruments: Map<string, InstrumentStateV9>;
+  readonly observedInstruments: Set<number>;
+  readonly notes: Map<string, number | null>;
+}
+
+function instrumentTermContextV9(term: GradebookImportTermV9): InstrumentTermContextV9 {
+  return {
+    authoritativeDefinitions: term.definitionSnapshotVersion === 1,
+    unavailableMaximum: new Set(term.unavailableMaximumSlots ?? []),
+    unavailableDescription: new Set(term.unavailableDescriptionSlots ?? []),
+    unavailableValues: new Set(term.unavailableValueSlots ?? []),
+  };
+}
+
+async function retireMissingQualitativeInstrumentsV9(
+  scope: OfferInstrumentReconciliationV9,
+  term: GradebookImportTermV9,
+  context: InstrumentTermContextV9,
+): Promise<void> {
+  const { database, state, existingInstruments, observedInstruments, notes } = scope;
+  if (!context.authoritativeDefinitions) return;
+  const incomingSlots = new Set(term.instrumentos.map(([slot]) => slot));
+  for (const [key, current] of [...existingInstruments.entries()]) {
+    const parsed = parseRelationalInstrumentKeyV9(key);
+    if (!shouldRetireQualitativeInstrumentV9({
+      currentTerm: parsed.term,
+      currentSlot: parsed.slot,
+      incomingTerm: term.trimestre,
+      incomingSlots,
+      unavailableMaximum: context.unavailableMaximum,
+      unavailableDescription: context.unavailableDescription,
+      unavailableValues: context.unavailableValues,
+    }))
+      continue;
+
+    state.writes += await academicRun(
+      database,
+      state,
+      'DELETE FROM gradebook.nota WHERE instrumento_id = ?',
+      [current.id],
+    );
+    state.writes += await academicRun(
+      database,
+      state,
+      'DELETE FROM gradebook.instrumento WHERE id = ?',
+      [current.id],
+    );
+    existingInstruments.delete(key);
+    observedInstruments.delete(current.id);
+    for (const noteKey of [...notes.keys()])
+      if (noteKey.startsWith(`${current.id}:`)) notes.delete(noteKey);
+  }
+}
+
+async function resolveInstrumentForTermV9(
+  scope: OfferInstrumentReconciliationV9,
+  term: GradebookImportTermV9,
+  context: InstrumentTermContextV9,
+  column: number,
+): Promise<{ readonly instrument: InstrumentStateV9; readonly hasValue: boolean } | null> {
+  const { database, state, request, ofertaId, existingInstruments } = scope;
+  const [slot, sourceMaximum, sourceDescription] = term.instrumentos[column]!;
+  const key = `${term.trimestre}:${slot}`;
+  let instrument = existingInstruments.get(key);
+  const hasValue = term.alunos.some(([, values]) => typeof values[column] === 'number');
+  if (!isRelationalInstrumentMeaningfulV9({
+    sourceMaximum,
+    sourceDescription,
+    hasValue,
+    exists: instrument !== undefined,
+    granularObservationVersion: request.granularObservationVersion,
+    slot,
+  }))
+    return null;
+
+  const metadata = resolveRelationalInstrumentMetadataV9({
+    current: instrument ?? null,
+    sourceMaximum,
+    sourceDescription,
+    authoritativeDefinitions: context.authoritativeDefinitions,
+    maximumUnavailable: context.authoritativeDefinitions && context.unavailableMaximum.has(slot),
+    descriptionUnavailable:
+      context.authoritativeDefinitions && context.unavailableDescription.has(slot),
+  });
+
+  if (!instrument) {
+    const created = await first<Row>(
+      database,
+      `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao)
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      [ofertaId, term.trimestre, slot, metadata.maximo, metadata.descricao],
+    );
+    if (!created) throw new Error('instrument-insert-without-id');
+    state.writes++;
+    state.academicWrites++;
+    instrument = {
+      id: asNumber(created.id, 'instrumento-id'),
+      maximo: metadata.maximo,
+      descricao: metadata.descricao,
+    };
+    existingInstruments.set(key, instrument);
+    return { instrument, hasValue };
+  }
+
+  if (metadata.maximo !== instrument.maximo || metadata.descricao !== instrument.descricao) {
+    state.writes += await academicRun(
+      database,
+      state,
+      'UPDATE gradebook.instrumento SET maximo = ?, descricao = ? WHERE id = ?',
+      [metadata.maximo, metadata.descricao, instrument.id],
+    );
+    instrument.maximo = metadata.maximo;
+    instrument.descricao = metadata.descricao;
+  }
+  return { instrument, hasValue };
+}
+
+async function reconcileInstrumentNotesV9(
+  scope: OfferInstrumentReconciliationV9,
+  term: GradebookImportTermV9,
+  column: number,
+  instrument: InstrumentStateV9,
+  hasValue: boolean,
+): Promise<void> {
+  const {
+    database,
+    state,
+    request,
+    offer,
+    turmaId,
+    bindings,
+    observedInstruments,
+    notes,
+  } = scope;
+  const slot = term.instrumentos[column]![0];
+  const activeInstrument = isRelationalInstrumentActiveV9({
+    slot,
+    metadata: instrument,
+    hasValue,
+    observed: observedInstruments.has(instrument.id),
+  });
+  const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
+
+  for (const [numero, values] of term.alunos) {
+    const alunoId = bindings.get(`${turmaId}:${numero}`);
+    if (alunoId === undefined) {
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}. Importe a Relação primeiro.`,
+      );
+    }
+    const noteKey = `${instrument.id}:${alunoId}`;
+    const mutation = resolveRelationalNoteMutationV9({
+      target: values[column]!,
+      previous: notes.get(noteKey) ?? null,
+      observed: notes.has(noteKey),
+      retainBlank,
+    });
+
+    if (mutation.kind === 'preserve') continue;
+    if (mutation.kind === 'delete') {
+      state.writes += await academicRun(
+        database,
+        state,
+        'DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?',
+        [instrument.id, alunoId],
+      );
+      notes.delete(noteKey);
+      continue;
+    }
+    if (mutation.kind === 'insert') {
+      state.writes += await academicRun(
+        database,
+        state,
+        'INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)',
+        [instrument.id, alunoId, mutation.value],
+      );
+      notes.set(noteKey, mutation.value);
+      continue;
+    }
+    state.writes += await academicRun(
+      database,
+      state,
+      'UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?',
+      [mutation.value, instrument.id, alunoId],
+    );
+    notes.set(noteKey, mutation.value);
+  }
+}
+
+async function reconcileOfferInstrumentTermsV9(
+  scope: OfferInstrumentReconciliationV9,
+): Promise<void> {
+  for (const term of scope.offer.trimestres) {
+    const context = instrumentTermContextV9(term);
+    await retireMissingQualitativeInstrumentsV9(scope, term, context);
+    for (const [column] of term.instrumentos.entries()) {
+      const resolved = await resolveInstrumentForTermV9(scope, term, context, column);
+      if (!resolved) continue;
+      await reconcileInstrumentNotesV9(
+        scope,
+        term,
+        column,
+        resolved.instrument,
+        resolved.hasValue,
+      );
+    }
+  }
 }
 
 async function processOffer(
@@ -699,168 +926,18 @@ async function processOffer(
     );
   }
 
-  for (const term of offer.trimestres) {
-    const authoritativeDefinitions = term.definitionSnapshotVersion === 1;
-    const unavailableMaximum = new Set(term.unavailableMaximumSlots ?? []);
-    const unavailableDescription = new Set(term.unavailableDescriptionSlots ?? []);
-    const unavailableValues = new Set(term.unavailableValueSlots ?? []);
-
-    if (authoritativeDefinitions) {
-      const incomingSlots = new Set(term.instrumentos.map(([slot]) => slot));
-      for (const [key, current] of [...existingInstruments.entries()]) {
-        const [currentTermText, currentSlotText] = key.split(':');
-        const currentTerm = Number(currentTermText);
-        const currentSlot = Number(currentSlotText);
-        if (!Number.isInteger(currentTerm) || !Number.isInteger(currentSlot))
-          throw new Error('invalid-existing-instrument-key');
-        if (currentTerm !== term.trimestre || currentSlot < 11 || currentSlot > 20) continue;
-        const qualitativeSlot = currentSlot as GradebookImportInstrumentV9[0];
-        if (
-          incomingSlots.has(qualitativeSlot) ||
-          unavailableMaximum.has(qualitativeSlot) ||
-          unavailableDescription.has(qualitativeSlot) ||
-          unavailableValues.has(qualitativeSlot)
-        )
-          continue;
-
-        state.writes += await academicRun(
-          database,
-          state,
-          'DELETE FROM gradebook.nota WHERE instrumento_id = ?',
-          [current.id],
-        );
-        state.writes += await academicRun(
-          database,
-          state,
-          'DELETE FROM gradebook.instrumento WHERE id = ?',
-          [current.id],
-        );
-        existingInstruments.delete(key);
-        observedInstruments.delete(current.id);
-        for (const noteKey of [...notes.keys()])
-          if (noteKey.startsWith(`${current.id}:`)) notes.delete(noteKey);
-      }
-    }
-
-    for (const [column, definition] of term.instrumentos.entries()) {
-      const [slot, sourceMaximum, sourceDescription] = definition;
-      const key = `${term.trimestre}:${slot}`;
-      const maximumUnavailable = authoritativeDefinitions && unavailableMaximum.has(slot);
-      const descriptionUnavailable =
-        authoritativeDefinitions && unavailableDescription.has(slot);
-      let instrument = existingInstruments.get(key);
-      const hasValue = term.alunos.some(([, values]) => {
-        const cell = values[column]!;
-        return typeof cell === 'number';
-      });
-      const meaningful =
-        sourceMaximum !== null ||
-        sourceDescription !== undefined ||
-        hasValue ||
-        instrument !== undefined ||
-        (request.granularObservationVersion === 1 && slot === 3);
-      if (!meaningful) continue;
-      if (!instrument) {
-        const initialMaximum = maximumUnavailable ? null : sourceMaximum;
-        const initialDescription = descriptionUnavailable ? null : (sourceDescription ?? null);
-        const created = await first<Row>(
-          database,
-          `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao)
-           VALUES (?, ?, ?, ?, ?) RETURNING id`,
-          [ofertaId, term.trimestre, slot, initialMaximum, initialDescription],
-        );
-        if (!created) throw new Error('instrument-insert-without-id');
-        state.writes++;
-        state.academicWrites++;
-        instrument = {
-          id: asNumber(created.id, 'instrumento-id'),
-          maximo: initialMaximum,
-          descricao: initialDescription,
-        };
-        existingInstruments.set(key, instrument);
-      } else {
-        const nextMaximum = authoritativeDefinitions
-          ? maximumUnavailable
-            ? instrument.maximo
-            : sourceMaximum
-          : sourceMaximum === null
-            ? instrument.maximo
-            : sourceMaximum;
-        const nextDescription = authoritativeDefinitions
-          ? descriptionUnavailable
-            ? instrument.descricao
-            : (sourceDescription ?? null)
-          : sourceDescription === undefined
-            ? instrument.descricao
-            : sourceDescription;
-        if (nextMaximum !== instrument.maximo || nextDescription !== instrument.descricao) {
-          state.writes += await academicRun(
-            database,
-            state,
-            `UPDATE gradebook.instrumento SET maximo = ?, descricao = ? WHERE id = ?`,
-            [nextMaximum, nextDescription, instrument.id],
-          );
-          instrument.maximo = nextMaximum;
-          instrument.descricao = nextDescription;
-        }
-      }
-
-      // Numeric activity headings in the template are not evidence that an
-      // activity exists. Never turn all ten unused placeholders into 'Não fez'.
-      const placeholder =
-        slot >= 11 &&
-        new RegExp(`^${slot - 10}([.,]0+)?$`, 'u').test(instrument.descricao?.trim() ?? '');
-      const activeInstrument =
-        slot < 11 ||
-        instrument.maximo !== null ||
-        hasValue ||
-        (Boolean(instrument.descricao?.trim()) && !placeholder) ||
-        observedInstruments.has(instrument.id);
-      for (const [numero, values] of term.alunos) {
-        const alunoId = bindings.get(`${turmaId}:${numero}`);
-        if (alunoId === undefined) {
-          throw new RelationalImportErrorV9(
-            'blocked',
-            `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}. Importe a Relação primeiro.`,
-          );
-        }
-        const target = values[column]!;
-        if (isUnavailable(target)) continue;
-        // Acima do máximo é um erro de lançamento corrigível: persiste o fato-fonte e o navegador avisa.
-        const noteKey = `${instrument.id}:${alunoId}`;
-        const observed = notes.has(noteKey);
-        const previous = notes.get(noteKey) ?? null;
-        const next = target === null ? null : (target as number);
-        const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
-        if (previous === next && (next !== null || (retainBlank ? observed : !observed))) continue;
-        if (next === null && !retainBlank) {
-          state.writes += await academicRun(
-            database,
-            state,
-            `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`,
-            [instrument.id, alunoId],
-          );
-          notes.delete(noteKey);
-        } else if (!observed) {
-          state.writes += await academicRun(
-            database,
-            state,
-            `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`,
-            [instrument.id, alunoId, next],
-          );
-          notes.set(noteKey, next);
-        } else {
-          state.writes += await academicRun(
-            database,
-            state,
-            `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`,
-            [next, instrument.id, alunoId],
-          );
-          notes.set(noteKey, next);
-        }
-      }
-    }
-  }
+  await reconcileOfferInstrumentTermsV9({
+    database,
+    state,
+    request,
+    offer,
+    ofertaId,
+    turmaId,
+    bindings,
+    existingInstruments,
+    observedInstruments,
+    notes,
+  });
 
   const fechamentoRows = await all<Row>(
     database,
