@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { probeCloudflareCapabilitiesV1 } from '../scripts/cloudflare-operator-v1';
+import {
+  diagnoseCloudflarePortalDeployV1,
+  diagnoseCloudflarePortalHyperdriveV1,
+  probeCloudflareCapabilitiesV1,
+} from '../scripts/cloudflare-operator-v1';
 
 const ACCOUNT = 'a'.repeat(32);
 const NOW = new Date('2026-09-20T16:00:00.000Z');
@@ -111,5 +115,158 @@ describe('Cloudflare read-only operator', () => {
     });
     expect(result.capabilities.every((item) => item.state === 'unavailable')).toBe(true);
     expect(JSON.stringify(result)).not.toContain('provider secret diagnostic');
+  });
+
+
+  it('returns a fixed sanitized Portal deployment diagnostic without downloading Worker source', async () => {
+    const token = 'synthetic-deploy-secret';
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/workers/scripts')) {
+        return json({
+          success: true,
+          result: [
+            {
+              id: 'student-portal-production',
+              modified_on: '2026-09-20T15:00:00.000Z',
+              compatibility_date: '2026-09-01',
+              bindings: [{ name: 'PRIVATE_SECRET', secret_text: 'never-output' }],
+            },
+          ],
+        });
+      }
+      if (url.endsWith('/pages/projects/student-portal-edge')) {
+        return json({
+          success: true,
+          result: {
+            name: 'student-portal-edge',
+            production_branch: 'main',
+            domains: ['private-preview.example'],
+            canonical_deployment: {
+              created_on: '2026-09-20T15:05:00.000Z',
+              latest_stage: { status: 'success', name: 'deploy' },
+              env_vars: { SECRET: { value: 'never-output' } },
+            },
+          },
+        });
+      }
+      if (url.endsWith('/graphql')) {
+        return json({
+          data: {
+            viewer: {
+              accounts: [
+                {
+                  workersInvocationsAdaptive: [
+                    { sum: { requests: 12, errors: 1 } },
+                    { sum: { requests: 8, errors: 0 } },
+                  ],
+                },
+              ],
+            },
+          },
+          errors: null,
+        });
+      }
+      throw new Error('Unexpected URL');
+    });
+
+    const result = await diagnoseCloudflarePortalDeployV1({
+      accountId: ACCOUNT,
+      token,
+      fetcher,
+      now: NOW,
+    });
+
+    expect(result.worker).toEqual({
+      state: 'accessible',
+      present: true,
+      modifiedAt: '2026-09-20T15:00:00.000Z',
+      compatibilityDate: '2026-09-01',
+    });
+    expect(result.pages).toEqual({
+      state: 'accessible',
+      present: true,
+      productionBranch: 'main',
+      deploymentStatus: 'success',
+      deploymentCreatedAt: '2026-09-20T15:05:00.000Z',
+    });
+    expect(result.analytics).toEqual({
+      state: 'accessible',
+      windowMinutes: 60,
+      requests: 20,
+      errors: 1,
+    });
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.url).toMatch(/\/workers\/scripts$/u);
+    expect(calls[1]?.url).toMatch(/\/pages\/projects\/student-portal-edge$/u);
+    expect(calls[2]?.url).toBe('https://api.cloudflare.com/client/v4/graphql');
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(calls[1]?.init?.method).toBe('GET');
+    expect(calls[2]?.init?.method).toBe('POST');
+    const query = JSON.parse(String(calls[2]?.init?.body));
+    expect(query.query).toContain('query PortalWorkerMetrics');
+    expect(query.query).not.toContain('mutation');
+    expect(query.variables.scriptName).toBe('student-portal-production');
+    expect(JSON.stringify(result)).not.toContain(token);
+    expect(JSON.stringify(result)).not.toContain('never-output');
+    expect(JSON.stringify(result)).not.toContain('private-preview.example');
+  });
+
+  it('returns only bounded Hyperdrive health fields and strips origin details', async () => {
+    const token = 'synthetic-hyperdrive-secret';
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      calls.push({ url: String(input), init });
+      return json({
+        success: true,
+        result: {
+          id: '46ac2fcb25ad4ad5b5662d536ccd968a',
+          caching: { disabled: true, max_age: 60 },
+          origin_connection_limit: 8,
+          origin: {
+            host: 'database.private.example',
+            database: 'postgres',
+            user: 'student_portal_app',
+            password: 'never-output',
+          },
+        },
+      });
+    });
+
+    const result = await diagnoseCloudflarePortalHyperdriveV1({
+      accountId: ACCOUNT,
+      token,
+      fetcher,
+      now: NOW,
+    });
+
+    expect(result.hyperdrive).toEqual({
+      state: 'accessible',
+      present: true,
+      cacheDisabled: true,
+      originConnections: 8,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toMatch(
+      /\/hyperdrive\/configs\/46ac2fcb25ad4ad5b5662d536ccd968a$/u,
+    );
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(JSON.stringify(result)).not.toContain(token);
+    expect(JSON.stringify(result)).not.toContain('database.private.example');
+    expect(JSON.stringify(result)).not.toContain('student_portal_app');
+    expect(JSON.stringify(result)).not.toContain('never-output');
+  });
+
+  it('distinguishes a missing fixed Portal resource without treating it as a permission request', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('', { status: 404 }));
+    const result = await diagnoseCloudflarePortalHyperdriveV1({
+      accountId: ACCOUNT,
+      token: 'synthetic',
+      fetcher,
+      now: NOW,
+    });
+    expect(result.hyperdrive).toEqual({ state: 'not-found', present: false });
   });
 });

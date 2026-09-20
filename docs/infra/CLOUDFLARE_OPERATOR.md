@@ -1,66 +1,103 @@
 # Cloudflare read-only operator
 
-Status: v1 for #1016.
+Status: v2 for #1027, built on the capability probe from #1016.
 
 ## Purpose
 
-`/cloudflare` gives the repository owner and the ChatGPT lead a bounded way to inspect the Cloudflare authority already available to GitHub Actions without exposing credentials and without depending on a local terminal.
+The operator lets the repository owner and the ChatGPT lead inspect bounded Cloudflare production state through GitHub Actions without exposing credentials and without depending on a local terminal.
 
-The operator is intentionally a capability probe. It does not accept arbitrary shell, URL, HTTP method, account ID, resource ID or Cloudflare payload from an issue.
+It never accepts arbitrary shell, URL, HTTP method, account ID, resource ID or Cloudflare payload from an issue.
 
-## Trigger
+## Triggers
 
-On an issue created by the repository owner, the owner may add the exact comment:
+On an issue created by the repository owner, the owner may add one of these exact comments:
 
 ```text
 /cloudflare
+/cloudflare portal
 ```
 
-The workflow also supports manual `workflow_dispatch` with an owner-authored issue number.
+- `/cloudflare`: capability probe for the existing Cloudflare credentials.
+- `/cloudflare portal`: sanitized operational diagnostic for the fixed Portal resources.
 
-The workflow checks out trusted `main`, uses `persist-credentials: false`, runs in the existing `production` GitHub environment and publishes only the sanitized matrix back to the issue.
+The workflow also supports manual `workflow_dispatch` with the fixed operations `capabilities` or `portal`.
+
+The workflow checks out trusted `main`, uses `persist-credentials: false`, runs in the existing `production` GitHub environment and publishes only the sanitized result back to the owner-authored issue.
 
 ## Existing credentials only
 
-V1 reuses, without changing:
+The operator reuses, without changing:
 
 - `CLOUDFLARE_DEPLOY_TOKEN`
 - `CLOUDFLARE_HYPERDRIVE_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-No token is created, rotated or widened by this workflow. Each secret is injected only into its own probe step. The render/comment step receives no Cloudflare secret.
+No token is created, rotated or widened. Each secret is injected only into the step that needs it. Rendering and GitHub commenting receive no Cloudflare secret.
 
-## Fixed read/query allowlist
+The first real probe after #1016 proved:
 
-Both existing tokens are tested against the same fixed surfaces so overlap is visible:
-
-| Capability | Cloudflare API | Expected permission family |
+| Capability | Deploy token | Hyperdrive token |
 | --- | --- | --- |
-| Workers scripts | `GET /accounts/{account}/workers/scripts` | Workers Scripts Read/Write or accepted equivalent |
-| Pages projects | `GET /accounts/{account}/pages/projects` | Pages Read/Write |
-| Hyperdrive configs | `GET /accounts/{account}/hyperdrive/configs` | Hyperdrive Read/Write |
-| Zones | `GET /zones` filtered to the account | Zone Zone Read |
-| Workers analytics | GraphQL `workersInvocationsAdaptive`, five-minute window, one row | Account Analytics Read |
+| Workers scripts | accessible | accessible |
+| Pages projects | accessible | permission-required |
+| Hyperdrive configs | permission-required | accessible |
+| Zones | accessible | accessible |
+| Workers analytics | accessible | inconclusive |
 
-The GraphQL call is a query, never a mutation. No raw analytics values are put in the issue.
+Together, the two existing tokens cover every read-only surface needed by the current operator. No new Cloudflare credential is required for v2.
 
-DNS for the school remains authoritative at GoDaddy. A missing Cloudflare Zone capability is therefore informative, not a request to move DNS or nameservers.
+## Capability probe
+
+Both existing tokens are tested against a fixed allowlist:
+
+| Capability | Cloudflare API |
+| --- | --- |
+| Workers scripts | `GET /accounts/{account}/workers/scripts` |
+| Pages projects | `GET /accounts/{account}/pages/projects` |
+| Hyperdrive configs | `GET /accounts/{account}/hyperdrive/configs` |
+| Zones | `GET /zones` filtered to the account |
+| Workers analytics | GraphQL `workersInvocationsAdaptive` query |
+
+The GraphQL call is a query, never a mutation. No raw analytics values are published by the capability probe.
+
+DNS for the school remains authoritative at GoDaddy. Zone visibility is informational only and does not imply changing nameservers or DNS authority.
+
+## Portal diagnostic
+
+`/cloudflare portal` reads only the fixed production resources already named by the repository:
+
+| Resource | Read | Published evidence |
+| --- | --- | --- |
+| Worker `student-portal-production` | Workers scripts list | presence, modified time and compatibility date |
+| Pages `student-portal-edge` | exact Pages project | presence, production branch, canonical deployment status and creation time |
+| Hyperdrive `PORTAL_DB` | exact config `46ac2fcb25ad4ad5b5662d536ccd968a` | presence, whether cache is disabled, origin connection limit |
+| Worker analytics | GraphQL for `student-portal-production`, last 60 minutes | aggregate requests and errors only |
+
+The diagnostic never downloads Worker source and never publishes Pages environment variables, deployment aliases/domains, Hyperdrive origin/database/user/host/password, individual analytics events, student data or provider error payloads.
 
 ## Sanitized states
 
-- `accessible`: the existing token proved that read/query surface.
+- `accessible`: the existing credential proved that surface.
 - `permission-required`: REST returned HTTP 401/403.
-- `inconclusive`: the provider responded but did not prove the capability. This does not justify a new token.
-- `unavailable`: transport, rate limit or provider availability prevented proof. This does not justify a new token.
+- `not-found`: the fixed expected resource returned HTTP 404.
+- `inconclusive`: the provider responded but did not prove the expected structure.
+- `unavailable`: transport, rate limit or provider availability prevented proof.
 - `credential-missing`: the named existing secret was not available to the workflow.
 
-The operator never reports response bodies, Cloudflare error messages, token values, authorization headers, Hyperdrive origin/database/user/host, project contents, Worker source, zone identifiers or analytics values.
+A non-accessible state does not authorize creating or expanding a token.
 
 ## Security boundary
 
-The operator performs no mutable Cloudflare request. REST probes use `GET`; the only `POST` is the Cloudflare GraphQL analytics query and its document contains no `mutation`.
+The operator performs no mutable Cloudflare request.
 
-A future write operator is not implied by this v1. Any expansion to mutations, arbitrary parameters, additional secrets or wider Cloudflare permissions requires a separate reviewed change and the applicable authorization.
+- REST calls are `GET`.
+- The only `POST` is the Cloudflare GraphQL analytics query.
+- GraphQL documents contain no `mutation`.
+- Issue input chooses only a fixed operation; it cannot inject URLs, resource IDs, methods or provider payloads.
+- Raw provider responses are processed in memory and never copied to issue comments or artifacts.
+- Cloudflare secrets are never passed to the renderer/comment step.
+
+A future write operator is not implied by this read-only design. Mutations, wider permissions or additional credentials require a separate reviewed delivery and the applicable authorization.
 
 ## Implementation
 
