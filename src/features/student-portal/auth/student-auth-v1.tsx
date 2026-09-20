@@ -61,7 +61,7 @@ function NumericCredentialV1({
           if (/^\d*$/u.test(next)) onChange(next);
         }}
         maxLength={length}
-        pattern="^[0-9]*$"
+        pattern="^\d*$"
         inputMode="numeric"
         type={secret ? 'password' : 'text'}
         autoComplete="off"
@@ -115,6 +115,98 @@ function dispatchCredentialV1(
   if (state.step === 'risk' && token) return flow.risk(token);
   return Promise.resolve();
 }
+function CredentialFieldsV1({
+  state,
+  value,
+  confirmation,
+  setValue,
+  setConfirmation,
+  confirmationInput,
+  keepConnected,
+  setKeepConnected,
+  sitekey,
+  riskMount,
+  setRiskToken,
+}: Readonly<{
+  state: StudentAuthStateV1;
+  value: string;
+  confirmation: string;
+  setValue: (value: string) => void;
+  setConfirmation: (value: string) => void;
+  confirmationInput: Ref<HTMLInputElement>;
+  keepConnected: boolean;
+  setKeepConnected: (value: boolean) => void;
+  sitekey: string;
+  riskMount?: RiskMountV1;
+  setRiskToken: (value: string | null) => void;
+}>) {
+  const showCredential = state.step !== 'risk';
+  const showConfirmation = state.step === 'create';
+  const showKeepConnected = state.step === 'password' || state.step === 'create';
+  const needsRisk = state.step === 'risk' || state.needsRisk;
+  const length = state.step === 'pin' ? 4 : 6;
+  return (
+    <>
+      {state.step === 'pin' ? <p>Informe o ano do seu nascimento.</p> : null}
+      {state.step === 'create' ? <p>Crie uma senha numérica com 6 dígitos.</p> : null}
+      {showCredential ? (
+        <NumericCredentialV1
+          label={credentialLabelV1(state.step)}
+          length={length}
+          value={value}
+          onChange={setValue}
+          onComplete={
+            state.step === 'create'
+              ? () => (confirmationInput as { current: HTMLInputElement | null }).current?.focus()
+              : undefined
+          }
+          secret={state.step !== 'pin'}
+          disabled={state.pending}
+        />
+      ) : null}
+      {showConfirmation ? (
+        <NumericCredentialV1
+          label="Confirmar senha"
+          inputRef={confirmationInput}
+          length={6}
+          value={confirmation}
+          onChange={setConfirmation}
+          secret
+          disabled={state.pending}
+        />
+      ) : null}
+      {showKeepConnected ? (
+        <Checkbox
+          isDisabled={state.pending}
+          isSelected={keepConnected}
+          onChange={setKeepConnected}
+        >
+          <Checkbox.Content>
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            <Label>Manter conectado</Label>
+          </Checkbox.Content>
+        </Checkbox>
+      ) : null}
+      {needsRisk ? (
+        <StudentRiskWidgetV1 sitekey={sitekey} onToken={setRiskToken} mount={riskMount} />
+      ) : null}
+    </>
+  );
+}
+
+function credentialValidV1(
+  state: StudentAuthStateV1,
+  value: string,
+  confirmation: string,
+) {
+  if (state.step === 'risk') return true;
+  const length = state.step === 'pin' ? 4 : 6;
+  if (value.length !== length) return false;
+  return state.step !== 'create' || confirmation.length === 6;
+}
+
 function CredentialFormV1({
   state,
   flow,
@@ -143,10 +235,7 @@ function CredentialFormV1({
   }, [state.retryAt]);
   const blocked = !!state.retryAt && state.retryAt > now;
   const needsRisk = state.step === 'risk' || state.needsRisk;
-  const length = state.step === 'pin' ? 4 : 6;
-  const valid =
-    state.step === 'risk' ||
-    (value.length === length && (state.step !== 'create' || confirmation.length === 6));
+  const valid = credentialValidV1(state, value, confirmation);
   const submit = () => {
     if (state.pending || blocked || !valid || (needsRisk && !riskToken)) return;
     if (state.step === 'create' && value !== confirmation) {
@@ -162,10 +251,6 @@ function CredentialFormV1({
     setValidation(undefined);
     void dispatchCredentialV1(state, flow, secret, repeated, keepConnected, token);
   };
-  const showCredential = state.step !== 'risk';
-  const showConfirmation = state.step === 'create';
-  const showKeepConnected = state.step === 'password' || state.step === 'create';
-  const buttonLabel = submitLabelV1(state);
   return (
     <form
       className="pa-auth-form"
@@ -175,45 +260,19 @@ function CredentialFormV1({
         submit();
       }}
     >
-      {state.step === 'pin' ? <p>Informe o ano do seu nascimento.</p> : null}
-      {state.step === 'create' ? <p>Crie uma senha numérica com 6 dígitos.</p> : null}
-      {showCredential ? (
-        <NumericCredentialV1
-          label={credentialLabelV1(state.step)}
-          length={length}
-          value={value}
-          onChange={setValue}
-          onComplete={
-            state.step === 'create' ? () => confirmationInput.current?.focus() : undefined
-          }
-          secret={state.step !== 'pin'}
-          disabled={state.pending}
-        />
-      ) : null}
-      {showConfirmation ? (
-        <NumericCredentialV1
-          label="Confirmar senha"
-          inputRef={confirmationInput}
-          length={6}
-          value={confirmation}
-          onChange={setConfirmation}
-          secret
-          disabled={state.pending}
-        />
-      ) : null}
-      {showKeepConnected ? (
-        <Checkbox isDisabled={state.pending} isSelected={keepConnected} onChange={setKeepConnected}>
-          <Checkbox.Content>
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-            <Label>Manter conectado</Label>
-          </Checkbox.Content>
-        </Checkbox>
-      ) : null}
-      {needsRisk ? (
-        <StudentRiskWidgetV1 sitekey={sitekey} onToken={setRiskToken} mount={riskMount} />
-      ) : null}
+      <CredentialFieldsV1
+        state={state}
+        value={value}
+        confirmation={confirmation}
+        setValue={setValue}
+        setConfirmation={setConfirmation}
+        confirmationInput={confirmationInput}
+        keepConnected={keepConnected}
+        setKeepConnected={setKeepConnected}
+        sitekey={sitekey}
+        riskMount={riskMount}
+        setRiskToken={setRiskToken}
+      />
       {validation ? <p role="alert">{validation}</p> : null}
       {blocked ? (
         <output>
@@ -224,7 +283,7 @@ function CredentialFormV1({
         type="submit"
         isDisabled={state.pending || !valid || blocked || (needsRisk && !riskToken)}
       >
-        {buttonLabel}
+        {submitLabelV1(state)}
       </Button>
     </form>
   );
