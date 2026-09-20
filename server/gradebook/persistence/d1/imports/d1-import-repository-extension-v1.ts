@@ -167,7 +167,7 @@ function canonicalJsonValue(value: unknown): unknown {
   return Object.fromEntries(
     Object.keys(value)
       .filter((key) => value[key] !== undefined)
-      .sort()
+      .sort((left, right) => left.localeCompare(right, 'en'))
       .map((key) => [key, canonicalJsonValue(value[key])]),
   );
 }
@@ -462,11 +462,11 @@ function canonicalBatch(
   }
 
   const canonicalFiles = files.map((file) => {
-    const diagnosticIds = [...file.diagnosticIds].sort();
+    const diagnosticIds = [...file.diagnosticIds].sort((left, right) => left.localeCompare(right, 'en'));
     const actualIds = diagnostics
       .filter(({ importFileId }) => importFileId === file.id)
       .map(({ id }) => id)
-      .sort();
+      .sort((left, right) => left.localeCompare(right, 'en'));
     if (!structurallyEqual(diagnosticIds, actualIds)) return fail('incompatible-write');
     return { ...file, diagnosticIds };
   });
