@@ -25,7 +25,7 @@ function NumericCredentialV1({
   disabled = false,
   inputRef,
   onComplete,
-}: {
+}: Readonly<{
   label: string;
   length: 4 | 6;
   value: string;
@@ -34,7 +34,7 @@ function NumericCredentialV1({
   disabled?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   onComplete?: () => void;
-}) {
+}>) {
   const id = useId();
   const [focused, setFocused] = useState(false);
   const slot = (index: number) => (
@@ -58,7 +58,7 @@ function NumericCredentialV1({
         aria-label={label}
         value={value}
         onChange={(next) => {
-          if (/^[0-9]*$/u.test(next)) onChange(next);
+          if (/^\d*$/u.test(next)) onChange(next);
         }}
         maxLength={length}
         pattern="^[0-9]*$"
@@ -83,6 +83,38 @@ function NumericCredentialV1({
 }
 
 type FlowV1 = ReturnType<typeof createStudentAuthFlowV1>;
+
+function credentialLabelV1(step: StudentAuthStateV1['step']) {
+  if (step === 'pin') return 'PIN de 4 dígitos';
+  if (step === 'create') return 'Nova senha';
+  return 'Senha';
+}
+
+function submitLabelV1(state: StudentAuthStateV1) {
+  if (state.pending) {
+    if (state.step === 'password') return 'Entrando…';
+    if (state.step === 'create') return 'Criando senha…';
+    return 'Validando…';
+  }
+  if (state.step === 'create') return 'Criar senha e entrar';
+  if (state.step === 'password') return 'Entrar';
+  return 'Continuar';
+}
+
+function dispatchCredentialV1(
+  state: StudentAuthStateV1,
+  flow: FlowV1,
+  secret: string,
+  repeated: string,
+  keepConnected: boolean,
+  token?: string,
+) {
+  if (state.step === 'pin') return flow.pin(secret, token);
+  if (state.step === 'password') return flow.login(secret, keepConnected, token);
+  if (state.step === 'create') return flow.activate(secret, repeated, keepConnected);
+  if (state.step === 'risk' && token) return flow.risk(token);
+  return Promise.resolve();
+}
 function CredentialFormV1({
   state,
   flow,
@@ -90,14 +122,14 @@ function CredentialFormV1({
   riskMount,
   keepConnected,
   setKeepConnected,
-}: {
+}: Readonly<{
   state: StudentAuthStateV1;
   flow: FlowV1;
   sitekey: string;
   riskMount?: RiskMountV1;
   keepConnected: boolean;
   setKeepConnected: (value: boolean) => void;
-}) {
+}>) {
   const [value, setValue] = useState(''),
     [confirmation, setConfirmation] = useState('');
   const [riskToken, setRiskToken] = useState<string | null>(null);
@@ -128,11 +160,12 @@ function CredentialFormV1({
     setConfirmation('');
     setRiskToken(null);
     setValidation(undefined);
-    if (state.step === 'pin') void flow.pin(secret, token);
-    else if (state.step === 'password') void flow.login(secret, keepConnected, token);
-    else if (state.step === 'create') void flow.activate(secret, repeated, keepConnected);
-    else if (state.step === 'risk' && token) void flow.risk(token);
+    void dispatchCredentialV1(state, flow, secret, repeated, keepConnected, token);
   };
+  const showCredential = state.step !== 'risk';
+  const showConfirmation = state.step === 'create';
+  const showKeepConnected = state.step === 'password' || state.step === 'create';
+  const buttonLabel = submitLabelV1(state);
   return (
     <form
       className="pa-auth-form"
@@ -144,15 +177,9 @@ function CredentialFormV1({
     >
       {state.step === 'pin' ? <p>Informe o ano do seu nascimento.</p> : null}
       {state.step === 'create' ? <p>Crie uma senha numérica com 6 dígitos.</p> : null}
-      {state.step !== 'risk' ? (
+      {showCredential ? (
         <NumericCredentialV1
-          label={
-            state.step === 'pin'
-              ? 'PIN de 4 dígitos'
-              : state.step === 'create'
-                ? 'Nova senha'
-                : 'Senha'
-          }
+          label={credentialLabelV1(state.step)}
           length={length}
           value={value}
           onChange={setValue}
@@ -163,7 +190,7 @@ function CredentialFormV1({
           disabled={state.pending}
         />
       ) : null}
-      {state.step === 'create' ? (
+      {showConfirmation ? (
         <NumericCredentialV1
           label="Confirmar senha"
           inputRef={confirmationInput}
@@ -174,7 +201,7 @@ function CredentialFormV1({
           disabled={state.pending}
         />
       ) : null}
-      {state.step === 'password' || state.step === 'create' ? (
+      {showKeepConnected ? (
         <Checkbox isDisabled={state.pending} isSelected={keepConnected} onChange={setKeepConnected}>
           <Checkbox.Content>
             <Checkbox.Control>
@@ -189,25 +216,15 @@ function CredentialFormV1({
       ) : null}
       {validation ? <p role="alert">{validation}</p> : null}
       {blocked ? (
-        <p role="status">
+        <output>
           Tente novamente em {Math.max(1, Math.ceil((state.retryAt! - now) / 1000))} segundos.
-        </p>
+        </output>
       ) : null}
       <Button
         type="submit"
         isDisabled={state.pending || !valid || blocked || (needsRisk && !riskToken)}
       >
-        {state.pending
-          ? state.step === 'password'
-            ? 'Entrando…'
-            : state.step === 'create'
-              ? 'Criando senha…'
-              : 'Validando…'
-          : state.step === 'create'
-            ? 'Criar senha e entrar'
-            : state.step === 'password'
-              ? 'Entrar'
-              : 'Continuar'}
+        {buttonLabel}
       </Button>
     </form>
   );
@@ -220,14 +237,14 @@ export function StudentAuthenticationV1({
   onQrDiscarded,
   sitekey,
   riskMount,
-}: {
+}: Readonly<{
   client: PortalSelfClientV1;
   onAuthenticated: () => void;
   initialQr?: string | null;
   onQrDiscarded?: () => void;
   sitekey: string;
   riskMount?: RiskMountV1;
-}) {
+}>) {
   const [state, setState] = useState(INITIAL_AUTH_STATE_V1);
   const [keepConnected, setKeepConnected] = useState(true);
   const [invalidQr, setInvalidQr] = useState(false);
@@ -290,7 +307,7 @@ export function StudentAuthenticationV1({
                 void flow.current?.begin(qr).catch(() => setInvalidQr(true));
               }}
             />
-            {state.pending ? <p role="status">Preparando entrada…</p> : null}
+            {state.pending ? <output>Preparando entrada…</output> : null}
           </fieldset>
         ) : null}
         {['pin', 'password', 'risk', 'create'].includes(state.step) && flow.current ? (
