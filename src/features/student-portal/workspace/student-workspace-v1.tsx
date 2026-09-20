@@ -13,7 +13,7 @@ import {
 } from '@heroui/react';
 import { BarChart3, BookOpenCheck, GraduationCap, LayoutDashboard } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
-import { StudentMarkV1 } from '../grades/student-grades-v1';
+import { StudentMarkV1 } from '../grades/student-mark-v1';
 import './student-workspace-v1.css';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
