@@ -1,6 +1,6 @@
 # Banco de Notas: cutover PostgreSQL e rollback D1
 
-> **Documento histórico do cutover.** Não executar o rollback para D1 como restauração do estado atual: o D1 não recebeu as escritas posteriores, inclusive os anos materializados e históricos recentes. A operação vigente e os passos seguros de incidente estão em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md). Reverter código não reverte dados; reconciliação/restauração exige autorização própria.
+> **Documento histórico do cutover — instruções de rollback D1 abaixo estão supersedidas.** Não executar `GRADEBOOK_STORAGE_PROVIDER=d1` em produção: a composição atual falha fechada e não usa D1 físico como fallback. O D1 também não recebeu as escritas PostgreSQL posteriores. A operação vigente está em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md) e o mapa de persistência atual em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md). Reverter código não reverte dados; reconciliação/restauração exige plano autorizado próprio.
 
 ## Estado oficial
 
@@ -9,7 +9,7 @@
 - Autoridade acadêmica: `imported-source`; o cutover não habilita o motor nativo.
 - D1 `GRADEBOOK_D1`: preservado sem dual write para rollback de contingência.
 
-## Gate e janela de rollback
+## Gate e janela de rollback — histórico, não executável hoje
 
 A janela permanece aberta até a conclusão do piloto integral da issue #406 e por no mínimo
 sete dias após o cutover, valendo o evento que ocorrer por último. Durante a janela, toda
