@@ -81,10 +81,10 @@ async function readGradebookAclMatrix(): Promise<{
   const tableRows = Array.from(
     await sql.unsafe(`
       SELECT table_name AS object,
-        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'SELECT') AS can_select,
-        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'INSERT') AS can_insert,
-        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'UPDATE') AS can_update,
-        has_table_privilege('gradebook_app',format('gradebook.%I',table_name),'DELETE') AS can_delete
+        has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'SELECT') AS can_select,
+        has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'INSERT') AS can_insert,
+        has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'UPDATE') AS can_update,
+        has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'DELETE') AS can_delete
       FROM information_schema.tables
       WHERE table_schema='gradebook' AND table_type='BASE TABLE'
       ORDER BY table_name
@@ -102,9 +102,9 @@ async function readGradebookAclMatrix(): Promise<{
   const sequenceRows = Array.from(
     await sql.unsafe(`
       SELECT sequencename AS object,
-        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'USAGE') AS can_usage,
-        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'SELECT') AS can_select,
-        has_sequence_privilege('gradebook_app',format('gradebook.%I',sequencename),'UPDATE') AS can_update
+        has_sequence_privilege('gradebook_app',format('%I.%I',schemaname,sequencename),'USAGE') AS can_usage,
+        has_sequence_privilege('gradebook_app',format('%I.%I',schemaname,sequencename),'SELECT') AS can_select,
+        has_sequence_privilege('gradebook_app',format('%I.%I',schemaname,sequencename),'UPDATE') AS can_update
       FROM pg_sequences
       WHERE schemaname='gradebook'
       ORDER BY sequencename
@@ -154,23 +154,23 @@ async function readGradebookAclMatrix(): Promise<{
        FROM information_schema.tables
        WHERE table_schema='student_portal'
          AND (
-           has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'SELECT')
-           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'INSERT')
-           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'UPDATE')
-           OR has_table_privilege('gradebook_app',format('student_portal.%I',table_name),'DELETE')
+           has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'SELECT')
+           OR has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'INSERT')
+           OR has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'UPDATE')
+           OR has_table_privilege('gradebook_app',format('%I.%I',table_schema,table_name),'DELETE')
          )) AS portal_table_privileges,
       (SELECT count(*)::integer
        FROM information_schema.tables
        WHERE table_schema='gradebook'
          AND (
-           has_table_privilege('anon',format('gradebook.%I',table_name),'SELECT')
-           OR has_table_privilege('anon',format('gradebook.%I',table_name),'INSERT')
-           OR has_table_privilege('anon',format('gradebook.%I',table_name),'UPDATE')
-           OR has_table_privilege('anon',format('gradebook.%I',table_name),'DELETE')
-           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'SELECT')
-           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'INSERT')
-           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'UPDATE')
-           OR has_table_privilege('authenticated',format('gradebook.%I',table_name),'DELETE')
+           has_table_privilege('anon',format('%I.%I',table_schema,table_name),'SELECT')
+           OR has_table_privilege('anon',format('%I.%I',table_schema,table_name),'INSERT')
+           OR has_table_privilege('anon',format('%I.%I',table_schema,table_name),'UPDATE')
+           OR has_table_privilege('anon',format('%I.%I',table_schema,table_name),'DELETE')
+           OR has_table_privilege('authenticated',format('%I.%I',table_schema,table_name),'SELECT')
+           OR has_table_privilege('authenticated',format('%I.%I',table_schema,table_name),'INSERT')
+           OR has_table_privilege('authenticated',format('%I.%I',table_schema,table_name),'UPDATE')
+           OR has_table_privilege('authenticated',format('%I.%I',table_schema,table_name),'DELETE')
          )) AS client_table_privileges,
       has_schema_privilege('anon','gradebook','USAGE') AS anon_schema_usage,
       has_schema_privilege('authenticated','gradebook','USAGE') AS authenticated_schema_usage
