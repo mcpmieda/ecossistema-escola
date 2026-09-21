@@ -14,6 +14,19 @@ import {
   academicRecordStreamKeyV1,
   type ImportReconciliationRepositoriesV1,
 } from '../../../application/import/import-reconciliation-v1';
+import {
+  GradebookD1ReadErrorV1,
+  failD1ReadV1 as fail,
+  isD1ReadObjectV1 as isObject,
+  positiveD1ReadIntegerV1 as positiveInteger,
+  requiredD1ReadStringV1 as requiredString,
+  validateAcademicRecordShapeV1 as validateAcademicRecordShape,
+} from './d1-read-validation-v1';
+
+export {
+  GradebookD1ReadErrorV1,
+  type GradebookD1ReadErrorCodeV1,
+} from './d1-read-validation-v1';
 
 type D1ReadValue = string | number | null;
 type D1Row = Record<string, unknown>;
@@ -30,46 +43,6 @@ export interface D1ReadStatementV1 {
 
 export interface D1ReadDatabaseV1 {
   prepare(query: string): D1ReadStatementV1;
-}
-
-export type GradebookD1ReadErrorCodeV1 =
-  'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference';
-
-const ERROR_MESSAGES: Record<GradebookD1ReadErrorCodeV1, string> = {
-  'database-read-failed': 'Não foi possível consultar os dados acadêmicos persistidos.',
-  'invalid-json': 'Os dados acadêmicos persistidos não puderam ser reconstruídos.',
-  'incompatible-row': 'O registro acadêmico persistido possui formato incompatível.',
-  'broken-reference': 'Uma referência acadêmica persistida está inconsistente.',
-};
-
-export class GradebookD1ReadErrorV1 extends Error {
-  readonly code: GradebookD1ReadErrorCodeV1;
-
-  constructor(code: GradebookD1ReadErrorCodeV1) {
-    super(ERROR_MESSAGES[code]);
-    this.name = 'GradebookD1ReadErrorV1';
-    this.code = code;
-  }
-}
-
-function fail(code: GradebookD1ReadErrorCodeV1): never {
-  throw new GradebookD1ReadErrorV1(code);
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function requiredString(value: unknown): string {
-  if (typeof value !== 'string' || value.length === 0) return fail('incompatible-row');
-  return value;
-}
-
-function positiveInteger(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-    return fail('incompatible-row');
-  }
-  return value;
 }
 
 function academicTerm(value: unknown): 1 | 2 | 3 {
@@ -250,38 +223,6 @@ function mapSourceFileVersion(
     version: persistedVersion,
     recordedAt: requiredString(row.recorded_at),
   };
-}
-
-function validateAcademicRecordShape(value: Record<string, unknown>): AcademicRecordV1 {
-  if (!isObject(value.value)) return fail('incompatible-row');
-  const record = value.value;
-  requiredString(record.id);
-  requiredString(record.academicYearId);
-  requiredString(record.studentId);
-  requiredString(record.enrollmentId);
-  requiredString(record.authorityMode);
-  requiredString(record.ruleVersion);
-
-  switch (value.kind) {
-    case 'grade-entry':
-      requiredString(record.assessmentComponentId);
-      break;
-    case 'term-result':
-      requiredString(record.teachingAssignmentId);
-      academicTerm(record.term);
-      break;
-    case 'final-recovery':
-      requiredString(record.teachingAssignmentId);
-      academicTerm(record.recoveredTerm);
-      break;
-    case 'annual-result':
-      requiredString(record.teachingAssignmentId);
-      break;
-    default:
-      return fail('incompatible-row');
-  }
-
-  return value as unknown as AcademicRecordV1;
 }
 
 function mapAcademicRecord(

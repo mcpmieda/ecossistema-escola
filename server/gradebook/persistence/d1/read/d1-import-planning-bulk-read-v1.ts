@@ -14,6 +14,13 @@ import {
   academicRecordStreamKeyV1,
 } from '../../../application/import/import-reconciliation-v1';
 import { GradebookD1ReadErrorV1, type D1ReadDatabaseV1 } from './d1-read-adapter-v1';
+import {
+  failD1ReadV1 as fail,
+  isD1ReadObjectV1 as isObject,
+  positiveD1ReadIntegerV1 as positiveInteger,
+  requiredD1ReadStringV1 as requiredString,
+  validateAcademicRecordShapeV1 as validateAcademicRecordShape,
+} from './d1-read-validation-v1';
 
 type D1RowV1 = Record<string, unknown>;
 
@@ -40,28 +47,6 @@ export interface GradebookD1ImportPlanningBulkReadAdapterV1 {
       streams: readonly LogicalSourceRecordAssociationStreamV1[],
     ): Promise<readonly CurrentAssociationV1[]>;
   };
-}
-
-function fail(
-  code: 'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference',
-): never {
-  throw new GradebookD1ReadErrorV1(code);
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function requiredString(value: unknown): string {
-  if (typeof value !== 'string' || value.length === 0) return fail('incompatible-row');
-  return value;
-}
-
-function positiveInteger(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-    return fail('incompatible-row');
-  }
-  return value;
 }
 
 function nonNegativeInteger(value: unknown): number {
@@ -198,37 +183,6 @@ function assessmentComponentRecord(
     version: persistedVersion,
     recordedAt: requiredString(row.recorded_at),
   };
-}
-
-function validateAcademicRecordShape(value: Record<string, unknown>): AcademicRecordV1 {
-  if (!isObject(value.value)) return fail('incompatible-row');
-  const record = value.value;
-  requiredString(record.id);
-  requiredString(record.academicYearId);
-  requiredString(record.studentId);
-  requiredString(record.enrollmentId);
-  requiredString(record.authorityMode);
-  requiredString(record.ruleVersion);
-
-  switch (value.kind) {
-    case 'grade-entry':
-      requiredString(record.assessmentComponentId);
-      break;
-    case 'term-result':
-      requiredString(record.teachingAssignmentId);
-      academicTerm(record.term);
-      break;
-    case 'final-recovery':
-      requiredString(record.teachingAssignmentId);
-      academicTerm(record.recoveredTerm);
-      break;
-    case 'annual-result':
-      requiredString(record.teachingAssignmentId);
-      break;
-    default:
-      return fail('incompatible-row');
-  }
-  return value as unknown as AcademicRecordV1;
 }
 
 function academicRecord(
