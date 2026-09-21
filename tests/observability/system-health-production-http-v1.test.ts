@@ -61,7 +61,7 @@ describe('production system-health endpoint with real sealed sessions', () => {
     expect(monitoring).toHaveBeenCalledWith({ actorId: actor, tenantId: env.TENANT_ID,
       requestId: expect.any(String), authenticatedAt: expect.any(String), capability: 'platform.settings.read' });
     expect(fetcher).toHaveBeenCalledWith('https://aluno.escolaieda.com/', expect.objectContaining({
-      method: 'HEAD', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: expect.any(AbortSignal),
+      method: 'HEAD', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: expect.any(AbortSignal),
     }));
     const probeHeaders = new Headers(fetcher.mock.calls[0]![1]?.headers);
     expect(probeHeaders.has('cookie')).toBe(false);

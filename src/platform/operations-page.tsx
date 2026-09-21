@@ -225,7 +225,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             <Table.ScrollContainer>
               <Table.Content aria-label="Sinais operacionais observados">
                 <Table.Header>
-                  <Table.Column id="signal">Sinal</Table.Column>
+                  <Table.Column id="signal" isRowHeader>Sinal</Table.Column>
                   <Table.Column id="evidence">Evidência</Table.Column>
                   <Table.Column id="status">Estado</Table.Column>
                 </Table.Header>
@@ -281,7 +281,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
               <Table.ScrollContainer>
                 <Table.Content aria-label="Cobertura operacional dos sistemas registrados">
                   <Table.Header>
-                    <Table.Column id="system">Sistema</Table.Column>
+                    <Table.Column id="system" isRowHeader>Sistema</Table.Column>
                     <Table.Column id="state">Estado declarado</Table.Column>
                     <Table.Column id="health">Monitoramento</Table.Column>
                     <Table.Column id="updated">Atualização</Table.Column>

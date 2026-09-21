@@ -69,7 +69,7 @@ test('source collection uses fixed HEAD, omits cookies and rejects redirects', a
   let calls = 0;
   const result = await collectSystemHealthV1({ production: true, now: () => NOW, readPortal: async () => portal(),
     fetcher: async (url, init) => { calls++; assert.equal(url, 'https://aluno.escolaieda.com/');
-      assert.ok(init); assert.equal(init.method, 'HEAD'); assert.equal(init.credentials, 'omit'); assert.equal(init.redirect, 'error');
+      assert.ok(init); assert.equal(init.method, 'HEAD'); assert.equal(init.credentials, 'omit'); assert.equal(init.redirect, 'manual');
       assert.equal(new Headers(init.headers).has('cookie'), false); assert.equal(new Headers(init.headers).has('authorization'), false);
       return new Response(null, { headers: { 'content-type': 'text/html; charset=UTF-8' } }); } });
   assert.equal(calls, 1); assert.ok(isSystemHealthSnapshotV1(result));

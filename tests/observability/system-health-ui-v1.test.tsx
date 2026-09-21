@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { buildPlatformSnapshot } from '../../server/platform/snapshot';
+import { buildPlatformSnapshot, EXPECTED_PLATFORM_LISTS } from '../../server/platform/snapshot';
 import { PLATFORM_CAPABILITIES } from '../../shared/platform-contract';
 import type { SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 import { SystemHealthPageV1 } from '../../src/platform/system-health-page-v1';
@@ -211,5 +211,34 @@ it('renders independent monitoring while the administrative evidence is unavaila
   const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
   details.open = true; fireEvent(details, new Event('toggle'));
   expect(screen.getByText('Evidências administrativas indisponíveis. O monitoramento do Portal usa uma consulta independente.')).toBeTruthy();
+  expect(readHealth).toHaveBeenCalledTimes(1);
+});
+
+it('expands real administrative evidence with accessible signals and registered systems', async () => {
+  const complete = buildPlatformSnapshot({
+    lists: EXPECTED_PLATFORM_LISTS.map((displayName, index) => ({ id: `synthetic-list-${index}`, displayName })),
+    moduleItems: [{ id: 'synthetic-health-module', fields: {
+      Chave: 'plataforma-base', Nome: 'SYNTHETIC HEALTH MODULE', RotaBase: '/', Versao: '1.0.0',
+      Status: 'instalado', Ordem: 0, HealthEndpoint: '/api/health', AtualizadoEmUTC: at,
+    } }],
+    auditItems: [{ id: 'synthetic-health-audit', fields: { DataHoraUTC: at, Resultado: 'sucesso' } }],
+    configurationItems: [], migrationItems: [], correlationId: 'synthetic-complete-evidence', generatedAt: at,
+  }, PLATFORM_CAPABILITIES);
+  expect(complete.registeredModules).toHaveLength(1);
+  render(<SystemHealthPageV1 snapshot={complete} />); await flush();
+  const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
+  details.open = true; fireEvent(details, new Event('toggle'));
+  await act(async () => {
+    await import('../../src/platform/operations-page');
+  });
+  await flush();
+  const evidence = within(details);
+  expect(evidence.getByRole('heading', { name: 'Operação' })).toBeTruthy();
+  const signals = within(evidence.getByRole('grid', { name: 'Sinais operacionais observados' }));
+  expect.soft(signals.queryAllByRole('rowheader')).toHaveLength(4);
+  expect.soft(signals.queryByRole('rowheader', { name: 'Estrutura da plataforma' })).toBeTruthy();
+  const systems = within(evidence.getByRole('grid', { name: 'Cobertura operacional dos sistemas registrados' }));
+  expect.soft(systems.queryByRole('rowheader', { name: 'SYNTHETIC HEALTH MODULE' })).toBeTruthy();
+  expect(systems.getByText('Configurado')).toBeTruthy();
   expect(readHealth).toHaveBeenCalledTimes(1);
 });
