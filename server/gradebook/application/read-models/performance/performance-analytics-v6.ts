@@ -465,7 +465,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
         transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
       };
       return db.transaction(async (tx) => {
-        await tx.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
         let projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]> = new Map();
         const matrix = await readRelationalPerformanceV2(
           tx,

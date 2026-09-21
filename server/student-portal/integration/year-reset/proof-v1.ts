@@ -1,4 +1,4 @@
-import type { D1WriteDatabaseV1 } from '../../../gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../../../gradebook/persistence/postgres/postgres-database-v1';
 
 type ProofState = 'clear' | 'portal-linked-accounts' | 'not-found' | 'preview-changed';
 
@@ -18,25 +18,24 @@ export function newYearResetTokenV1(): string {
 
 // Receives the caller's physical transaction. It never opens another connection.
 export async function lockYearResetV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresReadPortV1,
   year: number,
   operation: 'preview' | 'execute',
 ): Promise<void> {
   if (!Number.isInteger(year) || year < 2000 || year > 9999) {
     throw new Error('year-reset-invalid-year');
   }
-  await transaction
-    .prepare(
-      operation === 'execute'
-        ? 'SELECT pg_advisory_xact_lock(613,0)'
-        : 'SELECT pg_advisory_xact_lock_shared(613,0)',
-    )
-    .first();
-  await transaction.prepare('SELECT pg_advisory_xact_lock(613,?::integer)').bind(year).first();
+  await transaction.query(
+    operation === 'execute'
+      ? 'SELECT pg_advisory_xact_lock(613,0)'
+      : 'SELECT pg_advisory_xact_lock_shared(613,0)',
+    [],
+  );
+  await transaction.query('SELECT pg_advisory_xact_lock(613,$1::integer)', [year]);
 }
 
 export async function yearResetProofV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresReadPortV1,
   operation: 'prepare' | 'consume',
   year: number,
   actorDigest: string,
@@ -44,12 +43,11 @@ export async function yearResetProofV1(
 ): Promise<ProofState> {
   const query =
     operation === 'prepare'
-      ? 'SELECT student_portal.prepare_year_reset_v1(?::smallint,?::text,?::text) AS state'
-      : 'SELECT student_portal.consume_year_reset_v1(?::smallint,?::text,?::text) AS state';
-  const row = await transaction
-    .prepare(query)
-    .bind(year, actorDigest, tokenDigest)
-    .first<{ state: unknown }>();
+      ? 'SELECT student_portal.prepare_year_reset_v1($1::smallint,$2::text,$3::text) AS state'
+      : 'SELECT student_portal.consume_year_reset_v1($1::smallint,$2::text,$3::text) AS state';
+  const row = (
+    await transaction.query<{ state: unknown }>(query, [year, actorDigest, tokenDigest])
+  )[0];
   const allowed =
     operation === 'prepare'
       ? ['clear', 'portal-linked-accounts', 'not-found']
@@ -61,13 +59,13 @@ export async function yearResetProofV1(
 }
 
 export async function completeYearResetV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresReadPortV1,
   year: number,
   actorDigest: string,
   tokenDigest: string,
 ): Promise<void> {
-  await transaction
-    .prepare('SELECT student_portal.complete_year_reset_v1(?::smallint,?::text,?::text)')
-    .bind(year, actorDigest, tokenDigest)
-    .first();
+  await transaction.query(
+    'SELECT student_portal.complete_year_reset_v1($1::smallint,$2::text,$3::text)',
+    [year, actorDigest, tokenDigest],
+  );
 }

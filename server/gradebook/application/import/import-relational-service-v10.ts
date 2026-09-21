@@ -6,12 +6,11 @@ import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import type { D1WriteDatabaseV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
-import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import type { GradebookPostgresReadPortV1, GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookRelationalImportServiceV9 } from './import-relational-service-v9';
 
-interface TransactionDatabaseV10 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
+interface TransactionDatabaseV10 extends GradebookPostgresWritePortV1 {
+  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
 }
 
 type Row = Record<string, unknown>;
@@ -24,7 +23,7 @@ function historicalBindingKey(turmaCodigo: string, numero: number): string {
   return `${classKey(turmaCodigo)}:${numero}`;
 }
 
-function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV10 {
+function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV10 {
   if (!('transaction' in database) || typeof (database as { transaction?: unknown }).transaction !== 'function') {
     throw new Error('gradebook-relational-import-requires-postgres');
   }
@@ -104,7 +103,7 @@ async function loadHistoricalBindingsV10(
   return result;
 }
 
-export function createGradebookRelationalImportServiceV10(database: D1WriteDatabaseV1) {
+export function createGradebookRelationalImportServiceV10(database: GradebookPostgresWritePortV1) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,

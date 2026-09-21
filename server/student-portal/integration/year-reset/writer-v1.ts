@@ -1,19 +1,19 @@
-import type { D1WriteDatabaseV1 } from '../../../gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../gradebook/persistence/postgres/postgres-database-v1';
+import { postgresJsonTextV1 } from '../../../gradebook/persistence/postgres/postgres-values-v1';
 import { lockYearResetV1 } from './proof-v1';
 
 export async function lockResetWriterV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresWritePortV1,
   year: number,
 ): Promise<void> {
   await lockYearResetV1(transaction, year, 'preview');
-  await transaction
-    .prepare('SELECT student_portal.ensure_year_coordination_v1(?::smallint)')
-    .bind(year)
-    .first();
+  await transaction.query('SELECT student_portal.ensure_year_coordination_v1($1::smallint)', [
+    year,
+  ]);
 }
 
 export async function recordResetWriteV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresWritePortV1,
   year: number,
   cause:
     | 'diagnostics'
@@ -30,36 +30,45 @@ export async function recordResetWriteV1(
     throw new Error('student-portal-revision-student-invalid');
   if (academic.changed && !['relation', 'marks', 'council', 'academic-policy'].includes(cause))
     throw new Error('student-portal-revision-cause-invalid');
-  // This D1-compatible facade binds numeric flags. Postgres.js serializes a boolean
-  // parameter as true only for JS true, so binding 1 directly to ::boolean sends false.
-  // Bind an integer first and let PostgreSQL perform the explicit boolean conversion.
-  const result = await transaction
-    .prepare(
+  // Bind the numeric flag as integer before PostgreSQL's explicit boolean conversion.
+  const result = (
+    await transaction.executeNative<{ reset_version: unknown }>(
       `SELECT reset_version FROM student_portal.record_gradebook_change_v1(
-      ?::uuid,?::smallint,?::text,?::integer::boolean,
-      ARRAY(SELECT value::integer FROM jsonb_array_elements_text(?::jsonb)),statement_timestamp())`,
+      $1::uuid,$2::smallint,$3::text,$4::integer::boolean,
+      ARRAY(SELECT value::integer FROM jsonb_array_elements_text($5::jsonb)),statement_timestamp())`,
+      [
+        crypto.randomUUID(),
+        year,
+        cause,
+        academic.changed ? 1 : 0,
+        postgresJsonTextV1(JSON.stringify(studentIds)),
+      ],
     )
-    .bind(crypto.randomUUID(), year, cause, academic.changed ? 1 : 0, JSON.stringify(studentIds))
-    .first<{ reset_version: unknown }>();
+  ).rows[0];
   if (!result || typeof result.reset_version !== 'string') {
     throw new Error('year-reset-writer-revision-unavailable');
   }
   if (year === 2026 && cause === 'relation' && academic.changed) {
-    const synchronized = await transaction
-      .prepare('SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()')
-      .first();
+    const synchronized = (
+      await transaction.query(
+        'SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()',
+        [],
+      )
+    )[0];
     if (!synchronized) throw new Error('student-portal-lifecycle-unavailable');
   }
 }
 
 export async function recordImportResetWriteV1(
-  transaction: D1WriteDatabaseV1,
+  transaction: GradebookPostgresWritePortV1,
   year: number,
   cause: 'relation' | 'marks',
   academic: { changed: boolean; studentIds?: readonly number[] } = { changed: false },
 ): Promise<void> {
-  const buffered = transaction as D1WriteDatabaseV1 & {
-    afterImportFlush?: (operation: (database: D1WriteDatabaseV1) => Promise<void>) => void;
+  const buffered = transaction as GradebookPostgresWritePortV1 & {
+    afterImportFlush?: (
+      operation: (database: GradebookPostgresWritePortV1) => Promise<void>,
+    ) => void;
   };
   if (typeof buffered.afterImportFlush === 'function') {
     buffered.afterImportFlush((database) => recordResetWriteV1(database, year, cause, academic));

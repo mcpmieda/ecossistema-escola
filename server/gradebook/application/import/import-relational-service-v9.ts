@@ -32,13 +32,11 @@ import {
   type RelationComponentV9,
   type RelationSourceBindingV9,
 } from './import-relational-relation-plan-v9';
-import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 
-interface TransactionDatabaseV9 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+interface TransactionDatabaseV9 extends GradebookPostgresWritePortV1 {
+  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
 }
 
 type Row = Record<string, unknown>;
@@ -75,43 +73,31 @@ function asNumber(value: unknown, label: string): number {
 }
 
 async function first<T extends Row>(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<T | null> {
-  return database
-    .prepare(query)
-    .bind(...values)
-    .first<T>();
+  return (await database.executeNative<T>(query, values)).rows[0] ?? null;
 }
 
 async function all<T extends Row>(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<readonly T[]> {
-  return (
-    await database
-      .prepare(query)
-      .bind(...values)
-      .all<T>()
-  ).results;
+  return database.query<T>(query, values);
 }
 
 async function run(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<number> {
-  const result = await database
-    .prepare(query)
-    .bind(...values)
-    .run();
-  return result.meta?.changes ?? result.changes ?? 0;
+  return (await database.executeNative(query, values)).changes;
 }
 
 async function academicRun(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   query: string,
   values: readonly D1WriteValueV1[],
@@ -121,7 +107,7 @@ async function academicRun(
   return changes;
 }
 
-async function lockAcademicYear(database: D1WriteDatabaseV1, ano: number): Promise<void> {
+async function lockAcademicYear(database: GradebookPostgresWritePortV1, ano: number): Promise<void> {
   await lockResetWriterV1(database, ano);
 }
 
@@ -145,7 +131,7 @@ function summary(writes: number, importWritten: boolean) {
 }
 
 async function ensureImport(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookImportPersistenceRequestV9,
   tipo: 1 | 2,
@@ -154,7 +140,7 @@ async function ensureImport(
   const row = await first<{ id: unknown }>(
     database,
     `INSERT INTO gradebook.importacao (ano, tipo, arquivo, hash)
-     VALUES (?, ?, ?, decode(?, 'hex'))
+     VALUES ($1, $2, $3, decode($4, 'hex'))
      RETURNING id`,
     [request.ano, tipo, request.manifest.fileName, request.manifest.sha256],
   );
@@ -165,7 +151,7 @@ async function ensureImport(
 }
 
 async function changedRun(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookImportPersistenceRequestV9,
   tipo: 1 | 2,
@@ -184,7 +170,7 @@ async function changedRun(
 }
 
 async function changedFirst<T extends Row>(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookImportPersistenceRequestV9,
   tipo: 1 | 2,
@@ -210,7 +196,7 @@ interface ExistingClassV9 {
 }
 
 async function resolveRelationClasses(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookRelationImportRequestV9,
 ): Promise<ReadonlyMap<string, ExistingClassV9>> {
@@ -220,7 +206,7 @@ async function resolveRelationClasses(
       database,
       `SELECT id, codigo, nome, etapa, turno
        FROM gradebook.turma
-       WHERE ano = ? AND upper(btrim(codigo)) = upper(btrim(?))`,
+       WHERE ano = $1 AND upper(btrim(codigo)) = upper(btrim($2))`,
       [request.ano, source.codigo],
     );
     if (!current) {
@@ -229,8 +215,7 @@ async function resolveRelationClasses(
         state,
         request,
         1,
-        `INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno) VALUES ($1, $2, $3, $4, $5)
          RETURNING id, codigo, nome, etapa, turno`,
         [
           request.ano,
@@ -266,8 +251,8 @@ async function resolveRelationClasses(
         request,
         1,
         `UPDATE gradebook.turma
-         SET codigo = ?, nome = ?, etapa = ?, turno = ?
-         WHERE id = ?`,
+         SET codigo = $1, nome = $2, etapa = $3, turno = $4
+         WHERE id = $5`,
         [expectedCode, expectedName, source.etapa, expectedTurn, id],
       );
     }
@@ -314,7 +299,7 @@ function relationPlanOrThrowV9(
 }
 
 async function resolveRelationComponentStudentV9(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookRelationImportRequestV9,
   component: RelationComponentV9,
@@ -326,7 +311,7 @@ async function resolveRelationComponentStudentV9(
       state,
       request,
       1,
-      'INSERT INTO gradebook.aluno (ano, nome) VALUES (?, ?) RETURNING id',
+      'INSERT INTO gradebook.aluno (ano, nome) VALUES ($1, $2) RETURNING id',
       [request.ano, component.preferred.nome],
     );
     return asNumber(created.id, 'aluno-id');
@@ -334,7 +319,7 @@ async function resolveRelationComponentStudentV9(
 
   const current = await first<Row>(
     database,
-    'SELECT nome FROM gradebook.aluno WHERE id = ? AND ano = ?',
+    'SELECT nome FROM gradebook.aluno WHERE id = $1 AND ano = $2',
     [alunoId, request.ano],
   );
   if (!current) {
@@ -349,7 +334,7 @@ async function resolveRelationComponentStudentV9(
       state,
       request,
       1,
-      'UPDATE gradebook.aluno SET nome = ? WHERE id = ?',
+      'UPDATE gradebook.aluno SET nome = $1 WHERE id = $2',
       [component.preferred.nome, alunoId],
     );
   }
@@ -357,7 +342,7 @@ async function resolveRelationComponentStudentV9(
 }
 
 async function persistRelationBindingV9(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookRelationImportRequestV9,
   item: RelationSourceBindingV9,
@@ -370,8 +355,7 @@ async function persistRelationBindingV9(
       state,
       request,
       1,
-      `INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id) VALUES ($1, $2, $3, $4, $5, $6)`,
       [request.ano, item.turmaId, item.numero, alunoId, item.situacao, item.relatedTurmaId],
     );
     return;
@@ -389,9 +373,7 @@ async function persistRelationBindingV9(
   const importId = await ensureImport(database, state, request, 1);
   await run(
     database,
-    `INSERT INTO gradebook.vinculo_historico
-     (importacao_id, turma_id, numero, situacao_anterior, situacao_nova, turma_rel_anterior, turma_rel_nova)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO gradebook.vinculo_historico (importacao_id, turma_id, numero, situacao_anterior, situacao_nova, turma_rel_anterior, turma_rel_nova) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
       importId,
       item.turmaId,
@@ -406,18 +388,18 @@ async function persistRelationBindingV9(
   state.writes += await academicRun(
     database,
     state,
-    `UPDATE gradebook.vinculo SET situacao = ?, turma_relacionada_id = ?
-     WHERE turma_id = ? AND numero = ?`,
+    `UPDATE gradebook.vinculo SET situacao = $1, turma_relacionada_id = $2
+     WHERE turma_id = $3 AND numero = $4`,
     [item.situacao, item.relatedTurmaId, item.turmaId, item.numero],
   );
 }
 
 async function persistRelation(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   request: GradebookRelationImportRequestV9,
   state: ImportStateV9,
 ): Promise<void> {
-  const year = await first<Row>(database, 'SELECT ano FROM gradebook.ano_letivo WHERE ano = ?', [
+  const year = await first<Row>(database, 'SELECT ano FROM gradebook.ano_letivo WHERE ano = $1', [
     request.ano,
   ]);
   if (!year) {
@@ -426,8 +408,7 @@ async function persistRelation(
       state,
       request,
       1,
-      `INSERT INTO gradebook.ano_letivo (ano, minimo_aprovacao, max_componentes_conselho)
-       VALUES (?, 60000, 2)`,
+      `INSERT INTO gradebook.ano_letivo (ano, minimo_aprovacao, max_componentes_conselho) VALUES ($1, 60000, 2)`,
       [request.ano],
     );
   }
@@ -438,7 +419,7 @@ async function persistRelation(
     `SELECT v.turma_id, v.numero, v.aluno_id, v.situacao, v.turma_relacionada_id, a.nome
      FROM gradebook.vinculo v
      JOIN gradebook.aluno a ON a.id = v.aluno_id
-     WHERE v.ano = ?`,
+     WHERE v.ano = $1`,
     [request.ano],
   );
   const plan = relationPlanOrThrowV9(
@@ -462,13 +443,13 @@ async function persistRelation(
 }
 
 async function resolveProfessor(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookNotesImportRequestV9,
 ): Promise<number> {
   const current = await first<Row>(
     database,
-    `SELECT id, nome FROM gradebook.professor WHERE ano = ? AND lower(btrim(nome)) = lower(btrim(?))`,
+    `SELECT id, nome FROM gradebook.professor WHERE ano = $1 AND lower(btrim(nome)) = lower(btrim($2))`,
     [request.ano, request.professor],
   );
   if (!current) {
@@ -477,7 +458,7 @@ async function resolveProfessor(
       state,
       request,
       2,
-      `INSERT INTO gradebook.professor (ano, nome) VALUES (?, ?) RETURNING id`,
+      `INSERT INTO gradebook.professor (ano, nome) VALUES ($1, $2) RETURNING id`,
       [request.ano, request.professor.trim()],
       false,
     );
@@ -490,7 +471,7 @@ async function resolveProfessor(
       state,
       request,
       2,
-      `UPDATE gradebook.professor SET nome = ? WHERE id = ?`,
+      `UPDATE gradebook.professor SET nome = $1 WHERE id = $2`,
       [request.professor.trim(), id],
       false,
     );
@@ -499,14 +480,14 @@ async function resolveProfessor(
 }
 
 async function resolveDiscipline(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookNotesImportRequestV9,
   name: string,
 ): Promise<number> {
   const current = await first<Row>(
     database,
-    `SELECT id, nome FROM gradebook.disciplina WHERE ano = ? AND lower(btrim(nome)) = lower(btrim(?))`,
+    `SELECT id, nome FROM gradebook.disciplina WHERE ano = $1 AND lower(btrim(nome)) = lower(btrim($2))`,
     [request.ano, name],
   );
   if (!current) {
@@ -515,7 +496,7 @@ async function resolveDiscipline(
       state,
       request,
       2,
-      `INSERT INTO gradebook.disciplina (ano, nome) VALUES (?, ?) RETURNING id`,
+      `INSERT INTO gradebook.disciplina (ano, nome) VALUES ($1, $2) RETURNING id`,
       [request.ano, name.trim()],
     );
     return asNumber(created.id, 'disciplina-id');
@@ -529,7 +510,7 @@ async function resolveDiscipline(
       state,
       request,
       2,
-      `UPDATE gradebook.disciplina SET nome = ? WHERE id = ?`,
+      `UPDATE gradebook.disciplina SET nome = $1 WHERE id = $2`,
       [name.trim(), id],
     );
   }
@@ -537,7 +518,7 @@ async function resolveDiscipline(
 }
 
 async function resolveOffer(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookNotesImportRequestV9,
   turmaId: number,
@@ -547,7 +528,7 @@ async function resolveOffer(
   const current = await first<Row>(
     database,
     `SELECT id FROM gradebook.oferta
-     WHERE ano = ? AND turma_id = ? AND professor_id = ? AND disciplina_id = ?`,
+     WHERE ano = $1 AND turma_id = $2 AND professor_id = $3 AND disciplina_id = $4`,
     [request.ano, turmaId, professorId, disciplinaId],
   );
   if (current) return asNumber(current.id, 'oferta-id');
@@ -556,8 +537,7 @@ async function resolveOffer(
     state,
     request,
     2,
-    `INSERT INTO gradebook.oferta (ano, turma_id, professor_id, disciplina_id)
-     VALUES (?, ?, ?, ?) RETURNING id`,
+    `INSERT INTO gradebook.oferta (ano, turma_id, professor_id, disciplina_id) VALUES ($1, $2, $3, $4) RETURNING id`,
     [request.ano, turmaId, professorId, disciplinaId],
   );
   return asNumber(created.id, 'oferta-id');
@@ -577,7 +557,7 @@ interface InstrumentTermContextV9 {
 }
 
 interface OfferInstrumentReconciliationV9 {
-  readonly database: D1WriteDatabaseV1;
+  readonly database: GradebookPostgresWritePortV1;
   readonly state: ImportStateV9;
   readonly request: GradebookNotesImportRequestV9;
   readonly offer: GradebookImportOfferV9;
@@ -622,13 +602,13 @@ async function retireMissingQualitativeInstrumentsV9(
     state.writes += await academicRun(
       database,
       state,
-      'DELETE FROM gradebook.nota WHERE instrumento_id = ?',
+      'DELETE FROM gradebook.nota WHERE instrumento_id = $1',
       [current.id],
     );
     state.writes += await academicRun(
       database,
       state,
-      'DELETE FROM gradebook.instrumento WHERE id = ?',
+      'DELETE FROM gradebook.instrumento WHERE id = $1',
       [current.id],
     );
     existingInstruments.delete(key);
@@ -672,8 +652,7 @@ async function resolveInstrumentForTermV9(
   if (!instrument) {
     const created = await first<Row>(
       database,
-      `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao)
-       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [ofertaId, term.trimestre, slot, metadata.maximo, metadata.descricao],
     );
     if (!created) throw new Error('instrument-insert-without-id');
@@ -692,7 +671,7 @@ async function resolveInstrumentForTermV9(
     state.writes += await academicRun(
       database,
       state,
-      'UPDATE gradebook.instrumento SET maximo = ?, descricao = ? WHERE id = ?',
+      'UPDATE gradebook.instrumento SET maximo = $1, descricao = $2 WHERE id = $3',
       [metadata.maximo, metadata.descricao, instrument.id],
     );
     instrument.maximo = metadata.maximo;
@@ -748,7 +727,7 @@ async function reconcileInstrumentNotesV9(
       state.writes += await academicRun(
         database,
         state,
-        'DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?',
+        'DELETE FROM gradebook.nota WHERE instrumento_id = $1 AND aluno_id = $2',
         [instrument.id, alunoId],
       );
       notes.delete(noteKey);
@@ -758,7 +737,7 @@ async function reconcileInstrumentNotesV9(
       state.writes += await academicRun(
         database,
         state,
-        'INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)',
+        'INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES ($1, $2, $3)',
         [instrument.id, alunoId, mutation.value],
       );
       notes.set(noteKey, mutation.value);
@@ -767,7 +746,7 @@ async function reconcileInstrumentNotesV9(
     state.writes += await academicRun(
       database,
       state,
-      'UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?',
+      'UPDATE gradebook.nota SET valor = $1 WHERE instrumento_id = $2 AND aluno_id = $3',
       [mutation.value, instrument.id, alunoId],
     );
     notes.set(noteKey, mutation.value);
@@ -795,7 +774,7 @@ async function reconcileOfferInstrumentTermsV9(
 }
 
 async function processOffer(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookNotesImportRequestV9,
   offer: GradebookImportOfferV9,
@@ -807,7 +786,7 @@ async function processOffer(
   const ofertaId = await resolveOffer(database, state, request, turmaId, professorId, disciplinaId);
   const instrumentRows = await all<Row>(
     database,
-    `SELECT id, trimestre, slot, maximo, descricao FROM gradebook.instrumento WHERE oferta_id = ?`,
+    `SELECT id, trimestre, slot, maximo, descricao FROM gradebook.instrumento WHERE oferta_id = $1`,
     [ofertaId],
   );
   const existingInstruments = new Map<string, InstrumentStateV9>();
@@ -826,7 +805,7 @@ async function processOffer(
     `SELECT n.instrumento_id, n.aluno_id, n.valor
      FROM gradebook.nota n
      JOIN gradebook.instrumento i ON i.id = n.instrumento_id
-     WHERE i.oferta_id = ?`,
+     WHERE i.oferta_id = $1`,
     [ofertaId],
   );
   const notes = new Map<string, number | null>();
@@ -856,7 +835,7 @@ async function processOffer(
   const fechamentoRows = await all<Row>(
     database,
     `SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte
-     FROM gradebook.fechamento WHERE oferta_id = ?`,
+     FROM gradebook.fechamento WHERE oferta_id = $1`,
     [ofertaId],
   );
   const closing = new Map<number, RelationalClosingStateV9>();
@@ -921,9 +900,7 @@ async function processOffer(
     for (const change of changes) {
       state.writes += await run(
         database,
-        `INSERT INTO gradebook.fechamento_historico
-         (importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO gradebook.fechamento_historico (importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           importId,
           ofertaId,
@@ -940,7 +917,7 @@ async function processOffer(
       state.writes += await academicRun(
         database,
         state,
-        `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`,
+        `DELETE FROM gradebook.fechamento WHERE oferta_id = $1 AND aluno_id = $2`,
         [ofertaId, alunoId],
       );
       continue;
@@ -950,9 +927,7 @@ async function processOffer(
       state.writes += await academicRun(
         database,
         state,
-        `INSERT INTO gradebook.fechamento
-         (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO gradebook.fechamento (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           ofertaId,
           alunoId,
@@ -972,8 +947,8 @@ async function processOffer(
         database,
         state,
         `UPDATE gradebook.fechamento
-         SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, rec_rr_mask = ?, u_fonte = ?
-         WHERE oferta_id = ? AND aluno_id = ?`,
+         SET am1_fonte = $1, am2_fonte = $2, am3_fonte = $3, rec1 = $4, rec2 = $5, rec3 = $6, rec_nc_mask = $7, rec_rr_mask = $8, u_fonte = $9
+         WHERE oferta_id = $10 AND aluno_id = $11`,
         [
           next.am[0],
           next.am[1],
@@ -993,11 +968,11 @@ async function processOffer(
 }
 
 async function persistNotes(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   request: GradebookNotesImportRequestV9,
   state: ImportStateV9,
 ): Promise<void> {
-  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [
+  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = $1`, [
     request.ano,
   ]);
   if (!year) {
@@ -1005,7 +980,7 @@ async function persistNotes(
   }
   const classRows = await all<Row>(
     database,
-    `SELECT id, codigo FROM gradebook.turma WHERE ano = ?`,
+    `SELECT id, codigo FROM gradebook.turma WHERE ano = $1`,
     [request.ano],
   );
   const classes = new Map<string, number>();
@@ -1013,7 +988,7 @@ async function persistNotes(
     classes.set(classKey(String(row.codigo)), asNumber(row.id, 'turma-id'));
   const bindingRows = await all<Row>(
     database,
-    `SELECT turma_id, numero, aluno_id FROM gradebook.vinculo WHERE ano = ?`,
+    `SELECT turma_id, numero, aluno_id FROM gradebook.vinculo WHERE ano = $1`,
     [request.ano],
   );
   const bindings = new Map<string, number>();
@@ -1055,7 +1030,7 @@ async function persistNotes(
   }
 }
 
-function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV9 {
+function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV9 {
   if (
     !('transaction' in database) ||
     typeof (database as { transaction?: unknown }).transaction !== 'function'
@@ -1065,7 +1040,7 @@ function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV9
   return database as TransactionDatabaseV9;
 }
 
-export function createGradebookRelationalImportServiceV9(database: D1WriteDatabaseV1) {
+export function createGradebookRelationalImportServiceV9(database: GradebookPostgresWritePortV1) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,
