@@ -51,7 +51,7 @@ it.each(['focus', 'pageshow', 'popstate'])(
               persistent: false,
               expiresAt: new Date(Date.now() + 3600_000).toISOString(),
             })
-        : json(SYNETIC_SELF_V1),
+        : json(SYNTHETIC_SELF_V1),
     );
     const client = createPortalSelfClientV1({ fetch: fetcher });
     const view = render(<StudentPortalApp client={client} />);
