@@ -93,8 +93,12 @@ export interface GradebookPostgresReadPortV1 {
   ): Promise<readonly Row[]>;
 }
 
+/** What a transaction hands its callback: the D1 statement API plus the native read port,
+ * both bound to the transaction's own connection. */
+export type GradebookPostgresTransactionV1 = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
+
 export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1, GradebookPostgresReadPortV1 {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
   lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;
   close(): Promise<void>;
 }
@@ -457,7 +461,7 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     return this.transactional ? executeBatch(this.sql) : this.root.begin(executeBatch);
   }
 
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T> {
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T> {
     if (this.transactional) return operation(this);
     return this.root.begin(async (transactionSql) =>
       operation(new GradebookPostgresFacadeV1(transactionSql, this.root, true, this.failureState)),

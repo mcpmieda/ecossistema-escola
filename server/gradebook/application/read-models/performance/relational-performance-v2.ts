@@ -29,6 +29,10 @@ import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type {
+  GradebookPostgresReadPortV1,
+  GradebookPostgresTransactionV1,
+} from '../../../persistence/postgres/postgres-database-v1';
 import {
   projectPerformanceFactsV2,
   performanceCellV2,
@@ -41,7 +45,7 @@ import {
 
 type Row = Record<string, unknown>;
 type TransactionDatabase = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (db: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (db: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 const fail = (state: PerformanceFailureV2): PerformanceResponseV2 => ({
   transportVersion: 2,
@@ -58,17 +62,22 @@ const text = (value: unknown): string => {
   if (typeof value !== 'string' || !value.trim()) throw new Error('invalid-performance-row');
   return value;
 };
-const all = async (
-  db: D1WriteDatabaseV1,
+const all = (
+  db: GradebookPostgresReadPortV1,
   sql: string,
   values: readonly D1WriteValueV1[] = [],
-): Promise<readonly Row[]> =>
-  (
-    await db
-      .prepare(sql)
-      .bind(...values)
-      .all<Row>()
-  ).results;
+): Promise<readonly Row[]> => db.query<Row>(sql, values);
+/** Numbers each placeholder as its value is recorded, so SQL text and values cannot drift. */
+function parameters() {
+  const values: D1WriteValueV1[] = [];
+  return {
+    values,
+    param(value: D1WriteValueV1): string {
+      values.push(value);
+      return `$${String(values.length)}`;
+    },
+  };
+}
 const STATUS_LABELS = {
   1: 'Especial',
   2: 'Assistido',
@@ -176,7 +185,7 @@ function makeRow(
 }
 
 export async function readRelationalPerformanceV2(
-  db: D1WriteDatabaseV1,
+  db: GradebookPostgresReadPortV1,
   request: PerformanceRequestV2,
   options: {
     readonly descriptionOfferId?: number;
@@ -185,13 +194,14 @@ export async function readRelationalPerformanceV2(
     readonly collect?: (values: ReadonlyMap<number, readonly PerformanceProjectionV2[]>) => void;
   } = {},
 ): Promise<PerformanceResponseV2> {
+  const yearQuery = parameters();
   const [year] = await all(
     db,
     `SELECT ano, minimo_aprovacao, max_componentes_conselho,
     COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names,
     to_char(transaction_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
-    FROM gradebook.ano_letivo y WHERE ano = ?`,
-    [request.year],
+    FROM gradebook.ano_letivo y WHERE ano = ${yearQuery.param(request.year)}`,
+    yearQuery.values,
   );
   if (!year) return fail('not-found');
   const assessmentNames = assessmentNamesSchemaV1.parse(year.assessment_names ?? {});
@@ -207,10 +217,14 @@ export async function readRelationalPerformanceV2(
     readAt: text(year.read_at),
   } as const;
   if (request.operation === 'classes') {
+    const classesQuery = parameters();
+    const classesYear = classesQuery.param(request.year);
+    const classesLimit = classesQuery.param(request.limit + 1);
+    const classesOffset = classesQuery.param(request.offset);
     const rows = await all(
       db,
-      `SELECT id, codigo FROM gradebook.turma WHERE ano = ? ORDER BY codigo COLLATE "C", id LIMIT ? OFFSET ?`,
-      [request.year, request.limit + 1, request.offset],
+      `SELECT id, codigo FROM gradebook.turma WHERE ano = ${classesYear} ORDER BY codigo COLLATE "C", id LIMIT ${classesLimit} OFFSET ${classesOffset}`,
+      classesQuery.values,
     );
     const nextOffset = rows.length > request.limit ? request.offset + request.limit : null;
     if (nextOffset !== null && nextOffset > 100_000) return fail('scope-too-large');
@@ -230,10 +244,13 @@ export async function readRelationalPerformanceV2(
       nextOffset,
     };
   }
+  const classQuery = parameters();
+  const classYearParam = classQuery.param(request.year);
+  const classIdParam = classQuery.param(request.classId);
   const [classRow] = await all(
     db,
-    'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = ? AND id = ?',
-    [request.year, request.classId],
+    `SELECT id, codigo, nome FROM gradebook.turma WHERE ano = ${classYearParam} AND id = ${classIdParam}`,
+    classQuery.values,
   );
   if (!classRow) return fail('not-found');
   const selected = {
@@ -247,6 +264,11 @@ export async function readRelationalPerformanceV2(
   };
   const specificStudent = request.operation !== 'matrix';
   const specificOffer = request.operation === 'cell-detail';
+  const studentsQuery = parameters();
+  const studentsYear = studentsQuery.param(request.year);
+  const studentsClass = studentsQuery.param(request.classId);
+  const studentsFilter = specificStudent ? `AND a.id=${studentsQuery.param(request.studentId)}` : '';
+  const studentsLimit = studentsQuery.param(PERFORMANCE_LIMITS_V2.students + 1);
   const students = await all(
     db,
     `SELECT a.id,a.nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
@@ -254,17 +276,17 @@ export async function readRelationalPerformanceV2(
     JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
     LEFT JOIN gradebook.turma tr ON tr.id=v.turma_relacionada_id AND tr.ano=v.ano
     LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id
-    WHERE v.ano=? AND v.turma_id=? AND v.situacao IS DISTINCT FROM 6 ${specificStudent ? 'AND a.id=?' : ''}
-    ORDER BY v.numero,a.id LIMIT ?`,
-    [
-      request.year,
-      request.classId,
-      ...(specificStudent ? [request.studentId] : []),
-      PERFORMANCE_LIMITS_V2.students + 1,
-    ],
+    WHERE v.ano=${studentsYear} AND v.turma_id=${studentsClass} AND v.situacao IS DISTINCT FROM 6 ${studentsFilter}
+    ORDER BY v.numero,a.id LIMIT ${studentsLimit}`,
+    studentsQuery.values,
   );
   if (specificStudent && students.length === 0) return fail('not-found');
   if (students.length > PERFORMANCE_LIMITS_V2.students) return fail('scope-too-large');
+  const offersQuery = parameters();
+  const offersYear = offersQuery.param(request.year);
+  const offersClass = offersQuery.param(request.classId);
+  const offersFilter = specificOffer ? `AND o.id=${offersQuery.param(request.offerId)}` : '';
+  const offersLimit = offersQuery.param(PERFORMANCE_LIMITS_V2.offers + 1);
   const offers = (
     await all(
       db,
@@ -272,14 +294,9 @@ export async function readRelationalPerformanceV2(
     FROM gradebook.oferta o
     JOIN gradebook.disciplina d ON d.id=o.disciplina_id AND d.ano=o.ano
     JOIN gradebook.professor p ON p.id=o.professor_id AND p.ano=o.ano
-    WHERE o.ano=? AND o.turma_id=? ${specificOffer ? 'AND o.id=?' : ''}
-    ORDER BY d.nome COLLATE "C",o.id LIMIT ?`,
-      [
-        request.year,
-        request.classId,
-        ...(specificOffer ? [request.offerId] : []),
-        PERFORMANCE_LIMITS_V2.offers + 1,
-      ],
+    WHERE o.ano=${offersYear} AND o.turma_id=${offersClass} ${offersFilter}
+    ORDER BY d.nome COLLATE "C",o.id LIMIT ${offersLimit}`,
+      offersQuery.values,
     )
   )
     .map(offer)
@@ -297,14 +314,19 @@ export async function readRelationalPerformanceV2(
   if (students.length && offers.length) {
     // The V6 label budget is 500 characters. Do not truncate a compound description into a
     // participation alias: oversized labels keep their original source and use a generic label.
+    const factsQuery = parameters();
     const description = specificOffer
       ? 'i.descricao'
       : options.descriptionOfferId !== undefined
-        ? 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'
+        ? `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`
         : options.includeInstrumentDescriptions === true
           ? 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END'
           : 'NULL::text';
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
+    const factsYear = factsQuery.param(request.year);
+    const factsClass = factsQuery.param(request.classId);
+    const factsStudent = specificStudent ? `AND v.aluno_id=${factsQuery.param(request.studentId)}` : '';
+    const factsOffer = specificOffer ? `AND o.id=${factsQuery.param(request.offerId)}` : '';
     const facts = await all(
       db,
       `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
@@ -315,18 +337,10 @@ export async function readRelationalPerformanceV2(
       LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
       LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id
       LEFT JOIN gradebook.fechamento f ON f.oferta_id=o.id AND f.aluno_id=v.aluno_id
-      WHERE v.ano=? AND v.turma_id=? AND v.situacao IS DISTINCT FROM 6
-        ${specificStudent ? 'AND v.aluno_id=?' : ''} ${specificOffer ? 'AND o.id=?' : ''}
+      WHERE v.ano=${factsYear} AND v.turma_id=${factsClass} AND v.situacao IS DISTINCT FROM 6
+        ${factsStudent} ${factsOffer}
       ORDER BY v.aluno_id,o.id,i.trimestre,i.slot`,
-      [
-        ...(!specificOffer && options.descriptionOfferId !== undefined
-          ? [options.descriptionOfferId]
-          : []),
-        request.year,
-        request.classId,
-        ...(specificStudent ? [request.studentId] : []),
-        ...(specificOffer ? [request.offerId] : []),
-      ],
+      factsQuery.values,
     );
     for (const row of facts) {
       const key = `${integer(row.aluno_id)}:${integer(row.oferta_id)}`;

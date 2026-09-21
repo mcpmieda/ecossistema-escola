@@ -15,10 +15,11 @@ import {
 import { performanceCellV2, type PerformanceProjectionV2 } from '../results/relational-performance-facts-v2';
 import { readRelationalPerformanceV2 } from '../read-models/performance/relational-performance-v2';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
 type Database = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 type WriteRequest = Exclude<RelationalCouncilRequestV3, { operation: 'classes' | 'workspace' }>;
 
@@ -82,7 +83,7 @@ function eligibility(
 }
 
 async function readWorkspace(
-  db: D1WriteDatabaseV1,
+  db: GradebookPostgresTransactionV1,
   year: number,
   classId: number,
 ): Promise<RelationalCouncilWorkspaceV3 | RelationalCouncilFailureV3> {
@@ -216,12 +217,12 @@ async function advanceSession(db: D1WriteDatabaseV1, request: WriteRequest, stat
     WHERE ano=? AND turma_id=? AND versao=? RETURNING versao AS version`, [state, actorId, request.year, request.classId, request.expectedVersion]);
   return row ? integer(row.version) : null;
 }
-async function ready(db: D1WriteDatabaseV1, request: Exclude<RelationalCouncilRequestV3, { operation: 'classes' }>): Promise<RelationalCouncilResponseV3> {
+async function ready(db: GradebookPostgresTransactionV1, request: Exclude<RelationalCouncilRequestV3, { operation: 'classes' }>): Promise<RelationalCouncilResponseV3> {
   const workspace = await readWorkspace(db, request.year, request.classId);
   return typeof workspace === 'string' ? fail(workspace) : { contractVersion: 3, state: 'ready', operation: request.operation, workspace };
 }
 
-async function mutate(db: D1WriteDatabaseV1, request: WriteRequest, actorId: string): Promise<RelationalCouncilResponseV3> {
+async function mutate(db: GradebookPostgresTransactionV1, request: WriteRequest, actorId: string): Promise<RelationalCouncilResponseV3> {
   const duplicate = await idempotency(db, request);
   if (duplicate === 'conflict') return fail('idempotency-conflict');
   if (duplicate === 'same') return ready(db, request);
