@@ -11,7 +11,7 @@ const origin = 'http://localhost:8788';
 const actor = '11111111-1111-4111-8111-111111111111';
 const tenant = '22222222-2222-4222-8222-222222222222';
 function fixture() {
-  const monitoringHistory = vi.fn(async () => historyFixtureV1());
+  const monitoringHistory = vi.fn<() => Promise<unknown>>(async () => historyFixtureV1());
   const monitoring = vi.fn();
   const env = { OFFICIAL_ORIGIN: origin, RUNTIME_ENVIRONMENT: 'local', TENANT_ID: tenant,
     PORTAL_SERVICE: { monitoring, monitoringHistory } } as unknown as RuntimeEnv;
@@ -56,8 +56,9 @@ it.each(['{}', 'null', '[]', '{"before":"invalid"}', '{"before":null,"name":"syn
   expect((await handleSystemHealthRequestV1(request(body), env))?.status).toBe(400);
   expect(monitoringHistory).not.toHaveBeenCalled();
 });
-it.each([{ Origin: 'https://untrusted.invalid' }, { Cookie: '' },
-  { Cookie: `${SESSION_COOKIE}=a; ${SESSION_COOKIE}=b` }, { 'x-forwarded-host': 'untrusted.invalid' }])('preserves the origin and cookie boundary', async (headers) => {
+const invalidHeaders: Record<string, string>[] = [{ Origin: 'https://untrusted.invalid' }, { Cookie: '' },
+  { Cookie: `${SESSION_COOKIE}=a; ${SESSION_COOKIE}=b` }, { 'x-forwarded-host': 'untrusted.invalid' }];
+it.each(invalidHeaders)('preserves the origin and cookie boundary', async (headers) => {
   const { env, monitoringHistory } = fixture();
   expect((await handleSystemHealthRequestV1(request(undefined, headers), env))?.status).toBeGreaterThanOrEqual(400);
   expect(monitoringHistory).not.toHaveBeenCalled();
