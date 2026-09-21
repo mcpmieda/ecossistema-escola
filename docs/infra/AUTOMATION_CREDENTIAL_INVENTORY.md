@@ -10,8 +10,8 @@ This file records names, consumers and authority boundaries only. It must never 
 | --- | --- | --- |
 | `CLOUDFLARE_DEPLOY_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/deploy-student-portal.yml`, `.github/workflows/entra-maintenance.yml`, `.github/workflows/cloudflare-on-demand.yml` | Pages/Workers deployment, bounded Maintenance update of one inactive runtime credential slot, and read-only capability probing without mutation. |
 | `CLOUDFLARE_HYPERDRIVE_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/cloudflare-on-demand.yml` | Hyperdrive production verification/configuration and read-only capability probing without mutation. |
-| `GEMINI_API_KEY` | `.github/workflows/antigravity-on-demand.yml` and `.github/workflows/gemini-on-demand.yml` | Shared provider credential for the bounded Antigravity and Gemini CLI executors. Provider quota is shared; host-side validation runs outside the model step. |
-| `OPENHANDS_API_KEY` | `.github/workflows/openhands-on-demand.yml` → `infra/agents/openhands_cloud.py` | Starts bounded OpenHands Cloud conversations. The provider job has read-only GitHub permissions; reporting runs in a separate issue-write job. |
+| `GEMINI_API_KEY` | none | Orphaned. Its only consumers were the Antigravity and Gemini CLI executors, both removed. Revoke it at the provider and delete the repository secret. |
+| `OPENHANDS_API_KEY` | none | Orphaned. Its only consumer was the OpenHands Cloud executor, removed. Revoke it at the provider and delete the repository secret. |
 
 ## Repository variables to keep
 
@@ -88,7 +88,7 @@ The matching public certificates are stored on the two Entra Application objects
 
 ### Agents
 
-- Antigravity: bounded executor using only `GEMINI_API_KEY`; it has no production merge/deploy authority.
+- Antigravity, Gemini CLI and OpenHands Cloud: removed. Their workflows, documentation and the whole `infra/agents/` handoff tooling are gone, so no comment-triggered executor remains.
 - Jules: approved external/GitHub-connected executor; no repository API key is required by the current repository.
 - CodeRabbit: optional independent reviewer; not an architectural or merge authority.
 - GitHub Actions `github.token` is ephemeral workflow authority and is not a stored repository secret.

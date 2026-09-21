@@ -6,9 +6,6 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 
 ![ChatGPT](https://img.shields.io/badge/ChatGPT-L%C3%ADder-10A37F?logo=openai&logoColor=white)
 ![Jules](https://img.shields.io/badge/Jules-Executor-4285F4?logo=google&logoColor=white)
-![Antigravity](https://img.shields.io/badge/Antigravity-Bounded-8E75B2)
-![OpenHands](https://img.shields.io/badge/OpenHands-Cloud-111827)
-![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-Bounded-4285F4?logo=google&logoColor=white)
 ![CodeRabbit](https://img.shields.io/badge/CodeRabbit-Revis%C3%A3o-F97316)
 ![SonarQube Cloud](https://img.shields.io/badge/SonarQube_Cloud-Gate-126ED3)
 
@@ -18,13 +15,8 @@ Equipe homologada em 19/09/2026. **ChatGPT** é o líder/coordenador padrão; os
 | --- | --- | --- | --- | --- |
 | **ChatGPT** | Líder e coordenador | coordenação pelo responsável via ChatGPT | arquitetura, contratos, regras, segurança, integração, delegação e decisão técnica final | decide dentro do escopo autorizado; merge/deploy somente quando as autorizações vigentes e todos os gates permitirem |
 | **Jules** | Executor assíncrono amplo | integração Jules/GitHub | funcionalidades e correções delimitadas que se beneficiem de execução assíncrona mais ampla | entrega candidata; não recebe autoridade arquitetural, merge direto, deploy ou acesso adicional a secrets |
-| **Antigravity** | Executor bounded | comentário exato `/antigravity` ou `workflow_dispatch` com `AGENT_HANDOFF` | patches bem especificados, testes, refatorações e consumidores independentes | restrito ao handoff/`allowed_paths`; sem publicação autônoma em `main`, deploy ou autoridade sobre governança |
-| **OpenHands Cloud** | Executor cloud assíncrono | comentário exato `/openhands` ou `workflow_dispatch` em issue do proprietário com `AGENT_HANDOFF` | tarefas de implementação mais longas no workspace do repositório conectado | segue o handoff e produz somente entrega candidata; sem merge em `main`, deploy, secrets, dados reais de estudantes ou decisão arquitetural |
-| **Gemini CLI** | Executor bounded via GitHub Actions | comentário exato `/gemini` ou `workflow_dispatch` com `AGENT_HANDOFF` | alterações rápidas e restritas a paths explícitos | etapa do modelo não recebe token GitHub gravável; patch é validado host-side antes de branch/PR candidato; sem merge/deploy |
 | **CodeRabbit** | Revisor independente | `@coderabbitai review` quando revisão acrescentar valor | regressões, segurança, inconsistências e segunda leitura de PRs | revisão/comentários; não é autoridade arquitetural nem substitui CI/gates |
 | **SonarQube Cloud** | Gate automático de qualidade e segurança | Automatic Analysis via GitHub App | análise estática, security rating, hotspots e Quality Gate | não escreve código nem decide arquitetura; bloqueia integração quando o gate oficial falha |
-
-Smokes homologados: OpenHands na #927 e Gemini CLI na #931. O PR sintético do Gemini (#934) foi validado e fechado sem merge.
 
 ### Operador Cloudflare read-only
 
@@ -48,7 +40,7 @@ Objetivo: permitir o uso de vários agentes sem criar arquiteturas concorrentes,
 
 - Toda tarefa com impacto relevante deve ter um **agente líder**. O agente líder é o agente de maior capacidade disponível e explicitamente designado para compreender o problema de ponta a ponta. Na configuração atual, quando a coordenação ocorre via ChatGPT, o papel de líder é exercido por **ChatGPT**, salvo decisão diferente do responsável. Essa designação é operacional e pode mudar no futuro sem alterar a política.
 - Ficam reservadas ao agente líder a definição ou revisão de: arquitetura; regras de negócio e acadêmicas; contratos compartilhados; limites entre módulos; autenticação e autorização; modelo de dados, schema e migrations; segurança; comportamento transversal; CI/deploy; integrações externas; produção e qualquer decisão que possa criar um novo padrão para o Ecossistema.
-- Jules, Antigravity, OpenHands Cloud, Gemini CLI e outros agentes auxiliares são, por padrão, **agentes executores ou revisores**, não autoridades arquiteturais. Podem implementar código, testes, documentação, refatorações mecânicas e correções localizadas quando o trabalho estiver suficientemente especificado. Só assumem papel de líder quando o responsável os designar expressamente para isso.
+- Jules e outros agentes auxiliares são, por padrão, **agentes executores ou revisores**, não autoridades arquiteturais. Podem implementar código, testes, documentação, refatorações mecânicas e correções localizadas quando o trabalho estiver suficientemente especificado. Só assumem papel de líder quando o responsável os designar expressamente para isso.
 - A autorização contínua registrada em 18/09/2026 permite ao agente líder decidir autonomamente **se**, **quando**, **para quem** e **em paralelo com o quê** delegar trabalho a agentes já homologados, sem pedir nova confirmação por chamada. Nova instalação, nova credencial, ampliação de permissões de terceiros ou acesso a recursos sensíveis continua exigindo a autorização aplicável.
 - Antes de delegar implementação, o agente líder deixa um handoff proporcional ao risco na issue, comentário ou descrição da tarefa. Correções locais podem receber um handoff curto; mudanças transversais, acadêmicas, de contrato, dados, segurança ou infraestrutura exigem handoff completo contendo: objetivo; paths/componentes; fonte de verdade; invariantes; proibições; testes/critérios de aceite; e evidências de conclusão.
 - Um executor não deve reinterpretar requisitos vagos, criar arquitetura alternativa, ampliar contratos, mover responsabilidade entre módulos, alterar regras acadêmicas, enfraquecer testes, contornar gates ou “resolver por fora” uma limitação do handoff. Se descobrir que isso é necessário, deve parar nesse ponto e devolver a decisão ao agente líder.
