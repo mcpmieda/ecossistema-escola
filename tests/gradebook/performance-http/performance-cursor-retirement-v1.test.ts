@@ -134,8 +134,9 @@ describe.each(['local', 'preview', 'production'] as const)('retired performance 
 
   it('keeps column-before-row error precedence when both cursors are malformed', async () => {
     const { env, access } = environment(runtime);
-    const payload = body('rows', '***');
-    payload.request.columns = { limit: 6, cursor: '***' } as never;
+    const payload = { transportVersion: 1, operation: 'matrix', request: {
+      ...matrix, rows: { limit: 20, cursor: '***' }, columns: { limit: 6, cursor: '***' },
+    } };
     await expectFailure(await handlePerformanceRequestV1(request(env, payload), env), 'invalid-column-cursor');
     expect(access).not.toHaveBeenCalled();
   });
