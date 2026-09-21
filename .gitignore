@@ -18,7 +18,6 @@ playwright-report/
 .DS_Store
 Thumbs.db
 
-.gemini/
 gha-creds-*.json
 
 __pycache__/
