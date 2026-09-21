@@ -255,14 +255,13 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
     await replace(database,observation(['k1','k2']));
     const previous=await state();
     queries.length=0;
-    const prepare = vi.spyOn(database, 'prepare').mockImplementation(() => { throw new Error('diagnostic-read-used-legacy-prepare'); });
+    expect('prepare' in database).toBe(false);
     const nativeQuery = vi.spyOn(database, 'query');
     let result: Response;
     try {
       result=await request('GET',undefined,'https://school.test',query);
       expect(nativeQuery).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(query.includes('ano=') ? 'WHERE d.ano = $1' : 'LIMIT $1 OFFSET $2'), query.includes('ano=') ? [2090,2,0] : [2,0]);
     } finally {
-      prepare.mockRestore();
       nativeQuery.mockRestore();
     }
     expect(result.status).toBe(200);

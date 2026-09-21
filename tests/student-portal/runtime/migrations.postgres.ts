@@ -78,7 +78,7 @@ describe('reset proof through the application PostgreSQL facade', () => {
     const digest = await yearResetDigestV1(token);
     const actor = await yearResetDigestV1('synthetic-operator-one');
     await database.transaction(async (tx) => {
-      await tx.exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+      await tx.executeNative('SET TRANSACTION ISOLATION LEVEL READ COMMITTED', []);
       await lockYearResetV1(tx, 2025, 'preview');
       expect(await yearResetProofV1(tx, 'prepare', 2025, actor, digest)).toBe('clear');
     });
@@ -93,7 +93,7 @@ describe('reset proof through the application PostgreSQL facade', () => {
       )[0]?.n,
     ).toBe(0);
     await database.transaction(async (tx) => {
-      await tx.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+      await tx.executeNative('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE', []);
       await lockYearResetV1(tx, 2025, 'execute');
       expect(
         await yearResetProofV1(
@@ -107,7 +107,7 @@ describe('reset proof through the application PostgreSQL facade', () => {
     });
     await expect(
       database.transaction(async (tx) => {
-        await tx.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+        await tx.executeNative('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE', []);
         await lockYearResetV1(tx, 2025, 'execute');
         expect(await yearResetProofV1(tx, 'consume', 2025, actor, digest)).toBe('clear');
         throw new Error('synthetic-adapter-rollback');

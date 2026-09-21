@@ -8,11 +8,11 @@ import { createRelationalInstitutionalReportsServiceV2 } from '../../../server/g
 import {
   createGradebookPostgresDatabaseV1,
   type GradebookPostgresDatabaseV1,
+  type GradebookPostgresScalarV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2';
 import { createRelationalImportDiagnosticsReadV2 } from '../../../server/gradebook/persistence/postgres/relational-import-diagnostics-read-v2';
 import { assertDisposableRecoveryTargetV2 } from '../../../server/gradebook/recovery/logical-backup-recovery-v2';
-import type { D1WriteValueV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import type {
   RelationalCouncilRequestV3,
   RelationalCouncilResponseV3,
@@ -36,9 +36,9 @@ let databaseB: GradebookPostgresDatabaseV1;
 async function rows(
   database: GradebookPostgresDatabaseV1,
   query: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly Row[]> {
-  return (await database.prepare(query).bind(...values).all<Row>()).results;
+  return database.query<Row>(query, values);
 }
 
 function reports(database: GradebookPostgresDatabaseV1) {
@@ -76,24 +76,19 @@ function diagnosticRequest(
 }
 
 async function removeSyntheticDiagnostics(): Promise<void> {
-  await databaseA
-    .prepare(`DELETE FROM gradebook.importacao_diagnostico
-      WHERE arquivo=? OR hash IN (decode(?,'hex'),decode(?,'hex'))`)
-    .bind(DIAGNOSTIC_FILE, DIAGNOSTIC_HASH_A, DIAGNOSTIC_HASH_B)
-    .run();
+  await databaseA.executeNative(`DELETE FROM gradebook.importacao_diagnostico
+      WHERE arquivo=$1 OR hash IN (decode($2,'hex'),decode($3,'hex'))`,
+    [DIAGNOSTIC_FILE, DIAGNOSTIC_HASH_A, DIAGNOSTIC_HASH_B]);
 }
 
 async function removeSyntheticCouncil(classId: number): Promise<void> {
   await databaseA.transaction(async (transaction) => {
-    await transaction
-      .prepare('UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=? AND turma_id=?')
-      .bind(2026, classId)
-      .run();
-    await transaction
-      .prepare(`DELETE FROM gradebook.conselho_fechamento_item WHERE fechamento_id IN
-        (SELECT id FROM gradebook.conselho_fechamento WHERE ano=? AND turma_id=?)`)
-      .bind(2026, classId)
-      .run();
+    await transaction.executeNative(
+      'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1 AND turma_id=$2',
+      [2026, classId]);
+    await transaction.executeNative(`DELETE FROM gradebook.conselho_fechamento_item WHERE fechamento_id IN
+        (SELECT id FROM gradebook.conselho_fechamento WHERE ano=$1 AND turma_id=$2)`,
+      [2026, classId]);
     for (const relation of [
       'conselho_fechamento',
       'conselho_decisao_comando',
@@ -101,19 +96,13 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
       'conselho_votacao',
       'conselho_sessao_historico',
     ]) {
-      await transaction
-        .prepare(`DELETE FROM gradebook.${relation} WHERE ano=? AND turma_id=?`)
-        .bind(2026, classId)
-        .run();
+      await transaction.executeNative(`DELETE FROM gradebook.${relation} WHERE ano=$1 AND turma_id=$2`,
+        [2026, classId]);
     }
-    await transaction
-      .prepare('DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE ?')
-      .bind(`${COUNCIL_KEY_PREFIX}:%`)
-      .run();
-    await transaction
-      .prepare('DELETE FROM gradebook.conselho_sessao WHERE ano=? AND turma_id=?')
-      .bind(2026, classId)
-      .run();
+    await transaction.executeNative('DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
+      [`${COUNCIL_KEY_PREFIX}:%`]);
+    await transaction.executeNative('DELETE FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2',
+      [2026, classId]);
   });
 }
 
@@ -212,10 +201,7 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const release = deferred();
     const sourceKey = `gradebook-import-diagnostics-source:${JSON.stringify([2026, DIAGNOSTIC_FILE])}`;
     const blocker = databaseA.transaction(async (transaction) => {
-      await transaction
-        .prepare('SELECT pg_advisory_xact_lock(hashtextextended(?, 629)) AS locked')
-        .bind(sourceKey)
-        .first();
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked', [sourceKey]);
       acquired.resolve();
       await release.promise;
     });
@@ -247,7 +233,7 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const finalRows = await rows(
       databaseA,
       `SELECT chave,encode(hash,'hex') AS hash FROM gradebook.importacao_diagnostico
-       WHERE arquivo=? ORDER BY chave`,
+       WHERE arquivo=$1 ORDER BY chave`,
       [DIAGNOSTIC_FILE],
     );
     expect(finalRows).toHaveLength(2);
@@ -259,17 +245,15 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const beforeRollback = finalRows.map((row) => `${String(row.chave)}:${String(row.hash)}`);
     await expect(
       databaseA.transaction(async (transaction) => {
-        await transaction
-          .prepare('DELETE FROM gradebook.importacao_diagnostico WHERE arquivo=?')
-          .bind(DIAGNOSTIC_FILE)
-          .run();
+        await transaction.executeNative('DELETE FROM gradebook.importacao_diagnostico WHERE arquivo=$1',
+          [DIAGNOSTIC_FILE]);
         throw new Error('synthetic-recovery-rollback');
       }),
     ).rejects.toThrow('synthetic-recovery-rollback');
     const afterRollback = await rows(
       databaseA,
       `SELECT chave,encode(hash,'hex') AS hash FROM gradebook.importacao_diagnostico
-       WHERE arquivo=? ORDER BY chave`,
+       WHERE arquivo=$1 ORDER BY chave`,
       [DIAGNOSTIC_FILE],
     );
     expect(afterRollback.map((row) => `${String(row.chave)}:${String(row.hash)}`)).toEqual(

@@ -6,7 +6,7 @@ import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresQuerySqlV1,
-  type GradebookPostgresTransactionV1,
+  type GradebookPostgresWritePortV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import type { GradebookImportPersistenceRequestV9, GradebookImportTermV9, GradebookNotesImportRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
@@ -30,7 +30,7 @@ vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-datab
   };
 });
 vi.mock('../../../server/gradebook/application/import/import-relational-service-v9', () => ({
-  createGradebookRelationalImportServiceV9: (database: GradebookPostgresTransactionV1) => ({
+  createGradebookRelationalImportServiceV9: (database: GradebookPostgresWritePortV1) => ({
     execute: (request: GradebookImportPersistenceRequestV9) => mocks.persist(database, request),
   }),
 }));
@@ -39,7 +39,7 @@ afterEach(() => { vi.restoreAllMocks(); mocks.persist.mockReset(); });
 type Row = Record<string, unknown>;
 function fixture(read: (sql: string) => Row[]) {
   const calls: { channel: string; sql: string; values: readonly unknown[] }[] = [];
-  let transaction: GradebookPostgresTransactionV1 | null = null;
+  let transaction: GradebookPostgresWritePortV1 | null = null;
   let inside = false;
   const client = (channel: string): GradebookPostgresQuerySqlV1 => ({
     typed: (value, oid) => ({ __typed: value, oid }),
@@ -58,14 +58,10 @@ function fixture(read: (sql: string) => Row[]) {
     },
   });
   const transact = database.transaction.bind(database);
-  database.prepare = () => { throw new Error('read-used-legacy-prepare'); };
+  expect('prepare' in database).toBe(false);
   database.transaction = (operation) => transact((tx) => {
     transaction = tx;
-    const prepare = tx.prepare.bind(tx);
-    tx.prepare = (sql) => {
-      if (!sql.includes('pg_advisory') && !sql.includes('ensure_year_coordination')) throw new Error('read-used-legacy-prepare');
-      return prepare(sql);
-    };
+    expect('prepare' in tx).toBe(false);
     return operation(tx);
   });
   mocks.database = database;

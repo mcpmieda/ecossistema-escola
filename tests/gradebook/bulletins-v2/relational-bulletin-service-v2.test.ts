@@ -14,7 +14,7 @@ import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gr
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
-  type GradebookPostgresTransactionV1,
+  type GradebookPostgresWritePortV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { testEnv } from '../../fixtures';
 
@@ -388,13 +388,7 @@ describe('relational bulletin V2', () => {
       !query.includes('gradebook.boletim_snapshot') &&
       !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
       /^\s*(?:SELECT|WITH)\b/iu.test(query);
-    const counted = (target: GradebookPostgresTransactionV1): GradebookPostgresTransactionV1 => ({
-      prepare(query) {
-        if (isAcademicRead(query)) {
-          throw new Error('bulletin-read-used-legacy-prepare');
-        }
-        return target.prepare(query);
-      },
+    const counted = (target: GradebookPostgresWritePortV1): GradebookPostgresWritePortV1 => ({
       query(query, values) {
         if (isAcademicRead(query)) academicQueries.push(query);
         return target.query(query, values);
@@ -403,14 +397,10 @@ describe('relational bulletin V2', () => {
         if (isAcademicRead(query)) academicQueries.push(query);
         return target.executeNative(query, values);
       },
-      exec(query) {
-        return target.exec(query);
-      },
-      ...(target.batch ? { batch: (statements) => target.batch!(statements) } : {}),
     });
     const countedDatabase = {
       ...counted(database),
-      transaction: <T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>) =>
+      transaction: <T>(operation: (tx: GradebookPostgresWritePortV1) => Promise<T>) =>
         database.transaction((tx) => operation(counted(tx))),
     };
     const workspace = createRelationalBulletinServiceV2({

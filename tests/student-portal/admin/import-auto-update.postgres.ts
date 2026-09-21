@@ -111,8 +111,8 @@ afterAll(async () => {
 });
 
 it('demonstrates the native driver boolean wire trap and the explicit integer conversion', async () => {
-  const original = await gradebook.prepare('SELECT ?::boolean AS flag').bind(1).first();
-  const corrected = await gradebook.prepare('SELECT ?::integer::boolean AS flag').bind(1).first();
+  const [original] = await gradebook.query('SELECT $1::boolean AS flag', [1]);
+  const [corrected] = await gradebook.query('SELECT $1::integer::boolean AS flag', [1]);
   expect(original).toEqual({ flag: 0 });
   expect(corrected).toEqual({ flag: 1 });
 });
