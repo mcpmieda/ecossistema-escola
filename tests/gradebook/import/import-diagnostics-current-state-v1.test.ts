@@ -10,7 +10,7 @@ describe('current import diagnostics retention', () => {
     expect(route).toContain('replaceGradebookImportDiagnosticsSnapshotV1(database,payload)');
     expect(service).toContain('.transaction(async (transaction)');
     expect(service).toContain('pg_advisory_xact_lock');
-    expect(service).toContain('ano IS NOT DISTINCT FROM ? AND arquivo = ?');
+    expect(service).toContain('ano IS NOT DISTINCT FROM $1 AND arquivo = $2');
     expect(service).toContain('recordChanges');
     expect(service).toContain('writtenCount !== rows.length');
     expect(route).not.toContain('DELETE FROM');
