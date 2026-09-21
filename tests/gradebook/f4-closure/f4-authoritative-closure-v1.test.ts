@@ -63,7 +63,7 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
   it('bullet 2 — source, academic values and source associations keep append-only versions', () => {
     const schema = source('docs/gradebook/D1_SCHEMA.md');
     const executorTests = source('tests/gradebook/reconciliation/execution/execute-import-change-plan-v1.test.ts');
-    const writeAdapter = source('server/gradebook/persistence/d1/write/d1-write-adapter-v1.ts');
+    const writeAdapter = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/write/d1-write-adapter-v1.ts');
     for (const table of [
       'source_file_streams', 'source_file_versions', 'academic_record_streams',
       'academic_record_versions', 'logical_source_record_streams', 'logical_source_record_versions',
@@ -104,9 +104,9 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
   it('bullet 5 — all six occurrence families remain representable/filterable without inventing a taxonomy enum', () => {
     for (const category of AUDIT_CATEGORY_FAMILIES) expect(isAuditWorkspaceFiltersValidV1({ categories: [category] })).toBe(true);
     const auditContract = source('shared/gradebook-contracts/audit/audit-contract-v1.ts');
-    const auditRepository = source('server/gradebook/persistence/d1/audit/d1-audit-repository-v1.ts');
-    const auditReadSource = source('server/gradebook/persistence/d1/audit-workspace/d1-audit-workspace-source-v1.ts');
-    const readSourceTests = source('tests/gradebook/audit-workspace/d1-audit-workspace-source-v1.test.ts');
+    const auditRepository = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/audit/d1-audit-repository-v1.ts');
+    const auditReadSource = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/audit-workspace/d1-audit-workspace-source-v1.ts');
+    const readSourceTests = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/tests/gradebook/audit-workspace/d1-audit-workspace-source-v1.test.ts');
     expect(auditContract).toContain('readonly category: string;');
     expect(auditRepository).toContain('category');
     expect(auditReadSource).toContain('filters.categories');
@@ -120,7 +120,7 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
       'src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx',
     );
     const functions = source('functions/[[path]].ts');
-    const workspaceTests = source('tests/gradebook/audit-workspace/audit-workspace-v1.test.ts');
+    const workspaceTests = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/tests/gradebook/audit-workspace/audit-workspace-v1.test.ts');
     expect(auditContract).toContain('readonly severity: AuditSeverityV1;');
     expect(auditContract).toContain('readonly source?: AuditSourceReferenceV1;');
     expect(auditContract).toContain('readonly recommendedAction?: string;');

@@ -420,7 +420,7 @@ function encodeStudentDetailRef(
   }) as PerformanceStudentDetailRefV1;
 }
 
-function decodeStudentDetailRef(
+export function decodeStudentDetailRef(
   detailRef: PerformanceStudentDetailRefV1,
 ): StudentDetailPayloadV1 | null {
   const value = decodeToken(STUDENT_DETAIL_PREFIX, detailRef);
@@ -453,7 +453,7 @@ function encodeCellDetailRef(scope: string, detailKey: string): PerformanceCellD
   }) as PerformanceCellDetailRefV1;
 }
 
-function decodeCellDetailRef(
+export function decodeCellDetailRef(
   detailRef: PerformanceCellDetailRefV1,
 ): (CellDetailPayloadV1 & { readonly request: PerformanceMatrixSourceRequestV1 }) | null {
   const value = decodeToken(CELL_DETAIL_PREFIX, detailRef);

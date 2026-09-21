@@ -36,18 +36,13 @@ import {
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
-import {
-  createCouncilWorkspaceRequestHandlerV1,
-  GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1,
-} from '../server/gradebook/http/council-routes-v1';
+import { handleCouncilWorkspaceRequestV1 } from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookPersistenceAdminRequestV1 } from '../server/gradebook/http/persistence-admin-routes-v1';
 import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
-import { authorizeGradebookRuntimeV1 } from '../server/gradebook/authorization-v1';
-import { createGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 
@@ -171,36 +166,6 @@ function authFailureResponse({
   return new Response(null, { status: 303, headers });
 }
 
-async function handleComposedCouncilWorkspaceRequestV1(
-  request: Request,
-  env: RuntimeEnv,
-): Promise<Response | null> {
-  if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
-
-  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1> | null = null;
-  try {
-    const session = await requireAuth(request, env);
-    authorization = authorizeGradebookRuntimeV1(session);
-  } catch {
-    // The dedicated Council handler below owns the opaque 401/403 response.
-    authorization = null;
-  }
-
-  const handler = createCouncilWorkspaceRequestHandlerV1({
-    createWorkspace(runtimeEnv, server) {
-      if (authorization === null) return null;
-      return createGradebookD1RuntimeV1(runtimeEnv, authorization).councilWorkspace(server);
-    },
-    createInstitutionalWorkspace(runtimeEnv, server) {
-      if (authorization === null) return null;
-      return createGradebookD1RuntimeV1(runtimeEnv, authorization).councilInstitutionalWorkspace(
-        server,
-      );
-    },
-  });
-  return handler(request, env);
-}
-
 async function routeOfficialGradebookRequestV1(
   request: Request,
   env: RuntimeEnv,
@@ -220,7 +185,7 @@ async function routeOfficialGradebookRequestV1(
   const bulletinResponse = await handleBulletinRequestV1(request, env);
   if (bulletinResponse) return bulletinResponse;
 
-  const councilResponse = await handleComposedCouncilWorkspaceRequestV1(request, env);
+  const councilResponse = await handleCouncilWorkspaceRequestV1(request, env);
   if (councilResponse) return councilResponse;
 
   return handleInstitutionalReportsRequestV1(request, env);
@@ -448,7 +413,6 @@ async function route(context: Context, correlationId: string): Promise<Response>
     return Response.json(sessionPolicyPayload(updatedSession, now), { headers });
   }
 
-  // This route always targets the preserved D1 rollback store, including after cutover.
   const gradebookPersistenceAdminResponse = await handleGradebookPersistenceAdminRequestV1(request, env);
   if (gradebookPersistenceAdminResponse) return gradebookPersistenceAdminResponse;
 

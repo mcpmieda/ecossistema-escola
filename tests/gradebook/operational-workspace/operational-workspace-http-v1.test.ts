@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../../../functions/[[path]]';
 import { SESSION_COOKIE } from '../../../server/auth/session';
@@ -10,28 +7,10 @@ import {
   GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1,
   handleOperationalWorkspaceRequestV1,
 } from '../../../server/gradebook/http/operational-workspace-routes-v1';
-import { SqliteD1Database } from '../persistence/d1-transaction/d1-write-test-support';
 import { testEnv } from '../../fixtures';
 
 const LOCAL_ORIGIN = 'http://localhost:8788';
 type TestRole = 'ADMINISTRADOR' | 'PROFESSOR';
-
-async function openDatabase(): Promise<{
-  readonly raw: DatabaseSync;
-  readonly database: SqliteD1Database;
-}> {
-  const sqliteModuleName = 'node:sqlite';
-  const sqlite = await import(/* @vite-ignore */ sqliteModuleName);
-  const raw = new sqlite.DatabaseSync(':memory:');
-  raw.exec('PRAGMA foreign_keys = ON;');
-  raw.exec(
-    readFileSync(
-      join(process.cwd(), 'migrations', 'gradebook', '0001_gradebook_context_entities_imports_v1.sql'),
-      'utf8',
-    ),
-  );
-  return { raw, database: new SqliteD1Database(raw) };
-}
 
 function localEnv(database: unknown): RuntimeEnv {
   return {
@@ -108,7 +87,7 @@ describe('operational workspace HTTP bridge v1', () => {
     expect(prepare).not.toHaveBeenCalled();
   });
 
-  it('fails closed in production before inspecting the binding', async () => {
+  it('retires V1 in production before inspecting the binding', async () => {
     const prepare = vi.fn(() => {
       throw new Error('production-sensitive-binding');
     });
@@ -125,37 +104,23 @@ describe('operational workspace HTTP bridge v1', () => {
       ),
       env,
     );
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(410);
     expect(response.headers.get('Cache-Control')).toContain('no-store');
     await expect(response.json()).resolves.toEqual({ contractVersion: 1, state: 'unavailable' });
     expect(prepare).not.toHaveBeenCalled();
   });
 
-  it('returns persisted academic years through the authorized local bridge with no-store', async () => {
-    const { raw, database } = await openDatabase();
-    try {
-      const instant = '2026-09-01T18:00:00.000Z';
-      raw.prepare(
-        `INSERT INTO academic_years (
-           academic_year_id, school_id, year, current_version, created_at
-         ) VALUES (?, ?, ?, 1, ?)`,
-      ).run('academic-year:http:2026', 'school:http:synthetic', 2026, instant);
-
-      const handled = await handleOperationalWorkspaceRequestV1(
-        await request({ contractVersion: 1, operation: 'bootstrap' }, { role: 'ADMINISTRADOR' }),
-        localEnv(database),
-      );
-      if (!handled) throw new Error('Expected operational workspace route to handle request.');
-      expect(handled.status).toBe(200);
-      expect(handled.headers.get('Cache-Control')).toContain('no-store');
-      await expect(handled.json()).resolves.toEqual({
-        contractVersion: 1,
-        state: 'ready',
-        availableAcademicYears: [{ id: 'academic-year:http:2026', label: '2026' }],
-      });
-    } finally {
-      raw.close();
-    }
+  it('retires the authorized local bridge with no-store and no binding access', async () => {
+    const binding = vi.fn(() => { throw new Error('retired-binding'); });
+    const env = localEnv(undefined);
+    Object.defineProperty(env, 'GRADEBOOK_D1', { get: binding });
+    const handled = await handleOperationalWorkspaceRequestV1(
+      await request({ contractVersion: 1, operation: 'bootstrap' }, { role: 'ADMINISTRADOR' }), env,
+    );
+    expect(handled?.status).toBe(410);
+    expect(handled?.headers.get('Cache-Control')).toContain('no-store');
+    await expect(handled?.json()).resolves.toEqual({ contractVersion: 1, state: 'unavailable' });
+    expect(binding).not.toHaveBeenCalled();
   });
 
   it('rejects client authorization and academic claims without touching storage', async () => {

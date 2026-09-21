@@ -151,10 +151,10 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
       'shared/gradebook-contracts/performance/class-performance-read-model-v1.ts',
     );
     const performanceSource = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
     const performanceTests = source(
-      'tests/gradebook/performance-source/d1-class-performance-source-v1.test.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/tests/gradebook/performance-source/d1-class-performance-source-v1.test.ts',
     );
     const bulletinContract = source('shared/gradebook-contracts/bulletins/bulletin-contract-v1.ts');
     const bulletinTests = source('tests/gradebook/bulletins/bulletin-emission-service-v1.test.ts');
@@ -173,8 +173,8 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(reportsContract).toContain('ClassPerformanceReadModelV1');
   });
 
-  it('preserva readiness histórico e reconhece o catálogo local atual 0001–0006', () => {
-    const migrations = readdirSync(join(root, 'migrations/gradebook')).sort();
+  it('preserva readiness e catálogo D1 0001–0006 como memória histórica', () => {
+    const migrations = readdirSync(join(root, 'Aprendizados/RUNTIME-D1-RETIRADO-1079/migrations/gradebook')).sort();
     expect(migrations).toEqual([
       '0001_gradebook_context_entities_imports_v1.sql',
       '0002_gradebook_records_audit_v1.sql',

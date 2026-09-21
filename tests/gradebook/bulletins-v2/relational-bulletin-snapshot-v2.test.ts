@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import {
   appendFixtureV2,
   snapshotFixtureV2,
@@ -8,23 +8,21 @@ import {
 
 afterEach(() => vi.restoreAllMocks());
 
-function rejectTranslatedSnapshots(database: D1WriteDatabaseV1): void {
-  const prepare = database.prepare.bind(database);
-  vi.spyOn(database, 'prepare').mockImplementation((sql) => {
-    if (sql.includes('gradebook.boletim_snapshot')) throw new Error('snapshot-used-legacy-prepare');
-    return prepare(sql);
-  });
+function expectNativePort(database: GradebookPostgresWritePortV1): void {
+  for (const retired of ['prepare', 'bind', 'exec', 'batch']) {
+    expect(retired in database).toBe(false);
+  }
 }
 
 describe('native relational bulletin snapshot repository V2', () => {
   it('keeps native snapshot reads and explicit JSON writes on the owning transaction', async () => {
     const harness = snapshotHarnessV2();
     const { database, repository, calls } = harness;
-    rejectTranslatedSnapshots(database);
+    expectNativePort(database);
     const transaction = database.transaction.bind(database);
     vi.spyOn(database, 'transaction').mockImplementation((operation) =>
       transaction((tx) => {
-        rejectTranslatedSnapshots(tx);
+        expectNativePort(tx);
         return operation(tx);
       }),
     );

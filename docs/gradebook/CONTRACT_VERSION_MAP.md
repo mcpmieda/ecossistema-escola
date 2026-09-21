@@ -61,10 +61,10 @@ A cadeia é deliberadamente **V11 → V10 → V9**. Não remover V9/V10 sem rees
 
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
-| `operational-workspace-transport-v1.ts` | COMPATIBILITY | rota/service V1 ainda preservados |
+| `operational-workspace-transport-v1.ts` | COMPATIBILITY/DTO | #1079: somente validacao e resposta de retirada HTTP 410, sem runtime D1 |
 | `operational-workspace-transport-v2.ts` | **CURRENT** | year context/provider, Centro BN V2, contas Portal admin e rota V2 |
 
-Retirada do V1 exige prova de ausência de consumidor externo/compatibilidade, não apenas ausência de UI.
+A #1079 autoriza explicitamente a retirada operacional V1 em todos os ambientes.
 
 ## 6. Performance
 
@@ -72,7 +72,7 @@ Estas versões representam **capacidades aditivas**, não uma fila em que V6 inv
 
 | Contrato | Estado | Papel |
 | --- | --- | --- |
-| `performance-transport-v1.ts` | COMPATIBILITY | transporte/rota V1 preservado |
+| `performance-transport-v1.ts` | COMPATIBILITY/DTO | #1079: somente validacao e resposta HTTP 410; tipos base reutilizados preservados |
 | `relational-performance-v2.ts` | **CURRENT** | base relacional de performance |
 | `performance-analysis-v3.ts` | **CURRENT-ADDITIVE** | análise descritiva |
 | `performance-term-comparison-v4.ts` | **CURRENT-ADDITIVE** | comparação trimestral |
@@ -83,17 +83,17 @@ Estas versões representam **capacidades aditivas**, não uma fila em que V6 inv
 
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
-| `council-workspace-contract-v1.ts` | COMPATIBILITY | rotas/services V1 e relatórios V1 |
-| `council-institutional-contract-v2.ts` | COMPATIBILITY | institucional V2/durability |
+| `council-workspace-contract-v1.ts` | COMPATIBILITY/Core | #1079: transporte V1 retorna 410; tipos/dominio compartilhados preservados |
+| `council-institutional-contract-v2.ts` | COMPATIBILITY/Core | #1079: transporte V2 retorna 410; tipos/dominio compartilhados preservados |
 | `relational-council-v3.ts` | **CURRENT** | UI/HTTP/service relacional e Relatórios V2 |
 
-V1/V2 só podem sair quando a compatibilidade correspondente for formalmente retirada.
+A #1079 retira a execucao HTTP V1/V2, nao todos os tipos que essas versoes compoem.
 
 ## 8. Boletins
 
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
-| `bulletin-transport-v1.ts` / `bulletin-contract-v1.ts` | COMPATIBILITY | rota/service V1 e partes reutilizadas de apresentação/PDF |
+| `bulletin-transport-v1.ts` / `bulletin-contract-v1.ts` | COMPATIBILITY/Core | #1079: transporte V1 retorna 410; apresentacao/PDF reutilizados preservados |
 | `relational-bulletin-v2.ts` | **CURRENT** | UI, HTTP, snapshot PostgreSQL e Relatórios V2 |
 
 Snapshots já emitidos continuam históricos e não são reinterpretados por troca de contrato.
@@ -102,7 +102,7 @@ Snapshots já emitidos continuam históricos e não são reinterpretados por tro
 
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
-| `institutional-reports-contract-v1.ts` | COMPATIBILITY | rota/service/testes V1 |
+| `institutional-reports-contract-v1.ts` | COMPATIBILITY/DTO | #1079: transporte V1 retorna 410; tipos/testes puros preservados |
 | `relational-institutional-reports-v2.ts` | **CURRENT** | UI/HTTP/service V2 e testes PostgreSQL |
 
 ## 10. Regra para versões futuras

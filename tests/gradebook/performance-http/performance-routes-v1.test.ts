@@ -1,32 +1,26 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AcademicYearId, ClassGroupId } from '../../../shared/gradebook-contracts/entities';
-import {
-  CLASS_PERFORMANCE_CONTRACT_VERSION_V1,
-  PERFORMANCE_AUTHORITY_MODE_V1,
-  PERFORMANCE_COLUMN_ORDER_V1,
-  PERFORMANCE_ROW_ORDER_V1,
-  type ClassPerformanceRequestV1,
-  type PerformanceCellDetailRefV1,
-  type PerformanceCellV1,
-  type PerformanceStudentDetailRefV1,
-} from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
-import { PERFORMANCE_TRANSPORT_VERSION_V1 } from '../../../shared/gradebook-contracts/performance/performance-transport-v1';
-import { DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1 } from '../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
+import { CLASS_PERFORMANCE_CONTRACT_VERSION_V1, PERFORMANCE_COLUMN_ORDER_V1, PERFORMANCE_ROW_ORDER_V1,
+  type ClassPerformanceRequestV1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { AuthenticationError } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
-import {
-  ClassPerformanceReadModelErrorV1,
-  type ClassPerformanceReadModelProviderV1,
-} from '../../../server/gradebook/application/read-models/performance/class-performance-read-model-v1';
 import { createPerformanceRequestHandlerV1 } from '../../../server/gradebook/http/performance-routes-v1';
 
 const ORIGIN = 'https://preview.pages.dev';
 const env = { OFFICIAL_ORIGIN: ORIGIN } as RuntimeEnv;
 const academicYearId = 'year-synthetic-2026' as AcademicYearId;
 const classGroupId = 'class-synthetic-a' as ClassGroupId;
+
+function detailReference(operation: 'student-detail' | 'cell-detail', overrides: Record<string, unknown> = {}): string {
+  const payload = operation === 'student-detail'
+    ? { version: 1, academicYearId, classGroupId, detailKey: 'synthetic:student', ...overrides }
+    : { version: 1, detailKey: 'synthetic:cell', scope: JSON.stringify({
+      version: 1, academicYearId, classGroupId, period: { kind: 'term', term: 1 },
+      mode: 'regular', lens: 'result', comparisonPeriod: null,
+    }), ...overrides };
+  return `class-performance-${operation}-v1.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
+}
 
 function matrixRequest(
   overrides: Partial<ClassPerformanceRequestV1> = {},
@@ -54,115 +48,28 @@ function request(body: unknown): Request {
   });
 }
 
-function fakeProvider(
-  overrides: Partial<ClassPerformanceReadModelProviderV1> = {},
-): ClassPerformanceReadModelProviderV1 {
-  return {
-    async get() {
-      return null;
-    },
-    async getStudentDetail() {
-      return null;
-    },
-    async getCellDetail() {
-      return null;
-    },
-    ...overrides,
-  };
-}
 
-function handler(provider: ClassPerformanceReadModelProviderV1) {
-  return createPerformanceRequestHandlerV1({
-    async authorizeRequest() {
-      return {
-        runtimeAuthorization: {} as never,
-        capabilities: ['platform.settings.read'],
-      };
-    },
-    async resolveComparisonConfiguration() {
-      return DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1;
-    },
-    createProvider() {
-      return provider;
-    },
-  });
+function handler() {
+  return createPerformanceRequestHandlerV1({ async authorizeRequest() {
+    return { runtimeAuthorization: {} as never, capabilities: ['platform.settings.read'] };
+  } });
 }
-
 async function json(response: Response): Promise<Record<string, unknown>> {
-  return (await response.json()) as Record<string, unknown>;
+  return await response.json() as Record<string, unknown>;
 }
-
-describe('Performance HTTP V1', () => {
-  it('exige autenticação antes de construir provider e responde no-store', async () => {
-    let created = false;
-    const route = createPerformanceRequestHandlerV1({
-      async authorizeRequest() {
-        throw new AuthenticationError();
-      },
-      async resolveComparisonConfiguration() {
-        return DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1;
-      },
-      createProvider() {
-        created = true;
-        return fakeProvider();
-      },
-    });
-    const response = await route(
-      request({
-        transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1,
-        operation: 'matrix',
-        request: matrixRequest(),
-      }),
-      env,
-    );
-
-    expect(response?.status).toBe(401);
-    expect(response?.headers.get('Cache-Control')).toBe(
-      'no-store, no-cache, must-revalidate, private',
-    );
-    expect(created).toBe(false);
-    expect(await json(response as Response)).toEqual({
-      transportVersion: 1,
-      state: 'not-authorized',
-    });
+describe('Performance HTTP V1 retirement', () => {
+  it.each([AuthenticationError, AuthorizationError])('preserves %s before storage access', async (ErrorType) => {
+    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
+    const guarded = Object.defineProperty({ ...env }, 'GRADEBOOK_DATABASE', { get: access });
+    const route = createPerformanceRequestHandlerV1({ async authorizeRequest() { throw new ErrorType(); } });
+    const response = await route(request({ transportVersion: 1, operation: 'matrix', request: matrixRequest() }), guarded);
+    expect(response?.status).toBe(new ErrorType().status);
+    expect(response?.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
+    await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'not-authorized' });
+    expect(access).not.toHaveBeenCalled();
   });
-
-  it('exige autorização server-side e não constrói provider após 403', async () => {
-    let created = false;
-    const route = createPerformanceRequestHandlerV1({
-      async authorizeRequest() {
-        throw new AuthorizationError();
-      },
-      async resolveComparisonConfiguration() {
-        return DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1;
-      },
-      createProvider() {
-        created = true;
-        return fakeProvider();
-      },
-    });
-    const response = await route(
-      request({
-        transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1,
-        operation: 'matrix',
-        request: matrixRequest(),
-      }),
-      env,
-    );
-
-    expect(response?.status).toBe(403);
-    expect(response?.headers.get('Cache-Control')).toBe(
-      'no-store, no-cache, must-revalidate, private',
-    );
-    expect(created).toBe(false);
-    expect(await json(response as Response)).toEqual({
-      transportVersion: 1,
-      state: 'not-authorized',
-    });
-  });
-
   it('mantém dispatch explícito e gate fail-closed para transportes V2 a V6', async () => {
-    const route = handler(fakeProvider());
+    const route = handler();
     const validCurrentRequests = [
       { transportVersion: 2, operation: 'classes', year: 2026, offset: 0, limit: 100 },
       {
@@ -228,271 +135,50 @@ describe('Performance HTTP V1', () => {
     }
   });
 
-  it('valida payload e sanitiza cursores de linha/coluna inválidos sem expor detalhes', async () => {
-    let providerCalls = 0;
-    const route = handler(
-      fakeProvider({
-        async get(value) {
-          providerCalls += 1;
-          if (value.rows.cursor !== null)
-            throw new ClassPerformanceReadModelErrorV1('invalid-row-cursor');
-          if (value.columns.cursor !== null)
-            throw new ClassPerformanceReadModelErrorV1('invalid-column-cursor');
-          return null;
-        },
-      }),
-    );
 
-    const invalid = await route(
-      request({ transportVersion: 1, operation: 'matrix', request: { bad: true } }),
-      env,
-    );
-    expect(invalid?.status).toBe(400);
-    expect(providerCalls).toBe(0);
-
-    const rowFailure = await route(
-      request({
-        transportVersion: 1,
-        operation: 'matrix',
-        request: matrixRequest({ rows: { limit: 20, cursor: 'opaque-invalid-row' as never } }),
-      }),
-      env,
-    );
-    expect(rowFailure?.status).toBe(400);
-    expect(await json(rowFailure as Response)).toEqual({
-      transportVersion: 1,
-      state: 'invalid-request',
-      reason: 'invalid-row-cursor',
-    });
-
-    const columnFailure = await route(
-      request({
-        transportVersion: 1,
-        operation: 'matrix',
-        request: matrixRequest({ columns: { limit: 6, cursor: 'opaque-invalid-column' as never } }),
-      }),
-      env,
-    );
-    expect(columnFailure?.status).toBe(400);
-    expect(await json(columnFailure as Response)).toEqual({
-      transportVersion: 1,
-      state: 'invalid-request',
-      reason: 'invalid-column-cursor',
-    });
-    expect(providerCalls).toBe(2);
-  });
-
-  it('passa contexto, lente, modo, período e comparação ao read model sem criar semântica HTTP', async () => {
-    const seen: ClassPerformanceRequestV1[] = [];
-    const cases: ClassPerformanceRequestV1[] = [
-      matrixRequest({ lens: 'result', mode: 'regular' }),
-      matrixRequest({ lens: 'quantitative', mode: 'recovery' }),
-      matrixRequest({ lens: 'qualitative', mode: 'recovery' }),
-      matrixRequest({ lens: 'assessments', mode: 'recovery' }),
-      matrixRequest({ lens: 'result', mode: 'recovery' }),
-      matrixRequest({ lens: 'quantitative', period: { kind: 'annual' } }),
-      matrixRequest({ comparisonPeriod: { kind: 'term', term: 2 } }),
-    ];
-    const route = handler(
-      fakeProvider({
-        async get(value) {
-          seen.push(value);
-          return null;
-        },
-      }),
-    );
-
-    for (const value of cases) {
-      const response = await route(
-        request({ transportVersion: 1, operation: 'matrix', request: value }),
-        env,
-      );
-      expect(response?.status).toBe(200);
-      expect(response?.headers.get('Cache-Control')).toBe(
-        'no-store, no-cache, must-revalidate, private',
-      );
+  it('validates bounds and rejects client configuration before retirement', async () => {
+    const route = handler();
+    for (const value of [{ bad: true }, matrixRequest({ rows: { limit: 0, cursor: null } }),
+      matrixRequest({ columns: { limit: 0, cursor: null } }), { ...matrixRequest(), comparisonEnabled: false }]) {
+      const response = await route(request({ transportVersion: 1, operation: 'matrix', request: value }), env);
+      expect(response?.status).toBe(400);
+      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'invalid-request', reason: 'invalid-request' });
     }
-    expect(seen).toEqual(cases);
   });
-
-  it('preserva resultados oficiais e delega comparação ao resolvedor de aplicação', async () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-      ),
-      'utf8',
-    );
-    expect(source).toContain("source: 'final-recovery'");
-    expect(source).toContain('resolvePerformanceComparisonProjectionV2');
-    expect(source).toContain('official-projection-unavailable');
-    expect(source).toContain("request.mode === 'recovery'");
-    expect(source).toContain("request.lens === 'result'");
-    expect(source).toContain("request.period.kind === 'annual'");
-    expect(source).toContain("basis: 'percentage'");
-
-    const handlerSource = readFileSync(
-      join(process.cwd(), 'server/gradebook/http/performance-routes-v1.ts'),
-      'utf8',
-    );
-    expect(handlerSource).not.toContain('FinalRecoveryV1');
-    expect(handlerSource).not.toContain('Math.round');
-    expect(handlerSource).not.toContain('tolerance');
-    expect(handlerSource).not.toContain('comparison-semantics-not-integrated');
-    expect(handlerSource).toContain('getPlatformConfigurations');
-  });
-
-  it('rejeita configuração forjada pelo cliente antes de consultar o estado institucional', async () => {
-    let configurationReads = 0;
-    const route = createPerformanceRequestHandlerV1({
-      async authorizeRequest() {
-        return { runtimeAuthorization: {} as never, capabilities: ['platform.settings.read'] };
-      },
-      async resolveComparisonConfiguration() {
-        configurationReads += 1;
-        return DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1;
-      },
-      createProvider() {
-        return fakeProvider();
-      },
+  it('retires valid lenses, periods and details without resolving a source or configuration', async () => {
+    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
+    const guarded = Object.defineProperties({ ...env }, {
+      GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access },
     });
-    const forged = {
-      ...matrixRequest(),
-      comparisonEnabled: false,
-    };
-    const response = await route(
-      request({ transportVersion: 1, operation: 'matrix', request: forged }),
-      env,
-    );
-    expect(response?.status).toBe(400);
-    expect(configurationReads).toBe(0);
+    const route = handler();
+    const matrices = [matrixRequest(), matrixRequest({ lens: 'quantitative', mode: 'recovery' }),
+      matrixRequest({ lens: 'qualitative', mode: 'recovery' }), matrixRequest({ lens: 'assessments', mode: 'recovery' }),
+      matrixRequest({ lens: 'result', mode: 'recovery' }), matrixRequest({ lens: 'quantitative', period: { kind: 'annual' } }),
+      matrixRequest({ comparisonPeriod: { kind: 'term', term: 2 } })];
+    const bodies = [...matrices.map((value) => ({ transportVersion: 1, operation: 'matrix', request: value })),
+      { transportVersion: 1, operation: 'student-detail', detailRef: detailReference('student-detail') },
+      { transportVersion: 1, operation: 'cell-detail', detailRef: detailReference('cell-detail') }];
+    for (const body of bodies) {
+      const response = await route(request(body), guarded);
+      expect(response?.status).toBe(410);
+      expect(response?.headers.get('Cache-Control')).toContain('no-store');
+      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'unavailable' });
+    }
+    expect(access).not.toHaveBeenCalled();
   });
-
-  it('remove registros/evidência bruta do detalhe de célula antes da serialização', async () => {
-    const detailRef = 'cell-detail-synthetic' as PerformanceCellDetailRefV1;
-    const cell = {
-      lens: 'qualitative',
-      teachingAssignmentId: 'assignment-synthetic',
-      authorityMode: PERFORMANCE_AUTHORITY_MODE_V1,
-      coverage: {
-        state: 'complete',
-        expectedItemCount: 1,
-        resolvedItemCount: 1,
-        missingItemCount: 0,
-        reasons: [],
-      },
-      comparison: null,
-      signals: [],
-      detailRef,
-      projection: {
-        operational: {
-          imported: { state: 'numeric', value: 20 },
-          calculated: { state: 'numeric', value: 20 },
-        },
-      },
-    } as unknown as PerformanceCellV1;
-    const route = handler(
-      fakeProvider({
-        async getCellDetail() {
-          return {
-            contractVersion: 1,
-            academicYearId,
-            classGroupId,
-            period: { kind: 'term', term: 1 },
-            mode: 'regular',
-            lens: 'qualitative',
-            comparisonPeriod: null,
-            detailKey: 'detail-key',
-            detailRef,
-            studentId: 'student-synthetic',
-            authorityMode: PERFORMANCE_AUTHORITY_MODE_V1,
-            cell,
-            officialRecords: [{ raw: 'must-not-cross-http' }],
-          } as never;
-        },
-      }),
-    );
-
-    const response = await route(
-      request({ transportVersion: 1, operation: 'cell-detail', detailRef }),
-      env,
-    );
-    expect(response?.status).toBe(200);
-    const body = JSON.stringify(await json(response as Response));
-    expect(body).not.toContain('officialRecords');
-    expect(body).not.toContain('must-not-cross-http');
-    expect(body).toContain('cell-detail-synthetic');
-  });
-
-  it('projeta detalhe de aluno sem nomes/marcas/textos de evidência da fonte', async () => {
-    const detailRef = 'student-detail-synthetic' as PerformanceStudentDetailRefV1;
-    const route = handler(
-      fakeProvider({
-        async getStudentDetail() {
-          return {
-            detailRef,
-            academicYearId,
-            classGroupId,
-            student: {
-              id: 'student-synthetic',
-              displayName: 'Aluno Sintético',
-              sourceNames: ['RAW SOURCE NAME'],
-              sourceIdentityMarks: ['RAW MARK'],
-            },
-            enrollment: {
-              id: 'enrollment-synthetic',
-              academicYearId,
-              studentId: 'student-synthetic',
-              classGroupId,
-              effectivePeriod: {},
-              position: 'current',
-              sourcePosition: 7,
-            },
-            statusHistory: [
-              {
-                id: 'status-synthetic',
-                academicYearId,
-                enrollmentId: 'enrollment-synthetic',
-                status: 'active',
-                sourceText: 'RAW STATUS TEXT',
-                sourceReference: 'RAW REF',
-              },
-            ],
-          } as never;
-        },
-      }),
-    );
-
-    const response = await route(
-      request({ transportVersion: 1, operation: 'student-detail', detailRef }),
-      env,
-    );
-    const body = JSON.stringify(await json(response as Response));
-    expect(body).toContain('Aluno Sintético');
-    expect(body).not.toContain('RAW SOURCE NAME');
-    expect(body).not.toContain('RAW MARK');
-    expect(body).not.toContain('RAW STATUS TEXT');
-    expect(body).not.toContain('RAW REF');
-  });
-
-  it('mantém produção fail-closed antes do binding no runtime consumido, sem wiring central nesta frente', () => {
-    const runtime = readFileSync(
-      join(process.cwd(), 'server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts'),
-      'utf8',
-    );
-    const runtimeEnvironmentIndex = runtime.indexOf('runtimeEnvironment(env)');
-    const requireDatabaseIndex = runtime.indexOf('requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1)');
-    expect(runtimeEnvironmentIndex).toBeGreaterThanOrEqual(0);
-    expect(requireDatabaseIndex).toBeGreaterThan(runtimeEnvironmentIndex);
-
-    const handlerSource = readFileSync(
-      join(process.cwd(), 'server/gradebook/http/performance-routes-v1.ts'),
-      'utf8',
-    );
-    expect(handlerSource).toContain('authorizeGradebookRuntimeV1(session)');
-    expect(handlerSource).toContain('runtime.classPerformanceReadModel()');
-    expect(handlerSource).toContain(
-      "'Cache-Control': 'no-store, no-cache, must-revalidate, private'",
-    );
+  it.each(['student-detail', 'cell-detail'] as const)('preserves pure reference validation for %s before retirement', async (operation) => {
+    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
+    const guarded = Object.defineProperties({ ...env }, {
+      GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access }, PROD_DB: { get: access },
+    });
+    const route = handler();
+    for (const detailRef of ['opaque-synthetic-student', `class-performance-${operation}-v1.***`,
+      detailReference(operation, { detailKey: '' }), detailReference(operation, { unexpected: true }),
+      detailReference(operation, { version: 2 })]) {
+      const response = await route(request({ transportVersion: 1, operation, detailRef }), guarded);
+      expect(response?.status).toBe(400);
+      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'invalid-request', reason: 'invalid-detail-reference' });
+    }
+    expect(access).not.toHaveBeenCalled();
   });
 });

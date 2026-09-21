@@ -11,13 +11,13 @@ const root = process.cwd();
 const targets = [
   'server/gradebook/recovery/logical-backup-recovery-v2.ts',
   'shared/gradebook-contracts/reports/institutional-reports-contract-v1.ts',
-  'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-  'server/gradebook/persistence/d1/audit-workspace/d1-audit-workspace-source-v1.ts',
+  'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+  'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/audit-workspace/d1-audit-workspace-source-v1.ts',
   'shared/gradebook-contracts/performance/class-performance-read-model-v1.ts',
   'shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1.ts',
-  'server/gradebook/persistence/d1/audit/d1-audit-repository-v1.ts',
-  'server/gradebook/persistence/d1/imports/d1-import-repository-extension-v1.ts',
-  'server/gradebook/persistence/d1/write/d1-write-adapter-v1.ts',
+  'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/audit/d1-audit-repository-v1.ts',
+  'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/imports/d1-import-repository-extension-v1.ts',
+  'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/write/d1-write-adapter-v1.ts',
   'src/features/gradebook/import/spreadsheet-recognizer.ts',
 ] as const;
 

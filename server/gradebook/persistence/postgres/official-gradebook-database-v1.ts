@@ -3,7 +3,7 @@ import { createGradebookPostgresDatabaseV1, type GradebookPostgresFailureDiagnos
   type GradebookPostgresDatabaseV1 } from './postgres-database-v1';
 import { lazyGradebookDatabaseV1 } from './lazy-gradebook-database-v1';
 
-export type GradebookStorageProviderV1 = 'd1' | 'postgres';
+export type GradebookStorageProviderV1 = 'postgres';
 type HyperdriveBindingV1 = { readonly connectionString: string };
 type OfficialGradebookDatabaseDependenciesV1 = {
   readonly createPostgresDatabase?: (connectionString: string) => Promise<GradebookPostgresDatabaseV1>;
@@ -23,19 +23,14 @@ function withProviderHeader(response: Response, provider: GradebookStorageProvid
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-/** Production has one physical authority. Local legacy fixtures may still explicitly use D1.
+/** PostgreSQL is the only supported provider in every environment.
  * Invalid configuration never exposes the historical binding, but also never bypasses
  * the handler's authentication, input validation or operation-specific failure DTO.
  */
 export async function withOfficialGradebookDatabaseV1(env: RuntimeEnv,
   operation: (executionEnv: RuntimeEnv) => Promise<Response | null>,
   dependencies: OfficialGradebookDatabaseDependenciesV1 = {}): Promise<Response | null> {
-  const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
-  const provider = env.GRADEBOOK_STORAGE_PROVIDER ?? (production ? undefined : 'd1');
-  if (!production && provider === 'd1') {
-    const response = await operation(env);
-    return response ? withProviderHeader(response, provider) : null;
-  }
+  const provider = env.GRADEBOOK_STORAGE_PROVIDER;
   const configured = provider === 'postgres';
   const database = lazyGradebookDatabaseV1(async () => {
     if (!configured) throw new Error('gradebook-official-postgres-provider-required');

@@ -1,11 +1,10 @@
 import {
   BULLETIN_CONTRACT_VERSION_V1,
-  type BulletinIssuerIdV1,
-  type BulletinSnapshotIdV1,
 } from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
 import {
   inspectBulletinWorkspaceTransportRequestV1,
   type BulletinWorkspaceTransportRequestV1,
+  type BulletinWorkspaceTransportResponseV1,
 } from '../../../shared/gradebook-contracts/bulletins/bulletin-transport-v1';
 import {
   RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
@@ -22,18 +21,12 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
-import { createBulletinWorkspaceServiceV1 } from '../application/bulletins/bulletin-workspace-service-v1';
 import { createRelationalBulletinServiceV2 } from '../application/bulletins/relational-bulletin-v2';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
-import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
 
 export const GRADEBOOK_BULLETIN_ROUTE_V1 = '/api/gradebook/bulletins';
-
-function durableSnapshotId(): BulletinSnapshotIdV1 {
-  return `bulletin-snapshot:${crypto.randomUUID()}` as BulletinSnapshotIdV1;
-}
 
 function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
   const headers = new Headers({
@@ -93,10 +86,9 @@ export async function handleBulletinRequestV1(
   enforceWriteOrigin(request, env);
 
   let session: Awaited<ReturnType<typeof requireAuth>>;
-  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1>;
   try {
     session = await requireAuth(request, env);
-    authorization = authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return accessDenied(401);
     if (cause instanceof AuthorizationError) return accessDenied(403);
@@ -152,28 +144,9 @@ export async function handleBulletinRequestV1(
     );
   }
 
-  try {
-    // createGradebookD1RuntimeV1 enforces local/preview and fails closed before binding in production.
-    const runtime = createGradebookD1RuntimeV1(env, authorization);
-    const unit = runtime.persistenceUnitOfWork();
-    const readModels = runtime.operationalReadModels();
-    const workspace = createBulletinWorkspaceServiceV1({
-      academicYears: runtime.operationalWorkspaceAcademicYears(),
-      entities: unit.entities,
-      classGroups: readModels.classGroups,
-      academicRecords: unit.academicRecords,
-      snapshots: runtime.bulletinSnapshotRepository(),
-      now: () => new Date().toISOString(),
-      createSnapshotId: durableSnapshotId,
-    });
-    const response = await workspace.execute(payload as BulletinWorkspaceTransportRequestV1, {
-      decision: 'allowed',
-      issuerId: session.oid as BulletinIssuerIdV1,
-    });
-    return noStoreJson(response);
-  } catch (cause) {
-    if (cause instanceof AuthenticationError) return accessDenied(401);
-    if (cause instanceof AuthorizationError) return accessDenied(403);
-    return unavailable();
-  }
+  return noStoreJson({
+    contractVersion: BULLETIN_CONTRACT_VERSION_V1,
+    operation: (payload as BulletinWorkspaceTransportRequestV1).operation,
+    state: 'unavailable',
+  } satisfies BulletinWorkspaceTransportResponseV1, 410);
 }

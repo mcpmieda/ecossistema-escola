@@ -63,8 +63,8 @@ beforeAll(async () => {
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
   const transaction = database.transaction.bind(database);
   database.transaction = (operation) => transaction((tx) => {
-    tx.prepare = () => { throw new Error('workspace-read-used-legacy-prepare'); };
-    tx.exec = () => { throw new Error('workspace-isolation-used-legacy-exec'); };
+    expect(tx).not.toHaveProperty('prepare');
+    expect(tx).not.toHaveProperty('exec');
     return operation(tx);
   });
 },30_000);

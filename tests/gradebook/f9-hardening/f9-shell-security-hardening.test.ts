@@ -146,13 +146,16 @@ describe('F9 — privacidade, auth e transporte', () => {
     }
   });
 
-  it('continua falhando em produção antes de tocar o binding acadêmico', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
-    const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
+  it('mantém PostgreSQL lazy e não expõe o binding legado em nenhum ambiente', () => {
+    const runtime = source('server/gradebook/persistence/postgres/official-gradebook-database-v1.ts');
+    const providerGate = runtime.indexOf("if (!configured) throw new Error('gradebook-official-postgres-provider-required')");
+    const bindingAccess = runtime.indexOf('return create(requireHyperdriveConnectionString(env))');
 
-    expect(environmentGate).toBeGreaterThanOrEqual(0);
-    expect(bindingAccess).toBeGreaterThan(environmentGate);
+    expect(runtime).toContain('const database = lazyGradebookDatabaseV1(async () =>');
+    expect(runtime).toContain('Object.getOwnPropertyDescriptors(env)');
+    expect(runtime).toContain('GRADEBOOK_D1: { value: undefined');
+    expect(providerGate).toBeGreaterThanOrEqual(0);
+    expect(bindingAccess).toBeGreaterThan(providerGate);
   });
 
   it('não introduz retry automático de decisão do Conselho nem emissão de Boletim', () => {

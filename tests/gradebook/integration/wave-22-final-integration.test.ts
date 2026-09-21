@@ -110,8 +110,8 @@ describe('integração final da onda 22 — comparação e correção determiní
     expect(correction).not.toContain('patchArbitrary');
   });
 
-  it('preserva bridges/autoridade/readiness históricos e reconhece o catálogo local 0001–0006', () => {
-    expect(readdirSync(join(root, 'migrations/gradebook')).sort()).toEqual([
+  it('preserva bridges atuais e autoridade/readiness/catálogo D1 0001–0006 históricos', () => {
+    expect(readdirSync(join(root, 'Aprendizados/RUNTIME-D1-RETIRADO-1079/migrations/gradebook')).sort()).toEqual([
       '0001_gradebook_context_entities_imports_v1.sql',
       '0002_gradebook_records_audit_v1.sql',
       '0003_logical_source_record_catalog_v1.sql',
@@ -132,7 +132,7 @@ describe('integração final da onda 22 — comparação e correção determiní
     expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
     expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(source('server/gradebook/http/performance-routes-v1.ts')).toContain("GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance'");
-    expect(source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts')).toContain('deterministicCorrectionWorkspace(');
+    expect(source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts')).toContain('deterministicCorrectionWorkspace(');
   });
 
   it('preserva o checkpoint documental das ondas 22–24 sem impor flags antigas ao programa final', () => {

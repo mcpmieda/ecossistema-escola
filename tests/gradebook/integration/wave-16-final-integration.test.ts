@@ -29,11 +29,11 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);
+    expect(functions.match(/handleCouncilWorkspaceRequestV1/gu)).toHaveLength(2);
   });
 
   it('usa a projeção oficial #332 upstream do Council Workspace sem cálculo no workspace/wiring', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const projection = source(
       'server/gradebook/application/council/council-official-projection-source-v1.ts',
     );
@@ -77,7 +77,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     const matrix = source('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
     const route = source('server/gradebook/http/performance-routes-v1.ts');
     const physicalSource = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
 
     for (const label of ['Resultado', 'Quantitativo', 'Qualitativo', 'Avaliações']) {
@@ -148,7 +148,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
 
   it('mantém auth opaca, capability existente, no-store e produção fail-closed antes do binding', () => {
     const functions = source('functions/[[path]].ts');
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const handlers = [
       source('server/gradebook/http/performance-routes-v1.ts'),
       source('server/gradebook/http/bulletin-routes-v1.ts'),
@@ -160,7 +160,8 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
       expect(handler).toContain('authorizeGradebookRuntimeV1');
       expect(handler).toContain('no-store');
     }
-    expect(functions).toContain('authorizeGradebookRuntimeV1(session)');
+    expect(functions).toContain('handleCouncilWorkspaceRequestV1(request, env)');
+    expect(handlers[2]).toContain('authorizeGradebookRuntimeV1(session)');
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
     const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
     expect(environmentGate).toBeGreaterThanOrEqual(0);

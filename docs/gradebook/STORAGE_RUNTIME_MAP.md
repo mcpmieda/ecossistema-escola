@@ -21,21 +21,21 @@ O `wrangler.jsonc` da aplicação oficial declara `GRADEBOOK_STORAGE_PROVIDER=po
 
 Os nomes agora distinguem o banco selecionado da compatibilidade histórica:
 
-1. **`GRADEBOOK_DATABASE`** — banco injetado por `withOfficialGradebookDatabaseV1`; em produção, somente PostgreSQL. Serviços atuais usam `query`/`executeNative` e tipos PostgreSQL;
-2. **`GRADEBOOK_D1`** — binding físico legado de fixtures local/preview, ocultado no ambiente de execução PostgreSQL;
-3. **`D1WriteDatabaseV1` e `d1-*`** — protocolo e adaptadores legados ainda utilizados pela compatibilidade e pelos testes históricos, não pelas consultas atuais.
+1. **`GRADEBOOK_DATABASE`** — banco injetado por `withOfficialGradebookDatabaseV1`; somente PostgreSQL em todos os ambientes. Serviços atuais usam `query`/`executeNative` e tipos PostgreSQL;
+2. **`GRADEBOOK_D1`** — entrada legada rejeitada/ocultada, nunca lida pelo wrapper nem pelos transportes retirados;
+3. **`D1WriteDatabaseV1` e `d1-*`** — protocolo e adaptadores arquivados em `Aprendizados/RUNTIME-D1-RETIRADO-1079`, fora do runtime atual.
 
 No caminho oficial PostgreSQL, `withOfficialGradebookDatabaseV1` injeta a fachada em `GRADEBOOK_DATABASE`, sem ler o binding físico antigo. A autorização compartilhada está em `server/gradebook/authorization-v1.ts`; capability, autenticação e permissões não mudaram.
 
-Os transportes de compatibilidade ainda podem receber a fachada PostgreSQL. Isso não recria as tabelas antigas e não prova que esses transportes funcionam no catálogo atual. O inventário e os consumidores preservados estão em [LEGACY_RUNTIME_970.md](LEGACY_RUNTIME_970.md).
+Os transportes retirados retornam HTTP 410 depois de auth/validacao, sem acessar banco. O inventario anterior permanece em [LEGACY_RUNTIME_970.md](LEGACY_RUNTIME_970.md); a autorizacao que o substitui esta em [LEGACY_RUNTIME_RETIREMENT_1079.md](LEGACY_RUNTIME_RETIREMENT_1079.md).
 
 A autoridade física deve ser determinada pela composição da rota e pelo provider oficial.
 
 ## Gate de produção
 
-`withOfficialGradebookDatabaseV1` permite `provider=d1` apenas quando `RUNTIME_ENVIRONMENT` não é `production`.
+`withOfficialGradebookDatabaseV1` exige `provider=postgres` em todos os ambientes desde a #1079.
 
-Em produção:
+Em todos os ambientes:
 - `provider=postgres` + `PROD_DB` válido → abre PostgreSQL sob demanda;
 - provider ausente/inválido/`d1` → operação acadêmica que precisa de banco falha fechada;
 - não existe fallback automático para D1 físico.
@@ -46,33 +46,31 @@ Desde a BN-08, o parser de ambiente **não injeta mais `d1` por default**. Provi
 
 As URLs `/api/gradebook/admin/persistence/*` permanecem iguais. A implementação foi renomeada para `http/persistence-admin-routes-v1.ts`, com `handleGradebookPersistenceAdminRequestV1`.
 
-Em produção:
+Em todos os ambientes (com gate de ativacao preservado para status produtivo):
 - status consulta o PostgreSQL oficial por `withOfficialGradebookDatabaseV1`;
 - migrations pela rota antiga retornam `410 retired`;
-- runtime D1/migration runner é acessível somente em local/preview para fixtures históricas descartáveis.
+- runtime D1/migration runner foi arquivado e nao e acessivel nem em local/preview.
 
 ## Classificação dos principais módulos
 
 | Módulo | Classificação atual |
 | --- | --- |
 | `server/gradebook/persistence/postgres/official-gradebook-database-v1.ts` | CURRENT — seleção física oficial/fail-closed |
-| `server/gradebook/persistence/postgres/postgres-database-v1.ts` | CURRENT — porta nativa e compatibilidade histórica explicitamente separadas |
+| `server/gradebook/persistence/postgres/postgres-database-v1.ts` | CURRENT — somente portas nativas; tradutor retirado |
 | `GradebookPostgresReadPortV1` / `GradebookPostgresWritePortV1` | CURRENT — SQL `$n` enviado sem tradução; JSON tipado explicitamente com `postgresJsonTextV1` |
-| `D1WriteDatabaseV1` / `D1WriteStatementV1` | COMPATIBILITY — somente protocolo legado, fachada/lazy e fixtures |
-| `server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts` | LEGACY-RUNTIME — local/preview/compatibilidade; não fonte física oficial |
-| `server/gradebook/persistence/d1/schema/**` | HISTORICAL/LOCAL — schema D1 antigo |
-| `server/gradebook/persistence/d1/{read,write,transaction,...}` | MIXED — alguns adapters ainda são portas reutilizadas pelo facade PostgreSQL; avaliar por consumidor |
+| `D1WriteDatabaseV1` / `D1WriteStatementV1` | MEMORY — protocolo arquivado; nao compoe facade/lazy |
+| antigo `server/gradebook/persistence/d1/**` | MEMORY — movido para `Aprendizados/RUNTIME-D1-RETIRADO-1079` |
 | `Aprendizados/**` | MEMORY — nunca autoridade operacional |
 
 ## Allowlist de relações legacy não é catálogo físico atual
 
-O facade PostgreSQL contém uma allowlist de nomes como `academic_entity_streams`, `source_file_versions` e `import_batch_streams`. Ela serve somente para qualificar SQL **D1-shaped legado** que chega sem schema.
+O facade PostgreSQL anterior continha uma allowlist de nomes como `academic_entity_streams`, `source_file_versions` e `import_batch_streams`. A #1079 retirou essa allowlist junto do tradutor; ela permanece apenas na memoria arquivada.
 
 Essa allowlist:
 - não representa as tabelas físicas atuais `aluno/nota/oferta/fechamento/...`;
 - não deve ser sincronizada com migrations do schema simplificado;
 - não autoriza reativar o modelo stream/version;
-- existe apenas enquanto consumers de compatibilidade ainda passam pelo tradutor.
+- nao existe mais na fachada executavel atual.
 
 Consultas relacionais atuais devem usar `gradebook.<tabela>` explicitamente. O catálogo físico atual é validado separadamente pelo recovery/gate PostgreSQL da BN-09.
 
@@ -85,4 +83,4 @@ Antes de remover:
 4. rodar testes e Sonar;
 5. só então classificar como compatibilidade ou runtime morto.
 
-A #970 separa a renomeação nominal da migração SQL em commits distintos. Nenhum arquivo legado pode ser apagado apenas pelo nome: o inventário B-16 encontrou consumidores nos 26 candidatos. A retirada do tradutor continua dependendo da resolução dessa compatibilidade, não somente da medição zero do B-15.
+A #970 separou renomeacao nominal e migracao SQL. O inventario encontrou consumidores nos 26 candidatos, por isso a retirada exigiu a autorizacao explicita #1079/BN-DEC-041. O contrato retira esses consumidores HTTP e ensaios D1, preservando tipos compartilhados e a evidencia historica; nenhum arquivo foi retirado apenas pelo nome.

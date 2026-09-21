@@ -1,5 +1,11 @@
 # B-16: inventario do runtime legado da #970
 
+> Inventario historico anterior a autorizacao de retirada. A #1079 / BN-DEC-041
+> substitui o bloqueio e as decisoes de manter abaixo: consulte
+> [retirada autorizada](LEGACY_RUNTIME_RETIREMENT_1079.md). Este inventario
+> preserva a prova de consumidores que motivou o contrato explicito; nao
+> descreve a arvore posterior nem reativa compatibilidade retirada.
+
 ## Atualizacao da integracao B-05/B-15
 
 O inventario abaixo preserva a evidencia da baseline auditada. Na implementacao

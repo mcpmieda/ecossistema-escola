@@ -44,7 +44,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
     const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
     const physicalSource = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
 
     expect(performancePage).toContain('<PerformanceAnalysisPanelV3');
@@ -81,7 +81,8 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(projectState).toContain('production_d1_binding_present: true');
     expect(projectState).toContain('production_gate_final: off');
     expect(academicContext).toContain('authorityMode: imported-source');
-    expect(route).toContain('createGradebookD1RuntimeV1(env, authorization)');
+    expect(route).not.toContain('createGradebookD1RuntimeV1');
+    expect(route).toContain('return unavailable(410)');
   });
 
   it('não reinterpreta o checkpoint de autoridade F9/#347', () => {

@@ -24,7 +24,7 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
   });
 
   it('preserva a composição física original e reconhece somente os bridges ainda ativos', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const runtimeAuthorization = source(
       'server/gradebook/authorization-v1.ts',
     );
@@ -42,14 +42,14 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);
+    expect(functions.match(/handleCouncilWorkspaceRequestV1/gu)).toHaveLength(2);
     expect(functions).not.toMatch(/bulletin.*pdf|pdf.*bulletin/iu);
     expect(runtimeAuthorization.match(/gradebook\.persistence\.admin/gu)).toHaveLength(1);
     expect(capabilities.match(/'gradebook\.persistence\.admin'/gu)).toHaveLength(1);
   });
 
-  it('mantém bridges únicos e produção fail-closed antes do binding', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+  it('mantém bridges únicos e preserva a evidência do gate histórico antes do binding', () => {
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const operationalRoute = source('server/gradebook/http/operational-workspace-routes-v1.ts');
     const performanceRoute = source('server/gradebook/http/performance-routes-v1.ts');
     const bulletinRoute = source('server/gradebook/http/bulletin-routes-v1.ts');

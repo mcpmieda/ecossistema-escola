@@ -1,5 +1,17 @@
 # Matriz de testes — Banco de Notas
 
+## Retirada #1079 / BN-DEC-041
+
+- Transportes legados: HTTP 410 depois de auth/capability/origem/validacao,
+  sem tocar bindings, runtime ou banco; manter 401/403/400 e no-store.
+- Versoes atuais e importacao V9/V10/V11: suites existentes preservadas.
+- PostgreSQL nativo: SQL literal, JSON explicito, contagem/CAS, rollback,
+  mesma transacao fisica, diagnostico e configuracao lazy sem fallback D1.
+- Fronteira do arquivo historico: nenhum import ativo de D1/Aprendizados;
+  fachadas sem prepare/exec/batch. Testes mistos leem memoria como texto.
+- Testes exclusivamente D1 sao memoria em `Aprendizados/RUNTIME-D1-RETIRADO-1079`,
+  nao prova de comportamento produtivo. CI/gates e publicacao registrados na #1079.
+
 Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são usados somente em validação controlada fora do repositório e produzem relatórios agregados sem nomes/notas identificáveis.
 
 ## SRC — Contrato da fonte V1 histórico

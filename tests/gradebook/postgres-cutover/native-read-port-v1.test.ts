@@ -52,13 +52,13 @@ describe('native PostgreSQL read port V1', () => {
     // query that escaped to the pool would silently read a different snapshot per statement.
     expect(await isolation(database)).toBe('read committed');
     const inside = await database.transaction(async (tx) => {
-      await tx.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+      await tx.executeNative('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
       return isolation(tx);
     });
     expect(inside).toBe('repeatable read');
   });
 
-  it('records the same failure diagnostic as translated statements', async () => {
+  it('records a sanitized failure diagnostic for native queries', async () => {
     await expect(
       database.query('SELECT 1 FROM gradebook.native_port_missing_relation', []),
     ).rejects.toThrow();
