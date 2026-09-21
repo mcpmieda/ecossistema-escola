@@ -1,7 +1,7 @@
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import { graphReadUrlV1 } from './graph-read-url-v1.ts';
 
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const APPLICATION_READWRITE_OWNED_BY = '18a4783c-866b-4cc7-a460-3d5e5662c884';
 const EXPECTED_MAINTENANCE_NAME = 'Ecossistema Maintenance - GitHub OIDC';
@@ -117,7 +117,7 @@ async function graphJson<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetcher(`${GRAPH_BASE}${path}`, {
+    response = await fetcher(graphReadUrlV1(path), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
