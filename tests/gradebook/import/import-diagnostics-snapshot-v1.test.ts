@@ -251,11 +251,20 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
     expect(await state()).toEqual([]);
   });
 
-  it('GET reads current evidence with bounded pagination and no writes', async () => {
+  it.each(['?ano=2090&limit=1', '?limit=1'])('GET reads current evidence through the native port with bounded pagination: %s', async (query) => {
     await replace(database,observation(['k1','k2']));
     const previous=await state();
     queries.length=0;
-    const result=await request('GET',undefined,'https://school.test','?ano=2090&limit=1');
+    const prepare = vi.spyOn(database, 'prepare').mockImplementation(() => { throw new Error('diagnostic-read-used-legacy-prepare'); });
+    const nativeQuery = vi.spyOn(database, 'query');
+    let result: Response;
+    try {
+      result=await request('GET',undefined,'https://school.test',query);
+      expect(nativeQuery).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(query.includes('ano=') ? 'WHERE d.ano = $1' : 'LIMIT $1 OFFSET $2'), query.includes('ano=') ? [2090,2,0] : [2,0]);
+    } finally {
+      prepare.mockRestore();
+      nativeQuery.mockRestore();
+    }
     expect(result.status).toBe(200);
     expect(result.headers.get('Cache-Control')).toContain('no-store');
     expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'source-unavailable',studentName:null}]});

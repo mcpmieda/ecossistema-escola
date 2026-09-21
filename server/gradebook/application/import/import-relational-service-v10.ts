@@ -6,14 +6,12 @@ import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { D1WriteDatabaseV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookRelationalImportServiceV9 } from './import-relational-service-v9';
 
 interface TransactionDatabaseV10 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 }
 
 type Row = Record<string, unknown>;
@@ -31,14 +29,6 @@ function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV1
     throw new Error('gradebook-relational-import-requires-postgres');
   }
   return database as TransactionDatabaseV10;
-}
-
-async function all<T extends Row>(
-  database: D1WriteDatabaseV1,
-  query: string,
-  values: readonly D1WriteValueV1[] = [],
-): Promise<readonly T[]> {
-  return (await database.prepare(query).bind(...values).all<T>()).results;
 }
 
 function filterTerm(
@@ -93,15 +83,14 @@ export function filterHistoricalClassFactsV10(
 }
 
 async function loadHistoricalBindingsV10(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresReadPortV1,
   ano: number,
 ): Promise<ReadonlySet<string>> {
-  const rows = await all<Row>(
-    database,
+  const rows = await database.query<Row>(
     `SELECT t.codigo AS turma_codigo, v.numero
      FROM gradebook.vinculo v
      JOIN gradebook.turma t ON t.id = v.turma_id
-     WHERE v.ano = ? AND v.situacao = 6`,
+     WHERE v.ano = $1 AND v.situacao = 6`,
     [ano],
   );
   const result = new Set<string>();

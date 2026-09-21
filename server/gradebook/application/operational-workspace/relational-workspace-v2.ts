@@ -16,10 +16,11 @@ import {
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
 type Database = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 function integer(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) throw new Error('invalid-workspace-row');
@@ -35,11 +36,11 @@ function ref(kind: WorkspaceKindV2, id: unknown, label: unknown): WorkspaceLinkV
 function context(row: Row): WorkspaceYearV2 {
   return { year: integer(row.ano), minimumApprovalMilli: integer(row.minimo_aprovacao), maxCouncilComponents: integer(row.max_componentes_conselho) };
 }
-async function all(db: D1WriteDatabaseV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> {
-  return (await db.prepare(sql).bind(...values).all<Row>()).results;
+async function all(db: GradebookPostgresReadPortV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> {
+  return db.query<Row>(sql.trim(), values);
 }
-async function first(db: D1WriteDatabaseV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<Row | null> {
-  return db.prepare(sql).bind(...values).first<Row>();
+async function first(db: GradebookPostgresReadPortV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<Row | null> {
+  return (await db.query<Row>(sql.trim(), values))[0] ?? null;
 }
 function nextOffset(length: number, offset: number, limit: number): number | null {
   if (length <= limit) return null;
@@ -73,34 +74,34 @@ function orderOffers(left: WorkspaceOfferV2, right: WorkspaceOfferV2): number {
 
 // All fragments are fixed, reviewed identifiers. No request text becomes SQL syntax.
 const ENTITY_SQL: Record<WorkspaceKindV2, string> = {
-  student: 'SELECT id, nome AS label FROM gradebook.aluno WHERE ano = ? AND id = ?',
-  'class-group': 'SELECT id, codigo AS label, codigo, etapa, turno FROM gradebook.turma WHERE ano = ? AND id = ?',
-  teacher: 'SELECT id, nome AS label FROM gradebook.professor WHERE ano = ? AND id = ?',
-  subject: 'SELECT id, nome AS label FROM gradebook.disciplina WHERE ano = ? AND id = ?',
+  student: 'SELECT id, nome AS label FROM gradebook.aluno WHERE ano = $1 AND id = $2',
+  'class-group': 'SELECT id, codigo AS label, codigo, etapa, turno FROM gradebook.turma WHERE ano = $1 AND id = $2',
+  teacher: 'SELECT id, nome AS label FROM gradebook.professor WHERE ano = $1 AND id = $2',
+  subject: 'SELECT id, nome AS label FROM gradebook.disciplina WHERE ano = $1 AND id = $2',
 };
 const OFFER_FILTER: Record<WorkspaceKindV2, string> = {
   student: `EXISTS (SELECT 1 FROM gradebook.vinculo v
-    WHERE v.ano = o.ano AND v.turma_id = o.turma_id AND v.aluno_id = ? AND v.situacao IS DISTINCT FROM 6)`,
-  'class-group': 'o.turma_id = ?',
-  teacher: 'o.professor_id = ?',
-  subject: 'o.disciplina_id = ?',
+    WHERE v.ano = o.ano AND v.turma_id = o.turma_id AND v.aluno_id = $2 AND v.situacao IS DISTINCT FROM 6)`,
+  'class-group': 'o.turma_id = $2',
+  teacher: 'o.professor_id = $2',
+  subject: 'o.disciplina_id = $2',
 };
 
-async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWorkspaceRequestV2, {operation:'center'}>): Promise<WorkspaceCenterV2 | null> {
+async function loadCenter(db: GradebookPostgresReadPortV1, request: Extract<OperationalWorkspaceRequestV2, {operation:'center'}>): Promise<WorkspaceCenterV2 | null> {
   const entity = await first(db, ENTITY_SQL[request.kind], [request.year, request.id]);
   if (!entity) return null;
   let bindings: readonly Row[] = [];
   if (request.kind === 'student' || request.kind === 'class-group') {
-    const scope = request.kind === 'student' ? 'v.aluno_id = ?' : 'v.turma_id = ?';
+    const scope = request.kind === 'student' ? 'v.aluno_id = $2' : 'v.turma_id = $2';
     bindings = await all(db, `SELECT v.aluno_id,a.nome AS aluno_nome,v.turma_id,t.codigo AS turma_codigo,
         v.numero,v.situacao,v.turma_relacionada_id,rt.codigo AS turma_relacionada_codigo
       FROM gradebook.vinculo v
       JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
       JOIN gradebook.turma t ON t.id = v.turma_id AND t.ano = v.ano
       LEFT JOIN gradebook.turma rt ON rt.id = v.turma_relacionada_id AND rt.ano = v.ano
-      WHERE v.ano = ? AND ${scope}
+      WHERE v.ano = $1 AND ${scope}
       ORDER BY (v.situacao IS NOT DISTINCT FROM 6),t.codigo COLLATE "C",v.numero,v.aluno_id
-      LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset]);
+      LIMIT $3 OFFSET $4`, [request.year, request.id, request.limit + 1, request.offset]);
   }
   const offers = (await all(db, `SELECT o.id,o.turma_id,t.codigo AS turma_codigo,
       o.professor_id,p.nome AS professor_nome,o.disciplina_id,d.nome AS disciplina_nome
@@ -108,9 +109,9 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
     JOIN gradebook.turma t ON t.id = o.turma_id AND t.ano = o.ano
     JOIN gradebook.professor p ON p.id = o.professor_id AND p.ano = o.ano
     JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
-    WHERE o.ano = ? AND ${OFFER_FILTER[request.kind]}
+    WHERE o.ano = $1 AND ${OFFER_FILTER[request.kind]}
     ORDER BY t.codigo COLLATE "C",d.nome COLLATE "C",p.nome COLLATE "C",o.id
-    LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset])).map(toOffer).sort(orderOffers);
+    LIMIT $3 OFFSET $4`, [request.year, request.id, request.limit + 1, request.offset])).map(toOffer).sort(orderOffers);
   return {
     entity: ref(request.kind, entity.id, entity.label),
     classInfo: request.kind === 'class-group' ? {code:text(entity.codigo),stage:integer(entity.etapa),shift:text(entity.turno)} : null,
@@ -120,18 +121,18 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
   };
 }
 
-async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceRequestV2): Promise<OperationalWorkspaceResponseV2> {
+async function execute(db: GradebookPostgresReadPortV1, request: OperationalWorkspaceRequestV2): Promise<OperationalWorkspaceResponseV2> {
   if (request.operation === 'bootstrap') {
     const rows = await all(db, `SELECT ano,minimo_aprovacao,max_componentes_conselho
-      FROM gradebook.ano_letivo ORDER BY ano DESC LIMIT ?`, [WORKSPACE_MAX_YEARS_V2 + 1]);
+      FROM gradebook.ano_letivo ORDER BY ano DESC LIMIT $1`, [WORKSPACE_MAX_YEARS_V2 + 1]);
     if (rows.length > WORKSPACE_MAX_YEARS_V2) throw new Error('workspace-year-catalog-limit');
     return {contractVersion:2,state:'ready',operation:'bootstrap',years:rows.map(context)};
   }
-  const year = await first(db, 'SELECT ano,minimo_aprovacao,max_componentes_conselho FROM gradebook.ano_letivo WHERE ano = ?', [request.year]);
+  const year = await first(db, 'SELECT ano,minimo_aprovacao,max_componentes_conselho FROM gradebook.ano_letivo WHERE ano = $1', [request.year]);
   if (!year) return {contractVersion:2,state:'not-found'};
   const common = {contractVersion:2,state:'ready',context:context(year)} as const;
   if (request.operation === 'context') {
-    const row = await first(db, `WITH y AS (SELECT ?::smallint AS ano)
+    const row = await first(db, `WITH y AS (SELECT $1::smallint AS ano)
       SELECT (SELECT count(*)::integer FROM gradebook.aluno a,y WHERE a.ano=y.ano) AS students,
         (SELECT count(*)::integer FROM gradebook.turma t,y WHERE t.ano=y.ano) AS classes,
         (SELECT count(*)::integer FROM gradebook.professor p,y WHERE p.ano=y.ano) AS teachers,
@@ -151,7 +152,7 @@ async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceReque
     const center = await loadCenter(db, request);
     return center ? {...common,operation:'center',center} : {contractVersion:2,state:'not-found'};
   }
-  const rows = await all(db, `WITH y AS (SELECT ?::smallint AS ano), candidates AS (
+  const rows = await all(db, `WITH y AS (SELECT $1::smallint AS ano), candidates AS (
       SELECT 1 AS rank,'student'::text AS kind,a.id,a.nome AS label,
         CASE WHEN t.id IS NULL THEN NULL ELSE t.codigo || ' · Nº ' || v.numero END AS description
       FROM gradebook.aluno a JOIN y ON a.ano=y.ano
@@ -161,8 +162,8 @@ async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceReque
       UNION ALL SELECT 3,'teacher',p.id,p.nome,NULL FROM gradebook.professor p JOIN y ON p.ano=y.ano
       UNION ALL SELECT 4,'subject',d.id,d.nome,NULL FROM gradebook.disciplina d JOIN y ON d.ano=y.ano
     ) SELECT kind,id,label,description FROM candidates
-    WHERE (? = 'all' OR kind = ?) AND position(lower(?) in lower(label)) > 0
-    ORDER BY rank,lower(label) COLLATE "C",id LIMIT ? OFFSET ?`,
+    WHERE ($2 = 'all' OR kind = $3) AND position(lower($4) in lower(label)) > 0
+    ORDER BY rank,lower(label) COLLATE "C",id LIMIT $5 OFFSET $6`,
   [request.year,request.kind,request.kind,request.query.trim(),request.limit+1,request.offset]);
   return {
     ...common,operation:'search',
@@ -182,7 +183,7 @@ export function createRelationalWorkspaceV2(database: D1WriteDatabaseV1) {
       if (!('transaction' in database) || typeof database.transaction !== 'function') throw new Error('workspace-transaction-unavailable');
       const request = {...input}; // Only scalar values; caller mutation cannot change the scope while waiting.
       return (database as Database).transaction(async (db) => {
-        await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        await db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
         const response = await execute(db, request);
         if (!isOperationalWorkspaceResponseV2(response)) throw new Error('invalid-workspace-response');
         return response;
