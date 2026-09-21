@@ -384,22 +384,23 @@ describe('relational bulletin V2', () => {
 
   it('materializes a batch with a bounded academic query count instead of N+1 reads', async () => {
     const academicQueries: string[] = [];
+    const isAcademicRead = (query: string) =>
+      !query.includes('gradebook.boletim_snapshot') &&
+      !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
+      /^\s*(?:SELECT|WITH)\b/iu.test(query);
     const counted = (target: GradebookPostgresTransactionV1): GradebookPostgresTransactionV1 => ({
       prepare(query) {
-        if (
-          !query.includes('gradebook.boletim_snapshot') &&
-          !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
-          /^\s*(?:SELECT|WITH)\b/iu.test(query)
-        ) {
+        if (isAcademicRead(query)) {
           throw new Error('bulletin-read-used-legacy-prepare');
         }
         return target.prepare(query);
       },
       query(query, values) {
-        if (/^\s*(?:SELECT|WITH)\b/iu.test(query)) academicQueries.push(query);
+        if (isAcademicRead(query)) academicQueries.push(query);
         return target.query(query, values);
       },
       executeNative(query, values) {
+        if (isAcademicRead(query)) academicQueries.push(query);
         return target.executeNative(query, values);
       },
       exec(query) {

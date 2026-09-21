@@ -1,16 +1,26 @@
-import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
+import {
+  lockResetWriterV1,
+  recordResetWriteV1,
+} from '../../../student-portal/integration/year-reset/writer-v1';
 import {
   RELATIONAL_BULLETIN_LIMITS_V2,
   relationalBulletinSnapshotSchemaV2,
   type RelationalBulletinHistoryItemV2,
   type RelationalBulletinSnapshotV2,
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
-import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
+import type { D1WriteDatabaseV1 } from '../d1/write/d1-write-adapter-v1';
+import type {
+  GradebookPostgresReadPortV1,
+  GradebookPostgresTransactionV1,
+} from './postgres-database-v1';
+import { createGradebookPostgresParametersV1 } from './postgres-parameters-v1';
+import { postgresJsonTextV1 } from './postgres-values-v1';
 
 type Row = Record<string, unknown>;
-type TransactionDatabaseV2 = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
-};
+type TransactionDatabaseV2 = D1WriteDatabaseV1 &
+  GradebookPostgresReadPortV1 & {
+    transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
+  };
 
 export type RelationalBulletinSnapshotAppendV2 =
   | { readonly state: 'appended'; readonly snapshot: RelationalBulletinSnapshotV2 }
@@ -60,32 +70,6 @@ function snapshotFromRow(row: Row): RelationalBulletinSnapshotV2 {
   return Object.freeze(parsed.data);
 }
 
-function changes(value: unknown): number {
-  const result = value as {
-    readonly success?: boolean;
-    readonly changes?: number;
-    readonly meta?: { readonly changes?: number };
-  };
-  const count = result.meta?.changes ?? result.changes;
-  if (result.success === false || !Number.isInteger(count) || Number(count) < 0) {
-    throw new Error('relational-bulletin-snapshot-write-failed');
-  }
-  return Number(count);
-}
-
-async function all(
-  database: D1WriteDatabaseV1,
-  sql: string,
-  values: readonly D1WriteValueV1[] = [],
-): Promise<readonly Row[]> {
-  return (
-    await database
-      .prepare(sql)
-      .bind(...values)
-      .all<Row>()
-  ).results;
-}
-
 export function createRelationalBulletinSnapshotRepositoryV2(
   database: D1WriteDatabaseV1,
 ): RelationalBulletinSnapshotRepositoryV2 {
@@ -96,31 +80,27 @@ export function createRelationalBulletinSnapshotRepositoryV2(
 
   return {
     async getLatest(seriesKey) {
-      const row = await database
-        .prepare(
-          `SELECT snapshot_id, versao, data_version, emitido_em,
+      const [row] = await transactional.query<Row>(
+        `SELECT snapshot_id, versao, data_version, emitido_em,
                 snapshot_json AS payload_json
            FROM gradebook.boletim_snapshot
-          WHERE chave_serie = ?
+          WHERE chave_serie = $1
           ORDER BY versao DESC
           LIMIT 1`,
-        )
-        .bind(seriesKey)
-        .first<Row>();
-      return row === null ? null : snapshotFromRow(row);
+        [seriesKey],
+      );
+      return row === undefined ? null : snapshotFromRow(row);
     },
 
     async get(snapshotId, snapshotVersion) {
-      const row = await database
-        .prepare(
-          `SELECT snapshot_id, versao, data_version, emitido_em,
+      const [row] = await transactional.query<Row>(
+        `SELECT snapshot_id, versao, data_version, emitido_em,
                 snapshot_json AS payload_json
            FROM gradebook.boletim_snapshot
-          WHERE snapshot_id = ? AND versao = ?`,
-        )
-        .bind(snapshotId, snapshotVersion)
-        .first<Row>();
-      return row === null ? null : snapshotFromRow(row);
+          WHERE snapshot_id = $1 AND versao = $2`,
+        [snapshotId, snapshotVersion],
+      );
+      return row === undefined ? null : snapshotFromRow(row);
     },
 
     async append(input) {
@@ -135,52 +115,46 @@ export function createRelationalBulletinSnapshotRepositoryV2(
       try {
         return await transactional.transaction(async (tx) => {
           await lockResetWriterV1(tx, input.snapshot.model.year);
-          const current = await tx
-            .prepare(
-              `SELECT snapshot_id, versao
+          const [current] = await tx.query<Row>(
+            `SELECT snapshot_id, versao
                FROM gradebook.boletim_snapshot
-              WHERE chave_serie = ?
+              WHERE chave_serie = $1
               ORDER BY versao DESC
               LIMIT 1`,
-            )
-            .bind(input.seriesKey)
-            .first<Row>();
-          const currentVersion = current === null ? 0 : asInteger(current.versao);
+            [input.seriesKey],
+          );
+          const currentVersion = current === undefined ? 0 : asInteger(current.versao);
           if (
             currentVersion !== input.expectedPreviousVersion ||
             input.snapshot.snapshotVersion !== currentVersion + 1 ||
-            (current !== null && current.snapshot_id !== input.snapshot.snapshotId)
+            (current !== undefined && current.snapshot_id !== input.snapshot.snapshotId)
           ) {
             return { state: 'version-conflict' } as const;
           }
           const model = input.snapshot.model;
-          const inserted = changes(
-            await tx
-              .prepare(
-                `INSERT INTO gradebook.boletim_snapshot (
+          const inserted = await tx.executeNative(
+            `INSERT INTO gradebook.boletim_snapshot (
                snapshot_id, versao, chave_serie, ano, turma_id, aluno_id,
                emitido_em, emitido_por_oid, data_version, periodo_json,
                detalhe, apresentacao_json, snapshot_json
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              )
-              .bind(
-                input.snapshot.snapshotId,
-                input.snapshot.snapshotVersion,
-                input.seriesKey,
-                model.year,
-                model.classGroup.id,
-                model.student.id,
-                input.snapshot.emittedAt,
-                input.issuerOid,
-                input.snapshot.dataVersion,
-                JSON.stringify(model.period),
-                model.detail,
-                JSON.stringify(input.snapshot.presentation),
-                JSON.stringify(input.snapshot),
-              )
-              .run(),
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, $13::jsonb)`,
+            [
+              input.snapshot.snapshotId,
+              input.snapshot.snapshotVersion,
+              input.seriesKey,
+              model.year,
+              model.classGroup.id,
+              model.student.id,
+              input.snapshot.emittedAt,
+              input.issuerOid,
+              input.snapshot.dataVersion,
+              postgresJsonTextV1(JSON.stringify(model.period)),
+              model.detail,
+              postgresJsonTextV1(JSON.stringify(input.snapshot.presentation)),
+              postgresJsonTextV1(JSON.stringify(input.snapshot)),
+            ],
           );
-          if (inserted !== 1) throw new Error('relational-bulletin-snapshot-write-failed');
+          if (inserted.changes !== 1) throw new Error('relational-bulletin-snapshot-write-failed');
           await recordResetWriteV1(tx, model.year, 'bulletin-snapshot');
           return { state: 'appended', snapshot: input.snapshot } as const;
         });
@@ -206,15 +180,12 @@ export function createRelationalBulletinSnapshotRepositoryV2(
         throw new Error('relational-bulletin-history-too-large');
       }
       if (uniqueStudents?.length === 0) return [];
-      const predicates = ['b.ano = ?', 'b.turma_id = ?'];
-      const values: D1WriteValueV1[] = [input.year, input.classId];
+      const { param, values } = createGradebookPostgresParametersV1();
+      const predicates = [`b.ano = ${param(input.year)}`, `b.turma_id = ${param(input.classId)}`];
       if (uniqueStudents !== null) {
-        predicates.push(`b.aluno_id IN (${uniqueStudents.map(() => '?').join(', ')})`);
-        values.push(...uniqueStudents);
+        predicates.push(`b.aluno_id IN (${uniqueStudents.map(param).join(', ')})`);
       }
-      values.push(RELATIONAL_BULLETIN_LIMITS_V2.historyItems);
-      const rows = await all(
-        database,
+      const rows = await transactional.query<Row>(
         `SELECT b.snapshot_id, b.versao, b.data_version, b.emitido_em,
                 b.turma_id, t.nome AS turma_nome, b.aluno_id, a.nome AS aluno_nome,
                 b.periodo_json AS payload_json, b.detalhe
@@ -223,7 +194,7 @@ export function createRelationalBulletinSnapshotRepositoryV2(
            JOIN gradebook.aluno a ON a.id = b.aluno_id AND a.ano = b.ano
           WHERE ${predicates.join(' AND ')}
           ORDER BY b.emitido_em DESC, b.snapshot_id, b.versao DESC
-          LIMIT ?`,
+          LIMIT ${param(RELATIONAL_BULLETIN_LIMITS_V2.historyItems)}`,
         values,
       );
       return rows.map((row) => {
