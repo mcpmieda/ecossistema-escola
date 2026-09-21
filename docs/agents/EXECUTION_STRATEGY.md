@@ -22,7 +22,6 @@ Os papéis são preferências operacionais, não exclusividades.
 
 ### Gatilhos operacionais homologados
 
-- **OpenHands Cloud:** comentário exato `/openhands` ou `workflow_dispatch`; exige issue do proprietário com `AGENT_HANDOFF`.
 - **CodeRabbit:** `@coderabbitai review` quando uma segunda leitura trouxer valor.
 - **SonarQube Cloud:** Automatic Analysis via GitHub App; não requer scanner/token no workflow normal.
 - **Jules:** acionamento pela integração Jules/GitHub conforme a tarefa delegada.
@@ -32,7 +31,6 @@ Os papéis são preferências operacionais, não exclusividades.
 | --- | --- | --- |
 | Liderança técnica | **ChatGPT** | arquitetura, regra acadêmica/negócio, contratos, dados, segurança, delegação e integração final |
 | Implementação assíncrona ampla | **Jules** | correções e funcionalidades delimitadas com acesso ao repositório e ciclo próprio de implementação |
-| Implementação cloud assíncrona | **OpenHands Cloud** | tarefas delimitadas que se beneficiem de workspace cloud e execução longa via `/openhands` |
 | Revisão independente | **CodeRabbit** | encontrar regressões, inconsistências e pontos de atenção em PRs quando a revisão acrescentar valor |
 | Qualidade/segurança especializada | **SonarQube Cloud** | análise estática e Quality Gate automáticos; não é autoridade arquitetural |
 | Futuros agentes | conforme homologação | recebem um papel pelo agente líder antes de entrar no fluxo |
@@ -104,7 +102,7 @@ Fora disso, duplicação é desperdício.
 
 ## Regra de não espera
 
-Depois de disparar Jules, OpenHands Cloud, CI ou outra operação demorada, o agente líder deve procurar a próxima frente independente que possa avançar.
+Depois de disparar Jules, CI ou outra operação demorada, o agente líder deve procurar a próxima frente independente que possa avançar.
 
 Esperar é aceitável somente quando o resultado pendente determina a próxima decisão e não existe trabalho seguro paralelo.
 
