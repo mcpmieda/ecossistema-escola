@@ -55,7 +55,9 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Run focused operator tests
-        run: npx vitest run tests/cloudflare-operator-v1.test.ts
+        # Run the lockfile-pinned vitest through the package script. On-demand package
+        # execution would fetch an unpinned release if the local binary were missing.
+        run: npm test -- tests/cloudflare-operator-v1.test.ts
 
   execute:
     name: Execute bounded Cloudflare read-only operation
