@@ -40,13 +40,13 @@ import {
   createCouncilWorkspaceRequestHandlerV1,
   GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1,
 } from '../server/gradebook/http/council-routes-v1';
-import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
+import { handleGradebookPersistenceAdminRequestV1 } from '../server/gradebook/http/persistence-admin-routes-v1';
 import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../server/gradebook/authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
@@ -177,10 +177,10 @@ async function handleComposedCouncilWorkspaceRequestV1(
 ): Promise<Response | null> {
   if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
 
-  let authorization: ReturnType<typeof authorizeGradebookD1RuntimeV1> | null = null;
+  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1> | null = null;
   try {
     const session = await requireAuth(request, env);
-    authorization = authorizeGradebookD1RuntimeV1(session);
+    authorization = authorizeGradebookRuntimeV1(session);
   } catch {
     // The dedicated Council handler below owns the opaque 401/403 response.
     authorization = null;
@@ -449,8 +449,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
   }
 
   // This route always targets the preserved D1 rollback store, including after cutover.
-  const gradebookD1AdminResponse = await handleGradebookD1AdminRequestV1(request, env);
-  if (gradebookD1AdminResponse) return gradebookD1AdminResponse;
+  const gradebookPersistenceAdminResponse = await handleGradebookPersistenceAdminRequestV1(request, env);
+  if (gradebookPersistenceAdminResponse) return gradebookPersistenceAdminResponse;
 
   if (url.pathname.startsWith('/api/gradebook/')) {
     const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>

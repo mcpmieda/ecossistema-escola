@@ -14,13 +14,13 @@ import {
   type YearResetResponseV1,
 } from '../../../../shared/gradebook-contracts/settings/year-reset-contract-v1';
 import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../persistence/d1/write/d1-write-adapter-v1';
+  GradebookPostgresWritePortV1,
+  GradebookPostgresScalarV1,
+} from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
-type TransactionalDatabase = D1WriteDatabaseV1 & {
+type TransactionalDatabase = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
@@ -67,7 +67,7 @@ function integer(value: unknown): number {
 async function first(
   database: GradebookPostgresTransactionV1,
   sql: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<Row | null> {
   return (await database.query<Row>(sql, values))[0] ?? null;
 }
@@ -209,7 +209,7 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
   return deleted;
 }
 
-export function createYearResetServiceV1(database: D1WriteDatabaseV1, actorOid: string) {
+export function createYearResetServiceV1(database: GradebookPostgresWritePortV1, actorOid: string) {
   return {
     async execute(input: unknown): Promise<YearResetResponseV1> {
       const parsed = yearResetRequestSchemaV1.safeParse(input);

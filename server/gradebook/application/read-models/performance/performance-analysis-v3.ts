@@ -11,7 +11,7 @@ import {
 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import type { PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
 import {
   performanceRecoveryCellIsRelevantV2,
@@ -258,7 +258,7 @@ export function buildPerformanceAnalysisV3(
   };
 }
 
-export function createPerformanceAnalysisV3(database: D1WriteDatabaseV1) {
+export function createPerformanceAnalysisV3(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<PerformanceAnalysisResponseV3> {
       const parsed = performanceAnalysisRequestSchemaV3.safeParse(input);
@@ -266,7 +266,7 @@ export function createPerformanceAnalysisV3(database: D1WriteDatabaseV1) {
       if (!('transaction' in database) || typeof database.transaction !== 'function')
         return { transportVersion: 3, state: 'unavailable' };
       const request = parsed.data;
-      const db = database as D1WriteDatabaseV1 & {
+      const db = database as GradebookPostgresWritePortV1 & {
         transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
       };
       return db.transaction(async (tx) => {

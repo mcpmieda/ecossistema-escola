@@ -178,7 +178,7 @@ async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 
   const handler = createCouncilWorkspaceRequestHandlerV1({ createWorkspace: () => null });
   const response = await handler(new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/council-workspace`, {
     method: 'POST', headers, body: JSON.stringify(body),
-  }), { ...testEnv, RUNTIME_ENVIRONMENT: 'local', GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_D1: database, ...overrides });
+  }), { ...testEnv, RUNTIME_ENVIRONMENT: 'local', GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_DATABASE: database, ...overrides });
   if (!response) throw new Error('route-not-found');
   return response;
 }

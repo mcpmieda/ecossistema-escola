@@ -15,11 +15,11 @@ import {
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
-import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1, GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
-type Database = D1WriteDatabaseV1 & {
+type Database = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 function integer(value: unknown): number {
@@ -36,10 +36,10 @@ function ref(kind: WorkspaceKindV2, id: unknown, label: unknown): WorkspaceLinkV
 function context(row: Row): WorkspaceYearV2 {
   return { year: integer(row.ano), minimumApprovalMilli: integer(row.minimo_aprovacao), maxCouncilComponents: integer(row.max_componentes_conselho) };
 }
-async function all(db: GradebookPostgresReadPortV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> {
+async function all(db: GradebookPostgresReadPortV1, sql: string, values: readonly GradebookPostgresScalarV1[] = []): Promise<readonly Row[]> {
   return db.query<Row>(sql.trim(), values);
 }
-async function first(db: GradebookPostgresReadPortV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<Row | null> {
+async function first(db: GradebookPostgresReadPortV1, sql: string, values: readonly GradebookPostgresScalarV1[] = []): Promise<Row | null> {
   return (await db.query<Row>(sql.trim(), values))[0] ?? null;
 }
 function nextOffset(length: number, offset: number, limit: number): number | null {
@@ -176,7 +176,7 @@ async function execute(db: GradebookPostgresReadPortV1, request: OperationalWork
 }
 
 /** Backend-only application service. The HTTP boundary owns authentication and authorization. */
-export function createRelationalWorkspaceV2(database: D1WriteDatabaseV1) {
+export function createRelationalWorkspaceV2(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<OperationalWorkspaceResponseV2> {
     if (!isOperationalWorkspaceRequestV2(input)) return {contractVersion:2,state:'invalid-request'};

@@ -15,7 +15,7 @@ function database() {
 }
 const env = () => ({ GRADEBOOK_STORAGE_PROVIDER: 'postgres',
   PROD_DB: { connectionString: 'postgres://hyperdrive.invalid/gradebook' } }) as RuntimeEnv;
-const injected = (execution: RuntimeEnv) => execution.GRADEBOOK_D1 as GradebookPostgresDatabaseV1;
+const injected = (execution: RuntimeEnv) => execution.GRADEBOOK_DATABASE as GradebookPostgresDatabaseV1;
 
 describe('official gradebook PostgreSQL authority #806', () => {
   it('uses only Postgres and opens at the first real operation, not during route construction', async () => {
@@ -24,6 +24,7 @@ describe('official gradebook PostgreSQL authority #806', () => {
     const input = env();
     Object.defineProperty(input, 'GRADEBOOK_D1', { enumerable: true, get: () => { throw new Error('Legacy binding must not be read'); } });
     const response = await withOfficialGradebookDatabaseV1(input, async (execution) => {
+      expect(execution.GRADEBOOK_D1).toBeUndefined();
       const statement = injected(execution).prepare('SELECT ? AS ok').bind(1);
       expect(createPostgresDatabase).not.toHaveBeenCalled();
       expect(await statement.first()).toEqual({ ok: 1 });
@@ -63,7 +64,8 @@ describe('official gradebook PostgreSQL authority #806', () => {
     const createPostgresDatabase = vi.fn(); const legacy = { prepare: vi.fn(), exec: vi.fn() };
     const response = await withOfficialGradebookDatabaseV1({ GRADEBOOK_STORAGE_PROVIDER: provider,
       GRADEBOOK_D1: legacy } as RuntimeEnv, async (execution) => {
-      expect(execution.GRADEBOOK_D1).not.toBe(legacy);
+      expect(execution.GRADEBOOK_D1).toBeUndefined();
+      expect(execution.GRADEBOOK_DATABASE).not.toBe(legacy);
       await expect(injected(execution).prepare('SELECT 1').first()).rejects.toThrow('provider-required');
       return Response.json({ contractVersion: 1, state: 'unavailable' }, { status: 503 });
     }, { createPostgresDatabase });

@@ -5,7 +5,7 @@ import {
   sameAssessmentNamesV1,
   type AssessmentNamesResponseV1,
 } from '../../../../shared/gradebook-contracts/settings/assessment-names-v1';
-import type { D1WriteDatabaseV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 import {
@@ -13,7 +13,7 @@ import {
   recordResetWriteV1,
 } from '../../../student-portal/integration/year-reset/writer-v1';
 
-type Database = D1WriteDatabaseV1 & {
+type Database = GradebookPostgresWritePortV1 & {
   transaction<T>(run: (db: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 const failure = (
@@ -21,7 +21,7 @@ const failure = (
 ): AssessmentNamesResponseV1 => ({ contractVersion: 1, state });
 
 /** Same annual lock and revision producer as the other gradebook writers. */
-export function createAssessmentNamesServiceV1(database: D1WriteDatabaseV1) {
+export function createAssessmentNamesServiceV1(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<AssessmentNamesResponseV1> {
       const parsed = assessmentNamesRequestSchemaV1.safeParse(input);

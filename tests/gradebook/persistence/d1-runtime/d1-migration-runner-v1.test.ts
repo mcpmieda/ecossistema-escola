@@ -4,7 +4,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 
 import { AuthorizationError } from '../../../../server/auth/roles';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import {
   classifyGradebookD1MigrationApplyFailureV1,
   GradebookD1MigrationErrorV1,
@@ -19,7 +19,7 @@ import type {
 } from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { SqliteD1Database } from '../d1-transaction/d1-write-test-support';
 
-const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
 
 function migrationSql(): readonly string[] {
   const directory = join(process.cwd(), 'migrations', 'gradebook');

@@ -14,11 +14,11 @@ import {
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { performanceCellV2, type PerformanceProjectionV2 } from '../results/relational-performance-facts-v2';
 import { readRelationalPerformanceV2 } from '../read-models/performance/relational-performance-v2';
-import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1, GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
-type Database = D1WriteDatabaseV1 & {
+type Database = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 type WriteRequest = Exclude<RelationalCouncilRequestV3, { operation: 'classes' | 'workspace' }>;
@@ -47,10 +47,10 @@ function text(value: unknown): string {
 function serializationFailure(cause: unknown): boolean {
   return cause !== null && typeof cause === 'object' && 'code' in cause && cause.code === '40001';
 }
-async function all(db: GradebookPostgresTransactionV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> {
+async function all(db: GradebookPostgresTransactionV1, sql: string, values: readonly GradebookPostgresScalarV1[] = []): Promise<readonly Row[]> {
   return db.query<Row>(sql, values);
 }
-async function first(db: GradebookPostgresTransactionV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<Row | null> {
+async function first(db: GradebookPostgresTransactionV1, sql: string, values: readonly GradebookPostgresScalarV1[] = []): Promise<Row | null> {
   return (await db.query<Row>(sql, values))[0] ?? null;
 }
 function reviewReference(year: number, classId: number, version: number): string {
@@ -300,7 +300,7 @@ async function mutate(db: GradebookPostgresTransactionV1, request: WriteRequest,
   return ready(db, request);
 }
 
-export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: string) {
+export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1, actorId: string) {
   return { async execute(input: unknown): Promise<RelationalCouncilResponseV3> {
     const parsed = relationalCouncilRequestSchemaV3.safeParse(input);
     if (!parsed.success) return fail('invalid-request');

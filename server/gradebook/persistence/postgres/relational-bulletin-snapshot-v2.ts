@@ -8,7 +8,7 @@ import {
   type RelationalBulletinHistoryItemV2,
   type RelationalBulletinSnapshotV2,
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
-import type { D1WriteDatabaseV1 } from '../d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from './postgres-database-v1';
 import type {
   GradebookPostgresReadPortV1,
   GradebookPostgresTransactionV1,
@@ -17,7 +17,7 @@ import { createGradebookPostgresParametersV1 } from './postgres-parameters-v1';
 import { postgresJsonTextV1 } from './postgres-values-v1';
 
 type Row = Record<string, unknown>;
-type TransactionDatabaseV2 = D1WriteDatabaseV1 &
+type TransactionDatabaseV2 = GradebookPostgresWritePortV1 &
   GradebookPostgresReadPortV1 & {
     transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
   };
@@ -71,7 +71,7 @@ function snapshotFromRow(row: Row): RelationalBulletinSnapshotV2 {
 }
 
 export function createRelationalBulletinSnapshotRepositoryV2(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
 ): RelationalBulletinSnapshotRepositoryV2 {
   const transactional = database as TransactionDatabaseV2;
   if (typeof transactional.transaction !== 'function') {

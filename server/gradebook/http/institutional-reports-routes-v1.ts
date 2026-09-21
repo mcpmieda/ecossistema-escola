@@ -31,9 +31,9 @@ import { createPerformanceTermComparisonV4 } from '../application/read-models/pe
 import { createRelationalCouncilV3 } from '../application/council/relational-council-v3';
 import { createRelationalBulletinServiceV2 } from '../application/bulletins/relational-bulletin-v2';
 import {
-  authorizeGradebookD1RuntimeV1,
-  type GradebookD1RuntimeAuthorizationV1,
-} from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+  authorizeGradebookRuntimeV1,
+  type GradebookRuntimeAuthorizationV1,
+} from '../authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
@@ -93,13 +93,13 @@ export interface InstitutionalReportsRequestHandlerDependenciesV1 {
   authorizeRequest(
     request: Request,
     env: RuntimeEnv,
-  ): Promise<GradebookD1RuntimeAuthorizationV1 | {
-    readonly runtimeAuthorization: GradebookD1RuntimeAuthorizationV1;
+  ): Promise<GradebookRuntimeAuthorizationV1 | {
+    readonly runtimeAuthorization: GradebookRuntimeAuthorizationV1;
     readonly actorOid: string;
   }>;
   createService(
     env: RuntimeEnv,
-    authorization: GradebookD1RuntimeAuthorizationV1,
+    authorization: GradebookRuntimeAuthorizationV1,
   ): InstitutionalReportsServiceV1;
   createRelationalService?(
     env: RuntimeEnv,
@@ -111,7 +111,7 @@ const defaultDependencies: InstitutionalReportsRequestHandlerDependenciesV1 = {
   async authorizeRequest(request, env) {
     const session = await requireAuth(request, env);
     return {
-      runtimeAuthorization: authorizeGradebookD1RuntimeV1(session),
+      runtimeAuthorization: authorizeGradebookRuntimeV1(session),
       actorOid: session.oid,
     };
   },
@@ -134,7 +134,7 @@ const defaultDependencies: InstitutionalReportsRequestHandlerDependenciesV1 = {
   createRelationalService(env, actorOid) {
     // Reached only with the PostgreSQL provider: under D1 the handler fails closed before
     // building this service, so the binding is always the official PostgreSQL database.
-    const database = env.GRADEBOOK_D1 as GradebookPostgresDatabaseV1;
+    const database = env.GRADEBOOK_DATABASE as GradebookPostgresDatabaseV1;
     const bulletins = createRelationalBulletinServiceV2({
       database,
       snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
@@ -185,7 +185,7 @@ export function createInstitutionalReportsRequestHandlerV1(
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
-    let authorization: GradebookD1RuntimeAuthorizationV1;
+    let authorization: GradebookRuntimeAuthorizationV1;
     let actorOid = 'institutional-reports-read-only';
     try {
       const authorized = await dependencies.authorizeRequest(request, env);
@@ -231,7 +231,7 @@ export function createInstitutionalReportsRequestHandlerV1(
         env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
         !['production', 'local', 'preview'].includes(environment) ||
         (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-        !env.GRADEBOOK_D1 ||
+        !env.GRADEBOOK_DATABASE ||
         dependencies.createRelationalService === undefined
       ) {
         return relationalUnavailable(parsed.data.operation);

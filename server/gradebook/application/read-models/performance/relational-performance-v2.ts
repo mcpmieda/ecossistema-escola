@@ -27,9 +27,9 @@ import type {
   SimplifiedRecoveryValueV1,
 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../../persistence/d1/write/d1-write-adapter-v1';
+  GradebookPostgresWritePortV1,
+  GradebookPostgresScalarV1,
+} from '../../../persistence/postgres/postgres-database-v1';
 import type {
   GradebookPostgresReadPortV1,
   GradebookPostgresTransactionV1,
@@ -45,7 +45,7 @@ import {
 } from '../../results/relational-performance-facts-v2';
 
 type Row = Record<string, unknown>;
-type TransactionDatabase = D1WriteDatabaseV1 & {
+type TransactionDatabase = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (db: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 const fail = (state: PerformanceFailureV2): PerformanceResponseV2 => ({
@@ -66,7 +66,7 @@ const text = (value: unknown): string => {
 const all = (
   db: GradebookPostgresReadPortV1,
   sql: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly Row[]> => db.query<Row>(sql, values);
 const STATUS_LABELS = {
   1: 'Especial',
@@ -481,7 +481,7 @@ export async function readRelationalPerformanceV2(
 }
 
 /** Authorization belongs to the HTTP boundary; every read shares one PostgreSQL snapshot. */
-export function createRelationalPerformanceV2(database: D1WriteDatabaseV1) {
+export function createRelationalPerformanceV2(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<PerformanceResponseV2> {
       const parsed = performanceRequestSchemaV2.safeParse(input);

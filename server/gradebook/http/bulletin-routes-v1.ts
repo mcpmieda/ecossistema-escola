@@ -24,9 +24,9 @@ import {
 } from '../../http/security';
 import { createBulletinWorkspaceServiceV1 } from '../application/bulletins/bulletin-workspace-service-v1';
 import { createRelationalBulletinServiceV2 } from '../application/bulletins/relational-bulletin-v2';
-import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
 
 export const GRADEBOOK_BULLETIN_ROUTE_V1 = '/api/gradebook/bulletins';
@@ -93,10 +93,10 @@ export async function handleBulletinRequestV1(
   enforceWriteOrigin(request, env);
 
   let session: Awaited<ReturnType<typeof requireAuth>>;
-  let authorization: ReturnType<typeof authorizeGradebookD1RuntimeV1>;
+  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1>;
   try {
     session = await requireAuth(request, env);
-    authorization = authorizeGradebookD1RuntimeV1(session);
+    authorization = authorizeGradebookRuntimeV1(session);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return accessDenied(401);
     if (cause instanceof AuthorizationError) return accessDenied(403);
@@ -123,12 +123,12 @@ export async function handleBulletinRequestV1(
       env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
       !['production', 'local', 'preview'].includes(environment) ||
       (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-      !env.GRADEBOOK_D1
+      !env.GRADEBOOK_DATABASE
     ) {
       return relationalFailure(parsed.data, 'unavailable', 503);
     }
     try {
-      const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+      const database = env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1;
       const service = createRelationalBulletinServiceV2({
         database,
         snapshots: createRelationalBulletinSnapshotRepositoryV2(database),

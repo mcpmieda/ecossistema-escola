@@ -9,10 +9,10 @@ import { seal } from '../../../server/auth/sealed';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import {
-  GRADEBOOK_D1_MIGRATIONS_ROUTE,
-  GRADEBOOK_D1_STATUS_ROUTE,
-  handleGradebookD1AdminRequestV1,
-} from '../../../server/gradebook/http/d1-admin-routes-v1';
+  GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE,
+  GRADEBOOK_PERSISTENCE_STATUS_ROUTE,
+  handleGradebookPersistenceAdminRequestV1,
+} from '../../../server/gradebook/http/persistence-admin-routes-v1';
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../server/gradebook/persistence/d1/schema/migrations';
 import { SqliteD1Database } from '../persistence/d1-transaction/d1-write-test-support';
 import { testEnv } from '../../fixtures';
@@ -160,13 +160,13 @@ describe('rotas administrativas do runtime D1 V1', () => {
     });
     const envValue = localEnv({ prepare, exec: vi.fn() });
 
-    const unauthenticated = await invoke(await request(GRADEBOOK_D1_STATUS_ROUTE), envValue);
+    const unauthenticated = await invoke(await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE), envValue);
     expect(unauthenticated.status).toBe(401);
     expect(unauthenticated.headers.get('Cache-Control')).toContain('no-store');
     expect(await unauthenticated.text()).not.toContain(sensitive);
 
     const forbidden = await invoke(
-      await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'PROFESSOR' }),
+      await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE, { role: 'PROFESSOR' }),
       envValue,
     );
     expect(forbidden.status).toBe(403);
@@ -178,8 +178,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
   it('expõe somente um resumo sanitizado do schema para administrador', async () => {
     const { raw, database } = await openDatabase();
     try {
-      const response = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+      const response = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
         localEnv(database),
         { runtime: { migrationSql: migrationSql() } },
       );
@@ -207,8 +207,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
     const { raw, database } = await openDatabase();
     try {
       applyAllMigrations(raw);
-      const response = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+      const response = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
         localEnv(database),
         { runtime: { migrationSql: migrationSql() } },
       );
@@ -260,8 +260,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
           '2026-09-05T14:00:00.000Z',
         );
 
-      const response = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+      const response = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
         localEnv(database),
         { runtime: { migrationSql: migrationSql() } },
       );
@@ -297,8 +297,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
         )
         .run(PILOT_AUDIT_YEAR, sensitiveLogicalSource, PILOT_AUDIT_NOW);
 
-      const response = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+      const response = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
         localEnv(database),
         { runtime: { migrationSql: migrationSql() } },
       );
@@ -325,8 +325,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
     try {
       const envValue = localEnv(database);
       const routeOptions = { runtime: { migrationSql: migrationSql() } };
-      const first = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_MIGRATIONS_ROUTE, {
+      const first = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE, {
           role: 'ADMINISTRADOR',
           method: 'POST',
           origin: LOCAL_ORIGIN,
@@ -334,8 +334,8 @@ describe('rotas administrativas do runtime D1 V1', () => {
         envValue,
         routeOptions,
       );
-      const second = await handleGradebookD1AdminRequestV1(
-        await request(GRADEBOOK_D1_MIGRATIONS_ROUTE, {
+      const second = await handleGradebookPersistenceAdminRequestV1(
+        await request(GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE, {
           role: 'ADMINISTRADOR',
           method: 'POST',
           origin: LOCAL_ORIGIN,
@@ -367,13 +367,13 @@ describe('rotas administrativas do runtime D1 V1', () => {
     try {
       const envValue = localEnv(database);
       const wrongMethod = await invoke(
-        await request(GRADEBOOK_D1_MIGRATIONS_ROUTE, { role: 'ADMINISTRADOR' }),
+        await request(GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE, { role: 'ADMINISTRADOR' }),
         envValue,
       );
       expect(wrongMethod.status).toBe(405);
 
       const wrongOrigin = await invoke(
-        await request(GRADEBOOK_D1_MIGRATIONS_ROUTE, {
+        await request(GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE, {
           role: 'ADMINISTRADOR',
           method: 'POST',
           origin: 'https://evil.test',
@@ -382,7 +382,7 @@ describe('rotas administrativas do runtime D1 V1', () => {
       );
       expect(wrongOrigin.status).toBe(403);
 
-      const bodyRequest = new Request(`${LOCAL_ORIGIN}${GRADEBOOK_D1_MIGRATIONS_ROUTE}`, {
+      const bodyRequest = new Request(`${LOCAL_ORIGIN}${GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE}`, {
         method: 'POST',
         headers: await sessionHeaders('ADMINISTRADOR', LOCAL_ORIGIN),
         body: '{"grade":10}',
@@ -415,7 +415,7 @@ describe('rotas administrativas do runtime D1 V1', () => {
     const logging = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const response = await invoke(
-      new Request(`${testEnv.OFFICIAL_ORIGIN}${GRADEBOOK_D1_STATUS_ROUTE}`, {
+      new Request(`${testEnv.OFFICIAL_ORIGIN}${GRADEBOOK_PERSISTENCE_STATUS_ROUTE}`, {
         headers: await sessionHeaders('ADMINISTRADOR'),
       }),
       productionEnv,

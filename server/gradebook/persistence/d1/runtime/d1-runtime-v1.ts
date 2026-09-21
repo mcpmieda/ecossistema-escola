@@ -62,9 +62,9 @@ import { GradebookD1BatchPromotionTransactionV1 } from '../transaction/d1-batch-
 import { GradebookD1ImportBootstrapTransactionV2 } from '../transaction/d1-import-bootstrap-transaction-v2';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 import {
-  requireGradebookD1RuntimeAuthorizationV1,
-  type GradebookD1RuntimeAuthorizationV1,
-} from './d1-runtime-authorization-v1';
+  requireGradebookRuntimeAuthorizationV1,
+  type GradebookRuntimeAuthorizationV1,
+} from '../../../authorization-v1';
 import {
   GradebookD1MigrationRunnerV1,
   type GradebookD1MigrationRunResultV1,
@@ -170,7 +170,7 @@ function deterministicCorrectionStore(
 export class GradebookD1RuntimeV1 {
   constructor(
     readonly environment: GradebookD1RuntimeEnvironmentV1,
-    private readonly authorization: GradebookD1RuntimeAuthorizationV1,
+    private readonly authorization: GradebookRuntimeAuthorizationV1,
     private readonly unitOfWork: PersistenceUnitOfWorkV2,
     private readonly readModels: GradebookOperationalReadModelsV1,
     private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
@@ -186,7 +186,7 @@ export class GradebookD1RuntimeV1 {
   ) {}
 
   planningRepositories(): ImportReconciliationRepositoriesV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return {
       imports: {
         findSourceFileByHash: this.unitOfWork.imports.findSourceFileByHash,
@@ -203,27 +203,27 @@ export class GradebookD1RuntimeV1 {
   }
 
   persistenceUnitOfWork(): PersistenceUnitOfWorkV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.unitOfWork;
   }
 
   persistenceUnitOfWorkV2(): PersistenceUnitOfWorkV2 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.unitOfWork;
   }
 
   importBootstrapTransactionV2(): ImportBootstrapTransactionPortV2 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.importBootstrapTransaction;
   }
 
   operationalReadModels(): GradebookOperationalReadModelsV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.readModels;
   }
 
   operationalWorkspaceAcademicYears(): OperationalWorkspaceAcademicYearCatalogV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.operationalAcademicYears;
   }
 
@@ -231,14 +231,14 @@ export class GradebookD1RuntimeV1 {
     server: Pick<AuditWorkspaceServerContextV1, 'resolutionIdentity'>,
     existingPlans?: ExistingImportChangePlanSourceV1,
   ): AuditWorkspaceV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return createAuditWorkspaceV1({
       source: this.auditWorkspaceSource,
       imports: this.unitOfWork.imports,
       audit: this.unitOfWork.audit,
       server: {
         isAuthorized: () => {
-          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          requireGradebookRuntimeAuthorizationV1(this.authorization);
           return true;
         },
         resolutionIdentity: () => server.resolutionIdentity(),
@@ -250,7 +250,7 @@ export class GradebookD1RuntimeV1 {
   deterministicCorrectionWorkspace(
     server: Pick<DeterministicCorrectionServerContextV2, 'correctionIdentity'>,
   ): DeterministicCorrectionWorkspaceV2 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return createDeterministicCorrectionWorkspaceV2({
       store: this.deterministicCorrections,
       audit: this.unitOfWork.audit,
@@ -258,7 +258,7 @@ export class GradebookD1RuntimeV1 {
       transaction: this.transaction,
       server: {
         isAuthorized: () => {
-          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          requireGradebookRuntimeAuthorizationV1(this.authorization);
           return true;
         },
         correctionIdentity: () => server.correctionIdentity(),
@@ -267,30 +267,30 @@ export class GradebookD1RuntimeV1 {
   }
 
   classPerformanceReadModel(): ClassPerformanceReadModelProviderV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.performanceReadModel;
   }
 
   bulletinSnapshotRepository(): BulletinSnapshotRepositoryV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.durability.bulletinSnapshots;
   }
 
   councilDecisionStore(): CouncilDecisionStoreV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.durability.councilDecisions;
   }
 
   councilWorkspace(
     server: Pick<CouncilWorkspaceServerContextV1, 'decisionIdentity'>,
   ): CouncilWorkspaceV1 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return createCouncilWorkspaceV1({
       source: this.councilWorkspaceSource,
       decisions: this.durability.councilDecisions,
       server: {
         isAuthorized: () => {
-          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          requireGradebookRuntimeAuthorizationV1(this.authorization);
           return true;
         },
         decisionIdentity: () => server.decisionIdentity(),
@@ -301,7 +301,7 @@ export class GradebookD1RuntimeV1 {
   councilInstitutionalWorkspace(
     server: CouncilInstitutionalServerContextV2,
   ): CouncilInstitutionalWorkspaceV2 {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     const workspace = this.councilWorkspace(server);
     return createCouncilInstitutionalWorkspaceV2({
       source: this.councilWorkspaceSource,
@@ -310,7 +310,7 @@ export class GradebookD1RuntimeV1 {
       sessions: this.councilSessions,
       server: {
         isAuthorized: () => {
-          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          requireGradebookRuntimeAuthorizationV1(this.authorization);
           return true;
         },
         decisionIdentity: () => server.decisionIdentity(),
@@ -320,29 +320,29 @@ export class GradebookD1RuntimeV1 {
   }
 
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.migrations.inspect(this.authorization);
   }
 
   runMigrations(): Promise<GradebookD1MigrationRunResultV1> {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return this.migrations.run(this.authorization);
   }
 
   promoteImportChangePlan(plan: ImportChangePlanV1): Promise<ImportChangeExecutionResultV1> {
-    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    requireGradebookRuntimeAuthorizationV1(this.authorization);
     return executeImportChangePlan(plan, this.transaction);
   }
 }
 
 export function createGradebookD1RuntimeV1(
   env: RuntimeEnv,
-  authorization: GradebookD1RuntimeAuthorizationV1,
+  authorization: GradebookRuntimeAuthorizationV1,
   options: GradebookD1RuntimeOptionsV1 = {},
 ): GradebookD1RuntimeV1 {
-  requireGradebookD1RuntimeAuthorizationV1(authorization);
+  requireGradebookRuntimeAuthorizationV1(authorization);
   const environment = runtimeEnvironment(env);
-  const database = requireDatabase(env.GRADEBOOK_D1);
+  const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, {
     now: options.now,
   });

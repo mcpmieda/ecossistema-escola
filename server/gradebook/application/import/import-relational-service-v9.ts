@@ -32,7 +32,7 @@ import {
   type RelationComponentV9,
   type RelationSourceBindingV9,
 } from './import-relational-relation-plan-v9';
-import type { D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 
 interface TransactionDatabaseV9 extends GradebookPostgresWritePortV1 {
@@ -75,7 +75,7 @@ function asNumber(value: unknown, label: string): number {
 async function first<T extends Row>(
   database: GradebookPostgresWritePortV1,
   query: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<T | null> {
   return (await database.executeNative<T>(query, values)).rows[0] ?? null;
 }
@@ -83,7 +83,7 @@ async function first<T extends Row>(
 async function all<T extends Row>(
   database: GradebookPostgresWritePortV1,
   query: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly T[]> {
   return database.query<T>(query, values);
 }
@@ -91,7 +91,7 @@ async function all<T extends Row>(
 async function run(
   database: GradebookPostgresWritePortV1,
   query: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<number> {
   return (await database.executeNative(query, values)).changes;
 }
@@ -100,7 +100,7 @@ async function academicRun(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   query: string,
-  values: readonly D1WriteValueV1[],
+  values: readonly GradebookPostgresScalarV1[],
 ): Promise<number> {
   const changes = await run(database, query, values);
   state.academicWrites += changes;
@@ -156,7 +156,7 @@ async function changedRun(
   request: GradebookImportPersistenceRequestV9,
   tipo: 1 | 2,
   query: string,
-  values: readonly D1WriteValueV1[],
+  values: readonly GradebookPostgresScalarV1[],
   affectsAcademic = true,
 ): Promise<number> {
   // request/tipo stay in this compatibility helper signature; current-state writes
@@ -175,7 +175,7 @@ async function changedFirst<T extends Row>(
   request: GradebookImportPersistenceRequestV9,
   tipo: 1 | 2,
   query: string,
-  values: readonly D1WriteValueV1[],
+  values: readonly GradebookPostgresScalarV1[],
   affectsAcademic = true,
 ): Promise<T> {
   void request;

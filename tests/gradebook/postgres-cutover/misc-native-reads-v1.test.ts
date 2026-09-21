@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
 import { createGradebookRelationalImportServiceV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';
-import { handleGradebookD1AdminRequestV1, GRADEBOOK_D1_STATUS_ROUTE } from '../../../server/gradebook/http/d1-admin-routes-v1';
+import { handleGradebookPersistenceAdminRequestV1, GRADEBOOK_PERSISTENCE_STATUS_ROUTE } from '../../../server/gradebook/http/persistence-admin-routes-v1';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -18,8 +18,8 @@ vi.mock('../../../server/auth/session', async (original) => ({
   ...await original<object>(),
   requireAuth: async () => ({ oid: 'synthetic', roles: ['ADMINISTRADOR'] }),
 }));
-vi.mock('../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1', async (original) => ({
-  ...await original<object>(), authorizeGradebookD1RuntimeV1: () => ({}),
+vi.mock('../../../server/gradebook/authorization-v1', async (original) => ({
+  ...await original<object>(), authorizeGradebookRuntimeV1: () => ({}),
 }));
 vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1', async (original) => {
   const actual = await original<typeof import('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1')>();
@@ -87,7 +87,7 @@ async function status() {
     GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_PRODUCTION_ENABLED: 'true',
     PROD_DB: { connectionString: 'synthetic' },
   } as RuntimeEnv;
-  return handleGradebookD1AdminRequestV1(new Request(`https://school.test${GRADEBOOK_D1_STATUS_ROUTE}`), env);
+  return handleGradebookPersistenceAdminRequestV1(new Request(`https://school.test${GRADEBOOK_PERSISTENCE_STATUS_ROUTE}`), env);
 }
 
 describe('native miscellaneous reads for B-15 slice 4', () => {

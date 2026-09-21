@@ -80,7 +80,7 @@ async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMIN
     const cookie = await seal({oid:'11111111-1111-4111-8111-111111111111',name:'Synthetic',username:'synthetic@example.test',roles:[role],exp:Math.floor(Date.now()/1000)+600},testEnv.SESSION_SECRET);
     headers.set('Cookie',`${SESSION_COOKIE}=${cookie}`);
   }
-  const env: RuntimeEnv = {...testEnv,RUNTIME_ENVIRONMENT:'local',GRADEBOOK_STORAGE_PROVIDER:'postgres',GRADEBOOK_D1:database,...overrides};
+  const env: RuntimeEnv = {...testEnv,RUNTIME_ENVIRONMENT:'local',GRADEBOOK_STORAGE_PROVIDER:'postgres',GRADEBOOK_DATABASE:database,...overrides};
   const response = await handleOperationalWorkspaceRequestV1(new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/operational-workspace`,{method:'POST',headers,body:JSON.stringify(body)}),env);
   if (!response) throw new Error('handler-did-not-match');
   return response;

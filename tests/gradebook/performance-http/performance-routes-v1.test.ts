@@ -481,7 +481,7 @@ describe('Performance HTTP V1', () => {
       'utf8',
     );
     const runtimeEnvironmentIndex = runtime.indexOf('runtimeEnvironment(env)');
-    const requireDatabaseIndex = runtime.indexOf('requireDatabase(env.GRADEBOOK_D1)');
+    const requireDatabaseIndex = runtime.indexOf('requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1)');
     expect(runtimeEnvironmentIndex).toBeGreaterThanOrEqual(0);
     expect(requireDatabaseIndex).toBeGreaterThan(runtimeEnvironmentIndex);
 
@@ -489,7 +489,7 @@ describe('Performance HTTP V1', () => {
       join(process.cwd(), 'server/gradebook/http/performance-routes-v1.ts'),
       'utf8',
     );
-    expect(handlerSource).toContain('authorizeGradebookD1RuntimeV1(session)');
+    expect(handlerSource).toContain('authorizeGradebookRuntimeV1(session)');
     expect(handlerSource).toContain('runtime.classPerformanceReadModel()');
     expect(handlerSource).toContain(
       "'Cache-Control': 'no-store, no-cache, must-revalidate, private'",

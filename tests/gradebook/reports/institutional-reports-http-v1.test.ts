@@ -6,7 +6,7 @@ import {
   createInstitutionalReportsRequestHandlerV1,
   GRADEBOOK_INSTITUTIONAL_REPORTS_ROUTE_V1,
 } from '../../../server/gradebook/http/institutional-reports-routes-v1';
-import type { GradebookD1RuntimeAuthorizationV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import type { GradebookRuntimeAuthorizationV1 } from '../../../server/gradebook/authorization-v1';
 import type { AcademicYearId, ClassGroupId } from '../../../shared/gradebook-contracts/entities';
 import {
   CLASS_PERFORMANCE_CONTRACT_VERSION_V1,
@@ -19,7 +19,7 @@ import { testEnv } from '../../fixtures';
 const LOCAL_ORIGIN = 'http://localhost:8788';
 const academicYearId = 'academic-year:synthetic:reports-http:2026' as AcademicYearId;
 const classGroupId = 'class-group:synthetic:reports-http:6a' as ClassGroupId;
-const authorization = {} as GradebookD1RuntimeAuthorizationV1;
+const authorization = {} as GradebookRuntimeAuthorizationV1;
 
 function env(): RuntimeEnv {
   return { ...testEnv, RUNTIME_ENVIRONMENT: 'local', OFFICIAL_ORIGIN: LOCAL_ORIGIN };

@@ -36,10 +36,10 @@ import type {
   CouncilWorkspaceServerContextV1,
   CouncilWorkspaceV1,
 } from '../application/council/council-workspace-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import { relationalCouncilRequestSchemaV3 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
 import { createRelationalCouncilV3 } from '../application/council/relational-council-v3';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
 export const GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace';
 
@@ -163,7 +163,7 @@ export function createCouncilWorkspaceRequestHandlerV1(
     let session: Awaited<ReturnType<typeof requireAuth>>;
     try {
       session = await requireAuth(request, env);
-      authorizeGradebookD1RuntimeV1(session);
+      authorizeGradebookRuntimeV1(session);
     } catch (cause) {
       if (cause instanceof AuthenticationError) return accessDenied(401);
       if (cause instanceof AuthorizationError) return accessDenied(403);
@@ -184,12 +184,12 @@ export function createCouncilWorkspaceRequestHandlerV1(
       if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
           !['production', 'local', 'preview'].includes(environment) ||
           (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-          !env.GRADEBOOK_D1) {
+          !env.GRADEBOOK_DATABASE) {
         return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);
       }
       try {
         const response = await createRelationalCouncilV3(
-          env.GRADEBOOK_D1 as D1WriteDatabaseV1,
+          env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
           session.oid,
         ).execute(parsed.data);
         const status = response.state === 'ready' ? 200
