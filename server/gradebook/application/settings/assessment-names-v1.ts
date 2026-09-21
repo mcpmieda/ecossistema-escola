@@ -6,13 +6,15 @@ import {
   type AssessmentNamesResponseV1,
 } from '../../../../shared/gradebook-contracts/settings/assessment-names-v1';
 import type { D1WriteDatabaseV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 import {
   lockResetWriterV1,
   recordResetWriteV1,
 } from '../../../student-portal/integration/year-reset/writer-v1';
 
 type Database = D1WriteDatabaseV1 & {
-  transaction<T>(run: (db: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(run: (db: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 const failure = (
   state: Exclude<AssessmentNamesResponseV1['state'], 'ready'>,
@@ -30,17 +32,15 @@ export function createAssessmentNamesServiceV1(database: D1WriteDatabaseV1) {
       try {
         return await (database as Database).transaction(async (db) => {
           if (request.operation === 'read')
-            await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+            await db.executeNative('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
           else await lockResetWriterV1(db, request.year);
-          const row = await db
-            .prepare(
+          const row = (await db.query<{ ano: unknown; names: unknown; version: unknown }>(
               `SELECT ano,
           COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS names,
           COALESCE((to_jsonb(y)->>'nomes_avaliacoes_versao')::bigint,0)::text AS version
-          FROM gradebook.ano_letivo y WHERE ano=? ${request.operation === 'save' ? 'FOR UPDATE' : ''}`,
-            )
-            .bind(request.year)
-            .first<{ ano: unknown; names: unknown; version: unknown }>();
+          FROM gradebook.ano_letivo y WHERE ano=$1 ${request.operation === 'save' ? 'FOR UPDATE' : ''}`.trim(),
+            [request.year],
+          ))[0];
           if (!row) return failure('not-found');
           const names = assessmentNamesSchemaV1.parse(row.names);
           const version = Number(row.version);
@@ -58,14 +58,12 @@ export function createAssessmentNamesServiceV1(database: D1WriteDatabaseV1) {
             return assessmentNamesResponseSchemaV1.parse(ready);
           if (request.expectedVersion !== version) return failure('conflict');
           if (version >= Number.MAX_SAFE_INTEGER) throw new Error('assessment-version-overflow');
-          const changed = await db
-            .prepare(
+          const changed = (await db.executeNative<{ version: string }>(
               `UPDATE gradebook.ano_letivo
-          SET nomes_avaliacoes=?::jsonb,nomes_avaliacoes_versao=nomes_avaliacoes_versao+1
-          WHERE ano=? AND nomes_avaliacoes_versao=?::bigint RETURNING nomes_avaliacoes_versao::text AS version`,
-            )
-            .bind(JSON.stringify(request.names), request.year, version)
-            .first<{ version: string }>();
+          SET nomes_avaliacoes=$1::jsonb,nomes_avaliacoes_versao=nomes_avaliacoes_versao+1
+          WHERE ano=$2 AND nomes_avaliacoes_versao=$3::bigint RETURNING nomes_avaliacoes_versao::text AS version`,
+            [postgresJsonTextV1(JSON.stringify(request.names)), request.year, version],
+          )).rows[0];
           if (!changed || Number(changed.version) !== version + 1)
             throw new Error('assessment-write-conflict');
           await recordResetWriteV1(db, request.year, 'academic-policy', { changed: true });
