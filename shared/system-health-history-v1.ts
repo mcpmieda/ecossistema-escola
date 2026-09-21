@@ -31,6 +31,9 @@ function exact(value: unknown, keys: readonly string[]): value is Record<string,
 function count(value: unknown, max = 2_147_483_647): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max;
 }
+function oneOf(value: unknown, choices: readonly string[]): boolean {
+  return typeof value === 'string' && choices.includes(value);
+}
 export function isHistoryBeforeV1(value: unknown): value is string | null {
   return value === null || (isHealthInstantV1(value) && Date.parse(value) % HEALTH_HISTORY_INTERVAL_MS_V1 === 0);
 }
@@ -44,7 +47,7 @@ export function isPortalHistoryPointV1(value: unknown): value is PortalHistoryPo
   const offset = Date.parse(value.observedAt) - Date.parse(value.bucketAt);
   return offset >= 0 && offset < HEALTH_HISTORY_INTERVAL_MS_V1
     && typeof value.servingEnabled === 'boolean' && typeof value.credentialsConfigured === 'boolean'
-    && ['normal', 'attention', 'intervention'].includes(String(value.maintenanceState))
+    && oneOf(value.maintenanceState, ['normal', 'attention', 'intervention'])
     && count(value.publicationDue, 1001) && (value.livePending === null || count(value.livePending, 1001))
     && count(value.waitingConnections) && count(value.readDurationMs);
 }
@@ -54,7 +57,7 @@ export function emptyPortalHistoryV1(state: 'unconfigured' | 'unavailable', gene
 export function isPortalHistoryV1(value: unknown): value is PortalHistoryV1 {
   if (!exact(value, ['schemaVersion', 'generatedAt', 'retentionDays', 'state', 'points', 'nextBefore'])
     || value.schemaVersion !== 1 || value.retentionDays !== 30 || !isHealthInstantV1(value.generatedAt)
-    || !['ok', 'unconfigured', 'unavailable'].includes(String(value.state))
+    || !oneOf(value.state, ['ok', 'unconfigured', 'unavailable'])
     || !Array.isArray(value.points) || value.points.length > HEALTH_HISTORY_PAGE_SIZE_V1
     || !isHistoryBeforeV1(value.nextBefore)) return false;
   if (value.state !== 'ok') return value.points.length === 0 && value.nextBefore === null;
@@ -81,4 +84,10 @@ export function portalHistoryChangeV1(point: PortalHistoryPointV1, older?: Porta
   const previous = portalHistoryPointStateV1(older);
   return portalHistoryPointStateV1(point) === 'normal' && (previous === 'attention' || previous === 'critical')
     ? 'recovered' : 'sample';
+}
+export function portalHistoryFreshV1(data: PortalHistoryV1, now: number): boolean {
+  const point = data.points[0];
+  if (data.state !== 'ok' || !point) return false;
+  const readAge = now - Date.parse(data.generatedAt), sampleAge = now - Date.parse(point.observedAt);
+  return readAge >= -5000 && readAge <= 120_000 && sampleAge >= -5000 && sampleAge <= HEALTH_HISTORY_STALE_MS_V1;
 }
