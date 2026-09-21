@@ -248,3 +248,31 @@ Quando `Resetar o sistema` conclui com sucesso, o ano deixa de existir também n
 O guard de contas Portal permanece: qualquer conta com vínculo acadêmico vivo bloqueia preview/execute. Contas, credenciais, sessões, auditoria de identidade e tombstones de vínculo não são apagados por conveniência. Diagnósticos sem ano continuam preservados. Diagnóstico com ano explícito só é persistido se o ano estiver materializado sob o lock anual, evitando que uma planilha antiga recrie revisão depois do reset; a primeira Relação confirmada repete sua Auditoria após materializar o ano. Uma nova Relação é a autoridade para rematerializar o ano; seu escritor recria a coordenação anual sob os mesmos locks antes das novas escritas.
 
 O contrato V1 não ganha campos: suas contagens e `deletedRows` permanecem acadêmicos para compatibilidade, enquanto a ausência de resíduos técnicos passa a ser pós-condição interna obrigatória. Detalhes e regressões em [YEAR_RESET_SETTINGS.md](YEAR_RESET_SETTINGS.md).
+
+## BN-DEC-041 — Retirada autorizada da compatibilidade D1
+
+**Data:** 2026-09-21. **Origem:** autorizacao explicita do responsavel depois do
+inventario B-16/#1078; contrato #1079. Substitui somente a preservacao operacional
+do runtime D1/transportes legados descrita nos mapas anteriores, nao o dominio
+ou os tipos compartilhados ainda usados pelos consumidores atuais.
+
+Workspace V1, Performance V1, Boletins V1, Relatorios V1 e Conselho V1/V2 sao
+retirados em todos os ambientes. Requisicoes validas e autorizadas recebem
+HTTP 410 com o DTO `unavailable` da propria versao, depois dos mesmos guards
+de auth, capability, origem, metodo, tamanho e validacao, sem banco. Migrations
+D1 administrativas tambem deixam de executar em local/preview; o status usa
+somente PostgreSQL. Nao ha fallback D1 quando falta configuracao PostgreSQL.
+
+O runtime D1, seis migrations D1 e testes exclusivamente legados passam para
+`Aprendizados/RUNTIME-D1-RETIRADO-1079`, fora de imports, build e execucao de
+testes atuais. A fachada PostgreSQL perde o protocolo prepare/bind/exec/batch,
+o tradutor SQL e a inferencia de parametros JSON por contexto. Portas nativas,
+JSON explicito, CAS, mesma transacao fisica, isolamento, locks, diagnosticos e
+normalizacao de saida permanecem. O binding legado pode ser reconhecido como
+entrada rejeitada, nunca consultado.
+
+Workspace V2, Performance V2-V6 aditivo, Boletins V2/PDF, Relatorios V2,
+Conselho V3 e importacao V9/V10/V11 permanecem. Sem DDL/DML remoto, schema,
+ACL/RLS, infraestrutura ou mudanca academica. Aceite exige testes direcionados
+e de mutacao, revisao independente, CI/gates do head final, merge commit e
+deploy oficial. Detalhes em [retirada #1079](LEGACY_RUNTIME_RETIREMENT_1079.md).

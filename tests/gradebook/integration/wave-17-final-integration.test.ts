@@ -85,7 +85,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);
+    expect(functions.match(/handleCouncilWorkspaceRequestV1/gu)).toHaveLength(2);
   });
 
   it('não introduz persistência acadêmica no navegador nem retry silencioso de writes', () => {
@@ -108,7 +108,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
 
   it('mantém as invariantes acadêmicas da onda 16 intactas', () => {
     const performance = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
     const council = source(
       'server/gradebook/application/council/council-official-projection-source-v1.ts',

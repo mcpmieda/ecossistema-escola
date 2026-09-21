@@ -1,5 +1,15 @@
 # Mapa dos consumidores — FINAL-1
 
+## Delta #1079: retirada contratada de compatibilidade
+
+Workspace V1, Performance V1, Boletins V1, Relatorios V1 e Conselho V1/V2
+deixam de compor runtime D1 em todos os ambientes. Seus handlers preservam
+auth/validacao e devolvem HTTP 410 `unavailable`, sem I/O. Migrations D1 admin
+tambem sao retiradas; status e PostgreSQL. Os consumidores atuais V2/V2-V6/V2/
+V2/V3 e importacao V9/V10/V11 permanecem. Tipos compartilhados e PDF V1 ainda
+reutilizados nao sao retirados. `Aprendizados/RUNTIME-D1-RETIRADO-1079` e memoria,
+nao consumidor ativo. Detalhes em [contrato de retirada](LEGACY_RUNTIME_RETIREMENT_1079.md).
+
 > Vigência por versão: ver [CONTRACT_VERSION_MAP.md](CONTRACT_VERSION_MAP.md). Este mapa de consumidores e o mapa de versões se complementam; referências em `Aprendizados/**` não tornam um contrato operacional.
 
 ## Delta de concorrência Portal #782

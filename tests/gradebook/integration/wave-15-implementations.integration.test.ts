@@ -24,9 +24,9 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
   });
 
   it('preserva a composição física de Desempenho e a autoridade imported-source', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const performanceSource = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
 
     expect(runtime).toContain('createGradebookD1ClassPerformanceSourceV1');
@@ -68,7 +68,7 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
   });
 
   it('mantém produção acadêmica fail-closed antes do binding', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
     const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
 

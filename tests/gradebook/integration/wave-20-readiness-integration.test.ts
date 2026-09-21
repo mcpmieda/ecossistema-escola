@@ -42,7 +42,7 @@ describe('integração final da onda 20 — readiness F9 inerte', () => {
   });
 
   it('não conecta readiness ao runtime, Functions ou shell', () => {
-    const productionRuntime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const productionRuntime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const functions = source('functions/[[path]].ts');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
 

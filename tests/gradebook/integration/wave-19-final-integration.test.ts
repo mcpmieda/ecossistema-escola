@@ -44,7 +44,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
     const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
     const physicalSource = source(
-      'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
+      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
 
     expect(performancePage).toContain('<PerformanceAnalysisPanelV3');

@@ -10,7 +10,7 @@ function source(path: string): string {
 
 describe('integração final da onda 18 — durabilidade, Conselho V2 e relatórios', () => {
   it('compõe a durabilidade D1 sem manter snapshots/decisões process-local no runtime central', () => {
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const bulletin = source('server/gradebook/http/bulletin-routes-v1.ts');
 
     expect(runtime).toContain('createGradebookD1BulletinCouncilDurabilityV1');
@@ -26,7 +26,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
   it('monta Conselho relacional V3 no mesmo bridge, sem inventar identidade de diretor', () => {
     const functions = source('functions/[[path]].ts');
     const route = source('server/gradebook/http/council-routes-v1.ts');
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const surface = source('src/platform/gradebook-council-surface.tsx');
 
     expect(functions).toContain('createInstitutionalWorkspace(runtimeEnv, server)');
@@ -67,7 +67,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
 
   it('mantém produção e autoridade acadêmica fechadas na onda 18', () => {
     const councilRoute = source('server/gradebook/http/council-routes-v1.ts');
-    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const reportsRoute = source('server/gradebook/http/institutional-reports-routes-v1.ts');
     const context = source('docs/gradebook/ACADEMIC_CONTEXT.md');
 
