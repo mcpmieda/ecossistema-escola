@@ -52,6 +52,7 @@ describe('portal maintenance health bounded backlog metrics', () => {
 
     expect(health).toMatchObject({
       status: 'normal',
+      liveOutboxAvailable: true,
       publicationDue: 17,
       oldestPublicationDueMs: 42_000,
       livePending: 185,
@@ -95,6 +96,7 @@ describe('portal maintenance health bounded backlog metrics', () => {
   it('keeps pre-0011 Portal catalogs diagnosable with neutral live metrics', async () => {
     await expect(portalMaintenanceHealthV1(query(healthy, false))).resolves.toMatchObject({
       status: 'normal',
+      liveOutboxAvailable: false,
       liveBacklog: false,
       livePending: 0,
       liveRetrying: 0,

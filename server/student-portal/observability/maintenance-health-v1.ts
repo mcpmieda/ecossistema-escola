@@ -91,6 +91,7 @@ export async function portalMaintenanceHealthV1(tx: StudentPortalPostgresQueryV1
   const row = healthRowV1.parse(rows[0]);
   return {
     status: maintenanceStatusV1(row),
+    liveOutboxAvailable: liveOutbox,
     expiredIp: row.expired_ip,
     expiredAudit: row.expired_audit,
     backlog: row.backlog,

@@ -111,6 +111,8 @@ describe('section-aware Microsoft snapshot', () => {
     expect(platformRouteNeedsMicrosoftV2('publicacoes')).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('paginas')).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('auditoria')).toBe(true);
+    expect(platformRouteNeedsMicrosoftV2('operacao')).toBe(false);
+    expect(platformRouteUnavailableV2('operacao', { ...snapshot, unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2] })).toBe(false);
   });
 });
 

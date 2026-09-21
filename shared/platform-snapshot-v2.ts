@@ -60,7 +60,7 @@ export type PlatformSnapshotV2 = PlatformSnapshotContract & {
 const dependencies: Record<PlatformRoute, readonly PlatformSourceSectionV2[]> = {
   'banco-de-notas': [], 'painel-do-aluno': [], publicacoes: [], paginas: [],
   'visao-geral': ['lists', 'modules', 'configurations'],
-  operacao: ['lists', 'modules', 'audit'],
+  operacao: [],
   sistemas: ['lists', 'modules'], auditoria: ['lists', 'audit'],
   configuracoes: ['lists', 'configurations', 'migrations'],
 };
