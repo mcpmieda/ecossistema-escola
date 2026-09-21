@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,7 @@ import {
   GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1,
   GRADEBOOK_CURRENT_TABLES_V1,
 } from '../../../server/gradebook/recovery/current-gradebook-schema-v1';
+import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1';
 
 const root = process.cwd();
 
@@ -40,6 +41,36 @@ describe('current Gradebook recovery catalog V1', () => {
         file,
       ).toBe(true);
     }
+  });
+
+  it('accounts for every migration file on disk, so the gate cannot silently skip one', () => {
+    // The gate replays GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, not the directory. A new migration
+    // left out of the plan would never be applied in CI, and the table-set assertion would
+    // still pass because it compares the declared catalog with what the plan created.
+    const intentionallyNotReplayed = new Map([
+      ['0002_import_diagnostics_audit_v1.sql', 'already folded into the 0001 baseline'],
+      ['inspect_current_schema.sql', 'read-only catalog inspection, not a migration'],
+    ]);
+    const directory = join(root, 'migrations/gradebook-simplified');
+    const planned = new Set<string>(GRADEBOOK_CURRENT_SCHEMA_PLAN_V1);
+    const unaccounted = readdirSync(directory)
+      .filter((file) => file.endsWith('.sql'))
+      .filter((file) => !planned.has(file) && !intentionallyNotReplayed.has(file))
+      .sort(compareCanonicalStringsV1);
+
+    expect(
+      unaccounted,
+      'add each new migration to GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, or justify leaving it out',
+    ).toEqual([]);
+    for (const file of intentionallyNotReplayed.keys()) {
+      expect(existsSync(join(directory, file)), `stale exclusion ${file}`).toBe(true);
+      expect(planned.has(file), `${file} is excluded and planned at once`).toBe(false);
+    }
+  });
+
+  it('replays numbered migrations in ascending order', () => {
+    const numbered = GRADEBOOK_CURRENT_SCHEMA_PLAN_V1.filter((file) => /^\d{4}_/u.test(file));
+    expect(numbered).toEqual([...numbered].sort(compareCanonicalStringsV1));
   });
 
   it('keeps cross-schema indexes tied to the Portal migration that owns them', () => {
