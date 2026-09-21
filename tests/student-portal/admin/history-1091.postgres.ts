@@ -38,6 +38,8 @@ beforeAll(async () => {
   await cluster.unsafe('CREATE ROLE ' + ownerRole + ' NOLOGIN NOSUPERUSER NOBYPASSRLS'); roleCreated = true;
   await cluster.unsafe('CREATE DATABASE ' + databaseName + ' OWNER ' + ownerRole); created = true;
   owner = connect(); await owner.unsafe('SET ROLE ' + ownerRole);
+  // Reproduce overly broad owner defaults; the migration must replace, not inherit, these grants.
+  await owner.unsafe('ALTER DEFAULT PRIVILEGES GRANT ALL ON TABLES TO student_portal_app, anon, authenticated, service_role, gradebook_app');
   await owner.unsafe(readFileSync('migrations/observability/0001_portal_health_history_v1.sql', 'utf8'), [], { prepare: false });
   portal = connect(); second = connect();
   await portal.unsafe('SET ROLE student_portal_app'); await second.unsafe('SET ROLE student_portal_app');
@@ -62,6 +64,7 @@ it('applies as a non-superuser and isolates API/academic roles without timestamp
   const rls = await owner.unsafe("SELECT relrowsecurity FROM pg_class WHERE oid='system_health.portal_sample_v1'::regclass");
   expect(rls[0]?.relrowsecurity).toBe(true);
   await expect(portal.unsafe("UPDATE system_health.portal_sample_v1 SET read_duration_ms=0")).rejects.toMatchObject({ code: '42501' });
+  await expect(portal.unsafe(`${insert} VALUES (now(),now(),true,true,'normal',0,0,0,0)`)).rejects.toMatchObject({ code: '42501' });
   const unauthorized = connect(); await unauthorized.unsafe('SET ROLE anon');
   await expect(unauthorized.unsafe('SELECT * FROM system_health.portal_sample_v1')).rejects.toMatchObject({ code: '42501' });
 });

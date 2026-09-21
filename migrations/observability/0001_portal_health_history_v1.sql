@@ -7,7 +7,7 @@ REVOKE ALL ON SCHEMA system_health FROM PUBLIC;
 
 CREATE TABLE system_health.portal_sample_v1 (
   bucket_at timestamptz PRIMARY KEY DEFAULT date_bin(interval '5 minutes', statement_timestamp(), timestamptz '2000-01-01 00:00:00+00'),
-  observed_at timestamptz NOT NULL DEFAULT statement_timestamp(),
+  observed_at timestamptz NOT NULL DEFAULT date_trunc('milliseconds', statement_timestamp()),
   serving_enabled boolean NOT NULL,
   credentials_configured boolean NOT NULL,
   maintenance_state text NOT NULL CHECK (maintenance_state IN ('normal', 'attention', 'intervention')),
@@ -20,7 +20,7 @@ CREATE TABLE system_health.portal_sample_v1 (
   CHECK (observed_at >= bucket_at AND observed_at < bucket_at + interval '5 minutes')
 );
 CREATE INDEX portal_sample_v1_retention_idx ON system_health.portal_sample_v1 (observed_at);
-REVOKE ALL ON system_health.portal_sample_v1 FROM PUBLIC;
+REVOKE ALL ON system_health.portal_sample_v1 FROM PUBLIC, student_portal_app;
 -- Supabase owner default privileges must not expose this private table to API roles.
 DO $$
 DECLARE role_name text;
