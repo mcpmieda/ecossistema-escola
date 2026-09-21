@@ -48,6 +48,30 @@ describe('withPortalSqlV1', () => {
     expect(second.end).toHaveBeenCalledTimes(1);
   });
 
+  it('reports only bounded lifecycle timings after role verification', async () => {
+    const client = testClientV1(async () => [{ role: 'student_portal_app' }]);
+    const createClient = factoryV1(client);
+    const observed: unknown[] = [];
+
+    await expect(
+      withPortalSqlV1(
+        { connectionString: 'postgres://redacted' },
+        async () => 'ok',
+        createClient,
+        (sample) => observed.push(sample),
+      ),
+    ).resolves.toBe('ok');
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({ attempts: 1 });
+    expect(observed[0]).toEqual({
+      openRoleMs: expect.any(Number),
+      applicationMs: expect.any(Number),
+      attempts: 1,
+    });
+    expect(JSON.stringify(observed)).not.toContain('postgres://');
+  });
+
   it('does not retry a failure from the caller operation', async () => {
     const client = testClientV1(async () => [{ role: 'student_portal_app' }]);
     const createClient = factoryV1(client);

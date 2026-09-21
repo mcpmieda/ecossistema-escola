@@ -71,7 +71,7 @@ DNS for the school remains authoritative at GoDaddy. Zone visibility is informat
 | Worker `student-portal-production` | Workers scripts list | presence, modified time and compatibility date |
 | Pages `student-portal-edge` | exact Pages project | presence, production branch, canonical deployment status and creation time |
 | Hyperdrive `PORTAL_DB` | exact config `46ac2fcb25ad4ad5b5662d536ccd968a` | presence, whether cache is disabled, origin connection limit |
-| Worker analytics | GraphQL for `student-portal-production`, last 60 minutes | aggregate requests and errors only |
+| Worker analytics | GraphQL for `student-portal-production`, last 60 minutes | aggregate requests/errors plus maximum observed bucket CPU p50/p99 only |
 
 The diagnostic never downloads Worker source and never publishes Pages environment variables, deployment aliases/domains, Hyperdrive origin/database/user/host/password, individual analytics events, student data or provider error payloads.
 
@@ -105,3 +105,8 @@ A future write operator is not implied by this read-only design. Mutations, wide
 - Executor: `scripts/cloudflare-operator-v1.ts`
 - Tests: `tests/cloudflare-operator-v1.test.ts`
 - Credential inventory: `docs/infra/AUTOMATION_CREDENTIAL_INVENTORY.md`
+
+
+### CPU interpretation
+
+The Portal diagnostic requests Cloudflare's documented `workersInvocationsAdaptive.quantiles.cpuTimeP50/cpuTimeP99` fields. Because the adaptive dataset can return multiple buckets in the 60-minute window, the published values are the **maximum bucket p50/p99 observed**, not a recomputed percentile for all requests. They are operational evidence only and are never correlated with user identity or request payload.

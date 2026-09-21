@@ -10,6 +10,12 @@ type PortalSqlClientV1 = StudentPortalPostgresSqlV1 & {
 };
 
 export type PortalSqlClientFactoryV1 = (connectionString: string) => PortalSqlClientV1;
+export type PortalSqlLifecycleSampleV1 = {
+  openRoleMs: number;
+  applicationMs: number;
+  attempts: 1 | 2;
+};
+type PortalSqlLifecycleObserverV1 = (sample: PortalSqlLifecycleSampleV1) => void;
 
 class PortalWrongRoleV1 extends Error {}
 
@@ -38,14 +44,19 @@ async function closePortalSqlClientV1(sql: PortalSqlClientV1 | undefined): Promi
 async function openPortalSqlClientV1(
   connectionString: string,
   createClient: PortalSqlClientFactoryV1,
-): Promise<PortalSqlClientV1> {
+): Promise<{ sql: PortalSqlClientV1; openRoleMs: number; attempts: 1 | 2 }> {
+  const started = Date.now();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let sql: PortalSqlClientV1 | undefined;
     try {
       sql = createClient(connectionString);
       const identity = await sql.unsafe<{ role: string }>('SELECT current_user AS role');
       if (identity[0]?.role !== 'student_portal_app') throw new PortalWrongRoleV1();
-      return sql;
+      return {
+        sql,
+        openRoleMs: Math.max(0, Date.now() - started),
+        attempts: (attempt + 1) as 1 | 2,
+      };
     } catch (error) {
       await closePortalSqlClientV1(sql);
       if (error instanceof PortalWrongRoleV1 || attempt === 1) throw error;
@@ -59,15 +70,31 @@ export async function withPortalSqlV1<T>(
   binding: Pick<Hyperdrive, 'connectionString'>,
   operation: (sql: StudentPortalPostgresSqlV1) => Promise<T>,
   createClient: PortalSqlClientFactoryV1 = createPortalSqlClientV1,
+  observeLifecycle?: PortalSqlLifecycleObserverV1,
 ): Promise<T> {
   let sql: PortalSqlClientV1 | undefined;
+  let opened: Awaited<ReturnType<typeof openPortalSqlClientV1>> | undefined;
+  let applicationStarted = 0;
   try {
-    sql = await openPortalSqlClientV1(binding.connectionString, createClient);
+    opened = await openPortalSqlClientV1(binding.connectionString, createClient);
+    sql = opened.sql;
+    applicationStarted = Date.now();
     return await operation(sql);
   } catch {
     // Driver errors may include connection details or SQL values. Never export them.
     throw new Error('student-portal-database-unavailable');
   } finally {
+    if (opened && applicationStarted > 0) {
+      try {
+        observeLifecycle?.({
+          openRoleMs: opened.openRoleMs,
+          applicationMs: Math.max(0, Date.now() - applicationStarted),
+          attempts: opened.attempts,
+        });
+      } catch {
+        // Observability is outside the database outcome.
+      }
+    }
     await closePortalSqlClientV1(sql);
   }
 }

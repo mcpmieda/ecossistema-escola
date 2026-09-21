@@ -10,6 +10,28 @@ export const portalMetricV1 = z.object({
 }).strict();
 export type PortalMetricV1 = z.infer<typeof portalMetricV1>;
 
+export const portalAuthBurstMetricV1 = z.object({
+  event: z.literal('student-portal-auth-burst-v1'),
+  outcome: z.enum([
+    'allowed',
+    'global-limited',
+    'subject-limited',
+    'invalid-subject',
+    'unavailable',
+  ]),
+}).strict();
+export type PortalAuthBurstMetricV1 = z.infer<typeof portalAuthBurstMetricV1>;
+
+export const portalDbLifecycleMetricV1 = z.object({
+  event: z.literal('student-portal-db-lifecycle-v1'),
+  operation: portalMetricV1.shape.operation,
+  outcome: portalMetricV1.shape.outcome,
+  openRoleMs: count,
+  applicationMs: count,
+  attempts: z.number().int().min(1).max(2),
+}).strict();
+export type PortalDbLifecycleMetricV1 = z.infer<typeof portalDbLifecycleMetricV1>;
+
 /** Capture numeric aggregates only, never SQL, parameters, IDs, URLs or driver error messages. */
 export function measurePortalSqlV1(sql: StudentPortalPostgresSqlV1) {
   const started = Date.now();
@@ -42,4 +64,22 @@ export function emitPortalMetricV1(metric: PortalMetricV1, sink: (value: PortalM
   const parsed = portalMetricV1.safeParse(metric);
   if (!parsed.success) return;
   try { sink(parsed.data); } catch { /* Telemetry is outside the commit outcome. */ }
+}
+
+export function emitPortalAuthBurstMetricV1(
+  metric: PortalAuthBurstMetricV1,
+  sink: (value: PortalAuthBurstMetricV1) => void = console.info,
+): void {
+  const parsed = portalAuthBurstMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter auth outcome. */ }
+}
+
+export function emitPortalDbLifecycleMetricV1(
+  metric: PortalDbLifecycleMetricV1,
+  sink: (value: PortalDbLifecycleMetricV1) => void = console.info,
+): void {
+  const parsed = portalDbLifecycleMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter DB outcome. */ }
 }

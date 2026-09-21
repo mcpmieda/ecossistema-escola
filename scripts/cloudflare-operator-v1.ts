@@ -51,6 +51,8 @@ export type CloudflarePortalDeployResultV1 = {
     windowMinutes: 60;
     requests?: number;
     errors?: number;
+    maxCpuTimeP50?: number;
+    maxCpuTimeP99?: number;
   };
 };
 
@@ -187,7 +189,7 @@ function portalAnalyticsBodyV1(accountId: string, now: Date) {
       'query PortalWorkerMetrics($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {' +
       ' viewer { accounts(filter: { accountTag: $accountTag }) {' +
       ' workersInvocationsAdaptive(limit: 100, filter: { scriptName: $scriptName, datetime_geq: $datetimeStart, datetime_leq: $datetimeEnd }) {' +
-      ' sum { requests errors } } } } }',
+      ' sum { requests errors } quantiles { cpuTimeP50 cpuTimeP99 } } } } }',
     variables: {
       accountTag: accountId,
       datetimeStart: start,
@@ -391,9 +393,12 @@ export async function diagnoseCloudflarePortalDeployV1(input: {
       else {
         let requests = 0;
         let errors = 0;
+        let maxCpuTimeP50: number | undefined;
+        let maxCpuTimeP99: number | undefined;
         let valid = true;
         for (const row of rows) {
-          const sum = asObjectV1(asObjectV1(row)?.sum);
+          const object = asObjectV1(row);
+          const sum = asObjectV1(object?.sum);
           const rowRequests = asNonNegativeNumberV1(sum?.requests);
           const rowErrors = asNonNegativeNumberV1(sum?.errors);
           if (rowRequests === null || rowErrors === null) {
@@ -402,9 +407,23 @@ export async function diagnoseCloudflarePortalDeployV1(input: {
           }
           requests += rowRequests;
           errors += rowErrors;
+          const quantiles = asObjectV1(object?.quantiles);
+          const cpuP50 = asNonNegativeNumberV1(quantiles?.cpuTimeP50);
+          const cpuP99 = asNonNegativeNumberV1(quantiles?.cpuTimeP99);
+          if (cpuP50 !== null)
+            maxCpuTimeP50 = Math.max(maxCpuTimeP50 ?? 0, cpuP50);
+          if (cpuP99 !== null)
+            maxCpuTimeP99 = Math.max(maxCpuTimeP99 ?? 0, cpuP99);
         }
         analytics = valid
-          ? { state: 'accessible', windowMinutes: 60, requests, errors }
+          ? {
+              state: 'accessible',
+              windowMinutes: 60,
+              requests,
+              errors,
+              ...(maxCpuTimeP50 === undefined ? {} : { maxCpuTimeP50 }),
+              ...(maxCpuTimeP99 === undefined ? {} : { maxCpuTimeP99 }),
+            }
           : { state: 'inconclusive', windowMinutes: 60 };
       }
     }
