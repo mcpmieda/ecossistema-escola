@@ -4,7 +4,8 @@ import type {
   GradebookImportDiagnosticSeverityV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { RELATIONAL_INSTITUTIONAL_REPORTS_LIMITS_V2 } from '../../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
-import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
+import type { D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from './postgres-database-v1';
 
 type Row = Record<string, unknown>;
 
@@ -83,25 +84,29 @@ export function relationalImportDiagnosticRecordV2(row: Row): GradebookImportDia
   };
 }
 
-export function createRelationalImportDiagnosticsReadV2(database: D1WriteDatabaseV1) {
+export function createRelationalImportDiagnosticsReadV2(database: GradebookPostgresReadPortV1) {
   return Object.freeze({
     async list(request: RelationalImportDiagnosticsReadRequestV2): Promise<RelationalImportDiagnosticsReadPageV2> {
-      const clauses = ['d.ano = ?'];
-      const values: D1WriteValueV1[] = [request.year];
+      // Each placeholder is numbered as its value is recorded, so text and values cannot drift.
+      const values: D1WriteValueV1[] = [];
+      const param = (value: D1WriteValueV1): string => {
+        values.push(value);
+        return `$${String(values.length)}`;
+      };
+      const clauses = [`d.ano = ${param(request.year)}`];
       if (request.severities.length > 0) {
-        clauses.push(`d.nivel IN (${request.severities.map(() => '?').join(',')})`);
-        values.push(...request.severities);
+        clauses.push(`d.nivel IN (${request.severities.map((severity) => param(severity)).join(',')})`);
       }
       if (request.codes.length > 0) {
-        clauses.push(`d.codigo IN (${request.codes.map(() => '?').join(',')})`);
-        values.push(...request.codes);
+        clauses.push(`d.codigo IN (${request.codes.map((code) => param(code)).join(',')})`);
       }
       if (request.classCode !== null) {
-        clauses.push('upper(btrim(d.turma_codigo)) = upper(btrim(?))');
-        values.push(request.classCode);
+        clauses.push(`upper(btrim(d.turma_codigo)) = upper(btrim(${param(request.classCode)}))`);
       }
-      values.push(request.limit + 1, request.offset);
-      const result = await database.prepare(
+      const where = clauses.join(' AND ');
+      const limit = param(request.limit + 1);
+      const offset = param(request.offset);
+      const results = await database.query<Row>(
         `SELECT d.id,d.ano,d.arquivo,d.chave,d.nivel,d.codigo,d.turma_codigo,d.disciplina,
                 d.periodo,d.aluno_numero,d.campo,d.rotulo,d.valor_encontrado,d.causa,d.guia,
                 d.celula,d.primeiro_em,d.ultimo_em,d.ocorrencias,a.nome AS aluno_nome
@@ -111,11 +116,12 @@ export function createRelationalImportDiagnosticsReadV2(database: D1WriteDatabas
          LEFT JOIN gradebook.vinculo v
            ON v.ano=d.ano AND v.turma_id=t.id AND v.numero=d.aluno_numero
          LEFT JOIN gradebook.aluno a ON a.id=v.aluno_id
-         WHERE ${clauses.join(' AND ')}
-         ORDER BY d.ultimo_em DESC,d.id DESC LIMIT ? OFFSET ?`,
-      ).bind(...values).all<Row>();
-      const hasMore = result.results.length > request.limit;
-      const rows = hasMore ? result.results.slice(0, request.limit) : result.results;
+         WHERE ${where}
+         ORDER BY d.ultimo_em DESC,d.id DESC LIMIT ${limit} OFFSET ${offset}`,
+        values,
+      );
+      const hasMore = results.length > request.limit;
+      const rows = hasMore ? results.slice(0, request.limit) : results;
       const candidateNextOffset = request.offset + request.limit;
       return {
         items: rows.map(relationalImportDiagnosticRecordV2),
