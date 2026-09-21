@@ -1290,3 +1290,19 @@ export function createClassPerformanceReadModelV1(
 }
 
 export const createClassPerformanceReadModelProviderV1 = createClassPerformanceReadModelV1;
+
+/** Inspect an already structurally validated request without loading a snapshot.
+ * Retirement preserves syntax and scope checks, not existence checks on source keys.
+ */
+export function inspectPerformanceCursorsV1(
+  request: ClassPerformanceRequestV1,
+): 'invalid-row-cursor' | 'invalid-column-cursor' | null {
+  const scope = scopeFor(matrixSourceRequest(request));
+  for (const axis of ['columns', 'rows'] as const) {
+    const cursor = request[axis].cursor;
+    if (cursor !== null && decodeCursor(axis, scope, cursor) === null) {
+      return axis === 'rows' ? 'invalid-row-cursor' : 'invalid-column-cursor';
+    }
+  }
+  return null;
+}

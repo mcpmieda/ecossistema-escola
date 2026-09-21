@@ -63,3 +63,20 @@ Esta entrega nao executa migrations, reset, importacao ou qualquer escrita de
 dados produtivos; nao muda ACL/RLS, schema, formulas ou autoridade academica.
 CI nao substitui smoke autenticado. SHA, resultados, publicacao e limitacoes
 efetivamente verificadas sao registrados na #1079, sem antecipar conclusao.
+
+## Correcao de cursores de Desempenho V1 (#1081)
+
+Depois de auth e validacao estrutural, a matriz V1 reutiliza `decodeCursor`
+e o escopo canonico do read model por `inspectPerformanceCursorsV1`. Prefixo,
+eixo, versao, campos, chave e contexto invalidos retornam 400 com
+`invalid-column-cursor` ou `invalid-row-cursor`, antes do 410. A precedencia
+historica e colunas antes de linhas. A ordem das propriedades do periodo no
+pedido nao muda o escopo canonico.
+
+A verificacao e pura: nao abre banco nem verifica se uma chave bem formada
+existe em um snapshot antigo. Cursores nulos ou validos em formato/escopo
+continuam recebendo 410; nenhuma leitura ou pagina legada e reativada.
+`tests/gradebook/performance-http/performance-cursor-retirement-v1.test.ts`
+cobre ambos os eixos nos tres ambientes, guardas anteriores, DTO/no-store e
+dispatch central com bindings protegidos. Evidencias de execucao, SHA e
+publicacao desta correcao ficam na #1081 / PR #1082.
