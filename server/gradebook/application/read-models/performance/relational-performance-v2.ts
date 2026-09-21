@@ -489,7 +489,7 @@ export function createRelationalPerformanceV2(database: D1WriteDatabaseV1) {
       if (!('transaction' in database) || typeof database.transaction !== 'function')
         return fail('unavailable');
       return (database as TransactionDatabase).transaction(async (db) => {
-        await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        await db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
         const response = performanceResponseSchemaV2.parse(
           await readRelationalPerformanceV2(db, parsed.data),
         );
