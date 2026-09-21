@@ -1,12 +1,12 @@
+// @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
-import { clientFixtureV1, NOW } from '../ui/auth/fixtures-v1';
+import { clientFixtureV1, SESSION } from '../ui/auth/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
 
 beforeEach(() => {
   setupOperationsDomV1();
-  vi.spyOn(Date, 'now').mockReturnValue(NOW);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
 });
@@ -24,9 +24,15 @@ it('renders the actual student application without a live connection or backgrou
   vi.stubGlobal('WebSocket', socket);
   vi.stubGlobal('fetch', fetcher);
   const client = clientFixtureV1();
+  // Keep the UI scheduler's real clock; only the synthetic session needs a future expiry.
+  client.session.mockResolvedValue({
+    ...SESSION,
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
   render(<StudentPortalApp client={client} />);
-  await screen.findByRole('button', { name: 'Sair' });
-  await act(async () => {
+  await screen.findByRole('heading', { name: 'Minhas notas' });
+  expect(screen.getByRole('button', { name: 'Sair' })).toBeTruthy();
+  act(() => {
     window.dispatchEvent(new Event('focus'));
     window.dispatchEvent(new Event('online'));
     document.dispatchEvent(new Event('visibilitychange'));
