@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { D1ReadDatabaseV1 } from '../../../../server/gradebook/persistence/d1/read/d1-read-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import {
   createRelationalStudentAnnualProjectionServiceV1,
   type RelationalStudentAnnualProjectionDependenciesV1,
@@ -12,24 +12,12 @@ function fakeDatabase(input: {
   readonly base?: Row | null;
   readonly offers?: readonly Row[];
   readonly queries?: string[];
-}): D1ReadDatabaseV1 {
+}): GradebookPostgresReadPortV1 {
   return {
-    prepare(sql: string) {
+    async query<T extends Row>(sql: string) {
       input.queries?.push(sql);
-      return {
-        bind() {
-          return this;
-        },
-        async first<T extends Row>() {
-          if (sql.includes('FROM gradebook.aluno a')) return (input.base ?? null) as T | null;
-          return null;
-        },
-        async all<T extends Row>() {
-          return {
-            results: (sql.includes('FROM gradebook.oferta o') ? input.offers ?? [] : []) as readonly T[],
-          };
-        },
-      };
+      if (sql.includes('FROM gradebook.aluno a')) return (input.base ? [input.base] : []) as T[];
+      return (sql.includes('FROM gradebook.oferta o') ? input.offers ?? [] : []) as readonly T[];
     },
   };
 }

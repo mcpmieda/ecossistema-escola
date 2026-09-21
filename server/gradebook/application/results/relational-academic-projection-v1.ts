@@ -1,5 +1,6 @@
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
-import type { D1ReadDatabaseV1 } from '../../persistence/d1/read/d1-read-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../../persistence/postgres/postgres-database-v1';
+import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import {
   resolveSimplifiedComponentRecoveryV1,
   resolveSimplifiedTermV1,
@@ -87,19 +88,19 @@ function requestKey(input: RelationalProjectionRequestV1): string {
 }
 
 async function first<T extends Row>(
-  database: D1ReadDatabaseV1,
+  database: GradebookPostgresReadPortV1,
   sql: string,
   values: readonly BindValue[],
 ): Promise<T | null> {
-  return database.prepare(sql).bind(...values).first<T>();
+  return (await database.query<T>(sql, values))[0] ?? null;
 }
 
 async function all<T extends Row>(
-  database: D1ReadDatabaseV1,
+  database: GradebookPostgresReadPortV1,
   sql: string,
   values: readonly BindValue[],
 ): Promise<readonly T[]> {
-  return (await database.prepare(sql).bind(...values).all<T>()).results;
+  return database.query<T>(sql, values);
 }
 
 function sourceComparison(
@@ -180,7 +181,7 @@ function projectRows(
   };
 }
 
-export function createRelationalAcademicProjectionServiceV1(database: D1ReadDatabaseV1) {
+export function createRelationalAcademicProjectionServiceV1(database: GradebookPostgresReadPortV1) {
   return {
     async project(input: RelationalProjectionRequestV1): Promise<RelationalAcademicProjectionV1> {
       validateRequest(input);
@@ -189,10 +190,10 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
         `SELECT o.ano, a.minimo_aprovacao
          FROM gradebook.oferta o
          JOIN gradebook.ano_letivo a ON a.ano = o.ano
-         WHERE o.id = ?
+         WHERE o.id = $1
            AND EXISTS (
              SELECT 1 FROM gradebook.vinculo v
-             WHERE v.turma_id = o.turma_id AND v.aluno_id = ?
+             WHERE v.turma_id = o.turma_id AND v.aluno_id = $2
                AND COALESCE(v.situacao, 0) <> 6
            )`,
         [input.ofertaId, input.alunoId],
@@ -203,8 +204,8 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
         `SELECT i.trimestre, i.slot, i.maximo, n.valor
          FROM gradebook.instrumento i
          LEFT JOIN gradebook.nota n
-           ON n.instrumento_id = i.id AND n.aluno_id = ?
-         WHERE i.oferta_id = ? AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
+           ON n.instrumento_id = i.id AND n.aluno_id = $1
+         WHERE i.oferta_id = $2 AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
          ORDER BY i.trimestre, i.slot`,
         [input.alunoId, input.ofertaId],
       );
@@ -214,7 +215,7 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
                 f.rec1, f.rec2, f.rec3, f.rec_nc_mask,
                 COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,
                 f.u_fonte
-         FROM gradebook.fechamento f WHERE f.oferta_id = ? AND f.aluno_id = ?`,
+         FROM gradebook.fechamento f WHERE f.oferta_id = $1 AND f.aluno_id = $2`,
         [input.ofertaId, input.alunoId],
       );
       return projectRows(input, base, instrumentRows, closing);
@@ -243,7 +244,9 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
         requestedKeys.add(key);
       }
       // Only placeholder syntax is interpolated. Identifiers are bound values.
-      const placeholders = requests.map(() => '(?::integer, ?::integer)').join(', ');
+      const { param, values } = createGradebookPostgresParametersV1();
+      const placeholders = requests.map((input) =>
+        `(${param(input.ofertaId)}::integer, ${param(input.alunoId)}::integer)`).join(', ');
       const rows = await all<Row>(
         database,
         `WITH requested(oferta_id, aluno_id) AS (VALUES ${placeholders})
@@ -265,7 +268,7 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
              AND v.aluno_id = r.aluno_id AND COALESCE(v.situacao, 0) <> 6
          )
          ORDER BY r.oferta_id, r.aluno_id, i.trimestre, i.slot`,
-        requests.flatMap((input) => [input.ofertaId, input.alunoId]),
+        values,
       );
       const groups = new Map<string, { base: Row; instruments: Row[] }>();
       for (const row of rows) {

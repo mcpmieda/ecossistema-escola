@@ -26,6 +26,7 @@ import {
 import type { SimplifiedAcademicTermV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
 import type { RelationalBulletinSnapshotRepositoryV2 } from '../../persistence/postgres/relational-bulletin-snapshot-v2';
+import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
@@ -38,7 +39,7 @@ import {
 
 type Row = Record<string, unknown>;
 type TransactionDatabaseV2 = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
 const STATUS_LABELS: Record<number, string> = {
@@ -252,7 +253,7 @@ function seriesKey(selection: RelationalBulletinSelectionV2): string {
 }
 
 async function readMaterializations(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   selections: readonly RelationalBulletinSelectionV2[],
   readAt: string,
 ): Promise<readonly RelationalBulletinModelV2[]> {
