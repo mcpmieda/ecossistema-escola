@@ -227,8 +227,8 @@ it('expands real administrative evidence with accessible signals and registered 
   expect(complete.registeredModules).toHaveLength(1);
   render(<SystemHealthPageV1 snapshot={complete} />); await flush();
   const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
+  details.open = true; fireEvent(details, new Event('toggle'));
   await act(async () => {
-    details.open = true; fireEvent(details, new Event('toggle'));
     await import('../../src/platform/operations-page');
   });
   await flush();
