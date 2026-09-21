@@ -5,9 +5,13 @@ import { capabilitiesForRoles, requireCapability } from '../auth/capabilities';
 import { enforceOfficialOrigin, enforceWriteOrigin, HttpError, withSecurityHeaders } from '../http/security';
 import type { TrustedAdminContextV1 } from '../../shared/student-portal-contracts/ports-v1';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
+import { emptyPortalHistoryV1, isHistoryRequestV1, isPortalHistoryV1 } from '../../shared/system-health-history-v1';
 import { collectSystemHealthV1, createSystemHealthCacheV1 } from './system-health-source-v1';
 
-type MonitorBindingV1 = { monitoring(context: TrustedAdminContextV1): Promise<unknown> };
+type MonitorBindingV1 = {
+  monitoring(context: TrustedAdminContextV1): Promise<unknown>;
+  monitoringHistory?(context: TrustedAdminContextV1, before: string | null): Promise<unknown>;
+};
 const caches = new WeakMap<object, Map<string, ReturnType<typeof createSystemHealthCacheV1>>>();
 const absentBindingCacheKey = {};
 const reply = (value: unknown, status = 200) => withSecurityHeaders(Response.json(value, { status }), true);
@@ -42,27 +46,39 @@ function snapshotCacheV1(key: object, env: RuntimeEnv) {
   }
   return cache;
 }
+async function boundedBodyV1(request: Request, history: boolean): Promise<unknown> {
+  if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
+    throw new HttpError(415, 'health-content-type');
+  try {
+    return await healthDeadlineV1((signal) => readHealthJsonV1(
+      new Response(request.body, { headers: request.headers }), signal, history ? 128 : 64), 2_000);
+  } catch { throw new HttpError(400, 'health-invalid-body'); }
+}
+async function historyReplyV1(body: unknown, binding: MonitorBindingV1 | undefined, context: TrustedAdminContextV1): Promise<Response> {
+  if (!isHistoryRequestV1(body)) throw new HttpError(400, 'health-invalid-body');
+  if (typeof binding?.monitoringHistory !== 'function') return reply(emptyPortalHistoryV1('unconfigured'));
+  const snapshot = await healthDeadlineV1(() => binding.monitoringHistory!(context, body.before), 3_000);
+  if (!isPortalHistoryV1(snapshot)) throw new Error('health-history-unavailable');
+  return reply(snapshot);
+}
 export async function handleSystemHealthRequestV1(request: Request, env: RuntimeEnv): Promise<Response | null> {
-  if (new URL(request.url).pathname !== '/api/platform/system-health') return null;
+  const path = new URL(request.url).pathname;
+  const history = path === '/api/platform/system-health/history';
+  if (!history && path !== '/api/platform/system-health') return null;
   try {
     guardedRequestV1(request, env);
     const session = await requireAuth(request, env);
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.health.read');
     requireCapability(capabilities, 'platform.settings.read');
-    if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
-      throw new HttpError(415, 'health-content-type');
-    let body: unknown;
-    try {
-      body = await healthDeadlineV1((signal) => readHealthJsonV1(
-        new Response(request.body, { headers: request.headers }), signal, 64), 2_000);
-    } catch { throw new HttpError(400, 'health-invalid-body'); }
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0)
-      throw new HttpError(400, 'health-invalid-body');
+    const body = await boundedBodyV1(request, history);
     if (session.exp <= Math.floor(Date.now() / 1000)) throw new AuthenticationError();
     const context: TrustedAdminContextV1 = { actorId: session.oid, tenantId: env.TENANT_ID,
       requestId: crypto.randomUUID(), authenticatedAt: new Date().toISOString(), capability: 'platform.settings.read' };
     const binding = env.PORTAL_SERVICE as unknown as MonitorBindingV1 | undefined;
+    if (history) return await historyReplyV1(body, binding, context);
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0)
+      throw new HttpError(400, 'health-invalid-body');
     // Auth is checked on EVERY call, including cache hits. Only anonymous aggregates are cached.
     const cache = snapshotCacheV1(binding ?? absentBindingCacheKey, env);
     const snapshot = await cache(() => collectSystemHealthV1({
