@@ -12,6 +12,7 @@ import {
 import type { PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
 import {
   performanceRecoveryCellIsRelevantV2,
   type PerformanceProjectionV2,
@@ -266,7 +267,7 @@ export function createPerformanceAnalysisV3(database: D1WriteDatabaseV1) {
         return { transportVersion: 3, state: 'unavailable' };
       const request = parsed.data;
       const db = database as D1WriteDatabaseV1 & {
-        transaction<T>(operation: (tx: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+        transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
       };
       return db.transaction(async (tx) => {
         await tx.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
