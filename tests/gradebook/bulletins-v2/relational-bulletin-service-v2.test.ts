@@ -14,9 +14,8 @@ import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gr
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
-  type GradebookPostgresReadPortV1,
+  type GradebookPostgresTransactionV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { testEnv } from '../../fixtures';
 
 let pg: PGlite;
@@ -385,23 +384,19 @@ describe('relational bulletin V2', () => {
 
   it('materializes a batch with a bounded academic query count instead of N+1 reads', async () => {
     const academicQueries: string[] = [];
-    const record = (query: string) => {
+    const counted = (target: GradebookPostgresTransactionV1): GradebookPostgresTransactionV1 => ({
+      prepare(query) {
         if (
           !query.includes('gradebook.boletim_snapshot') &&
           !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
           /^\s*(?:SELECT|WITH)\b/iu.test(query)
         ) {
-          academicQueries.push(query);
+          throw new Error('bulletin-read-used-legacy-prepare');
         }
-    };
-    type CountedDatabase = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
-    const counted = (target: CountedDatabase): CountedDatabase => ({
-      prepare(query) {
-        record(query);
         return target.prepare(query);
       },
       query(query, values) {
-        record(query);
+        if (/^\s*(?:SELECT|WITH)\b/iu.test(query)) academicQueries.push(query);
         return target.query(query, values);
       },
       exec(query) {
@@ -411,7 +406,7 @@ describe('relational bulletin V2', () => {
     });
     const countedDatabase = {
       ...counted(database),
-      transaction: <T>(operation: (tx: CountedDatabase) => Promise<T>) =>
+      transaction: <T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>) =>
         database.transaction((tx) => operation(counted(tx))),
     };
     const workspace = createRelationalBulletinServiceV2({

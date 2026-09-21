@@ -61,6 +61,12 @@ beforeAll(async () => {
     async end() { await pg.close(); },
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
+  const transaction = database.transaction.bind(database);
+  database.transaction = (operation) => transaction((tx) => {
+    tx.prepare = () => { throw new Error('workspace-read-used-legacy-prepare'); };
+    tx.exec = () => { throw new Error('workspace-isolation-used-legacy-exec'); };
+    return operation(tx);
+  });
 },30_000);
 afterAll(async () => { await database?.close(); });
 beforeEach(() => { transactions=0;queries.length=0;args.length=0;failRead=false; });

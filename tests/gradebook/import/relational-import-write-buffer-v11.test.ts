@@ -6,6 +6,7 @@ import type {
   D1WriteValueV1,
 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { createBufferedRelationalImportDatabaseV11 } from '../../../server/gradebook/persistence/postgres/relational-import-write-buffer-v11';
+import { createGradebookPostgresDatabaseFromSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
 
@@ -102,6 +103,33 @@ function parsedRows(execution: Execution): readonly Record<string, unknown>[] {
 }
 
 describe('relational import write buffer v11', () => {
+  it('forwards native reads after flushing on the same transaction connection', async () => {
+    const calls: { sql: string; values: readonly unknown[] }[] = [];
+    let applied = 0;
+    const database = createGradebookPostgresDatabaseFromSqlV1({
+      async unsafe() { throw new Error('buffer-native-read-escaped-transaction'); },
+      async begin(operation) {
+        return operation({
+          typed: (value, oid) => ({ value, oid }),
+          async unsafe(sql, values = []) {
+            calls.push({ sql, values });
+            if (sql.startsWith('INSERT')) applied++;
+            return Object.assign(sql.startsWith('SELECT') ? [{ applied }] : [], { count: 1 });
+          },
+        });
+      },
+    });
+    const rows = await createBufferedRelationalImportDatabaseV11(database).transaction(async (tx) => {
+      await tx.prepare(NOTE_INSERT).bind(10, 20, 5000).run();
+      expect(calls).toHaveLength(0);
+      return tx.query('SELECT $1::integer AS applied', [1]);
+    });
+    expect(rows).toEqual([{ applied: 1 }]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({ values: [{ value: '[{"instrumento_id":10,"aluno_id":20,"valor":5000}]', oid: 25 }] });
+    expect(calls[1]).toEqual({ sql: 'SELECT $1::integer AS applied', values: [1] });
+  });
+
   it('groups only current note mutations before the next read', async () => {
     const { database, executions } = fakeDatabase();
     const buffered = createBufferedRelationalImportDatabaseV11(database);

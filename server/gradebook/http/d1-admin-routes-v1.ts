@@ -3,6 +3,7 @@ import type { RuntimeEnv } from '../../env';
 import { enforceOfficialOrigin, enforceWriteOrigin, HttpError } from '../../http/security';
 import { inspectGradebookImportStagingBaselineV1 } from '../persistence/d1/imports/d1-import-staging-baseline-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../persistence/postgres/postgres-database-v1';
 import { authorizeGradebookD1RuntimeV1, GRADEBOOK_D1_ADMIN_CAPABILITY } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { GradebookD1MigrationErrorV1 } from '../persistence/d1/runtime/d1-migration-runner-v1';
 import { createGradebookD1RuntimeV1, GradebookD1RuntimeErrorV1, type GradebookD1RuntimeOptionsV1 } from '../persistence/d1/runtime/d1-runtime-v1';
@@ -51,11 +52,11 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
       return noStoreJson({ state: 'retired', provider: 'postgres', message: 'Production migrations use the reviewed deployment process.' }, 410);
     try {
       return await withOfficialGradebookDatabaseV1(env, async (execution) => {
-        const database = execution.GRADEBOOK_D1 as D1ReadDatabaseV1;
+        const database = execution.GRADEBOOK_D1 as unknown as GradebookPostgresReadPortV1;
         const started = performance.now();
-        const probe = await database.prepare(`SELECT current_user AS role,
+        const [probe] = await database.query<{ role: string; ready: unknown }>(`SELECT current_user AS role,
           to_regclass('gradebook.nota') IS NOT NULL AND to_regclass('gradebook.fechamento') IS NOT NULL
-          AND to_regclass('gradebook.vinculo') IS NOT NULL AS ready`).first<{ role: string; ready: unknown }>();
+          AND to_regclass('gradebook.vinculo') IS NOT NULL AS ready`, []);
         const ready = probe?.role === 'gradebook_app' && (probe.ready === true || probe.ready === 1);
         if (!ready) return unavailable('postgres');
         return noStoreJson({ version: '2.0', provider: 'postgres', capability: GRADEBOOK_D1_ADMIN_CAPABILITY,

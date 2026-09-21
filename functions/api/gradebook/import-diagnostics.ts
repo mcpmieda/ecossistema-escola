@@ -3,7 +3,8 @@ import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
-import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import { createGradebookPostgresParametersV1 } from '../../../server/gradebook/persistence/postgres/postgres-parameters-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import {
   InvalidImportDiagnosticsSnapshotV1,
@@ -65,14 +66,14 @@ function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
     observations: asInteger(row.ocorrencias),
   };
 }
-async function listDiagnostics(database: D1WriteDatabaseV1, academicYear: number | null, limit: number, offset: number): Promise<{
+async function listDiagnostics(database: GradebookPostgresReadPortV1, academicYear: number | null, limit: number, offset: number): Promise<{
   readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
   readonly nextOffset: number | null;
 }> {
-  const where = academicYear === null ? '' : 'WHERE d.ano = ?';
+  const parameters = createGradebookPostgresParametersV1();
+  const where = academicYear === null ? '' : `WHERE d.ano = ${parameters.param(academicYear)}`;
   const fetchLimit = limit + 1;
-  const values: D1WriteValueV1[] = academicYear === null ? [fetchLimit, offset] : [academicYear, fetchLimit, offset];
-  const result = await database.prepare(
+  const result = await database.query<Row>(
     `SELECT d.id,d.ano,d.arquivo,d.chave,d.nivel,d.codigo,d.turma_codigo,d.disciplina,
             d.periodo,d.aluno_numero,d.campo,d.rotulo,d.valor_encontrado,d.causa,d.guia,
             d.celula,d.primeiro_em,d.ultimo_em,d.ocorrencias,a.nome AS aluno_nome
@@ -81,10 +82,11 @@ async function listDiagnostics(database: D1WriteDatabaseV1, academicYear: number
      LEFT JOIN gradebook.vinculo v ON v.ano=d.ano AND v.turma_id=t.id AND v.numero=d.aluno_numero
      LEFT JOIN gradebook.aluno a ON a.id=v.aluno_id
      ${where}
-     ORDER BY d.ultimo_em DESC,d.id DESC LIMIT ? OFFSET ?`,
-  ).bind(...values).all<Row>();
-  const hasMore = result.results.length > limit;
-  const page = hasMore ? result.results.slice(0,limit) : result.results;
+     ORDER BY d.ultimo_em DESC,d.id DESC LIMIT ${parameters.param(fetchLimit)} OFFSET ${parameters.param(offset)}`,
+    parameters.values,
+  );
+  const hasMore = result.length > limit;
+  const page = hasMore ? result.slice(0,limit) : result;
   return { items: page.map(auditRecord), nextOffset: hasMore ? offset + limit : null };
 }
 function messageFor(code: string): string {
@@ -113,7 +115,7 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   enforceOfficialOrigin(request, env);
   const session = await requireAuth(request, env);
   authorizeGradebookD1RuntimeV1(session);
-  const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1 | undefined;
+  const database = env.GRADEBOOK_D1 as GradebookPostgresTransactionV1 | undefined;
   if (!database) return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' }, 503);
   if (request.method === 'GET') {
     const url = new URL(request.url);

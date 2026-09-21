@@ -4,15 +4,17 @@ import type {
   D1WriteStatementV1,
   D1WriteValueV1,
 } from '../d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from './postgres-database-v1';
 
 type Row = Record<string, unknown>;
+type ReadTransactionV11 = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
 
 interface TransactionDatabaseV11 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T>;
 }
 
-export interface BufferedRelationalImportDatabaseV11 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+export interface BufferedRelationalImportDatabaseV11 extends ReadTransactionV11 {
+  transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T>;
   flush(): Promise<void>;
 }
 
@@ -161,7 +163,7 @@ class BufferedStatementV11 implements D1WriteStatementV1 {
 }
 
 class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
-  readonly underlying: D1WriteDatabaseV1;
+  readonly underlying: ReadTransactionV11;
   private pending: BufferedWritesV11 = emptyBuffer();
 
   constructor(
@@ -170,11 +172,16 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       (database: D1WriteDatabaseV1) => Promise<void>
     > | null = null,
   ) {
-    this.underlying = database;
+    this.underlying = database as ReadTransactionV11;
   }
 
   prepare(query: string): D1WriteStatementV1 {
     return new BufferedStatementV11(this, query);
+  }
+
+  async query<ResultRow extends Row>(query: string, values: readonly D1WriteValueV1[]): Promise<readonly ResultRow[]> {
+    await this.flush();
+    return this.underlying.query<ResultRow>(query, values);
   }
 
   async exec(query: string): Promise<unknown> {
@@ -187,7 +194,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     this.finalizers.push(operation);
   }
 
-  async transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T> {
+  async transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T> {
     await this.flush();
     return transactionDatabase(this.underlying).transaction(async (transaction) => {
       const finalizers = this.finalizers ?? [];

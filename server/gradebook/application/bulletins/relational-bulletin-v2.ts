@@ -26,7 +26,8 @@ import {
 import type { SimplifiedAcademicTermV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
 import type { RelationalBulletinSnapshotRepositoryV2 } from '../../persistence/postgres/relational-bulletin-snapshot-v2';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
@@ -38,7 +39,7 @@ import {
 } from '../results/relational-academic-projection-v1';
 
 type Row = Record<string, unknown>;
-type TransactionDatabaseV2 = D1WriteDatabaseV1 & {
+type TransactionDatabaseV2 = GradebookPostgresTransactionV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
@@ -106,16 +107,11 @@ function statusLabel(status: SimplifiedEnrollmentStatusV1): string {
 }
 
 async function rows(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresReadPortV1,
   sql: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<readonly Row[]> {
-  return (
-    await database
-      .prepare(sql)
-      .bind(...values)
-      .all<Row>()
-  ).results;
+  return database.query<Row>(sql.trim(), values);
 }
 
 function offerOrder(left: OfferV2, right: OfferV2): number {
@@ -253,7 +249,7 @@ function seriesKey(selection: RelationalBulletinSelectionV2): string {
 }
 
 async function readMaterializations(
-  database: GradebookPostgresTransactionV1,
+  database: GradebookPostgresReadPortV1,
   selections: readonly RelationalBulletinSelectionV2[],
   readAt: string,
 ): Promise<readonly RelationalBulletinModelV2[]> {
@@ -276,7 +272,7 @@ async function readMaterializations(
             COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names
        FROM gradebook.turma t
        JOIN gradebook.ano_letivo y ON y.ano = t.ano
-      WHERE t.ano = ? AND t.id = ?`,
+      WHERE t.ano = $1 AND t.id = $2`,
     [first.year, first.classId],
   );
   if (classRows.length === 0) throw new RelationalBulletinErrorV2('not-found');
@@ -286,16 +282,17 @@ async function readMaterializations(
   const studentIds = [...new Set(selections.map((selection) => selection.studentId))];
   if (studentIds.length !== selections.length)
     throw new RelationalBulletinErrorV2('invalid-request');
+  const studentParameters = createGradebookPostgresParametersV1();
   const studentRows = await rows(
     database,
     `SELECT a.id, a.nome, v.numero, v.situacao, cd.decisao AS conselho_decisao
        FROM gradebook.vinculo v
        JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
        LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id = a.id
-      WHERE v.ano = ? AND v.turma_id = ? AND v.situacao IS DISTINCT FROM 6
-        AND a.id IN (${studentIds.map(() => '?').join(', ')})
+      WHERE v.ano = ${studentParameters.param(first.year)} AND v.turma_id = ${studentParameters.param(first.classId)} AND v.situacao IS DISTINCT FROM 6
+        AND a.id IN (${studentIds.map((id) => studentParameters.param(id)).join(', ')})
       ORDER BY v.numero`,
-    [first.year, first.classId, ...studentIds],
+    studentParameters.values,
   );
   if (studentRows.length !== studentIds.length) throw new RelationalBulletinErrorV2('not-found');
   const students = studentRows.map(studentFromRow);
@@ -308,7 +305,7 @@ async function readMaterializations(
        FROM gradebook.oferta o
        JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
        JOIN gradebook.professor p ON p.id = o.professor_id AND p.ano = o.ano
-      WHERE o.ano = ? AND o.turma_id = ?`,
+      WHERE o.ano = $1 AND o.turma_id = $2`,
     [first.year, first.classId],
   );
   if (offerRows.length > RELATIONAL_BULLETIN_LIMITS_V2.offers) {
@@ -334,6 +331,7 @@ async function readMaterializations(
 
   const instrumentsMap = new Map<string, InstrumentV2[]>();
   if (first.detail === 'detailed' && offers.length > 0) {
+    const detailParameters = createGradebookPostgresParametersV1();
     const detailRows = await rows(
       database,
       `SELECT i.id, i.oferta_id, v.aluno_id, i.trimestre, i.slot,
@@ -342,10 +340,10 @@ async function readMaterializations(
          JOIN gradebook.oferta o ON o.turma_id = v.turma_id AND o.ano = v.ano
          JOIN gradebook.instrumento i ON i.oferta_id = o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
          LEFT JOIN gradebook.nota n ON n.instrumento_id = i.id AND n.aluno_id = v.aluno_id
-        WHERE v.ano = ? AND v.turma_id = ? AND v.situacao IS DISTINCT FROM 6
-          AND v.aluno_id IN (${studentIds.map(() => '?').join(', ')})
+        WHERE v.ano = ${detailParameters.param(first.year)} AND v.turma_id = ${detailParameters.param(first.classId)} AND v.situacao IS DISTINCT FROM 6
+          AND v.aluno_id IN (${studentIds.map((id) => detailParameters.param(id)).join(', ')})
         ORDER BY v.aluno_id, i.oferta_id, i.trimestre, i.slot`,
-      [first.year, first.classId, ...studentIds],
+      detailParameters.values,
     );
     for (const row of detailRows) {
       const value = instrumentFromRow(row, assessmentNames);
@@ -542,7 +540,7 @@ export function createRelationalBulletinServiceV2(
     selections: readonly RelationalBulletinSelectionV2[],
   ): Promise<readonly RelationalBulletinModelV2[]> {
     return database.transaction(async (tx) => {
-      await tx.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+      await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
       return readMaterializations(tx, selections, now());
     });
   }
@@ -590,15 +588,15 @@ export function createRelationalBulletinServiceV2(
       try {
         if (request.operation === 'catalog') {
           const values = await rows(
-            dependencies.database,
+            database,
             `SELECT t.id, t.codigo, t.nome, COUNT(v.aluno_id) AS student_count
                FROM gradebook.turma t
                LEFT JOIN gradebook.vinculo v ON v.turma_id = t.id AND v.ano = t.ano
                 AND v.situacao IS DISTINCT FROM 6
-              WHERE t.ano = ?
+              WHERE t.ano = $1
               GROUP BY t.id, t.codigo, t.nome
               ORDER BY t.nome COLLATE "C", t.id
-              LIMIT ?`,
+              LIMIT $2`,
             [request.year, RELATIONAL_BULLETIN_LIMITS_V2.classes + 1],
           );
           if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.classes)
@@ -620,19 +618,19 @@ export function createRelationalBulletinServiceV2(
 
         if (request.operation === 'students') {
           const classRows = await rows(
-            dependencies.database,
-            'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = ? AND id = ?',
+            database,
+            'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = $1 AND id = $2',
             [request.year, request.classId],
           );
           if (classRows.length === 0) return failure(request.operation, 'not-found');
           const values = await rows(
-            dependencies.database,
+            database,
             `SELECT a.id, a.nome, v.numero, v.situacao
                FROM gradebook.vinculo v
                JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
-              WHERE v.ano = ? AND v.turma_id = ? AND v.situacao IS DISTINCT FROM 6
+              WHERE v.ano = $1 AND v.turma_id = $2 AND v.situacao IS DISTINCT FROM 6
               ORDER BY v.numero
-              LIMIT ?`,
+              LIMIT $3`,
             [request.year, request.classId, RELATIONAL_BULLETIN_LIMITS_V2.students + 1],
           );
           if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.students)
