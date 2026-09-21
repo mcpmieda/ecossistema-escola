@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   parseCertificateValidity,
@@ -28,7 +29,9 @@ describe('certificate validity extraction', () => {
     });
     expect(runner).toHaveBeenCalledWith(
       'openssl',
-      ['x509', '-in', '/tmp/maintenance-rotation/cert.pem', '-noout', '-startdate', '-enddate'],
+      // Compose the path exactly as the rotation script does, so the assertion pins the
+      // segments it owns instead of the separator the host operating system picks.
+      ['x509', '-in', join('/tmp', 'maintenance-rotation', 'cert.pem'), '-noout', '-startdate', '-enddate'],
       { encoding: 'utf8' },
     );
   });
