@@ -399,6 +399,9 @@ describe('relational bulletin V2', () => {
         if (/^\s*(?:SELECT|WITH)\b/iu.test(query)) academicQueries.push(query);
         return target.query(query, values);
       },
+      executeNative(query, values) {
+        return target.executeNative(query, values);
+      },
       exec(query) {
         return target.exec(query);
       },
