@@ -5,7 +5,6 @@ import { createLatestPortalRequestV1, type PortalLoadStateV1 } from '../shared/l
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import { PortalClientErrorV1 } from '../shared/transport-v1';
 
-export const STUDENT_REFRESH_INTERVAL_V1 = 30_000;
 export type LogoutStateV1 = 'idle' | 'pending' | 'failed' | 'done';
 export function createStudentSessionV1(
   client: PortalSelfClientV1,
@@ -108,63 +107,34 @@ export function createStudentSessionV1(
   };
 }
 
-/** Visible tabs revalidate discreetly; real history restoration still clears protected data. */
+/** Read on entry or explicit action; a restored page must reauthorize its protected data. */
 export function useStudentSessionV1(client: PortalSelfClientV1) {
   const [load, setLoad] = useState<PortalLoadStateV1<SelfResponseV1>>({ state: 'idle' });
   const [logoutState, setLogoutState] = useState<LogoutStateV1>('idle');
   const session = useRef<ReturnType<typeof createStudentSessionV1> | null>(null);
   useEffect(() => {
-    let currentLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
-    let readRetryAt = 0;
-    const current = createStudentSessionV1(
-      client,
-      (next) => {
-        currentLoad = next;
-        const error = next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
-        readRetryAt = error ? Date.now() + Math.max(5, error.retryAfterSeconds ?? 0) * 1000 : 0;
-        setLoad(next);
-      },
-      setLogoutState,
-    );
+    const current = createStudentSessionV1(client, setLoad, setLogoutState);
     session.current = current;
-    const resume = () => {
-      if (document.visibilityState !== 'hidden') void current.refresh();
+    let hiddenByNavigation = false;
+    // Clear synchronously before the browser can freeze protected data in its history cache.
+    const hide = () => {
+      hiddenByNavigation = true;
+      flushSync(() => current.clear());
     };
-    const focus = () => {
-      // A native file picker returns focus without restoring a protected page.
-      // Keep its input/decoder mounted once the server has confirmed no session.
-      if (currentLoad.state === 'error' && currentLoad.error.state === 'unauthenticated') return;
-      if (document.visibilityState !== 'hidden' && navigator.onLine !== false && Date.now() >= readRetryAt) void current.refresh(true);
+    const show = (event: PageTransitionEvent) => {
+      // The ordinary initial pageshow must not duplicate the entry request.
+      if (!hiddenByNavigation && !event.persisted) return;
+      hiddenByNavigation = false;
+      void current.refresh();
     };
-    // Clear synchronously before the browser can freeze a protected DOM in its history cache.
-    const hide = () => flushSync(() => current.clear());
-    const visibility = () => {
-      if (document.visibilityState !== 'hidden') focus();
-    };
-    const refreshTimer = setInterval(() => {
-      const transient = currentLoad.state === 'error'
-        && ['network-error', 'unavailable'].includes(currentLoad.error.state);
-      // No polling on login/denial, while hidden, or before the server's retry deadline.
-      // refresh(true) deduplicates pending reads and preserves the mounted ready view.
-      if ((currentLoad.state === 'ready' || transient) && Date.now() >= readRetryAt) focus();
-    }, STUDENT_REFRESH_INTERVAL_V1);
     window.addEventListener('pagehide', hide);
-    window.addEventListener('pageshow', resume);
-    window.addEventListener('popstate', resume);
-    window.addEventListener('focus', focus);
-    window.addEventListener('online', focus);
-    document.addEventListener('visibilitychange', visibility);
-    resume();
+    window.addEventListener('pageshow', show);
+    void current.refresh();
     return () => {
-      clearInterval(refreshTimer);
       current.dispose();
       session.current = null;
       window.removeEventListener('pagehide', hide);
-      window.removeEventListener('pageshow', resume);
-      window.removeEventListener('popstate', resume);
-      window.removeEventListener('focus', focus);
-      window.removeEventListener('online', focus);
-      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pageshow', show);
     };
   }, [client]);
   return {

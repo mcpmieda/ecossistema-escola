@@ -1,5 +1,3 @@
-import { LiveReadNoticeV1 } from '../shared/live-data/live-read-notice-v1';
-import { RemoteLiveNoticeV1, useRemoteLiveV1 } from '../shared/live-data/use-remote-live-v1';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Alert, Button, Spinner } from '@heroui/react';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
@@ -40,11 +38,6 @@ export function StudentPortalApp({
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');
   const session = useStudentSessionV1(client);
-  const liveState = useRemoteLiveV1({
-    path: '/api/student/live',
-    enabled: session.load.state === 'ready',
-    onAuthorizationLost: () => { void session.refresh(); },
-  });
   const discardQr = () => {
     entry.qr = null;
     entry.invalidQr = false;
@@ -131,8 +124,6 @@ export function StudentPortalApp({
   return (
     <StudentPortalPageV1
       load={session.load}
-      status={<><RemoteLiveNoticeV1 state={liveState} /><LiveReadNoticeV1 failed={session.load.state === 'ready' && Boolean(session.load.refreshError)} />
-        {session.load.state === 'ready' && session.load.refreshError ? <Button variant="secondary" onPress={() => { void session.refresh(); }}>Tentar novamente</Button> : null}</>}
       grades={(data) => <Suspense fallback={<output>Carregando notas…</output>}><StudentGradesV1 data={data} /></Suspense>}
       onRetry={() => {
         void session.refresh();

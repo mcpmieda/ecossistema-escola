@@ -38,7 +38,7 @@ it('keeps the anonymous file input mounted when the native picker returns focus'
 });
 
 it.each(['focus', 'pageshow', 'popstate'])(
-  'removes revoked data after revalidation on %s, clearing history immediately',
+  'ignores passive %s and refuses revoked access on explicit reload',
   async (event) => {
     let revoked = false;
     const fetcher = vi.fn(async (path: string) =>
@@ -53,17 +53,63 @@ it.each(['focus', 'pageshow', 'popstate'])(
             })
         : json(SYNTHETIC_SELF_V1),
     );
-    render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
+    const client = createPortalSelfClientV1({ fetch: fetcher });
+    const view = render(<StudentPortalApp client={client} />);
     await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
     revoked = true;
-    act(() => {
+    await act(async () => {
       fireEvent(window, new Event(event));
     });
-    if (event !== 'focus') expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
-    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull());
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(SYNTHETIC_SELF_V1.profile.name)).toBeTruthy();
+    // A full reload creates a new application lifetime, not a passive focus event.
+    view.unmount();
+    render(<StudentPortalApp client={client} />);
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    await screen.findByRole('button', { name: 'Escolher imagem' });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls.filter(([path]) => path === '/api/student/me')).toHaveLength(1);
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
   },
 );
+
+it.each([false, true])(
+  'clears protected data before pagehide and reauthorizes restored history (persisted=%s)',
+  async (persisted) => {
+    const restoredSession = deferredResponse();
+    let restoring = false;
+    const fetcher = vi.fn((path: string) => {
+      if (path === '/api/student/session') {
+        if (restoring) return restoredSession.promise;
+        return Promise.resolve(json({
+          ...meta,
+          state: 'authenticated',
+          persistent: false,
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        }));
+      }
+      return Promise.resolve(json(SYNTHETIC_SELF_V1));
+    });
+    render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
+    await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
+    act(() => {
+      fireEvent(window, new Event('pagehide'));
+      expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    restoring = true;
+    const show = new Event('pageshow');
+    Object.defineProperty(show, 'persisted', { value: persisted });
+    await act(async () => { fireEvent(window, show); });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    await act(async () => restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)));
+    await screen.findByRole('button', { name: 'Escolher imagem' });
+    expect(fetcher.mock.calls.filter(([path]) => path === '/api/student/me')).toHaveLength(1);
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+  },
+);
+
 beforeEach(() => {
   setupOperationsDomV1();
   window.history.replaceState(null, '', '/');
@@ -133,7 +179,7 @@ it('reveals the complete student page only after both server session and private
 });
 
 it.each(['unavailable', 'network-error'] as const)(
-  'does not send an existing session to login on %s and recovers without credentials',
+  'does not send a session to login on reload failure %s and recovers by explicit retry',
   async (failure) => {
     let failing = false;
     const client = createPortalSelfClientV1({
@@ -151,13 +197,13 @@ it.each(['unavailable', 'network-error'] as const)(
         return json(SYNTHETIC_SELF_V1);
       },
     });
-    render(<StudentPortalApp client={client} />);
+    const view = render(<StudentPortalApp client={client} />);
     await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
     failing = true;
-    await act(async () => {
-      fireEvent(window, new Event('focus'));
-    });
+    view.unmount();
+    render(<StudentPortalApp client={client} />);
     expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Acessar minhas notas' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Entrar' })).toBeNull();
     failing = false;
