@@ -1,6 +1,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { STUDENT_REFRESH_INTERVAL_V1, useStudentSessionV1 } from '../../../../src/features/student-portal/auth/student-session-v1';
+import { useStudentSessionV1 } from '../../../../src/features/student-portal/auth/student-session-v1';
 import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
 import { SYNTHETIC_SELF_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
@@ -21,82 +21,144 @@ afterEach(() => {
 const settle = () => act(async () => { await Promise.resolve(); });
 const advance = (milliseconds: number) => act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
 
-it('replaces no-publication with the newly authorized projection without focus or reload', async () => {
+it('keeps the initial projection until an explicit read, without periodic requests', async () => {
   const client = clientFixtureV1();
   client.me.mockResolvedValueOnce({ ...SYNTHETIC_SELF_V1, state: 'no-publication', subjects: [] });
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
+  await advance(5 * 60_000);
   expect(result.current.load).toMatchObject({ state: 'ready', data: { state: 'no-publication' } });
-  await advance(STUDENT_REFRESH_INTERVAL_V1);
+  expect(client.session).toHaveBeenCalledTimes(1);
+  expect(client.me).toHaveBeenCalledTimes(1);
+  await act(async () => { await result.current.refresh(); });
   expect(client.session).toHaveBeenCalledTimes(2);
-  expect(client.me).toHaveBeenCalledTimes(2);
   expect(result.current.load).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
 });
 
-it('keeps the ready view while polling and never overlaps pending refreshes', async () => {
+it('does not reread on focus, connectivity, tab visibility, fragments or initial pageshow', async () => {
   const client = clientFixtureV1();
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
   const ready = result.current.load;
-  let resolve!: (value: typeof SESSION) => void;
-  client.session.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 2);
+  await act(async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('offline'));
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    for (const event of ['focus', 'online', 'popstate', 'pageshow'])
+      window.dispatchEvent(new Event(event));
+  });
+  await advance(2 * 60_000);
   expect(result.current.load).toBe(ready);
-  expect(client.session).toHaveBeenCalledTimes(2);
+  expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).toHaveBeenCalledTimes(1);
-  await act(async () => { resolve(SESSION); });
-  expect(client.me).toHaveBeenCalledTimes(2);
 });
 
-it('does not poll hidden tabs and releases the interval on unmount', async () => {
+it('reads the current projection when the application is mounted again after a reload', async () => {
   const client = clientFixtureV1();
-  const { unmount } = renderHook(() => useStudentSessionV1(client));
+  client.me.mockResolvedValueOnce({ ...SYNTHETIC_SELF_V1, state: 'no-publication', subjects: [] });
+  const first = renderHook(() => useStudentSessionV1(client));
   await settle();
-  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 2);
-  expect(client.session).toHaveBeenCalledTimes(1);
-  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
-  await advance(STUDENT_REFRESH_INTERVAL_V1);
+  expect(first.result.current.load).toMatchObject({ state: 'ready', data: { state: 'no-publication' } });
+  first.unmount();
+  const second = renderHook(() => useStudentSessionV1(client));
+  await settle();
+  expect(second.result.current.load).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
   expect(client.session).toHaveBeenCalledTimes(2);
-  unmount();
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 2);
-  expect(client.session).toHaveBeenCalledTimes(2);
+  expect(client.me).toHaveBeenCalledTimes(2);
 });
 
 it.each([
   ['unauthenticated', 401], ['forbidden', 403], ['rate-limited', 429],
-] as const)('does not turn %s into an automatic login or request loop', async (state, status) => {
+  ['unavailable', 503], ['network-error', 0],
+] as const)('does not automatically retry %s', async (state, status) => {
   const client = clientFixtureV1();
   client.session.mockRejectedValueOnce(new PortalClientErrorV1(state, status));
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 3);
+  await advance(3 * 60_000);
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+  });
   expect(result.current.load).toMatchObject({ state: 'error', error: { state } });
   expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).not.toHaveBeenCalled();
 });
 
-it('honors Retry-After after a transient background failure and recovers through a fresh session', async () => {
+it('preserves explicit recovery after a failed read', async () => {
+  const client = clientFixtureV1();
+  client.session.mockRejectedValueOnce(new PortalClientErrorV1('network-error'));
+  const { result } = renderHook(() => useStudentSessionV1(client));
+  await settle();
+  await act(async () => { await result.current.refresh(); });
+  expect(result.current.load).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
+  expect(client.session).toHaveBeenCalledTimes(2);
+});
+
+it('still removes protected data at the server expiry without a network request', async () => {
+  const client = clientFixtureV1();
+  client.session.mockResolvedValue({ ...SESSION, expiresAt: new Date(NOW + 2_000).toISOString() });
+  const { result } = renderHook(() => useStudentSessionV1(client));
+  await settle();
+  expect(result.current.load.state).toBe('ready');
+  await advance(2_000);
+  expect(result.current.load).toMatchObject({ state: 'error', error: { state: 'unauthenticated' } });
+  expect(client.session).toHaveBeenCalledTimes(1);
+  expect(client.me).toHaveBeenCalledTimes(1);
+});
+
+it('clears before history suspension and reauthorizes once when the page returns', async () => {
   const client = clientFixtureV1();
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
-  client.session.mockRejectedValueOnce(new PortalClientErrorV1('unavailable', 503, 90));
-  await advance(STUDENT_REFRESH_INTERVAL_V1);
-  expect(result.current.load).toMatchObject({ state: 'ready', data: SYNTHETIC_SELF_V1, refreshError: { state: 'unavailable' } });
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 2);
+  act(() => { window.dispatchEvent(new Event('pagehide')); });
+  expect(result.current.load.state).toBe('idle');
+  await act(async () => { window.dispatchEvent(new Event('pageshow')); });
+  expect(result.current.load.state).toBe('ready');
+  await act(async () => { window.dispatchEvent(new Event('pageshow')); });
   expect(client.session).toHaveBeenCalledTimes(2);
-  await advance(STUDENT_REFRESH_INTERVAL_V1);
-  expect(client.session).toHaveBeenCalledTimes(3);
-  expect(result.current.load).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
+  expect(client.me).toHaveBeenCalledTimes(2);
 });
 
-it('never brings protected data back after logout', async () => {
+it('discards a read that completes after the page has been hidden by navigation', async () => {
+  const client = clientFixtureV1();
+  let finish!: (value: typeof SYNTHETIC_SELF_V1) => void;
+  client.me.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const { result } = renderHook(() => useStudentSessionV1(client));
+  await settle();
+  act(() => { window.dispatchEvent(new Event('pagehide')); });
+  await act(async () => { finish(SYNTHETIC_SELF_V1); });
+  expect(result.current.load.state).toBe('idle');
+  await act(async () => { window.dispatchEvent(new Event('pageshow')); });
+  expect(result.current.load.state).toBe('ready');
+  expect(client.session).toHaveBeenCalledTimes(2);
+});
+
+it('never brings protected data back after logout and still supports explicit authentication', async () => {
   const client = clientFixtureV1();
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
   await act(async () => { await result.current.logout(); });
-  await advance(STUDENT_REFRESH_INTERVAL_V1 * 3);
+  await advance(3 * 60_000);
   expect(result.current.load).toMatchObject({ state: 'error', error: { state: 'unauthenticated' } });
+  expect(client.session).toHaveBeenCalledTimes(1);
+  await act(async () => { await result.current.authenticated(); });
+  expect(result.current.load.state).toBe('ready');
+  expect(client.session).toHaveBeenCalledTimes(2);
+});
+
+it('releases all session work on unmount', async () => {
+  const client = clientFixtureV1();
+  const { unmount } = renderHook(() => useStudentSessionV1(client));
+  await settle();
+  unmount();
+  await advance(3 * 60_000);
+  await act(async () => {
+    window.dispatchEvent(new Event('pagehide'));
+    window.dispatchEvent(new Event('pageshow'));
+  });
   expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).toHaveBeenCalledTimes(1);
 });
