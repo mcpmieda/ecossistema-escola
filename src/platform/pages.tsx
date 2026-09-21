@@ -748,7 +748,7 @@ export function PageContent({
     case 'painel-do-aluno':
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
-      return <Suspense fallback={<p role="status">Carregando Saúde do Sistema…</p>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
+      return <Suspense fallback={<output className="block">Carregando Saúde do Sistema…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
     case 'sistemas':
       return <SystemsPage snapshot={snapshot} />;
     case 'auditoria':

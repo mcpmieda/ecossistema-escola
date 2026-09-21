@@ -3,6 +3,7 @@ import { Button, Card, Chip, Surface, Table } from '@heroui/react';
 import { Activity, Database, Globe, HeartPulse, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import type { PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 import { cappedHealthCountV1, sampleIsFreshV1, systemHealthStateV1, type HealthStateV1,
+  type PortalMaintenanceSampleV1, type PortalMonitorSampleV1, type PublicEntrySampleV1,
   type SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 import { createHealthMonitorV1 } from './system-health-controller-v1';
 import { usePlatformIdentityV1 } from './platform-identity-v1';
@@ -68,26 +69,80 @@ const COVERAGE = [
   { id: 'browser', name: 'Erros no navegador', source: 'Recepção e agregação: pendentes', limit: 'Não há taxa de sucesso por tela ou navegador nesta versão.' },
   { id: 'alerting', name: 'Alertas e histórico', source: 'Envio externo: não configurado', limit: 'Sem vigilância contínua quando esta tela está fechada.' },
 ] as const;
-function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: PlatformSnapshotV2; onDenied: () => void }>) {
-  const monitor = useMonitor(onDenied);
-  const [evidence, setEvidence] = useState(false);
-  const snapshot = monitor.snapshot;
-  const current = usable(snapshot, monitor.now) && !monitor.error && !monitor.paused;
-  const portal = current ? snapshot?.portal : null;
-  const maintenance = portal?.maintenance;
-  const overall = current && snapshot ? systemHealthStateV1(snapshot, monitor.now) : 'unknown';
-  const publicState: HealthStateV1 = !current || !snapshot || ['unavailable', 'not-probed'].includes(snapshot.publicEntry.outcome)
-    ? 'unknown' : snapshot.publicEntry.outcome === 'ok' ? 'normal' : 'critical';
-  const databaseState: HealthStateV1 = !portal || portal.database === 'unconfigured' ? 'unknown'
-    : portal.database === 'ok' ? 'normal' : 'critical';
-  const publicationState: HealthStateV1 = !maintenance ? 'unknown' : maintenance.exhausted ? 'critical'
-    : maintenance.backlog ? 'attention' : 'normal';
-  const liveState: HealthStateV1 = !maintenance?.liveOutboxAvailable ? 'unknown' : maintenance.liveBacklog ? 'attention' : 'normal';
-  const evidenceAvailable = platform.operational !== null
-    && !platform.unavailableSections?.some((section) => ['lists', 'modules', 'audit'].includes(section));
-  const lockState: HealthStateV1 = !maintenance ? 'unknown' : maintenance.oldestWaitingQueryMs >= 1000 ? 'attention' : 'normal';
+function HealthSummary({ monitor, current }: Readonly<{
+  monitor: ReturnType<typeof useMonitor>; current: SystemHealthSnapshotV1 | null;
+}>) {
+  const overall = current ? systemHealthStateV1(current, monitor.now) : 'unknown';
   const title = { normal: 'Verificações básicas normais', attention: 'Há pontos de atenção',
     critical: 'Uma verificação exige intervenção', unknown: 'Não há confirmação suficiente' }[overall];
+  return <>
+    <Surface variant="default" className="platform-card-surface rounded-3xl p-5 sm:p-7">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3"><HeartPulse className="size-5" aria-hidden="true" /><Status state={overall} /><Chip size="sm" variant="soft">Cobertura parcial</Chip></div>
+          <h2 className="mt-4 text-2xl font-semibold tracking-tight">{title}</h2>
+          <p className="mt-2 text-sm text-muted">Login completo, telas no navegador e alertas externos ainda não verificados.</p>
+          <p className="mt-3 text-xs text-muted">{monitor.snapshot ? `Última coleta: ${date(monitor.snapshot.generatedAt)} (Bahia)` : 'Nenhuma coleta disponível.'}</p>
+        </div>
+        <Button variant="secondary" onPress={() => { void monitor.refresh(); }} isDisabled={monitor.loading || monitor.paused || monitor.error === 'denied'}>
+          <RefreshCw className="size-4" aria-hidden="true" />{monitor.loading ? 'Verificando…' : 'Atualizar'}
+        </Button>
+      </div>
+      <p className="mt-4 text-xs text-muted">Atualização a cada 60 segundos enquanto esta área estiver aberta e visível. Dados com mais de 2 minutos deixam de confirmar o estado atual.</p>
+    </Surface>
+    {monitor.error === 'denied' ? <p role="alert" className="mt-4 text-danger">Acesso ao monitoramento não autorizado. Os dados foram removidos; reabra a área após verificar sua sessão.</p> : null}
+    {monitor.error === 'unavailable' ? <p role="alert" className="mt-4 text-warning">Não foi possível atualizar. A última coleta não está sendo usada como confirmação de normalidade.</p> : null}
+    {monitor.paused ? <output className="mt-4 block text-muted">Atualização pausada.</output> : null}
+  </>;
+}
+function PublicEntryMetric({ entry }: Readonly<{ entry: PublicEntrySampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  let value = 'Sem confirmação';
+  if (entry?.outcome === 'ok') { state = 'normal'; value = 'Respondeu'; }
+  else if (entry?.outcome === 'http-error' || entry?.outcome === 'unexpected-response') {
+    state = 'critical'; value = 'Resposta inesperada';
+  }
+  return <Metric icon={Globe} title="Entrada pública" value={value} state={state}
+    detail="Página inicial via HTTP. Não confirma a execução das telas ou um login completo." />;
+}
+function PortalAccessMetric({ portal }: Readonly<{ portal: PortalMonitorSampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  let value = 'Sem dados';
+  if (portal) {
+    value = portal.servingEnabled ? 'Habilitado' : 'Desabilitado';
+    state = portal.servingEnabled && portal.credentialsConfigured ? 'normal' : 'attention';
+  }
+  return <Metric icon={ShieldCheck} title="Acesso do Portal" value={value} state={state}
+    detail={portal && !portal.credentialsConfigured ? 'A configuração de credenciais está incompleta.' : 'Estado da configuração; não equivale a um teste de entrada do aluno.'} />;
+}
+function DatabaseMetric({ portal }: Readonly<{ portal: PortalMonitorSampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  let value = 'Sem dados';
+  if (portal?.database === 'ok') { state = 'normal'; value = duration(portal.readDurationMs); }
+  else if (portal?.database === 'unavailable') { state = 'critical'; value = 'Não concluída'; }
+  return <Metric icon={Database} title="Leitura técnica do banco" value={value} state={state}
+    detail="Caminho Portal → Hyperdrive → PostgreSQL. Uma falha aqui não identifica sozinha o fornecedor responsável." />;
+}
+function PublicationMetric({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  if (maintenance) state = maintenance.backlog ? 'attention' : 'normal';
+  if (maintenance?.exhausted) state = 'critical';
+  return <Metric icon={Activity} title="Publicações aguardando" value={maintenance ? cappedHealthCountV1(maintenance.publicationDue) : '—'}
+    state={state} detail={maintenance?.exhausted ? 'Há publicação que esgotou as tentativas e exige verificação.' : 'Itens disponíveis para processamento, sem contar tarefas futuras ou ocupadas.'} />;
+}
+function LiveMetric({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  if (maintenance?.liveOutboxAvailable) state = maintenance.liveBacklog ? 'attention' : 'normal';
+  return <Metric icon={RefreshCw} title="Avisos de atualização" value={maintenance?.liveOutboxAvailable ? cappedHealthCountV1(maintenance.livePending) : '—'}
+    state={state} detail="Avisos que atualizam as telas após mudanças. Ausência da estrutura não é tratada como zero." />;
+}
+function LockMetric({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
+  let state: HealthStateV1 = 'unknown';
+  if (maintenance) state = maintenance.oldestWaitingQueryMs >= 1000 ? 'attention' : 'normal';
+  return <Metric icon={TriangleAlert} title="Conexões em espera" value={maintenance ? maintenance.waitingConnections.toLocaleString('pt-BR') : '—'}
+    state={state} detail="Conexões do Portal aguardando liberação de bloqueios. Capacidade total ainda não medida." />;
+}
+function QueueTable({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
   const queueRows = [
     { id: 'publication', name: 'Publicações prontas para processamento', value: maintenance ? cappedHealthCountV1(maintenance.publicationDue) : '—',
       age: maintenance ? wait(maintenance.oldestPublicationDueMs) : '—', detail: 'Itens já vencidos e sem execução protegida por outra operação.' },
@@ -98,41 +153,7 @@ function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: Platfo
     { id: 'locks', name: 'Conexões esperando liberação', value: maintenance ? maintenance.waitingConnections.toLocaleString('pt-BR') : '—',
       age: maintenance ? wait(maintenance.oldestWaitingQueryMs) : '—', detail: 'Tempo desde o início da consulta em espera. Não representa todas as conexões do banco.' },
   ];
-  return <section className="min-w-0" aria-label="Monitoramento do Portal do Aluno">
-    <PageHeader eyebrow="Operação" title="Saúde do Sistema" description="Portal do Aluno" />
-    <Surface variant="default" className="platform-card-surface rounded-3xl p-5 sm:p-7">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3"><HeartPulse className="size-5" aria-hidden="true" /><Status state={overall} /><Chip size="sm" variant="soft">Cobertura parcial</Chip></div>
-          <h2 className="mt-4 text-2xl font-semibold tracking-tight">{title}</h2>
-          <p className="mt-2 text-sm text-muted">Login completo, telas no navegador e alertas externos ainda não verificados.</p>
-          <p className="mt-3 text-xs text-muted">{snapshot ? `Última coleta: ${date(snapshot.generatedAt)} (Bahia)` : 'Nenhuma coleta disponível.'}</p>
-        </div>
-        <Button variant="secondary" onPress={() => { void monitor.refresh(); }} isDisabled={monitor.loading || monitor.paused || monitor.error === 'denied'}>
-          <RefreshCw className="size-4" aria-hidden="true" />{monitor.loading ? 'Verificando…' : 'Atualizar'}
-        </Button>
-      </div>
-      <p className="mt-4 text-xs text-muted">Atualização a cada 60 segundos enquanto esta área estiver aberta e visível. Dados com mais de 2 minutos deixam de confirmar o estado atual.</p>
-    </Surface>
-    {monitor.error === 'denied' ? <p role="alert" className="mt-4 text-danger">Acesso ao monitoramento não autorizado. Os dados foram removidos; reabra a área após verificar sua sessão.</p> : null}
-    {monitor.error === 'unavailable' ? <p role="alert" className="mt-4 text-warning">Não foi possível atualizar. A última coleta não está sendo usada como confirmação de normalidade.</p> : null}
-    {monitor.paused ? <p role="status" className="mt-4 text-muted">Atualização pausada.</p> : null}
-    <div className="mt-5 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <Metric icon={Globe} title="Entrada pública" value={publicState === 'normal' ? 'Respondeu' : publicState === 'critical' ? 'Resposta inesperada' : 'Sem confirmação'}
-        state={publicState} detail="Página inicial via HTTP. Não confirma a execução das telas ou um login completo." />
-      <Metric icon={ShieldCheck} title="Acesso do Portal" value={portal ? portal.servingEnabled ? 'Habilitado' : 'Desabilitado' : 'Sem dados'}
-        state={!portal ? 'unknown' : portal.servingEnabled && portal.credentialsConfigured ? 'normal' : 'attention'}
-        detail={portal && !portal.credentialsConfigured ? 'A configuração de credenciais está incompleta.' : 'Estado da configuração; não equivale a um teste de entrada do aluno.'} />
-      <Metric icon={Database} title="Leitura técnica do banco" value={portal?.database === 'ok' ? duration(portal.readDurationMs) : databaseState === 'critical' ? 'Não concluída' : 'Sem dados'}
-        state={databaseState} detail="Caminho Portal → Hyperdrive → PostgreSQL. Uma falha aqui não identifica sozinha o fornecedor responsável." />
-      <Metric icon={Activity} title="Publicações aguardando" value={maintenance ? cappedHealthCountV1(maintenance.publicationDue) : '—'}
-        state={publicationState} detail={maintenance?.exhausted ? 'Há publicação que esgotou as tentativas e exige verificação.' : 'Itens disponíveis para processamento, sem contar tarefas futuras ou ocupadas.'} />
-      <Metric icon={RefreshCw} title="Avisos de atualização" value={maintenance?.liveOutboxAvailable ? cappedHealthCountV1(maintenance.livePending) : '—'}
-        state={liveState} detail="Avisos que atualizam as telas após mudanças. Ausência da estrutura não é tratada como zero." />
-      <Metric icon={TriangleAlert} title="Conexões em espera" value={maintenance ? maintenance.waitingConnections.toLocaleString('pt-BR') : '—'}
-        state={lockState} detail="Conexões do Portal aguardando liberação de bloqueios. Capacidade total ainda não medida." />
-    </div>
-    <Card variant="default" className="mt-5 min-w-0 overflow-hidden">
+  return <Card variant="default" className="mt-5 min-w-0 overflow-hidden">
       <Card.Header><Card.Title>Filas e banco</Card.Title><Card.Description>Última amostra agregada. “1.000+” indica que a leitura atingiu seu limite, não a capacidade do sistema.</Card.Description></Card.Header>
       <Card.Content className="p-0"><Table variant="secondary"><Table.ScrollContainer><Table.Content aria-label="Filas e espera do Portal">
         <Table.Header><Table.Column id="metric" isRowHeader>Sinal</Table.Column><Table.Column id="value">Quantidade</Table.Column><Table.Column id="age">Maior espera observada</Table.Column></Table.Header>
@@ -141,21 +162,55 @@ function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: Platfo
           <Table.Cell className="whitespace-nowrap">{row.value}</Table.Cell><Table.Cell className="whitespace-nowrap">{row.age}</Table.Cell>
         </Table.Row>)}</Table.Body>
       </Table.Content></Table.ScrollContainer></Table></Card.Content>
-    </Card>
-    {maintenance && (maintenance.expiredIp > 0 || maintenance.expiredAudit > 0) ? <Card variant="default" className="mt-5">
+    </Card>;
+}
+function CleanupNotice({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
+  if (!maintenance || (maintenance.expiredIp === 0 && maintenance.expiredAudit === 0)) return null;
+  return <Card variant="default" className="mt-5">
       <Card.Header><Card.Title>Limpeza de registros técnicos</Card.Title></Card.Header>
       <Card.Content className="text-sm">Há registros técnicos vencidos aguardando limpeza. Verifique a manutenção agendada; esta tela não executa exclusões.</Card.Content>
-    </Card> : null}
+    </Card>;
+}
+function AdministrativeEvidence({ platform }: Readonly<{ platform: PlatformSnapshotV2 }>) {
+  const [evidence, setEvidence] = useState(false);
+  const available = platform.operational !== null
+    && !platform.unavailableSections?.some((section) => ['lists', 'modules', 'audit'].includes(section));
+  let content = null;
+  if (evidence) {
+    content = available
+      ? <div className="mt-3"><Suspense fallback={<output className="block">Carregando evidências…</output>}><PlatformEvidence snapshot={platform} /></Suspense></div>
+      : <p className="p-3 text-sm text-muted">Evidências administrativas indisponíveis. O monitoramento do Portal usa uma consulta independente.</p>;
+  }
+  return <details className="mt-5" onToggle={(event) => setEvidence(event.currentTarget.open)}>
+    <summary className="cursor-pointer rounded-xl p-3 font-medium focus-visible:outline focus-visible:outline-2">Evidências do Centro ADM</summary>
+    {content}
+  </details>;
+}
+function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: PlatformSnapshotV2; onDenied: () => void }>) {
+  const monitor = useMonitor(onDenied);
+  const current = usable(monitor.snapshot, monitor.now) && !monitor.error && !monitor.paused ? monitor.snapshot : null;
+  const portal = current?.portal ?? null;
+  const maintenance = portal?.maintenance ?? null;
+  return <section className="min-w-0" aria-label="Monitoramento do Portal do Aluno">
+    <PageHeader eyebrow="Operação" title="Saúde do Sistema" description="Portal do Aluno" />
+    <HealthSummary monitor={monitor} current={current} />
+    <div className="mt-5 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <PublicEntryMetric entry={current?.publicEntry ?? null} />
+      <PortalAccessMetric portal={portal} />
+      <DatabaseMetric portal={portal} />
+      <PublicationMetric maintenance={maintenance} />
+      <LiveMetric maintenance={maintenance} />
+      <LockMetric maintenance={maintenance} />
+    </div>
+    <QueueTable maintenance={maintenance} />
+    <CleanupNotice maintenance={maintenance} />
     <Card variant="default" className="mt-5">
       <Card.Header><Card.Title>Cobertura e preparação para a abertura</Card.Title><Card.Description>Sem informação não significa ausência de falhas.</Card.Description></Card.Header>
       <Card.Content><dl className="grid gap-5 md:grid-cols-2">{COVERAGE.map((item) => <div key={item.id} className="min-w-0">
         <dt className="font-medium">{item.name}</dt><dd className="mt-1 text-sm text-muted">{item.source}<br />{item.limit}</dd>
       </div>)}</dl></Card.Content>
     </Card>
-    <details className="mt-5" onToggle={(event) => setEvidence(event.currentTarget.open)}>
-      <summary className="cursor-pointer rounded-xl p-3 font-medium focus-visible:outline focus-visible:outline-2">Evidências do Centro ADM</summary>
-      {evidence && evidenceAvailable ? <div className="mt-3"><Suspense fallback={<p role="status">Carregando evidências…</p>}><PlatformEvidence snapshot={platform} /></Suspense></div> : evidence ? <p className="p-3 text-sm text-muted">Evidências administrativas indisponíveis. O monitoramento do Portal usa uma consulta independente.</p> : null}
-    </details>
+    <AdministrativeEvidence platform={platform} />
   </section>;
 }
 export function SystemHealthPageV1({ snapshot }: Readonly<{ snapshot: PlatformSnapshotV2 }>) {
@@ -163,7 +218,7 @@ export function SystemHealthPageV1({ snapshot }: Readonly<{ snapshot: PlatformSn
   if (!identity?.authenticated || !identity.identityKey
     || !identity.capabilities?.includes('platform.health.read') || !identity.capabilities.includes('platform.settings.read')) return <section>
     <PageHeader eyebrow="Operação" title="Saúde do Sistema" description="Portal do Aluno" />
-    <Card><Card.Content><p role="status">{accessError || identity ? 'Acesso ao monitoramento não autorizado.' : 'Verificando acesso…'}</p>
+    <Card><Card.Content><output className="block">{accessError || identity ? 'Acesso ao monitoramento não autorizado.' : 'Verificando acesso…'}</output>
       {accessError ? <Button className="mt-3" variant="secondary" onPress={retry}>Verificar acesso</Button> : null}
     </Card.Content></Card>
   </section>;

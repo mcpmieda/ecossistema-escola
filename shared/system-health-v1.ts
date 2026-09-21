@@ -89,7 +89,8 @@ function isPublicEntry(value: unknown): value is PublicEntrySampleV1 {
   if (!number(value.durationMs) || !isHealthInstantV1(value.observedAt)) return false;
   if (value.outcome === 'unavailable') return value.status === null;
   if (!integer(value.status, 599) || (value.status as number) < 200) return false;
-  return value.outcome === 'ok' ? value.status === 200 : value.outcome === 'http-error' ? value.status !== 200 : value.status === 200;
+  if (value.outcome === 'http-error') return value.status !== 200;
+  return value.status === 200;
 }
 export function isSystemHealthSnapshotV1(value: unknown): value is SystemHealthSnapshotV1 {
   if (!record(value) || !exact(value, ['schemaVersion', 'generatedAt', 'portalReadState', 'portal', 'publicEntry'])) return false;

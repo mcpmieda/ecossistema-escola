@@ -32,7 +32,8 @@ async function publicEntryV1(input: HealthSourcesV1, now: () => number): Promise
       });
       void response.body?.cancel().catch(() => undefined);
       const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
-      const outcome = response.status !== 200 ? 'http-error' : contentType === 'text/html' ? 'ok' : 'unexpected-response';
+      let outcome: PublicEntrySampleV1['outcome'] = 'http-error';
+      if (response.status === 200) outcome = contentType === 'text/html' ? 'ok' : 'unexpected-response';
       return { outcome, status: response.status, durationMs: Math.max(0, now() - start), observedAt: new Date(now()).toISOString() };
     }, 3_000);
   } catch {

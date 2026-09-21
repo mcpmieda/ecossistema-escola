@@ -26,7 +26,10 @@ export function createHealthMonitorV1(options: OptionsV1 = {}) {
   const publish = (change: Partial<HealthMonitorStateV1>) => {
     state = { ...state, ...change }; listeners.forEach((listener) => listener());
   };
-  const clearTimer = () => { if (timer !== undefined) clearTimeout(timer); timer = undefined; };
+  const clearTimer = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
   const cancel = () => { generation++; active?.abort(); active = undefined; clearTimer(); };
   const schedule = (delay: number) => {
     clearTimer();

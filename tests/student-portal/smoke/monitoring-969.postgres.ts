@@ -84,6 +84,13 @@ beforeAll(async () => {
   owner = client();
   const exec = (sql: string) => owner.unsafe(sql, [], { prepare: false });
   await exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  // Match the native suite when this smoke is the first test on a fresh cluster.
+  // The shared schema helper otherwise creates a NOLOGIN role that outlives this database.
+  await exec(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='gradebook_app') THEN
+      CREATE ROLE gradebook_app LOGIN NOSUPERUSER NOBYPASSRLS;
+    END IF;
+  END $$;`);
   await installResetSchemaFixtureV1({ exec });
   for (const migration of [
     '0008_atomic_publication_v2.sql',
@@ -279,6 +286,8 @@ it('sanitizes a real SQL lock failure and recovers after the lock is released', 
 });
 
 it('refuses the Gradebook role instead of using it to read Portal data', async () => {
+  const gradebook = client('gradebook_app');
+  expect((await gradebook.unsafe('SELECT current_user AS role'))[0]?.role).toBe('gradebook_app');
   expect(await sample('WRONG_ROLE')).toMatchObject({ database: 'unavailable', maintenance: null });
 });
 
