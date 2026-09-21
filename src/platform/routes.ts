@@ -13,7 +13,7 @@ import type { PlatformRoute } from '../../shared/platform-contract';
 
 export const routeLabels: Record<PlatformRoute, string> = {
   'visao-geral': 'Visão geral',
-  operacao: 'Operação',
+  operacao: 'Saúde do Sistema',
   publicacoes: 'Publicações',
   paginas: 'Páginas',
   'banco-de-notas': 'Banco de notas',

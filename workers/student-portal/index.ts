@@ -2,6 +2,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { portalFailureV1, portalJsonV1 } from '../../server/student-portal/runtime/http-v1';
 import { servePortalSelfV1 } from '../../server/student-portal/composition/self-v1';
 import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-v1';
+import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
@@ -37,6 +38,9 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return connectPortalLiveV1(this.env, request, { audience: 'admin', expiresAt: parsed.data.expiresAt,
       accountId: null, studentId: null, classId: null });
+  }
+  async monitoring(context: unknown) {
+    return portalMonitoringRpcV1(this.env, context);
   }
   async query(context: unknown, request: unknown) {
     return portalAdminRpcV1(this.env, 'query', context, request);

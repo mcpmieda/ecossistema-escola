@@ -33,8 +33,8 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
   },
   {
     id: 'platform.operations',
-    name: 'Operação',
-    description: 'Saúde observável, degradação e lacunas de recuperação do núcleo.',
+    name: 'Saúde do Sistema',
+    description: 'Disponibilidade, filas e sinais operacionais do Portal do Aluno.',
     route: 'operacao',
     state: 'ready',
     requiredRole: 'ADMINISTRADOR',

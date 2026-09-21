@@ -30,7 +30,9 @@ import type {
   PlatformSnapshotContract,
 } from '../../shared/platform-contract';
 import { NotesPage } from './notes-page';
-import { OperationsPage } from './operations-page';
+const SystemHealthPage = lazy(() => import('./system-health-page-v1').then(
+  (module) => ({ default: module.SystemHealthPageV1 }),
+));
 const StudentPortalAdminPage = lazy(() => import('../features/student-portal-admin/student-portal-admin-page').then(
   (module) => ({ default: module.StudentPortalAdminPage }),
 ));
@@ -746,7 +748,7 @@ export function PageContent({
     case 'painel-do-aluno':
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
-      return <OperationsPage snapshot={snapshot} />;
+      return <Suspense fallback={<p role="status">Carregando Saúde do Sistema…</p>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
     case 'sistemas':
       return <SystemsPage snapshot={snapshot} />;
     case 'auditoria':
