@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalAdminPage } from '../../../../src/features/student-portal-admin/student-portal-admin-page';
@@ -7,6 +7,12 @@ import { setupOperationsDomV1 } from '../overview/dom-v1';
 import { accountJsonV1 } from '../accounts/fixtures-v1';
 import { customizationsUiFixture827 } from './customizations-ui-fixture-827';
 
+// The Painel loads every area, and the student drawer, as separate bundles, so the
+// first mount in this file pays a cold dynamic import that outlasts the 1s default
+// query window and the 5s default test budget. Widen both instead of weakening the
+// queries: each one below still has to find the real accessible node.
+configure({ asyncUtilTimeout: 15_000 });
+vi.setConfig({ testTimeout: 30_000 });
 beforeEach(setupOperationsDomV1);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function mount(mock = customizationsUiFixture827(), area = 'settings') {
