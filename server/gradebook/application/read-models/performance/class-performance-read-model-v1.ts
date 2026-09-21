@@ -1187,7 +1187,7 @@ export function createClassPerformanceReadModelV1(
             sourcePosition: row.sourcePosition,
             studentId: row.studentId,
             displayName: row.displayName,
-            situation: cloneSituation(row.situation),
+            situation: row.situation,
             detailRef: encodeStudentDetailRef(
               sourceRequest.academicYearId,
               sourceRequest.classGroupId,
