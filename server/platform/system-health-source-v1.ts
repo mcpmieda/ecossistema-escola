@@ -26,8 +26,9 @@ async function publicEntryV1(input: HealthSourcesV1, now: () => number): Promise
   try {
     return await healthDeadlineV1<PublicEntrySampleV1>(async (signal) => {
       // A fixed HEAD of the static entry, not a student login or an uptime/SLO claim.
+      // Workerd supports manual redirects; every 3xx remains an HTTP error below.
       const response = await (input.fetcher ?? fetch)(PUBLIC_ENTRY_V1, {
-        method: 'HEAD', redirect: 'error', credentials: 'omit', cache: 'no-store',
+        method: 'HEAD', redirect: 'manual', credentials: 'omit', cache: 'no-store',
         headers: { Accept: 'text/html' }, signal,
       });
       void response.body?.cancel().catch(() => undefined);

@@ -70,7 +70,7 @@ Registre o horário da amostra e o sinal agregado na issue de acompanhamento. Um
 
 ## Segurança
 
-A entrada recusa origem/host diferentes, headers de reescrita, query string, fragmento, cookies de sessão duplicados, preview e qualquer corpo diferente de objeto vazio. O alvo HTTP é constante e não recebe cookies nem Authorization; redirects não são seguidos. Não há fan-out por aluno.
+A entrada recusa origem/host diferentes, headers de reescrita, query string, fragmento, cookies de sessão duplicados, preview e qualquer corpo diferente de objeto vazio. O alvo HTTP é constante e não recebe cookies nem Authorization; redirects não são seguidos. A sonda usa `redirect: manual`, suportado pelo Workerd, e classifica qualquer 3xx como erro HTTP sem acessar `Location`. Não há fan-out por aluno.
 
 O RPC valida tenant, capability do contexto privado, instante de verificação e ambiente antes de abrir o banco. Ele continua diagnosticando configuração incompleta e serviço desabilitado; não requer chaves válidas para conseguir informar que elas estão ausentes.
 
@@ -82,7 +82,8 @@ As evidências finais devem corresponder ao head integrado e informar SHA, ambie
 
 - `tests/observability/system-health-core-v1.test.ts`, `system-health-http-v1.test.ts` e `system-health-rpc-v1.test.ts`: contrato fechado, leitura limitada, cache, controlador e recusa de entradas inválidas.
 - `tests/observability/system-health-production-http-v1.test.ts`: 6 testes com sessões realmente seladas pelo código de autenticação, identidades sintéticas, autorização antes do cache, expiração, isolamento e recusa de dados privados.
-- `tests/observability/system-health-ui-v1.test.tsx`: 19 testes renderizados com HeroUI, hook de identidade e controlador reais; dados ausentes/parciais/expirados, relógio incoerente, negação, troca de identidade, resposta tardia, atualização manual, pausa e independência das evidências ADM. Inclui cabeçalhos acessíveis da tabela e atualização imediata do relógio ao receber uma nova coleta.
+- `tests/observability/system-health-ui-v1.test.tsx`: 20 testes renderizados com HeroUI, hook de identidade e controlador reais; dados ausentes/parciais/expirados, relógio incoerente, negação, troca de identidade, resposta tardia, atualização manual, pausa e independência das evidências ADM. Inclui cabeçalhos acessíveis das tabelas, expansão das evidências administrativas reais com catálogo sintético e atualização imediata do relógio ao receber uma nova coleta.
+- `tests/student-portal/runtime/system-health-public-entry.workerd.ts`: 2 testes com a fonte real no Workerd e destino HTTP sintético interceptado; confirma HEAD compatível com o runtime, ausência de credenciais e recusa de 302 sem seguir o destino. A reprodução no Workerd detectou a incompatibilidade de `redirect: error` que o mock em Node não expunha.
 - `tests/student-portal/observability/maintenance-health-v1.test.ts` e `tests/platform-snapshot-resilience-v2.test.ts`: manutenção canônica e independência das fontes da plataforma.
 - `tests/student-portal/smoke/monitoring-969.postgres.ts`: 15 testes com Workerd, binding nomeado e PostgreSQL local descartável; papel restrito, transação somente leitura, limites, estrutura ausente, falha de lock e recuperação, negação de contextos e inacessibilidade pelo entrypoint público. Executar com a configuração `tests/student-portal/smoke/vitest.smoke.config.ts` e os pré-requisitos PostgreSQL do repositório.
 - `npm run verify`: lint, typecheck, suíte principal, builds do Centro e Portal e testes de runtime oficiais. Os testes PostgreSQL complementam esse comando.
