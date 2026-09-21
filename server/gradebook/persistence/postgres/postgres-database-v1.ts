@@ -1,11 +1,4 @@
-import type {
-  D1WriteDatabaseV1,
-  D1WriteRunResultV1,
-  D1WriteStatementV1,
-  D1WriteValueV1,
-} from '../d1/write/d1-write-adapter-v1';
-import { replaceImportSqlParametersV1 } from '../d1/transaction/d1-bounded-import-transport-v1';
-import { postgresJsonTextV1, type GradebookPostgresValueV1, type GradebookPostgresScalarV1 } from './postgres-values-v1';
+import type { GradebookPostgresValueV1, GradebookPostgresScalarV1 } from './postgres-values-v1';
 export type { GradebookPostgresScalarV1 } from './postgres-values-v1';
 
 type PostgresFactoryV1 = typeof import('postgres');
@@ -28,48 +21,7 @@ export interface GradebookPostgresSqlV1 extends GradebookPostgresQuerySqlV1 {
 const NUMERIC_COLUMNS =
   /(?:^|_)(?:count|version|term|year|size_bytes|sequence|index|write_count)$/u;
 const JSON_COLUMNS = /(?:^|_)(?:json|intent)$/u;
-const CHANGE_GUARD = /changes\(\)\s*=\s*\?/iu;
 const POSTGRES_TEXT_OID_V1 = 25;
-/**
- * Legacy D1/stream relation allowlist used only by the PostgreSQL compatibility facade.
- * This is NOT the current physical Gradebook catalog. Current relational code must use
- * explicit gradebook.<table> names; the current physical catalog is owned by BN-09.
- */
-export const LEGACY_D1_COMPAT_RELATION_NAMES_V1 = [
-  'academic_entity_streams',
-  'academic_entity_versions',
-  'academic_record_streams',
-  'academic_record_versions',
-  'academic_year_configuration_versions',
-  'academic_year_versions',
-  'academic_years',
-  'audit_occurrence_transitions',
-  'audit_record_streams',
-  'audit_record_versions',
-  'bulletin_snapshot_streams',
-  'bulletin_snapshot_versions',
-  'council_decision_streams',
-  'council_decision_versions',
-  'council_session_streams',
-  'council_session_versions',
-  'gradebook_import_stage_chunks',
-  'gradebook_import_stage_sessions',
-  'gradebook_schema_migrations',
-  'import_batch_files',
-  'import_batch_streams',
-  'import_batch_versions',
-  'import_diagnostics',
-  'logical_source_record_streams',
-  'logical_source_record_versions',
-  'logical_sources',
-  'source_file_logical_source_candidates',
-  'source_file_streams',
-  'source_file_versions',
-] as const;
-const LEGACY_D1_COMPAT_RELATION_V1 = new RegExp(
-  String.raw`\b(FROM|INTO|JOIN|TABLE|UPDATE)\s+(?!gradebook\.)(${LEGACY_D1_COMPAT_RELATION_NAMES_V1.join('|')})\b`,
-  'giu',
-);
 
 export interface GradebookPostgresDatabaseOptionsV1 {
   readonly maximumConnections?: number;
@@ -82,11 +34,8 @@ export interface GradebookPostgresDatabaseOptionsV1 {
 }
 
 /**
- * Native PostgreSQL reads for modules migrated off the D1 dialect (B-15). The query is
- * sent as written: `$n` placeholders and explicit casts, with no D1-to-PostgreSQL
- * translation. It shares the pool, connection timeouts, failure diagnostic and row
- * normalization of translated statements, so migrating a module changes its SQL, not
- * the rows it receives.
+ * PostgreSQL receives the query as written: `$n` placeholders and explicit casts.
+ * Reads and writes share connection limits, failure diagnostics and row normalization.
  */
 export interface GradebookPostgresReadPortV1 {
   query<Row extends Record<string, unknown>>(
@@ -107,11 +56,10 @@ export interface GradebookPostgresWritePortV1 extends GradebookPostgresReadPortV
   ): Promise<GradebookPostgresExecutionV1<Row>>;
 }
 
-/** What a transaction hands its callback: the D1 statement API plus the native read port,
- * both bound to the transaction's own connection. */
-export type GradebookPostgresTransactionV1 = D1WriteDatabaseV1 & GradebookPostgresWritePortV1;
+/** Both native ports are bound to the transaction's own physical connection. */
+export type GradebookPostgresTransactionV1 = GradebookPostgresWritePortV1;
 
-export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1, GradebookPostgresWritePortV1 {
+export interface GradebookPostgresDatabaseV1 extends GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
   lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;
   close(): Promise<void>;
@@ -166,43 +114,6 @@ function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFail
     ...(sqlState ? { sqlState } : {}),
     category,
   };
-}
-
-function jsonColumnNameV1(value: string): boolean {
-  return JSON_COLUMNS.test(value.replace(/^["']|["']$/gu, ''));
-}
-
-function castJsonColumnParametersV1(query: string): string {
-  let translated = query.replace(
-    /\bINSERT\s+INTO\s+([\w."]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/giu,
-    (match, relation: string, columnList: string, valueList: string) => {
-      const columns = columnList.split(',').map((column) => column.trim());
-      const values = valueList.split(',').map((value) => value.trim());
-      if (columns.length !== values.length) return match;
-      const next = values.map((value, index) =>
-        jsonColumnNameV1(columns[index] ?? '') && /^\$\d+$/u.test(value)
-          ? `${value}::jsonb`
-          : value,
-      );
-      return `INSERT INTO ${relation} (${columnList}) VALUES (${next.join(', ')})`;
-    },
-  );
-
-  translated = translated.replace(
-    /\b(\w+)\s*=\s*(\$\d+)(?!\s*::\s*jsonb\b)/giu,
-    (match, column: string, placeholder: string) =>
-      jsonColumnNameV1(column) ? `${column} = ${placeholder}::jsonb` : match,
-  );
-  return translated;
-}
-
-function jsonParameterIndexesV1(query: string): ReadonlySet<number> {
-  const indexes = new Set<number>();
-  for (const match of query.matchAll(/\$(\d+)\s*::\s*jsonb\b/giu)) {
-    const index = Number(match[1]) - 1;
-    if (Number.isSafeInteger(index) && index >= 0) indexes.add(index);
-  }
-  return indexes;
 }
 
 function safeInteger(value: bigint): number | string {
@@ -267,139 +178,13 @@ function normalizeRow(row: PostgresRowV1): PostgresRowV1 {
   return normalized;
 }
 
-function appendOnConflictDoNothing(query: string): string {
-  if (!/\bINSERT\s+OR\s+IGNORE\s+INTO\b/iu.test(query)) return query;
-  const translated = query.replace(/\bINSERT\s+OR\s+IGNORE\s+INTO\b/giu, 'INSERT INTO');
-  if (/\bON\s+CONFLICT\b/iu.test(translated)) return translated;
-  const returning = translated.search(/\bRETURNING\b/iu);
-  if (returning >= 0) {
-    return `${translated.slice(0, returning)}ON CONFLICT DO NOTHING ${translated.slice(returning)}`;
-  }
-  return `${translated.replace(/;\s*$/u, '')} ON CONFLICT DO NOTHING`;
-}
-
-function postgresJsonPath(path: string): string {
-  if (path === '$') return '{}';
-  const parts = path
-    .replace(/^\$\.?/u, '')
-    .replace(/\[(\d+)\]/gu, '.$1')
-    .split('.')
-    .filter(Boolean);
-  if (parts.some((part) => !/^[A-Za-z0-9_-]+$/u.test(part))) {
-    throw new Error('gradebook-postgres-json-path-invalid');
-  }
-  return `{${parts.join(',')}}`;
-}
-
-function translateJsonExtract(query: string): string {
-  const booleanAware = query.replace(
-    /json_extract\(\s*([^,()]+?)\s*,\s*'\$\.knownIdenticalContent'\s*\)/giu,
-    "COALESCE(($1::jsonb #>> '{knownIdenticalContent}')::boolean, false)",
-  );
-  return booleanAware.replace(
-    /json_extract\(\s*([^,()]+?)\s*,\s*'(\$(?:\.[A-Za-z0-9_-]+|\[\d+\])*)'\s*\)/giu,
-    (_match, expression: string, path: string) =>
-      `(${expression.trim()}::jsonb #>> '${postgresJsonPath(path)}')`,
-  );
-}
-
-function translateJsonEach(query: string): string {
-  if (!/FROM\s+json_each\(\$\d+\)/iu.test(query)) return query;
-  return query
-    .replace(/CAST\(\s*key\s+AS\s+INTEGER\s*\)/giu, 'CAST(key - 1 AS INTEGER)')
-    .replace(/CAST\(\s*value\s+AS\s+TEXT\s*\)/giu, "(value #>> '{}')")
-    .replace(
-      /FROM\s+json_each\((\$\d+)\)\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)/giu,
-      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS $2(value, key)',
-    )
-    .replace(
-      /FROM\s+json_each\((\$\d+)\)/giu,
-      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS json_each(value, key)',
-    );
-}
-
-function qualifyGradebookRelations(query: string): string {
-  return query.replace(LEGACY_D1_COMPAT_RELATION_V1, '$1 gradebook.$2');
-}
-
-/**
- * Converts the deliberately small SQLite surface used by the provider-independent
- * gradebook repositories into PostgreSQL syntax. Values remain parameters; this
- * function never interpolates application data.
- */
-export function translateGradebookD1SqlToPostgresV1(query: string): string {
-  let translated = query.trim().replace(/^BEGIN\s+IMMEDIATE$/iu, 'BEGIN');
-  translated = appendOnConflictDoNothing(translated);
-  translated = translated.replace(/\bchar\(0\)/giu, 'chr(31)');
-  translated = translated.replace(
-    /json\(\s*'([^']*gradebook_[^']*_failure)'\s*\)/giu,
-    "CAST('$1' AS integer)",
-  );
-  translated = translateJsonExtract(translated);
-  translated = translated.replace(
-    /(\([^()\n]+::jsonb\s+#>>\s+'\{[^']*\}'\))\s+AS\s+([A-Za-z0-9_]+_at)\b/giu,
-    '$1::timestamptz AS $2',
-  );
-  translated = translated.replace(
-    /(\([^()\n]+::jsonb\s+#>>\s+'\{[^']*\}'\))\s+AS\s+([A-Za-z0-9_]+_json)\b/giu,
-    '$1::jsonb AS $2',
-  );
-  translated = replaceImportSqlParametersV1(translated, (index) => `$${String(index + 1)}`);
-  translated = translateJsonEach(translated);
-  return qualifyGradebookRelations(translated);
-}
-
-class GradebookPostgresStatementV1 implements D1WriteStatementV1 {
-  constructor(
-    private readonly owner: GradebookPostgresFacadeV1,
-    readonly sourceQuery: string,
-    readonly values: readonly D1WriteValueV1[] = [],
-  ) {}
-
-  bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
-    return new GradebookPostgresStatementV1(this.owner, this.sourceQuery, values);
-  }
-
-  async first<Row extends PostgresRowV1>(): Promise<Row | null> {
-    const result = await this.owner.execute(this.sourceQuery, this.values);
-    return (result.rows[0] as Row | undefined) ?? null;
-  }
-
-  async all<Row extends PostgresRowV1>(): Promise<{ readonly results: readonly Row[] }> {
-    const result = await this.owner.execute(this.sourceQuery, this.values);
-    return { results: result.rows as readonly Row[] };
-  }
-
-  async run(): Promise<D1WriteRunResultV1> {
-    const result = await this.owner.execute(this.sourceQuery, this.values);
-    return { success: true, changes: result.changes, meta: { changes: result.changes } };
-  }
-}
-
-class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
+class GradebookPostgresFacadeV1 implements GradebookPostgresWritePortV1 {
   constructor(
     private readonly sql: GradebookPostgresQuerySqlV1,
     private readonly root: GradebookPostgresSqlV1,
     private readonly transactional: boolean,
     private readonly failureState: GradebookPostgresFailureStateV1,
   ) {}
-
-  prepare(query: string): D1WriteStatementV1 {
-    return new GradebookPostgresStatementV1(this, query);
-  }
-
-  async execute(query: string, values: readonly D1WriteValueV1[]): Promise<GradebookPostgresExecutionV1> {
-    const translated = castJsonColumnParametersV1(
-      translateGradebookD1SqlToPostgresV1(query),
-    );
-    const jsonParameters = jsonParameterIndexesV1(translated);
-    const parameters = values.map((value, index) =>
-      jsonParameters.has(index) && typeof value === 'string'
-        ? postgresJsonTextV1(value)
-        : value,
-    );
-    return this.executeNative(translated, parameters);
-  }
 
   async executeNative<Row extends PostgresRowV1 = PostgresRowV1>(
     text: string,
@@ -428,51 +213,6 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     parameters: readonly GradebookPostgresScalarV1[],
   ): Promise<readonly Row[]> {
     return (await this.executeNative<Row>(text, parameters)).rows;
-  }
-
-  async exec(query: string): Promise<unknown> {
-    return this.execute(query, []);
-  }
-
-  async batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]> {
-    const executeBatch = async (transactionSql: GradebookPostgresQuerySqlV1) => {
-      const transaction = new GradebookPostgresFacadeV1(
-        transactionSql,
-        this.root,
-        true,
-        this.failureState,
-      );
-      const results: D1WriteRunResultV1[] = [];
-      let previousChanges: number | null = null;
-
-      for (const statement of statements) {
-        if (!(statement instanceof GradebookPostgresStatementV1)) {
-          throw new Error('gradebook-postgres-statement-invalid');
-        }
-        if (CHANGE_GUARD.test(statement.sourceQuery)) {
-          const expected = statement.values[0];
-          if (typeof expected !== 'number' || previousChanges !== expected) {
-            const marker = /durability/iu.test(statement.sourceQuery)
-              ? 'gradebook_durability_batch_guard_failure'
-              : 'gradebook_atomic_batch_guard_failure';
-            throw new Error(marker);
-          }
-          results.push({ success: true, changes: 0, meta: { changes: 0 } });
-          continue;
-        }
-
-        const result = await transaction.execute(statement.sourceQuery, statement.values);
-        previousChanges = result.changes;
-        results.push({
-          success: true,
-          changes: result.changes,
-          meta: { changes: result.changes },
-        });
-      }
-      return results;
-    };
-
-    return this.transactional ? executeBatch(this.sql) : this.root.begin(executeBatch);
   }
 
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T> {
@@ -527,11 +267,8 @@ export function createGradebookPostgresDatabaseFromSqlV1(
   const failureState: GradebookPostgresFailureStateV1 = { value: null };
   const facade = new GradebookPostgresFacadeV1(sql, sql, false, failureState);
   return {
-    prepare: facade.prepare.bind(facade),
     query: facade.query.bind(facade),
     executeNative: facade.executeNative.bind(facade),
-    exec: facade.exec.bind(facade),
-    batch: facade.batch.bind(facade),
     transaction: facade.transaction.bind(facade),
     lastFailure: () => failureState.value,
     async close() {
