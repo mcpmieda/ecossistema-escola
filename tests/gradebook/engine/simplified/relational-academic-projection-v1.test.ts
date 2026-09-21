@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { D1ReadDatabaseV1 } from '../../../../server/gradebook/persistence/d1/read/d1-read-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalAcademicProjectionServiceV1 } from '../../../../server/gradebook/application/results/relational-academic-projection-v1';
 
 type Row = Record<string, unknown>;
@@ -9,25 +9,13 @@ function fakeDatabase(input: {
   readonly instruments?: readonly Row[];
   readonly closing?: Row | null;
   readonly queries?: string[];
-}): D1ReadDatabaseV1 {
+}): GradebookPostgresReadPortV1 {
   return {
-    prepare(sql: string) {
+    async query<T extends Row>(sql: string) {
       input.queries?.push(sql);
-      return {
-        bind() {
-          return this;
-        },
-        async first<T extends Row>() {
-          if (sql.includes('FROM gradebook.oferta o')) return (input.base ?? null) as T | null;
-          if (sql.includes('FROM gradebook.fechamento')) return (input.closing ?? null) as T | null;
-          return null;
-        },
-        async all<T extends Row>() {
-          return {
-            results: (sql.includes('FROM gradebook.instrumento i') ? input.instruments ?? [] : []) as readonly T[],
-          };
-        },
-      };
+      if (sql.includes('FROM gradebook.oferta o')) return (input.base ? [input.base] : []) as T[];
+      if (sql.includes('FROM gradebook.fechamento')) return (input.closing ? [input.closing] : []) as T[];
+      return (sql.includes('FROM gradebook.instrumento i') ? input.instruments ?? [] : []) as readonly T[];
     },
   };
 }

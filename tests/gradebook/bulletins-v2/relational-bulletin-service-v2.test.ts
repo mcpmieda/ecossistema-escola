@@ -14,6 +14,7 @@ import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gr
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
+  type GradebookPostgresReadPortV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { testEnv } from '../../fixtures';
@@ -384,8 +385,7 @@ describe('relational bulletin V2', () => {
 
   it('materializes a batch with a bounded academic query count instead of N+1 reads', async () => {
     const academicQueries: string[] = [];
-    const counted = (target: D1WriteDatabaseV1): D1WriteDatabaseV1 => ({
-      prepare(query) {
+    const record = (query: string) => {
         if (
           !query.includes('gradebook.boletim_snapshot') &&
           !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
@@ -393,7 +393,16 @@ describe('relational bulletin V2', () => {
         ) {
           academicQueries.push(query);
         }
+    };
+    type CountedDatabase = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
+    const counted = (target: CountedDatabase): CountedDatabase => ({
+      prepare(query) {
+        record(query);
         return target.prepare(query);
+      },
+      query(query, values) {
+        record(query);
+        return target.query(query, values);
       },
       exec(query) {
         return target.exec(query);
@@ -402,7 +411,7 @@ describe('relational bulletin V2', () => {
     });
     const countedDatabase = {
       ...counted(database),
-      transaction: <T>(operation: (tx: D1WriteDatabaseV1) => Promise<T>) =>
+      transaction: <T>(operation: (tx: CountedDatabase) => Promise<T>) =>
         database.transaction((tx) => operation(counted(tx))),
     };
     const workspace = createRelationalBulletinServiceV2({

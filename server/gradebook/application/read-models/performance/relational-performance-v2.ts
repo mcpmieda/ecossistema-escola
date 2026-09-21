@@ -3,6 +3,7 @@ import {
   assessmentNamesSchemaV1,
 } from '../../../../../shared/gradebook-contracts/settings/assessment-names-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../../persistence/postgres/active-instrument-predicate-v1';
+import { createGradebookPostgresParametersV1 as parameters } from '../../../persistence/postgres/postgres-parameters-v1';
 import {
   compareSourceSubjectPresentationV1,
   sourceSubjectAbbreviationV1,
@@ -67,17 +68,6 @@ const all = (
   sql: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<readonly Row[]> => db.query<Row>(sql, values);
-/** Numbers each placeholder as its value is recorded, so SQL text and values cannot drift. */
-function parameters() {
-  const values: D1WriteValueV1[] = [];
-  return {
-    values,
-    param(value: D1WriteValueV1): string {
-      values.push(value);
-      return `$${String(values.length)}`;
-    },
-  };
-}
 const STATUS_LABELS = {
   1: 'Especial',
   2: 'Assistido',

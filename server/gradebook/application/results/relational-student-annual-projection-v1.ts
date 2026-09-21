@@ -1,4 +1,4 @@
-import type { D1ReadDatabaseV1 } from '../../persistence/d1/read/d1-read-adapter-v1';
+import type { GradebookPostgresReadPortV1 } from '../../persistence/postgres/postgres-database-v1';
 import {
   createRelationalAcademicProjectionServiceV1,
   type RelationalAcademicProjectionV1,
@@ -134,12 +134,12 @@ function formalCouncilDecision(
   }
 }
 
-async function first<T extends Row>(database: D1ReadDatabaseV1, sql: string, values: readonly BindValue[]): Promise<T | null> {
-  return database.prepare(sql).bind(...values).first<T>();
+async function first<T extends Row>(database: GradebookPostgresReadPortV1, sql: string, values: readonly BindValue[]): Promise<T | null> {
+  return (await database.query<T>(sql, values))[0] ?? null;
 }
 
-async function all<T extends Row>(database: D1ReadDatabaseV1, sql: string, values: readonly BindValue[]): Promise<readonly T[]> {
-  return (await database.prepare(sql).bind(...values).all<T>()).results;
+async function all<T extends Row>(database: GradebookPostgresReadPortV1, sql: string, values: readonly BindValue[]): Promise<readonly T[]> {
+  return database.query<T>(sql, values);
 }
 
 function comparisonSummary(values: readonly RelationalSourceComparisonV1[]): RelationalComparisonSummaryV1 {
@@ -155,7 +155,7 @@ const EMPTY_COMPARISON_SUMMARY_V1: RelationalComparisonSummaryV1 = {
 };
 
 export function createRelationalStudentAnnualProjectionServiceV1(
-  database: D1ReadDatabaseV1,
+  database: GradebookPostgresReadPortV1,
   dependencies: RelationalStudentAnnualProjectionDependenciesV1 = {},
 ) {
   const academic = createRelationalAcademicProjectionServiceV1(database);
@@ -185,7 +185,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
          JOIN gradebook.turma t ON t.id = v.turma_id AND t.ano = v.ano
          JOIN gradebook.ano_letivo y ON y.ano = a.ano
          LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id = a.id
-         WHERE a.id = ? AND a.ano = ?`, [input.alunoId, input.ano]);
+         WHERE a.id = $1 AND a.ano = $2`, [input.alunoId, input.ano]);
       if (!base) throw new RelationalStudentAnnualProjectionErrorV1('student-current-binding-not-found');
       const ano = asInteger(base.ano);
       const turmaId = positiveInteger(base.turma_id);
@@ -217,7 +217,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
          FROM gradebook.oferta o
          JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
          JOIN gradebook.professor p ON p.id = o.professor_id AND p.ano = o.ano
-         WHERE o.ano = ? AND o.turma_id = ?`, [ano, turmaId]);
+         WHERE o.ano = $1 AND o.turma_id = $2`, [ano, turmaId]);
       const disciplineIds = new Set<number>();
       // Validate the entire offer set before projecting any component.
       const offers = offerRows.map((row) => {

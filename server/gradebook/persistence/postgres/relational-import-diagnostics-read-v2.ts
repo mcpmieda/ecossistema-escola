@@ -4,7 +4,7 @@ import type {
   GradebookImportDiagnosticSeverityV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { RELATIONAL_INSTITUTIONAL_REPORTS_LIMITS_V2 } from '../../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
-import type { D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
+import { createGradebookPostgresParametersV1 } from './postgres-parameters-v1';
 import type { GradebookPostgresReadPortV1 } from './postgres-database-v1';
 
 type Row = Record<string, unknown>;
@@ -87,12 +87,7 @@ export function relationalImportDiagnosticRecordV2(row: Row): GradebookImportDia
 export function createRelationalImportDiagnosticsReadV2(database: GradebookPostgresReadPortV1) {
   return Object.freeze({
     async list(request: RelationalImportDiagnosticsReadRequestV2): Promise<RelationalImportDiagnosticsReadPageV2> {
-      // Each placeholder is numbered as its value is recorded, so text and values cannot drift.
-      const values: D1WriteValueV1[] = [];
-      const param = (value: D1WriteValueV1): string => {
-        values.push(value);
-        return `$${String(values.length)}`;
-      };
+      const { values, param } = createGradebookPostgresParametersV1();
       const clauses = [`d.ano = ${param(request.year)}`];
       if (request.severities.length > 0) {
         clauses.push(`d.nivel IN (${request.severities.map((severity) => param(severity)).join(',')})`);
