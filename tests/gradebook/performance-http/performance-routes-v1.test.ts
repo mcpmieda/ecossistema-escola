@@ -12,6 +12,16 @@ const env = { OFFICIAL_ORIGIN: ORIGIN } as RuntimeEnv;
 const academicYearId = 'year-synthetic-2026' as AcademicYearId;
 const classGroupId = 'class-synthetic-a' as ClassGroupId;
 
+function detailReference(operation: 'student-detail' | 'cell-detail', overrides: Record<string, unknown> = {}): string {
+  const payload = operation === 'student-detail'
+    ? { version: 1, academicYearId, classGroupId, detailKey: 'synthetic:student', ...overrides }
+    : { version: 1, detailKey: 'synthetic:cell', scope: JSON.stringify({
+      version: 1, academicYearId, classGroupId, period: { kind: 'term', term: 1 },
+      mode: 'regular', lens: 'result', comparisonPeriod: null,
+    }), ...overrides };
+  return `class-performance-${operation}-v1.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
+}
+
 function matrixRequest(
   overrides: Partial<ClassPerformanceRequestV1> = {},
 ): ClassPerformanceRequestV1 {
@@ -146,13 +156,28 @@ describe('Performance HTTP V1 retirement', () => {
       matrixRequest({ lens: 'result', mode: 'recovery' }), matrixRequest({ lens: 'quantitative', period: { kind: 'annual' } }),
       matrixRequest({ comparisonPeriod: { kind: 'term', term: 2 } })];
     const bodies = [...matrices.map((value) => ({ transportVersion: 1, operation: 'matrix', request: value })),
-      { transportVersion: 1, operation: 'student-detail', detailRef: 'opaque-synthetic-student' },
-      { transportVersion: 1, operation: 'cell-detail', detailRef: 'opaque-synthetic-cell' }];
+      { transportVersion: 1, operation: 'student-detail', detailRef: detailReference('student-detail') },
+      { transportVersion: 1, operation: 'cell-detail', detailRef: detailReference('cell-detail') }];
     for (const body of bodies) {
       const response = await route(request(body), guarded);
       expect(response?.status).toBe(410);
       expect(response?.headers.get('Cache-Control')).toContain('no-store');
       await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'unavailable' });
+    }
+    expect(access).not.toHaveBeenCalled();
+  });
+  it.each(['student-detail', 'cell-detail'] as const)('preserves pure reference validation for %s before retirement', async (operation) => {
+    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
+    const guarded = Object.defineProperties({ ...env }, {
+      GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access }, PROD_DB: { get: access },
+    });
+    const route = handler();
+    for (const detailRef of ['opaque-synthetic-student', `class-performance-${operation}-v1.***`,
+      detailReference(operation, { detailKey: '' }), detailReference(operation, { unexpected: true }),
+      detailReference(operation, { version: 2 })]) {
+      const response = await route(request({ transportVersion: 1, operation, detailRef }), guarded);
+      expect(response?.status).toBe(400);
+      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'invalid-request', reason: 'invalid-detail-reference' });
     }
     expect(access).not.toHaveBeenCalled();
   });

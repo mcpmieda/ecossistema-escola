@@ -84,7 +84,11 @@ describe.each(cases)('legacy retirement #1079 $name', ({ path, handler, body, ex
     const { env, access } = environment('production');
     const invalid = await handler(request(path, env.OFFICIAL_ORIGIN, { ...body, actorId: 'forged' }), env);
     expect(invalid?.status).toBe(400);
-    const oversized = await handler(request(path, env.OFFICIAL_ORIGIN, { padding: 'x'.repeat(70_000) }), env);
+    const valid = request(path, env.OFFICIAL_ORIGIN, body);
+    const oversized = await handler(new Request(valid.url, {
+      method: valid.method, headers: valid.headers,
+      body: JSON.stringify(body) + ' '.repeat(70_000),
+    }), env);
     expect([400, 413]).toContain(oversized?.status);
     await expect(handler(request(path, env.OFFICIAL_ORIGIN, undefined, 'ADMINISTRADOR', 'GET'), env)).rejects.toMatchObject({ status: 405 });
     const foreign = request(path, env.OFFICIAL_ORIGIN, body);

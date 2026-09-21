@@ -8,6 +8,7 @@ import { performanceTermComparisonRequestSchemaV4 } from '../../../shared/gradeb
 import { createPerformanceTermComparisonV4 } from '../application/read-models/performance/performance-term-comparison-v4';
 import { performanceRequestSchemaV2 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { createRelationalPerformanceV2 } from '../application/read-models/performance/relational-performance-v2';
+import { decodeCellDetailRef, decodeStudentDetailRef } from '../application/read-models/performance/class-performance-read-model-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import {
   PERFORMANCE_TRANSPORT_VERSION_V1,
@@ -268,6 +269,10 @@ export function createPerformanceRequestHandlerV1(
     if (currentResponse !== null) return currentResponse;
 
     if (!isPerformanceTransportRequestV1(payload)) return invalidRequest('invalid-request');
+    if ((payload.operation === 'student-detail' && decodeStudentDetailRef(payload.detailRef) === null)
+      || (payload.operation === 'cell-detail' && decodeCellDetailRef(payload.detailRef) === null)) {
+      return invalidRequest('invalid-detail-reference');
+    }
     return unavailable(410);
   };
 }

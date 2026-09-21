@@ -39,7 +39,7 @@ contratos ou calculos apenas por terem sufixo V1. V9/V10/V11 permanecem atuais.
 
 ## Aceite e limites
 
-Varredura AST na candidata integrada: 866 arquivos JS/TS ativos, 3.086 arestas,
+Varredura AST na candidata integrada: 866 arquivos JS/TS ativos, 3.087 arestas,
 zero imports relativos nao resolvidos, zero modulos em `persistence/d1` e zero
 arestas ativas para D1 ou `Aprendizados`. Imports de valor, tipo, reexports,
 imports dinamicos literais e `require` literal foram examinados. A suite

@@ -21,7 +21,7 @@ function forbiddenImports(path: string, text: string): string[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
   const record = (specifier: ts.Node | undefined) => {
-    if (!specifier || !ts.isStringLiteral(specifier)) return;
+    if (!specifier || !ts.isStringLiteralLike(specifier)) return;
     const target = relative(root, resolve(dirname(path), specifier.text)).replaceAll('\\', '/');
     if (target.startsWith('Aprendizados/') || target.includes('server/gradebook/persistence/d1/')) {
       found.push(specifier.text);
@@ -59,10 +59,13 @@ describe('retired D1 runtime boundary #1079', () => {
       `type Runtime = import('${target}').Runtime;`,
       `import('${target}');`,
       `require('${target}');`,
+      'import(`' + target + '`);',
+      'require(`' + target + '`);',
     ]) expect(forbiddenImports(path, statement), statement).toEqual([target]);
     expect(forbiddenImports(path, `readFileSync('${target}');`)).toEqual([]);
     const archived = `../${archive}server/gradebook/persistence/d1/runtime/d1-runtime-v1`;
     expect(forbiddenImports(path, `import('${archived}');`)).toEqual([archived]);
+    expect(forbiddenImports(path, 'import(`' + archived + '`);')).toEqual([archived]);
   });
 
   it('does not expose the retired protocol on root, transaction or lazy PostgreSQL ports', async () => {
