@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthenticationError } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
-import type { InstitutionalReportsServiceV1 } from '../../../server/gradebook/application/reports/institutional-reports-service-v1';
 import {
   createInstitutionalReportsRequestHandlerV1,
   GRADEBOOK_INSTITUTIONAL_REPORTS_ROUTE_V1,
@@ -53,21 +52,13 @@ function request(payload: unknown, path = GRADEBOOK_INSTITUTIONAL_REPORTS_ROUTE_
 }
 
 function fixture(options: { readonly unauthenticated?: boolean } = {}) {
-  const execute = vi.fn(async () => ({
-    contractVersion: INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1,
-    state: 'empty' as const,
-    family: 'class-results' as const,
-    report: null,
-    hardStop: null,
-  }));
-  const service = { execute } as InstitutionalReportsServiceV1;
-  const createService = vi.fn(() => service);
+  const createRelationalService = vi.fn(() => { throw new Error('retired-request-must-not-compose-service'); });
   const authorizeRequest = vi.fn(async () => {
     if (options.unauthenticated) throw new AuthenticationError();
     return authorization;
   });
-  const handler = createInstitutionalReportsRequestHandlerV1({ authorizeRequest, createService });
-  return { handler, execute, createService, authorizeRequest };
+  const handler = createInstitutionalReportsRequestHandlerV1({ authorizeRequest, createRelationalService });
+  return { handler, createRelationalService, authorizeRequest };
 }
 
 describe('Institutional reports HTTP V1', () => {
@@ -78,7 +69,7 @@ describe('Institutional reports HTTP V1', () => {
   });
 
   it('exige autenticação sem inventar família e sempre usa no-store', async () => {
-    const { handler, createService } = fixture({ unauthenticated: true });
+    const { handler, createRelationalService } = fixture({ unauthenticated: true });
     const response = await handler(request(body()), env());
     expect(response?.status).toBe(401);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
@@ -88,31 +79,31 @@ describe('Institutional reports HTTP V1', () => {
       report: null,
       hardStop: null,
     });
-    expect(createService).not.toHaveBeenCalled();
+    expect(createRelationalService).not.toHaveBeenCalled();
   });
 
   it('rejeita bounds/regras client-side antes de compor qualquer fonte', async () => {
-    const { handler, createService } = fixture();
+    const { handler, createRelationalService } = fixture();
     const invalid = { ...body(), academicRules: [{ formula: 'synthetic-forbidden' }] };
     const response = await handler(request(invalid), env());
     expect(response?.status).toBe(400);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
     expect(await response?.json()).toMatchObject({ state: 'invalid-request', report: null });
-    expect(createService).not.toHaveBeenCalled();
+    expect(createRelationalService).not.toHaveBeenCalled();
   });
 
-  it('encaminha request oficial ao serviço read-only e responde no-store', async () => {
-    const { handler, createService, execute } = fixture();
+  it('retira a request V1 com 410 e no-store sem compor servico', async () => {
+    const { handler, createRelationalService } = fixture();
     const response = await handler(request(body()), env());
-    expect(response?.status).toBe(200);
+    expect(response?.status).toBe(410);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
     expect(response?.headers.get('Pragma')).toBe('no-cache');
-    expect(createService).toHaveBeenCalledWith(env(), authorization);
-    expect(execute).toHaveBeenCalledWith(body());
+    expect(createRelationalService).not.toHaveBeenCalled();
     expect(await response?.json()).toMatchObject({
       contractVersion: 1,
-      state: 'empty',
-      family: 'class-results',
+      state: 'unavailable',
+      report: null,
+      hardStop: null,
     });
   });
 });

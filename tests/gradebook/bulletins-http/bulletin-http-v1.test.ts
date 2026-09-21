@@ -84,8 +84,9 @@ describe('Boletins HTTP V1', () => {
       ),
       env,
     );
-    expect(response?.status).toBe(503);
+    expect(response?.status).toBe(410);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
+    await expect(response?.json()).resolves.toEqual({ contractVersion: 1, operation: 'bootstrap', state: 'unavailable' });
     expect(prepare).not.toHaveBeenCalled();
   });
 

@@ -1,7 +1,6 @@
 import {
   INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1,
   inspectInstitutionalReportRequestV1,
-  type InstitutionalReportRequestV1,
   type InstitutionalReportResponseV1,
 } from '../../../shared/gradebook-contracts/reports/institutional-reports-contract-v1';
 import {
@@ -19,10 +18,6 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import {
-  createInstitutionalReportsServiceV1,
-  type InstitutionalReportsServiceV1,
-} from '../application/reports/institutional-reports-service-v1';
-import {
   createRelationalInstitutionalReportsServiceV2,
   type RelationalInstitutionalReportsServiceV2,
 } from '../application/reports/relational-institutional-reports-v2';
@@ -34,7 +29,6 @@ import {
   authorizeGradebookRuntimeV1,
   type GradebookRuntimeAuthorizationV1,
 } from '../authorization-v1';
-import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
 import { createRelationalImportDiagnosticsReadV2 } from '../persistence/postgres/relational-import-diagnostics-read-v2';
@@ -77,7 +71,7 @@ function notAuthorized(status: 401 | 403): Response {
   );
 }
 
-function unavailable(): Response {
+function unavailable(status = 503): Response {
   return noStoreJson(
     {
       contractVersion: INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1,
@@ -85,7 +79,7 @@ function unavailable(): Response {
       report: null,
       hardStop: null,
     } satisfies InstitutionalReportResponseV1,
-    503,
+    status,
   );
 }
 
@@ -97,10 +91,6 @@ export interface InstitutionalReportsRequestHandlerDependenciesV1 {
     readonly runtimeAuthorization: GradebookRuntimeAuthorizationV1;
     readonly actorOid: string;
   }>;
-  createService(
-    env: RuntimeEnv,
-    authorization: GradebookRuntimeAuthorizationV1,
-  ): InstitutionalReportsServiceV1;
   createRelationalService?(
     env: RuntimeEnv,
     actorOid: string,
@@ -114,22 +104,6 @@ const defaultDependencies: InstitutionalReportsRequestHandlerDependenciesV1 = {
       runtimeAuthorization: authorizeGradebookRuntimeV1(session),
       actorOid: session.oid,
     };
-  },
-  createService(env, authorization) {
-    const runtime = createGradebookD1RuntimeV1(env, authorization);
-    return createInstitutionalReportsServiceV1({
-      performance: runtime.classPerformanceReadModel(),
-      council: runtime.councilWorkspace({
-        decisionIdentity() {
-          throw new Error('institutional-reports-read-only');
-        },
-      }),
-      audit: runtime.auditWorkspace({
-        resolutionIdentity() {
-          throw new Error('institutional-reports-read-only');
-        },
-      }),
-    });
   },
   createRelationalService(env, actorOid) {
     // Reached only with the PostgreSQL provider: under D1 the handler fails closed before
@@ -148,13 +122,6 @@ const defaultDependencies: InstitutionalReportsRequestHandlerDependenciesV1 = {
     });
   },
 };
-
-function responseStatus(response: InstitutionalReportResponseV1): number {
-  if (response.state === 'invalid-request') return 400;
-  if (response.state === 'not-authorized') return 403;
-  if (response.state === 'unavailable') return 503;
-  return 200;
-}
 
 function relationalResponseStatus(response: RelationalInstitutionalReportResponseV2): number {
   if (response.state === 'invalid-request') return 400;
@@ -185,15 +152,11 @@ export function createInstitutionalReportsRequestHandlerV1(
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
-    let authorization: GradebookRuntimeAuthorizationV1;
     let actorOid = 'institutional-reports-read-only';
     try {
       const authorized = await dependencies.authorizeRequest(request, env);
       if ('runtimeAuthorization' in authorized) {
-        authorization = authorized.runtimeAuthorization;
         actorOid = authorized.actorOid;
-      } else {
-        authorization = authorized;
       }
     } catch (cause) {
       if (cause instanceof AuthenticationError) return notAuthorized(401);
@@ -246,15 +209,7 @@ export function createInstitutionalReportsRequestHandlerV1(
     }
     if (inspectInstitutionalReportRequestV1(payload) !== 'ready') return invalidRequest();
 
-    let service: InstitutionalReportsServiceV1;
-    try {
-      service = dependencies.createService(env, authorization);
-    } catch {
-      return unavailable();
-    }
-
-    const response = await service.execute(payload as InstitutionalReportRequestV1);
-    return noStoreJson(response, responseStatus(response));
+    return unavailable(410);
   };
 }
 

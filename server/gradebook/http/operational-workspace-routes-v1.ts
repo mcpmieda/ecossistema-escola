@@ -5,7 +5,6 @@ import {
 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1';
 import {
   isOperationalWorkspaceTransportRequestV1,
-  isOperationalWorkspaceTransportResponseV1,
 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import { isOperationalWorkspaceRequestV2 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { AuthenticationError, requireAuth } from '../../auth/session';
@@ -17,10 +16,8 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
-import { createOperationalWorkspaceServiceV1 } from '../application/operational-workspace/operational-workspace-service-v1';
 import { createRelationalWorkspaceV2 } from '../application/operational-workspace/relational-workspace-v2';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
-import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
 export const GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1 = '/api/gradebook/operational-workspace';
@@ -49,10 +46,9 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   enforceWriteOrigin(request, env);
 
-  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1>;
   try {
     const session = await requireAuth(request, env);
-    authorization = authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return notAuthorized(401);
     if (cause instanceof AuthorizationError) return notAuthorized(403);
@@ -81,14 +77,5 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
   // exist in that model and is deliberately rejected before the legacy runtime.
   if (!isOperationalWorkspaceTransportRequestV1(payload)) return unavailable(400);
 
-  try {
-    const runtime = createGradebookD1RuntimeV1(env, authorization);
-    if (!isOperationalWorkspaceTransportRequestV1(payload)) return unavailable(400);
-    const service = createOperationalWorkspaceServiceV1({academicYears:runtime.operationalWorkspaceAcademicYears(),readModels:runtime.operationalReadModels()});
-    const response = await service.execute(payload);
-    return isOperationalWorkspaceTransportResponseV1(response) ? noStoreJson(response) : unavailable(500);
-  } catch (cause) {
-    if (cause instanceof AuthenticationError || cause instanceof AuthorizationError) return notAuthorized(cause instanceof AuthenticationError ? 401 : 403);
-    return unavailable();
-  }
+  return unavailable(410);
 }

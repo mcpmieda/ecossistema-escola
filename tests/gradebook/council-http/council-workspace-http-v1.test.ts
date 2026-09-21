@@ -1,29 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-
 import { SESSION_COOKIE } from '../../../server/auth/session';
 import { seal } from '../../../server/auth/sealed';
 import type { RuntimeEnv } from '../../../server/env';
-import { createLocalCouncilDecisionStoreV1 } from '../../../server/gradebook/application/council/council-decision-store-v1';
-import { createLocalCouncilWorkspaceSourceV1 } from '../../../server/gradebook/application/council/council-workspace-source-v1';
-import { createCouncilWorkspaceV1 } from '../../../server/gradebook/application/council/council-workspace-v1';
-import {
-  createCouncilWorkspaceRequestHandlerV1,
-  GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1,
-} from '../../../server/gradebook/http/council-routes-v1';
-import type {
-  CouncilActorReferenceV1,
-  CouncilClassReferenceV1,
-  CouncilDecisionResponseV1,
-  CouncilQueueResponseV1,
-  CouncilStudentReferenceV1,
-  CouncilStudentResponseV1,
-} from '../../../shared/gradebook-contracts/council/council-workspace-contract-v1';
+import { createCouncilWorkspaceRequestHandlerV1, GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 } from '../../../server/gradebook/http/council-routes-v1';
+import type { CouncilClassReferenceV1, CouncilStudentReferenceV1 } from '../../../shared/gradebook-contracts/council/council-workspace-contract-v1';
+
 import type { AcademicYearId } from '../../../shared/gradebook-contracts/entities';
 import { testEnv } from '../../fixtures';
 
 const LOCAL_ORIGIN = 'http://localhost:8788';
 const SESSION_OID = '22222222-2222-4222-8222-222222222222';
-const SERVER_INSTANT = '2026-09-01T22:45:00.000Z';
 const academicYearId = 'academic-year:synthetic-council-http:2026' as AcademicYearId;
 const classReference = 'class:synthetic-council-http:6a' as CouncilClassReferenceV1;
 const studentReference = 'student:synthetic-council-http:1' as CouncilStudentReferenceV1;
@@ -33,7 +19,7 @@ function env(runtime: RuntimeEnv['RUNTIME_ENVIRONMENT'] = 'local'): RuntimeEnv {
   return {
     ...testEnv,
     RUNTIME_ENVIRONMENT: runtime,
-    OFFICIAL_ORIGIN: runtime === 'production' ? testEnv.OFFICIAL_ORIGIN : LOCAL_ORIGIN,
+    OFFICIAL_ORIGIN: runtime === 'production' ? testEnv.OFFICIAL_ORIGIN : runtime === 'preview' ? 'https://synthetic.pages.dev' : LOCAL_ORIGIN,
   };
 }
 
@@ -59,7 +45,7 @@ async function request(
   options: { readonly role?: TestRole; readonly runtime?: RuntimeEnv['RUNTIME_ENVIRONMENT'] } = {},
 ): Promise<Request> {
   const runtime = options.runtime ?? 'local';
-  const origin = runtime === 'production' ? testEnv.OFFICIAL_ORIGIN : LOCAL_ORIGIN;
+  const origin = runtime === 'production' ? testEnv.OFFICIAL_ORIGIN : runtime === 'preview' ? 'https://synthetic.pages.dev' : LOCAL_ORIGIN;
   return new Request(`${origin}${GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1}`, {
     method: 'POST',
     headers: await headers(options.role, origin),
@@ -100,124 +86,51 @@ function decisionBody() {
   } as const;
 }
 
-function fixture() {
-  const source = createLocalCouncilWorkspaceSourceV1({
-    students: [
-      {
-        academicYearId,
-        classReference,
-        classLabel: '6º A sintético',
-        studentReference,
-        studentLabel: 'Aluno Sintético HTTP',
-        calculated: {
-          queueState: 'eligible-for-council',
-          officialAnnualState: 'eligible-for-council',
-          failedComponentCount: 1,
-          coverage: {
-            state: 'complete',
-            expectedItemCount: 1,
-            resolvedItemCount: 1,
-            missingItemCount: 0,
-            reasons: [],
-          },
-          reason: 'Elegibilidade oficial sintética já resolvida.',
-        },
-        annualView: [],
-      },
-    ],
-  });
-  const decisions = createLocalCouncilDecisionStoreV1();
-  const createWorkspace = vi.fn((_env: RuntimeEnv, server) =>
-    createCouncilWorkspaceV1({ source, decisions, server }),
-  );
-  const handler = createCouncilWorkspaceRequestHandlerV1({
-    createWorkspace,
-    now: () => new Date(SERVER_INSTANT),
-  });
-  return { handler, createWorkspace };
+
+
+const bodies = [queueBody(), studentBody(), decisionBody()];
+const expected = [
+  { contractVersion: 1, outcome: 'unavailable', items: [], nextCursor: null },
+  { contractVersion: 1, outcome: 'unavailable', detail: null },
+  { contractVersion: 1, outcome: 'unavailable', currentVersion: null },
+];
+function guardedEnv(runtime: RuntimeEnv['RUNTIME_ENVIRONMENT'] = 'local') {
+  const value = env(runtime);
+  const access = vi.fn(() => { throw new Error('retired-council-storage-access'); });
+  Object.defineProperties(value, { GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access } });
+  return { value, access };
 }
-
-describe('Council Workspace HTTP V1', () => {
-  it('exige autenticação/capability e mantém respostas de acesso sem disclosure e no-store', async () => {
-    const { handler, createWorkspace } = fixture();
-    const unauthenticated = await handler(await request(queueBody()), env());
-    expect(unauthenticated?.status).toBe(401);
-    expect(unauthenticated?.headers.get('Cache-Control')).toContain('no-store');
-    expect(await unauthenticated?.text()).toBe('');
-
-    const forbidden = await handler(await request(queueBody(), { role: 'PROFESSOR' }), env());
-    expect(forbidden?.status).toBe(403);
-    expect(forbidden?.headers.get('Cache-Control')).toContain('no-store');
-    expect(await forbidden?.text()).toBe('');
-    expect(createWorkspace).not.toHaveBeenCalled();
-  });
-
-  it('delega produção autorizada ao runtime central sem duplicar o gate no bridge', async () => {
-    const { handler, createWorkspace } = fixture();
-    const response = await handler(
-      await request(queueBody(), { role: 'ADMINISTRADOR', runtime: 'production' }),
-      { ...env('production'), GRADEBOOK_PRODUCTION_ENABLED: 'true' },
-    );
-    expect(response?.status).toBe(200);
+describe('Council HTTP V1 retirement', () => {
+  it.each([[undefined, 401], ['PROFESSOR', 403]] as const)('preserves authorization for %s', async (role, status) => {
+    const { value, access } = guardedEnv();
+    const handler = createCouncilWorkspaceRequestHandlerV1();
+    const response = await handler(await request(bodies[0], { role }), value);
+    expect(response?.status).toBe(status);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    expect(createWorkspace).toHaveBeenCalledTimes(1);
-    expect(createWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({ RUNTIME_ENVIRONMENT: 'production' }),
-      expect.any(Object),
-    );
+    expect(await response?.text()).toBe('');
+    expect(access).not.toHaveBeenCalled();
   });
-
-  it('lista local/preview autorizado e usa o bridge dedicado com no-store', async () => {
-    const { handler } = fixture();
-    const response = await handler(await request(queueBody(), { role: 'ADMINISTRADOR' }), env());
-    expect(response?.status).toBe(200);
-    expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    const payload = (await response?.json()) as CouncilQueueResponseV1;
-    expect(payload).toMatchObject({
-      contractVersion: 1,
-      outcome: 'items',
-      academicYearId,
-      classReference,
-    });
-    if (payload.outcome !== 'items') throw new Error('Expected Council queue items.');
-    expect(payload.items).toHaveLength(1);
+  it.each(['local', 'preview', 'production'] as const)('retires every V1 operation without storage in %s', async (runtime) => {
+    const { value, access } = guardedEnv(runtime);
+    const handler = createCouncilWorkspaceRequestHandlerV1();
+    for (const [index, body] of bodies.entries()) {
+      const response = await handler(await request(body, { role: 'ADMINISTRADOR', runtime }), value);
+      expect(response?.status).toBe(410);
+      expect(response?.headers.get('Cache-Control')).toContain('no-store');
+      await expect(response?.json()).resolves.toEqual(expected[index]);
+    }
+    expect(access).not.toHaveBeenCalled();
   });
-
-  it('rejeita ator, instante, papel ou capability enviados pelo navegador antes do workspace', async () => {
-    const { handler, createWorkspace } = fixture();
-    const response = await handler(
-      await request(
-        {
-          ...decisionBody(),
-          actorReference: 'browser-actor',
-          decidedAt: '2000-01-01T00:00:00.000Z',
-          role: 'ADMINISTRADOR',
-          capability: 'gradebook.persistence.admin',
-        },
-        { role: 'ADMINISTRADOR' },
-      ),
-      env(),
-    );
-    expect(response?.status).toBe(400);
-    expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    expect(createWorkspace).not.toHaveBeenCalled();
-  });
-
-  it('registra decisão com ator da sessão e instante do servidor, nunca do browser', async () => {
-    const { handler } = fixture();
-    const applied = await handler(await request(decisionBody(), { role: 'ADMINISTRADOR' }), env());
-    expect(applied?.status).toBe(200);
-    const appliedPayload = (await applied?.json()) as CouncilDecisionResponseV1;
-    expect(appliedPayload.outcome).toBe('applied');
-    if (appliedPayload.outcome !== 'applied') throw new Error('Expected applied Council decision.');
-    expect(appliedPayload.record.actorReference).toBe(SESSION_OID as CouncilActorReferenceV1);
-    expect(appliedPayload.record.decidedAt).toBe(SERVER_INSTANT);
-    expect(appliedPayload.record.annualFinalDecision.basis).toBe('class-council');
-
-    const detail = await handler(await request(studentBody(), { role: 'ADMINISTRADOR' }), env());
-    const detailPayload = (await detail?.json()) as CouncilStudentResponseV1;
-    if (detailPayload.outcome !== 'detail') throw new Error('Expected Council student detail.');
-    expect(detailPayload.detail.version).toBe(1);
-    expect(detailPayload.detail.history).toHaveLength(1);
+  it('rejects browser-supplied identity, permissions and invalid bounds before retirement', async () => {
+    const { value, access } = guardedEnv();
+    const handler = createCouncilWorkspaceRequestHandlerV1();
+    for (const field of ['actorReference', 'occurredAt', 'decidedAt', 'role', 'capability', 'abstentions']) {
+      const response = await handler(await request({ ...bodies[2], [field]: 'forged' }, { role: 'ADMINISTRADOR' }), value);
+      expect(response?.status).toBe(400);
+      expect(response?.headers.get('Cache-Control')).toContain('no-store');
+    }
+    const invalid = await handler(await request({ ...bodies[2], expectedVersion: -1 }, { role: 'ADMINISTRADOR' }), value);
+    expect(invalid?.status).toBe(400);
+    expect(access).not.toHaveBeenCalled();
   });
 });
