@@ -38,7 +38,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     route: 'operacao',
     state: 'ready',
     requiredRole: 'ADMINISTRADOR',
-    capabilities: ['platform.health.read'],
+    capabilities: ['platform.health.read', 'platform.settings.read'],
   },
   {
     id: 'content.publications',
