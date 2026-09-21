@@ -69,16 +69,9 @@ describe('year reset V1 HTTP and UI boundary', () => {
   it('returns a private 409 for linked accounts and a 503 for a missing guard response', async () => {
     for (const state of ['portal-linked-accounts', null]) {
       const transaction = {
-        exec: async () => undefined,
+        executeNative: async () => ({ rows: [], changes: 0 }),
         query: async (sql: string) =>
           sql.includes('AS state') && state !== null ? [{ state }] : [],
-        prepare: () => {
-          const statement = {
-            bind: (..._values: unknown[]) => statement,
-            first: async () => (state === null ? null : { state }),
-          };
-          return statement;
-        },
       };
       const response = await http('ADMINISTRADOR', {
         GRADEBOOK_D1: {
