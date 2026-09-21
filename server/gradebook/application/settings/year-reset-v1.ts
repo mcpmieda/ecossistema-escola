@@ -65,20 +65,20 @@ function integer(value: unknown): number {
 }
 
 async function first(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   sql: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<Row | null> {
-  return database
-    .prepare(sql)
-    .bind(...values)
-    .first<Row>();
+  return (await database.query<Row>(sql, values))[0] ?? null;
 }
 
-async function loadCounts(database: D1WriteDatabaseV1, year: number): Promise<YearResetCountsV1> {
+async function loadCounts(
+  database: GradebookPostgresTransactionV1,
+  year: number,
+): Promise<YearResetCountsV1> {
   const row = await first(
     database,
-    `WITH y AS (SELECT ?::smallint AS ano)
+    `WITH y AS (SELECT $1::smallint AS ano)
      SELECT
        (SELECT count(*)::integer FROM gradebook.ano_letivo a,y WHERE a.ano=y.ano) AS academic_year,
        (SELECT count(*)::integer FROM gradebook.aluno a,y WHERE a.ano=y.ano) AS students,
@@ -137,29 +137,26 @@ async function loadCounts(database: D1WriteDatabaseV1, year: number): Promise<Ye
   };
 }
 
-function changed(result: {
-  readonly changes?: number;
-  readonly meta?: { readonly changes?: number };
-}): number {
-  const value = result.meta?.changes ?? result.changes;
+function changed(result: { readonly changes: number }): number {
+  const value = result.changes;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new Error('invalid-year-reset-write-count');
   }
   return value;
 }
 
-async function removeYear(database: D1WriteDatabaseV1, year: number): Promise<number> {
+async function removeYear(database: GradebookPostgresTransactionV1, year: number): Promise<number> {
   let deleted = 0;
   const run = async (sql: string) => {
-    deleted += changed(await database.prepare(sql).bind(year).run());
+    deleted += changed(await database.executeNative(sql, [year]));
   };
 
-  await database
-    .prepare('UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=?')
-    .bind(year)
-    .run();
+  await database.executeNative(
+    'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1',
+    [year],
+  );
   await run(`DELETE FROM gradebook.conselho_fechamento_item i USING gradebook.conselho_fechamento c
-    WHERE c.id=i.fechamento_id AND c.ano=?`);
+    WHERE c.id=i.fechamento_id AND c.ano=$1`);
   for (const table of [
     'conselho_sessao_historico',
     'conselho_votacao_historico',
@@ -171,34 +168,34 @@ async function removeYear(database: D1WriteDatabaseV1, year: number): Promise<nu
     'boletim_snapshot',
     'importacao_diagnostico_tratamento',
   ] as const) {
-    await run(`DELETE FROM gradebook.${table} WHERE ano=?`);
+    await run(`DELETE FROM gradebook.${table} WHERE ano=$1`);
   }
   await run(`DELETE FROM gradebook.nota_historico h USING gradebook.instrumento i,gradebook.oferta o
-    WHERE i.id=h.instrumento_id AND o.id=i.oferta_id AND o.ano=?`);
+    WHERE i.id=h.instrumento_id AND o.id=i.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.nota n USING gradebook.instrumento i,gradebook.oferta o
-    WHERE i.id=n.instrumento_id AND o.id=i.oferta_id AND o.ano=?`);
+    WHERE i.id=n.instrumento_id AND o.id=i.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.fechamento_historico h USING gradebook.oferta o
-    WHERE o.id=h.oferta_id AND o.ano=?`);
+    WHERE o.id=h.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.fechamento f USING gradebook.oferta o
-    WHERE o.id=f.oferta_id AND o.ano=?`);
+    WHERE o.id=f.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.instrumento_historico h USING gradebook.instrumento i,gradebook.oferta o
-    WHERE i.id=h.instrumento_id AND o.id=i.oferta_id AND o.ano=?`);
+    WHERE i.id=h.instrumento_id AND o.id=i.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.instrumento i USING gradebook.oferta o
-    WHERE o.id=i.oferta_id AND o.ano=?`);
+    WHERE o.id=i.oferta_id AND o.ano=$1`);
   await run(`DELETE FROM gradebook.vinculo_historico h USING gradebook.turma t
-    WHERE t.id=h.turma_id AND t.ano=?`);
-  await run('DELETE FROM gradebook.vinculo WHERE ano=?');
+    WHERE t.id=h.turma_id AND t.ano=$1`);
+  await run('DELETE FROM gradebook.vinculo WHERE ano=$1');
   for (const table of [
     'conselho_anterior_historico',
     'conselho_decisao_historico',
     'conselho_decisao',
   ] as const) {
     await run(`DELETE FROM gradebook.${table} c USING gradebook.aluno a
-      WHERE a.id=c.aluno_id AND a.ano=?`);
+      WHERE a.id=c.aluno_id AND a.ano=$1`);
   }
-  await run('DELETE FROM gradebook.importacao_diagnostico WHERE ano=?');
-  await run('DELETE FROM gradebook.importacao WHERE ano=?');
-  await run('DELETE FROM gradebook.oferta WHERE ano=?');
+  await run('DELETE FROM gradebook.importacao_diagnostico WHERE ano=$1');
+  await run('DELETE FROM gradebook.importacao WHERE ano=$1');
+  await run('DELETE FROM gradebook.oferta WHERE ano=$1');
   for (const table of [
     'aluno',
     'turma',
@@ -207,7 +204,7 @@ async function removeYear(database: D1WriteDatabaseV1, year: number): Promise<nu
     'ano_letivo_historico',
     'ano_letivo',
   ] as const) {
-    await run(`DELETE FROM gradebook.${table} WHERE ano=?`);
+    await run(`DELETE FROM gradebook.${table} WHERE ano=$1`);
   }
   return deleted;
 }
@@ -241,15 +238,17 @@ export function createYearResetServiceV1(database: D1WriteDatabaseV1, actorOid: 
         try {
           const response = await (database as TransactionalDatabase).transaction(
             async (transaction) => {
-              await transaction.exec(
+              await transaction.executeNative(
                 request.operation === 'preview'
                   ? 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'
                   : 'SET TRANSACTION ISOLATION LEVEL SERIALIZABLE',
+                [],
               );
               await lockYearResetV1(transaction, request.year, request.operation);
               if (request.operation === 'execute') {
-                await transaction.exec(
+                await transaction.executeNative(
                   `LOCK TABLE ${RESET_TABLES_V1.map((table) => `gradebook.${table}`).join(',')} IN SHARE ROW EXCLUSIVE MODE`,
+                  [],
                 );
               }
               const state = await yearResetProofV1(
