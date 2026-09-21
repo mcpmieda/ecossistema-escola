@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSystemHealthRequestV1 } from '../../server/platform/system-health-http-v1';
 import { requireAuth, AuthenticationError, SESSION_COOKIE } from '../../server/auth/session';
 import type { RuntimeEnv } from '../../server/env';
-import type { PortalMonitorSampleV1 } from '../../shared/system-health-v1';
+import { isSystemHealthSnapshotV1, type PortalMonitorSampleV1 } from '../../shared/system-health-v1';
 
 vi.mock('../../server/auth/session', () => ({
   SESSION_COOKIE: '__Host-ecossistema-session',
@@ -53,6 +53,7 @@ describe('authenticated system-health HTTP boundary', () => {
     expect(response?.headers.get('cache-control')).toContain('no-store');
     expect(response?.headers.get('x-content-type-options')).toBe('nosniff');
     const payload = await response!.json();
+    if (!isSystemHealthSnapshotV1(payload)) throw new Error('Invalid health response');
     expect(payload.portalReadState).toBe('ok');
     expect(payload.publicEntry.outcome).toBe('not-probed');
     expect(JSON.stringify(payload)).not.toContain(actor);
@@ -77,11 +78,11 @@ describe('authenticated system-health HTTP boundary', () => {
     expect(response?.status).toBe(401); expect(requireAuth).not.toHaveBeenCalled(); expect(monitoring).not.toHaveBeenCalled();
   });
   it.each([
-    { Origin: 'https://untrusted.invalid' }, { 'x-forwarded-host': 'untrusted.invalid' },
-    { 'x-original-url': '/api/elsewhere' }, { Host: 'untrusted.invalid' }, { 'Sec-Fetch-Site': 'cross-site' },
-  ])('rejects an untrusted request origin/host', async (headers) => {
+    ['Origin', 'https://untrusted.invalid'], ['x-forwarded-host', 'untrusted.invalid'],
+    ['x-original-url', '/api/elsewhere'], ['Host', 'untrusted.invalid'], ['Sec-Fetch-Site', 'cross-site'],
+  ])('rejects an untrusted request origin/host (%s)', async (name, value) => {
     const { env, monitoring } = fixture();
-    expect((await handleSystemHealthRequestV1(request({ headers }), env))?.status).toBe(403);
+    expect((await handleSystemHealthRequestV1(request({ headers: { [name]: value } }), env))?.status).toBe(403);
     expect(monitoring).not.toHaveBeenCalled();
   });
   it.each(['?url=https://untrusted.invalid', '#fragment'])('rejects unapproved URL data', async (suffix) => {
@@ -104,6 +105,7 @@ describe('authenticated system-health HTTP boundary', () => {
     const { env } = fixture(); env.PORTAL_SERVICE = {} as RuntimeEnv['PORTAL_SERVICE'];
     const response = await handleSystemHealthRequestV1(request(), env);
     const payload = await response!.json();
+    if (!isSystemHealthSnapshotV1(payload)) throw new Error('Invalid health response');
     expect(payload.portal).toBeNull(); expect(payload.portalReadState).toBe('unconfigured');
   });
   it('refuses preview access', async () => {
