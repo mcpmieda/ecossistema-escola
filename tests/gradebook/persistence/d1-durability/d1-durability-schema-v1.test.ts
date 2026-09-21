@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import { GradebookD1MigrationRunnerV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-migration-runner-v1';
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../../server/gradebook/persistence/d1/schema/migrations';
 import { LEGACY_D1_COMPAT_RELATION_NAMES_V1 } from '../../../../server/gradebook/persistence/postgres/postgres-database-v1';
@@ -10,7 +10,7 @@ import { compareCanonicalStringsV1 } from '../../../../shared/gradebook-contract
 import { createGradebookD1BulletinCouncilDurabilityV1 } from '../../../../server/gradebook/persistence/d1/durability/d1-bulletin-council-durability-v1';
 import { SqliteD1Database } from '../d1-transaction/d1-write-test-support';
 
-const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
 
 function migrationSql(): readonly string[] {
   const directory = join(process.cwd(), 'migrations', 'gradebook');

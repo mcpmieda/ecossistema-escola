@@ -24,7 +24,7 @@ vi.mock('../../../server/auth/session', () => ({
 vi.mock('../../../server/auth/roles', () => ({
   AuthorizationError:class extends Error { readonly status=403; },
 }));
-vi.mock('../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1', () => ({authorizeGradebookD1RuntimeV1:mocks.authorize}));
+vi.mock('../../../server/gradebook/authorization-v1', () => ({authorizeGradebookRuntimeV1:mocks.authorize}));
 vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1', () => ({
   withOfficialGradebookDatabaseV1:async (env:RuntimeEnv, operation:(env:RuntimeEnv)=>Promise<Response|null>) => operation(env),
 }));
@@ -93,7 +93,7 @@ async function request(method:'GET'|'POST',body?:unknown,origin='https://school.
       method,headers:{Origin:origin,'Content-Type':'application/json'},
       ...(method==='POST'?{body:JSON.stringify(body)}:{}),
     }),
-    env:{OFFICIAL_ORIGIN:'https://school.test',GRADEBOOK_D1:database},
+    env:{OFFICIAL_ORIGIN:'https://school.test',GRADEBOOK_DATABASE:database},
   } as unknown as Parameters<typeof onRequest>[0]);
 }
 
@@ -212,7 +212,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
 
   it('rejects duplicate keys and missing transaction support before writing', async () => {
     await expect(replace(database,observation(['duplicate','duplicate']))).rejects.toThrow('invalid-import-diagnostics-snapshot');
-    await expect(replace({prepare:database.prepare,exec:database.exec},observation())).rejects.toThrow('import-diagnostics-transaction-unavailable');
+    await expect(replace({query:database.query,executeNative:database.executeNative},observation())).rejects.toThrow('import-diagnostics-transaction-unavailable');
     expect(queries).toHaveLength(0);
     expect(transactions).toBe(0);
   });

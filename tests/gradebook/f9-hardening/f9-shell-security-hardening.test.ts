@@ -136,7 +136,7 @@ describe('F9 — privacidade, auth e transporte', () => {
     for (const path of handlers) {
       const handler = source(path);
       expect(handler, path).toContain('requireAuth');
-      expect(handler, path).toContain('authorizeGradebookD1RuntimeV1');
+      expect(handler, path).toContain('authorizeGradebookRuntimeV1');
       expect(handler, path).toContain('enforceOfficialOrigin');
       expect(handler, path).toContain('enforceWriteOrigin');
       expect(handler, path).toContain("'Cache-Control': 'no-store, no-cache, must-revalidate, private'");
@@ -149,7 +149,7 @@ describe('F9 — privacidade, auth e transporte', () => {
   it('continua falhando em produção antes de tocar o binding acadêmico', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_D1);');
+    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
 
     expect(environmentGate).toBeGreaterThanOrEqual(0);
     expect(bindingAccess).toBeGreaterThan(environmentGate);

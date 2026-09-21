@@ -9,7 +9,7 @@ import {
 import { performanceTermComparisonRequestSchemaV4 } from '../../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import type { PerformanceAnalysisV3 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import type { PerformanceProjectionV2 } from '../../results/relational-performance-facts-v2';
-import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { buildPerformanceTermComparisonV4 } from './performance-term-comparison-v4';
@@ -79,7 +79,7 @@ export function buildPerformanceDashboardOverviewV5(
   };
 }
 
-export function createPerformanceDashboardV5(database: D1WriteDatabaseV1) {
+export function createPerformanceDashboardV5(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<PerformanceDashboardResponseV5> {
       const parsed = performanceDashboardRequestSchemaV5.safeParse(input);
@@ -88,7 +88,7 @@ export function createPerformanceDashboardV5(database: D1WriteDatabaseV1) {
         return { transportVersion: 5, state: 'unavailable' };
       }
       const request = parsed.data;
-      const db = database as D1WriteDatabaseV1 & {
+      const db = database as GradebookPostgresWritePortV1 & {
         transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
       };
       return db.transaction(async (tx) => {

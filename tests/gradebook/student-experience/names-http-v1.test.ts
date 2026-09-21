@@ -12,7 +12,7 @@ const env = {
   ...testEnv,
   RUNTIME_ENVIRONMENT: 'local',
   GRADEBOOK_STORAGE_PROVIDER: 'postgres',
-  GRADEBOOK_D1: {
+  GRADEBOOK_DATABASE: {
     transaction,
     prepare: () => {
       throw new Error('outside-transaction');

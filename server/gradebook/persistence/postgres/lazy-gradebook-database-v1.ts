@@ -1,5 +1,5 @@
 import type { D1WriteStatementV1, D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
-import type { GradebookPostgresDatabaseV1 } from './postgres-database-v1';
+import type { GradebookPostgresDatabaseV1, GradebookPostgresScalarV1 } from './postgres-database-v1';
 
 /** Request-local connection: constructing or binding a statement performs no I/O.
  * Handlers keep ownership of authentication, input validation and response contracts.
@@ -38,7 +38,7 @@ export function lazyGradebookDatabaseV1(
     prepare: (query) => new Statement(query),
     query: async <Row extends Record<string, unknown>>(
       text: string,
-      parameters: readonly D1WriteValueV1[],
+      parameters: readonly GradebookPostgresScalarV1[],
     ) => (await open()).query<Row>(text, parameters),
     executeNative: async (text, parameters) => (await open()).executeNative(text, parameters),
     exec: async (query) => (await open()).exec(query),

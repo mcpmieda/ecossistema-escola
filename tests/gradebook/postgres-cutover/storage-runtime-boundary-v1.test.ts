@@ -26,7 +26,7 @@ describe('official Gradebook storage boundary', () => {
   });
 
   it('retires legacy production migrations and documents the naming boundary', () => {
-    const admin = source('server/gradebook/http/d1-admin-routes-v1.ts');
+    const admin = source('server/gradebook/http/persistence-admin-routes-v1.ts');
     const map = source('docs/gradebook/STORAGE_RUNTIME_MAP.md');
     const legacy = source('docs/gradebook/D1_RUNTIME.md');
     const cutover = source('docs/gradebook/postgres-cutover-runbook-v1.md');

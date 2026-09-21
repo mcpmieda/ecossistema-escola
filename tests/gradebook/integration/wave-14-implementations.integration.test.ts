@@ -26,7 +26,7 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
   it('preserva a composição física original e reconhece somente os bridges ainda ativos', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const runtimeAuthorization = source(
-      'server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1.ts',
+      'server/gradebook/authorization-v1.ts',
     );
     const capabilities = source('server/auth/capabilities.ts');
     const functions = source('functions/[[path]].ts');
@@ -35,7 +35,7 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(runtime).toContain('GradebookD1AuditWorkspaceSourceV1');
     expect(runtime).toContain('createClassPerformanceReadModelV1');
     expect(runtime).toContain('createGradebookD1ClassPerformanceSourceV1');
-    expect(runtime).toContain('requireGradebookD1RuntimeAuthorizationV1(this.authorization)');
+    expect(runtime).toContain('requireGradebookRuntimeAuthorizationV1(this.authorization)');
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
 
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
@@ -61,7 +61,7 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(councilRoute.match(/'\/api\/gradebook\/council-workspace'/gu)).toHaveLength(1);
 
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_D1);');
+    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
     expect(environmentGate).toBeGreaterThanOrEqual(0);
     expect(bindingAccess).toBeGreaterThan(environmentGate);
   });

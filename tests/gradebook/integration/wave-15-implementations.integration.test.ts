@@ -32,7 +32,7 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(runtime).toContain('createGradebookD1ClassPerformanceSourceV1');
     expect(runtime).toContain('createClassPerformanceReadModelV1');
     expect(runtime).toContain('classPerformanceReadModel()');
-    expect(runtime).toContain('requireGradebookD1RuntimeAuthorizationV1(this.authorization)');
+    expect(runtime).toContain('requireGradebookRuntimeAuthorizationV1(this.authorization)');
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
     expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(performanceSource).toContain("reasons: ['official-projection-unavailable']");
@@ -70,7 +70,7 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
   it('mantém produção acadêmica fail-closed antes do binding', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_D1);');
+    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
 
     expect(environmentGate).toBeGreaterThanOrEqual(0);
     expect(bindingAccess).toBeGreaterThan(environmentGate);

@@ -19,9 +19,9 @@ import {
 } from '../../http/security';
 import { createOperationalWorkspaceServiceV1 } from '../application/operational-workspace/operational-workspace-service-v1';
 import { createRelationalWorkspaceV2 } from '../application/operational-workspace/relational-workspace-v2';
-import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
 export const GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1 = '/api/gradebook/operational-workspace';
 
@@ -49,10 +49,10 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   enforceWriteOrigin(request, env);
 
-  let authorization: ReturnType<typeof authorizeGradebookD1RuntimeV1>;
+  let authorization: ReturnType<typeof authorizeGradebookRuntimeV1>;
   try {
     const session = await requireAuth(request, env);
-    authorization = authorizeGradebookD1RuntimeV1(session);
+    authorization = authorizeGradebookRuntimeV1(session);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return notAuthorized(401);
     if (cause instanceof AuthorizationError) return notAuthorized(403);
@@ -69,9 +69,9 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
     if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
         !['production','local','preview'].includes(environment) ||
         (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-        !env.GRADEBOOK_D1) return noStoreJson({contractVersion:2,state:'unavailable'},503);
+        !env.GRADEBOOK_DATABASE) return noStoreJson({contractVersion:2,state:'unavailable'},503);
     try {
-      const response = await createRelationalWorkspaceV2(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(payload);
+      const response = await createRelationalWorkspaceV2(env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1).execute(payload);
       return noStoreJson(response, response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 : 200);
     } catch { return noStoreJson({contractVersion:2,state:'unavailable'},503); }
   }

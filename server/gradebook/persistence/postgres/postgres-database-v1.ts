@@ -5,7 +5,8 @@ import type {
   D1WriteValueV1,
 } from '../d1/write/d1-write-adapter-v1';
 import { replaceImportSqlParametersV1 } from '../d1/transaction/d1-bounded-import-transport-v1';
-import { postgresJsonTextV1, type GradebookPostgresValueV1 } from './postgres-values-v1';
+import { postgresJsonTextV1, type GradebookPostgresValueV1, type GradebookPostgresScalarV1 } from './postgres-values-v1';
+export type { GradebookPostgresScalarV1 } from './postgres-values-v1';
 
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresRowV1 = Record<string, unknown>;
@@ -90,7 +91,7 @@ export interface GradebookPostgresDatabaseOptionsV1 {
 export interface GradebookPostgresReadPortV1 {
   query<Row extends Record<string, unknown>>(
     text: string,
-    parameters: readonly D1WriteValueV1[],
+    parameters: readonly GradebookPostgresScalarV1[],
   ): Promise<readonly Row[]>;
 }
 
@@ -424,7 +425,7 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
 
   async query<Row extends Record<string, unknown>>(
     text: string,
-    parameters: readonly D1WriteValueV1[],
+    parameters: readonly GradebookPostgresScalarV1[],
   ): Promise<readonly Row[]> {
     return (await this.executeNative<Row>(text, parameters)).rows;
   }

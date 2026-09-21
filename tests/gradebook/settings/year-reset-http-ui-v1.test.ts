@@ -16,10 +16,10 @@ const unavailableDatabase = {
   transaction: async () => {
     throw new Error('synthetic-unavailable');
   },
-  prepare: () => {
+  query: () => {
     throw new Error('outside-transaction');
   },
-  exec: () => {
+  executeNative: () => {
     throw new Error('outside-transaction');
   },
 };
@@ -57,7 +57,7 @@ async function http(
       ...testEnv,
       RUNTIME_ENVIRONMENT: 'local',
       GRADEBOOK_STORAGE_PROVIDER: 'postgres',
-      GRADEBOOK_D1: unavailableDatabase,
+      GRADEBOOK_DATABASE: unavailableDatabase,
       ...overrides,
     } as RuntimeEnv,
   );
@@ -70,11 +70,10 @@ describe('year reset V1 HTTP and UI boundary', () => {
     for (const state of ['portal-linked-accounts', null]) {
       const transaction = {
         executeNative: async () => ({ rows: [], changes: 0 }),
-        query: async (sql: string) =>
-          sql.includes('AS state') && state !== null ? [{ state }] : [],
+        query: async (sql: string) => sql.includes('AS state') && state !== null ? [{ state }] : [],
       };
       const response = await http('ADMINISTRADOR', {
-        GRADEBOOK_D1: {
+        GRADEBOOK_DATABASE: {
           ...transaction,
           transaction: async (operation: (tx: unknown) => Promise<unknown>) =>
             operation(transaction),

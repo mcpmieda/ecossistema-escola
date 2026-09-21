@@ -27,6 +27,7 @@ export type RuntimeEnv = Omit<
     GRADEBOOK_PRODUCTION_ENABLED?: 'true' | 'false';
     GRADEBOOK_STORAGE_PROVIDER?: 'd1' | 'postgres';
     GRADEBOOK_D1?: unknown;
+    GRADEBOOK_DATABASE?: unknown;
     PROD_DB?: unknown;
     PORTAL_SERVICE?: unknown;
   };
@@ -54,6 +55,7 @@ const envSchema = z
     GRADEBOOK_PRODUCTION_ENABLED: z.enum(['true', 'false']).optional(),
     GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).optional(),
     GRADEBOOK_D1: z.unknown().optional(),
+    GRADEBOOK_DATABASE: z.unknown().optional(),
     PROD_DB: z.unknown().optional(),
     PORTAL_SERVICE: z.unknown().optional(),
   })

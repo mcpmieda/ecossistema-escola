@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RuntimeEnv } from '../../../../server/env';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import type {
   CouncilActorReferenceV1,
@@ -17,7 +17,7 @@ describe('composição do Council Workspace no runtime D1 V1', () => {
   it('expõe a projeção oficial #332 upstream por um workspace autorizado e fail-closed sem turma', async () => {
     const database = await openMigratedDatabase();
     try {
-      const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+      const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
       const runtime = createGradebookD1RuntimeV1(
         { RUNTIME_ENVIRONMENT: 'preview', GRADEBOOK_D1: database } as RuntimeEnv,
         authorization,

@@ -8,7 +8,7 @@ import { AuthorizationError } from '../../../../server/auth/roles';
 import type { ImportBatchResultV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import type { ImportFileId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import { planImportReconciliation } from '../../../../server/gradebook/application/import/import-reconciliation-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import {
   createGradebookD1RuntimeV1,
   GradebookD1RuntimeErrorV1,
@@ -28,7 +28,7 @@ import {
   SqliteD1Database,
 } from '../d1-transaction/d1-write-test-support';
 
-const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
 
 function migrationSql(): readonly string[] {
   const directory = join(process.cwd(), 'migrations', 'gradebook');
@@ -116,7 +116,7 @@ describe('runtime D1 local/preview V1', () => {
       AuthorizationError,
     );
     expect(prepare).not.toHaveBeenCalled();
-    expect(() => authorizeGradebookD1RuntimeV1({ roles: ['PROFESSOR'] })).toThrow(
+    expect(() => authorizeGradebookRuntimeV1({ roles: ['PROFESSOR'] })).toThrow(
       AuthorizationError,
     );
   });

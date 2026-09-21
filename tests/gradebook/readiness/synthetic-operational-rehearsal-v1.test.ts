@@ -13,7 +13,7 @@ import type { EnrollmentId, StudentId } from '../../../shared/gradebook-contract
 import type { BulletinSnapshotSeriesKeyV1 } from '../../../server/gradebook/application/bulletins/bulletin-snapshot-repository-v1';
 import type { CouncilDecisionStoreKeyV1 } from '../../../server/gradebook/application/council/council-decision-store-v1';
 import { createGradebookD1BulletinCouncilDurabilityV1 } from '../../../server/gradebook/persistence/d1/durability/d1-bulletin-council-durability-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../server/gradebook/persistence/d1/schema/migrations';
 import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
@@ -34,7 +34,7 @@ import {
 } from '../persistence/d1-durability/d1-durability-test-support';
 import { SqliteD1Database } from '../persistence/d1-transaction/d1-write-test-support';
 
-const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
 const instant = '2026-09-02T12:00:00.000Z';
 const studentCount = 30;
 

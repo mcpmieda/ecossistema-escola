@@ -8,7 +8,7 @@ import { performanceTermComparisonRequestSchemaV4 } from '../../../shared/gradeb
 import { createPerformanceTermComparisonV4 } from '../application/read-models/performance/performance-term-comparison-v4';
 import { performanceRequestSchemaV2 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { createRelationalPerformanceV2 } from '../application/read-models/performance/relational-performance-v2';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import {
   PERFORMANCE_TRANSPORT_VERSION_V1,
   isPerformanceTransportRequestV1,
@@ -41,9 +41,9 @@ import {
 } from '../application/read-models/performance/class-performance-read-model-v1';
 import { resolveCurrentPerformanceComparisonConfigurationV1 } from '../application/read-models/performance/performance-comparison-configuration-v1';
 import {
-  authorizeGradebookD1RuntimeV1,
-  type GradebookD1RuntimeAuthorizationV1,
-} from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+  authorizeGradebookRuntimeV1,
+  type GradebookRuntimeAuthorizationV1,
+} from '../authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import { getPlatformConfigurations } from '../../platform/snapshot';
 
@@ -137,7 +137,7 @@ export interface PerformanceRequestHandlerDependenciesV1 {
     request: Request,
     env: RuntimeEnv,
   ): Promise<{
-    readonly runtimeAuthorization: GradebookD1RuntimeAuthorizationV1;
+    readonly runtimeAuthorization: GradebookRuntimeAuthorizationV1;
     readonly capabilities: readonly PlatformCapability[];
   }>;
   resolveComparisonConfiguration(
@@ -146,7 +146,7 @@ export interface PerformanceRequestHandlerDependenciesV1 {
   ): Promise<PerformanceComparisonConfigurationV1>;
   createProvider(
     env: RuntimeEnv,
-    authorization: GradebookD1RuntimeAuthorizationV1,
+    authorization: GradebookRuntimeAuthorizationV1,
     configuration: PerformanceComparisonConfigurationV1,
   ): ClassPerformanceReadModelProviderV1;
 }
@@ -157,7 +157,7 @@ const defaultDependencies: PerformanceRequestHandlerDependenciesV1 = {
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.settings.read');
     return {
-      runtimeAuthorization: authorizeGradebookD1RuntimeV1(session),
+      runtimeAuthorization: authorizeGradebookRuntimeV1(session),
       capabilities,
     };
   },
@@ -221,13 +221,13 @@ function currentPerformanceFailureV1(
   return noStoreJson({ transportVersion: version, state }, status);
 }
 
-function currentPerformanceDatabaseV1(env: RuntimeEnv): D1WriteDatabaseV1 | null {
+function currentPerformanceDatabaseV1(env: RuntimeEnv): GradebookPostgresWritePortV1 | null {
   const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
   if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres') return null;
   if (!['production', 'local', 'preview'].includes(environment)) return null;
   if (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') return null;
-  if (!env.GRADEBOOK_D1) return null;
-  return env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+  if (!env.GRADEBOOK_DATABASE) return null;
+  return env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1;
 }
 
 function currentPerformanceStatusV1(state: string): number {
@@ -250,7 +250,7 @@ function currentPerformanceStatusV1(state: string): number {
 async function executeCurrentPerformanceReadV1(
   version: CurrentPerformanceVersionV1,
   env: RuntimeEnv,
-  execute: (database: D1WriteDatabaseV1) => Promise<CurrentPerformanceReadResponseV1>,
+  execute: (database: GradebookPostgresWritePortV1) => Promise<CurrentPerformanceReadResponseV1>,
 ): Promise<Response> {
   const database = currentPerformanceDatabaseV1(env);
   if (database === null) return currentPerformanceFailureV1(version, 'unavailable', 503);

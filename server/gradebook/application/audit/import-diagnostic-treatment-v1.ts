@@ -13,12 +13,12 @@ import {
   type ImportDiagnosticTreatmentResponseV1,
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
 import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../persistence/d1/write/d1-write-adapter-v1';
+  GradebookPostgresWritePortV1,
+  GradebookPostgresScalarV1,
+} from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
-type TransactionalDatabase = D1WriteDatabaseV1 & {
+type TransactionalDatabase = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
@@ -89,7 +89,7 @@ function treatmentRecord(row: Row): ImportDiagnosticTreatmentRecordV1 {
 async function rows(
   database: GradebookPostgresTransactionV1,
   query: string,
-  values: readonly D1WriteValueV1[],
+  values: readonly GradebookPostgresScalarV1[],
 ): Promise<readonly Row[]> {
   return database.query<Row>(query, values);
 }
@@ -97,7 +97,7 @@ async function rows(
 async function first(
   database: GradebookPostgresTransactionV1,
   query: string,
-  values: readonly D1WriteValueV1[],
+  values: readonly GradebookPostgresScalarV1[],
 ): Promise<Row | null> {
   return (await database.query<Row>(query, values))[0] ?? null;
 }
@@ -260,7 +260,7 @@ function retryable(cause: unknown): boolean {
 }
 
 export function createImportDiagnosticTreatmentServiceV1(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   actorOid: string,
 ) {
   return {

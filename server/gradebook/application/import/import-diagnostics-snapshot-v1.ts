@@ -3,11 +3,11 @@ import {
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditRequestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import type { D1WriteDatabaseV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 
-type TransactionDatabase = D1WriteDatabaseV1 & {
+type TransactionDatabase = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
@@ -26,7 +26,7 @@ export class InvalidImportDiagnosticsSnapshotV1 extends Error {
  * V1 contains no client observation sequence, so it cannot detect an older delayed upload.
  */
 export async function replaceGradebookImportDiagnosticsSnapshotV1(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
   request: GradebookImportDiagnosticsAuditRequestV1,
 ): Promise<number> {
   if (

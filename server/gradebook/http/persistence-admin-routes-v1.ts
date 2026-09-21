@@ -4,14 +4,14 @@ import { enforceOfficialOrigin, enforceWriteOrigin, HttpError } from '../../http
 import { inspectGradebookImportStagingBaselineV1 } from '../persistence/d1/imports/d1-import-staging-baseline-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import type { GradebookPostgresReadPortV1 } from '../persistence/postgres/postgres-database-v1';
-import { authorizeGradebookD1RuntimeV1, GRADEBOOK_D1_ADMIN_CAPABILITY } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1, GRADEBOOK_ADMIN_CAPABILITY } from '../authorization-v1';
 import { GradebookD1MigrationErrorV1 } from '../persistence/d1/runtime/d1-migration-runner-v1';
 import { createGradebookD1RuntimeV1, GradebookD1RuntimeErrorV1, type GradebookD1RuntimeOptionsV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 import { withOfficialGradebookDatabaseV1 } from '../persistence/postgres/official-gradebook-database-v1';
 
-export const GRADEBOOK_D1_STATUS_ROUTE = '/api/gradebook/admin/persistence/status';
-export const GRADEBOOK_D1_MIGRATIONS_ROUTE = '/api/gradebook/admin/persistence/migrations';
-export interface GradebookD1AdminRouteOptionsV1 { readonly runtime?: GradebookD1RuntimeOptionsV1 }
+export const GRADEBOOK_PERSISTENCE_STATUS_ROUTE = '/api/gradebook/admin/persistence/status';
+export const GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE = '/api/gradebook/admin/persistence/migrations';
+export interface GradebookPersistenceAdminRouteOptionsV1 { readonly runtime?: GradebookD1RuntimeOptionsV1 }
 function noStoreJson(value: unknown, status = 200): Response {
   return Response.json(value, { status, headers: {
     'Cache-Control': 'no-store, no-cache, must-revalidate, private', Expires: '0', Pragma: 'no-cache',
@@ -32,34 +32,34 @@ function runtimeFailure(cause: unknown): never {
     throw new HttpError(503, 'Academic persistence unavailable');
   throw new HttpError(500, 'Academic administration failed');
 }
-export async function handleGradebookD1AdminRequestV1(request: Request, env: RuntimeEnv,
-  options: GradebookD1AdminRouteOptionsV1 = {}): Promise<Response | null> {
+export async function handleGradebookPersistenceAdminRequestV1(request: Request, env: RuntimeEnv,
+  options: GradebookPersistenceAdminRouteOptionsV1 = {}): Promise<Response | null> {
   const pathname = new URL(request.url).pathname;
-  if (pathname !== GRADEBOOK_D1_STATUS_ROUTE && pathname !== GRADEBOOK_D1_MIGRATIONS_ROUTE) return null;
+  if (pathname !== GRADEBOOK_PERSISTENCE_STATUS_ROUTE && pathname !== GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE) return null;
   enforceOfficialOrigin(request, env);
-  if (pathname === GRADEBOOK_D1_STATUS_ROUTE) requireMethod(request, 'GET');
+  if (pathname === GRADEBOOK_PERSISTENCE_STATUS_ROUTE) requireMethod(request, 'GET');
   else {
     requireMethod(request, 'POST'); enforceWriteOrigin(request, env);
     if (request.body !== null) throw new HttpError(400, 'Request body not allowed');
   }
   const session = await requireAuth(request, env);
-  const authorization = authorizeGradebookD1RuntimeV1(session);
+  const authorization = authorizeGradebookRuntimeV1(session);
   const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
   if (production) {
     if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || env.GRADEBOOK_PRODUCTION_ENABLED !== 'true')
       return unavailable('unconfigured');
-    if (pathname === GRADEBOOK_D1_MIGRATIONS_ROUTE)
+    if (pathname === GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE)
       return noStoreJson({ state: 'retired', provider: 'postgres', message: 'Production migrations use the reviewed deployment process.' }, 410);
     try {
       return await withOfficialGradebookDatabaseV1(env, async (execution) => {
-        const database = execution.GRADEBOOK_D1 as unknown as GradebookPostgresReadPortV1;
+        const database = execution.GRADEBOOK_DATABASE as GradebookPostgresReadPortV1;
         const started = performance.now();
         const [probe] = await database.query<{ role: string; ready: unknown }>(`SELECT current_user AS role,
           to_regclass('gradebook.nota') IS NOT NULL AND to_regclass('gradebook.fechamento') IS NOT NULL
           AND to_regclass('gradebook.vinculo') IS NOT NULL AS ready`, []);
         const ready = probe?.role === 'gradebook_app' && (probe.ready === true || probe.ready === 1);
         if (!ready) return unavailable('postgres');
-        return noStoreJson({ version: '2.0', provider: 'postgres', capability: GRADEBOOK_D1_ADMIN_CAPABILITY,
+        return noStoreJson({ version: '2.0', provider: 'postgres', capability: GRADEBOOK_ADMIN_CAPABILITY,
           environment: 'production', schema: { status: 'ready' },
           observedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started) });
       });
@@ -68,14 +68,14 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
   // Explicit local/preview legacy diagnostics remain available for disposable historical fixtures.
   try {
     const runtime = createGradebookD1RuntimeV1(env, authorization, options.runtime);
-    if (pathname === GRADEBOOK_D1_STATUS_ROUTE) {
+    if (pathname === GRADEBOOK_PERSISTENCE_STATUS_ROUTE) {
       const schema = await runtime.inspectSchema();
       const pilotAudit = schema.status === 'ready' && schema.currentVersion === 6 && schema.latestVersion === 6 && schema.pendingCount === 0
         ? await inspectGradebookImportStagingBaselineV1(env.GRADEBOOK_D1 as D1ReadDatabaseV1) : null;
-      return noStoreJson({ version: '1.0', capability: GRADEBOOK_D1_ADMIN_CAPABILITY,
+      return noStoreJson({ version: '1.0', capability: GRADEBOOK_ADMIN_CAPABILITY,
         environment: runtime.environment, schema, ...(pilotAudit ? { pilotAudit } : {}) });
     }
     const migration = await runtime.runMigrations();
-    return noStoreJson({ version: '1.0', capability: GRADEBOOK_D1_ADMIN_CAPABILITY, environment: runtime.environment, migration });
+    return noStoreJson({ version: '1.0', capability: GRADEBOOK_ADMIN_CAPABILITY, environment: runtime.environment, migration });
   } catch (cause) { return runtimeFailure(cause); }
 }

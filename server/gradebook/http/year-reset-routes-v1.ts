@@ -14,8 +14,8 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { createYearResetServiceV1 } from '../application/settings/year-reset-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
+import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
 export const YEAR_RESET_ROUTE_V1 = '/api/gradebook/year-reset';
 
@@ -53,7 +53,7 @@ export function createYearResetRequestHandlerV1() {
     let actorOid: string;
     try {
       const session = await requireAuth(request, env);
-      authorizeGradebookD1RuntimeV1(session);
+      authorizeGradebookRuntimeV1(session);
       actorOid = session.oid;
     } catch (cause) {
       if (cause instanceof AuthenticationError) return failure('not-authorized', 401);
@@ -73,14 +73,14 @@ export function createYearResetRequestHandlerV1() {
       env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
       !['production', 'local', 'preview'].includes(environment) ||
       (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-      !env.GRADEBOOK_D1
+      !env.GRADEBOOK_DATABASE
     ) {
       return failure('unavailable', 503);
     }
 
     try {
       const value = await createYearResetServiceV1(
-        env.GRADEBOOK_D1 as D1WriteDatabaseV1,
+        env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
         actorOid,
       ).execute(payload);
       if (value.state === 'ready' && value.operation === 'execute') {

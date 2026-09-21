@@ -45,7 +45,8 @@ export async function withOfficialGradebookDatabaseV1(env: RuntimeEnv,
   // Copy descriptors rather than evaluating a potentially live legacy-binding getter.
   const execution = Object.create(Object.getPrototypeOf(env), {
     ...Object.getOwnPropertyDescriptors(env),
-    GRADEBOOK_D1: { value: database, enumerable: true, configurable: true },
+    GRADEBOOK_DATABASE: { value: database, enumerable: true, configurable: true },
+    GRADEBOOK_D1: { value: undefined, enumerable: true, configurable: true },
   }) as RuntimeEnv;
   try {
     const response = await operation(execution);

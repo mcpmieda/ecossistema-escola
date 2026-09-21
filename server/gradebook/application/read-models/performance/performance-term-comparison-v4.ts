@@ -12,7 +12,7 @@ import {
   performanceRecoveryCellIsRelevantV2,
   type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
-import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
@@ -85,13 +85,13 @@ function compare(current: AnalysisReadingV3, reference: AnalysisReadingV3): Perf
     deltaPercentagePoints: relation === 'equal' ? 0 : current.percent - reference.percent, relation, reason: null };
 }
 
-export function createPerformanceTermComparisonV4(database: D1WriteDatabaseV1) {
+export function createPerformanceTermComparisonV4(database: GradebookPostgresWritePortV1) {
   return { async execute(input: unknown): Promise<PerformanceTermComparisonResponseV4> {
     const parsed = performanceTermComparisonRequestSchemaV4.safeParse(input);
     if (!parsed.success) return { transportVersion: 4, state: 'invalid-request' };
     if (!('transaction' in database) || typeof database.transaction !== 'function') return { transportVersion: 4, state: 'unavailable' };
     const request = parsed.data;
-    const db = database as D1WriteDatabaseV1 & { transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T> };
+    const db = database as GradebookPostgresWritePortV1 & { transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T> };
     return db.transaction(async (tx) => {
       await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
       let projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]> = new Map();

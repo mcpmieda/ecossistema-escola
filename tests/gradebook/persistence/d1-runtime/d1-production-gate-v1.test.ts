@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEnv } from '../../../../server/env';
 import { validateEnv } from '../../../../server/env';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import { testEnv } from '../../../fixtures';
 
-const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
 
 function productionEnv(
   binding: unknown,

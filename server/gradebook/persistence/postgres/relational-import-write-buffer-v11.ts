@@ -1,4 +1,4 @@
-import type { D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresScalarV1 } from './postgres-database-v1';
 import type {
   GradebookPostgresExecutionV1,
   GradebookPostgresWritePortV1,
@@ -138,7 +138,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     return this.underlying.executeNative<ResultRow>(query, values);
   }
 
-  async query<ResultRow extends Row>(query: string, values: readonly D1WriteValueV1[]): Promise<readonly ResultRow[]> {
+  async query<ResultRow extends Row>(query: string, values: readonly GradebookPostgresScalarV1[]): Promise<readonly ResultRow[]> {
     await this.flush();
     return this.underlying.query<ResultRow>(query, values);
   }

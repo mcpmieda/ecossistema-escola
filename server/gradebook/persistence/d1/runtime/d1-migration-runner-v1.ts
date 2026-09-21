@@ -1,9 +1,9 @@
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../schema/migrations';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 import {
-  requireGradebookD1RuntimeAuthorizationV1,
-  type GradebookD1RuntimeAuthorizationV1,
-} from './d1-runtime-authorization-v1';
+  requireGradebookRuntimeAuthorizationV1,
+  type GradebookRuntimeAuthorizationV1,
+} from '../../../authorization-v1';
 
 export type GradebookD1MigrationErrorCodeV1 =
   | 'migration-catalog-incompatible'
@@ -338,16 +338,16 @@ export class GradebookD1MigrationRunnerV1 {
   }
 
   async inspect(
-    authorization: GradebookD1RuntimeAuthorizationV1,
+    authorization: GradebookRuntimeAuthorizationV1,
   ): Promise<GradebookD1MigrationStatusV1> {
-    requireGradebookD1RuntimeAuthorizationV1(authorization);
+    requireGradebookRuntimeAuthorizationV1(authorization);
     return this.inspectAuthorized();
   }
 
   async run(
-    authorization: GradebookD1RuntimeAuthorizationV1,
+    authorization: GradebookRuntimeAuthorizationV1,
   ): Promise<GradebookD1MigrationRunResultV1> {
-    requireGradebookD1RuntimeAuthorizationV1(authorization);
+    requireGradebookRuntimeAuthorizationV1(authorization);
     const catalog = await this.catalog();
     const initialApplied = await this.readApplied(catalog);
 

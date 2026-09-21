@@ -17,16 +17,17 @@ Pages/Worker
 
 O `wrangler.jsonc` da aplicação oficial declara `GRADEBOOK_STORAGE_PROVIDER=postgres` e o binding Hyperdrive `PROD_DB`. Ele **não declara binding D1 acadêmico** para o runtime oficial.
 
-## Por que ainda existe o nome GRADEBOOK_D1
+## Nomes separados na #970
 
-`GRADEBOOK_D1` é hoje usado em dois sentidos diferentes no código histórico:
+Os nomes agora distinguem o banco selecionado da compatibilidade histórica:
 
-1. **porta/interface de compatibilidade** — `D1WriteDatabaseV1` e nomes `d1-*` descrevem uma API de `prepare/bind/first/all/run/batch`;
-2. **D1 físico legado** — runtime/migrations antigos usados apenas em local/preview/histórico.
+1. **`GRADEBOOK_DATABASE`** — banco injetado por `withOfficialGradebookDatabaseV1`; em produção, somente PostgreSQL. Serviços atuais usam `query`/`executeNative` e tipos PostgreSQL;
+2. **`GRADEBOOK_D1`** — binding físico legado de fixtures local/preview, ocultado no ambiente de execução PostgreSQL;
+3. **`D1WriteDatabaseV1` e `d1-*`** — protocolo e adaptadores legados ainda utilizados pela compatibilidade e pelos testes históricos, não pelas consultas atuais.
 
-No caminho oficial PostgreSQL, `withOfficialGradebookDatabaseV1` cria um facade PostgreSQL e o injeta temporariamente no campo lógico `GRADEBOOK_D1`. Portanto:
+No caminho oficial PostgreSQL, `withOfficialGradebookDatabaseV1` injeta a fachada em `GRADEBOOK_DATABASE`, sem ler o binding físico antigo. A autorização compartilhada está em `server/gradebook/authorization-v1.ts`; capability, autenticação e permissões não mudaram.
 
-> ver `GRADEBOOK_D1` ou `D1WriteDatabaseV1` num serviço **não prova** que a consulta vai para Cloudflare D1.
+Os transportes de compatibilidade ainda podem receber a fachada PostgreSQL. Isso não recria as tabelas antigas e não prova que esses transportes funcionam no catálogo atual. O inventário e os consumidores preservados estão em [LEGACY_RUNTIME_970.md](LEGACY_RUNTIME_970.md).
 
 A autoridade física deve ser determinada pela composição da rota e pelo provider oficial.
 
@@ -43,7 +44,7 @@ Desde a BN-08, o parser de ambiente **não injeta mais `d1` por default**. Provi
 
 ## Admin de persistência
 
-As rotas históricas `/api/gradebook/admin/persistence/*` ainda mantêm o nome D1 por compatibilidade.
+As URLs `/api/gradebook/admin/persistence/*` permanecem iguais. A implementação foi renomeada para `http/persistence-admin-routes-v1.ts`, com `handleGradebookPersistenceAdminRequestV1`.
 
 Em produção:
 - status consulta o PostgreSQL oficial por `withOfficialGradebookDatabaseV1`;
@@ -55,8 +56,9 @@ Em produção:
 | Módulo | Classificação atual |
 | --- | --- |
 | `server/gradebook/persistence/postgres/official-gradebook-database-v1.ts` | CURRENT — seleção física oficial/fail-closed |
-| `server/gradebook/persistence/postgres/postgres-database-v1.ts` | CURRENT — facade PostgreSQL compatível com a porta histórica |
-| `D1WriteDatabaseV1` / `D1WriteStatementV1` | COMPATIBILITY — interface ainda usada por serviços atuais |
+| `server/gradebook/persistence/postgres/postgres-database-v1.ts` | CURRENT — porta nativa e compatibilidade histórica explicitamente separadas |
+| `GradebookPostgresReadPortV1` / `GradebookPostgresWritePortV1` | CURRENT — SQL `$n` enviado sem tradução; JSON tipado explicitamente com `postgresJsonTextV1` |
+| `D1WriteDatabaseV1` / `D1WriteStatementV1` | COMPATIBILITY — somente protocolo legado, fachada/lazy e fixtures |
 | `server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts` | LEGACY-RUNTIME — local/preview/compatibilidade; não fonte física oficial |
 | `server/gradebook/persistence/d1/schema/**` | HISTORICAL/LOCAL — schema D1 antigo |
 | `server/gradebook/persistence/d1/{read,write,transaction,...}` | MIXED — alguns adapters ainda são portas reutilizadas pelo facade PostgreSQL; avaliar por consumidor |
@@ -83,4 +85,4 @@ Antes de remover:
 4. rodar testes e Sonar;
 5. só então classificar como compatibilidade ou runtime morto.
 
-A renomeação transversal de `D1WriteDatabaseV1`/`GRADEBOOK_D1` não faz parte da BN-05. Ela deve ocorrer separadamente para não misturar mudança nominal com mudança de persistência.
+A #970 separa a renomeação nominal da migração SQL em commits distintos. Nenhum arquivo legado pode ser apagado apenas pelo nome: o inventário B-16 encontrou consumidores nos 26 candidatos. A retirada do tradutor continua dependendo da resolução dessa compatibilidade, não somente da medição zero do B-15.

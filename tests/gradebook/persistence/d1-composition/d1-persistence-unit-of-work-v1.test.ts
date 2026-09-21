@@ -6,7 +6,7 @@ import {
   logicalSourceRecordAssociationStreamForV1,
 } from '../../../../server/gradebook/application/import/import-reconciliation-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import {
   createGradebookD1RuntimeV1,
   GradebookD1RuntimeErrorV1,
@@ -384,7 +384,7 @@ describe('composição D1 local da PersistenceUnitOfWorkV1', () => {
   });
 
   it('expõe a UoW e a fachada operacional no runtime autorizado e continua fail-closed', async () => {
-    const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+    const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
     const runtime = createGradebookD1RuntimeV1(
       { RUNTIME_ENVIRONMENT: 'preview', GRADEBOOK_D1: database } as RuntimeEnv,
       authorization,

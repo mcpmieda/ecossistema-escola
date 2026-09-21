@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEnv } from '../../../../server/env';
 import { AuthorizationError } from '../../../../server/auth/roles';
-import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../../server/gradebook/authorization-v1';
 import {
   createGradebookD1RuntimeV1,
   GradebookD1RuntimeErrorV1,
@@ -105,7 +105,7 @@ function searchableEntities(): readonly AcademicEntityRecordV1[] {
 
 describe('pesquisa acadêmica no runtime D1 local/preview V1', () => {
   it('expõe a pesquisa pela fachada autorizada em preview usando a única UoW', async () => {
-    const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+    const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
     const runtime = createGradebookD1RuntimeV1(
       { RUNTIME_ENVIRONMENT: 'preview', GRADEBOOK_D1: database } as RuntimeEnv,
       authorization,
@@ -156,7 +156,7 @@ describe('pesquisa acadêmica no runtime D1 local/preview V1', () => {
     ).toThrow(AuthorizationError);
     expect(unauthorizedPrepare).not.toHaveBeenCalled();
 
-    const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
+    const authorization = authorizeGradebookRuntimeV1({ roles: ['ADMINISTRADOR'] });
     const productionPrepare = vi.fn();
     expect(() =>
       createGradebookD1RuntimeV1(

@@ -17,7 +17,7 @@ import {
   performanceCellV2,
   type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
-import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
@@ -452,7 +452,7 @@ export function buildPerformanceAnalyticsV6(
   return includeLearning ? { ...result, learning: buildPerformanceLearningV1(result, projections, includeStudentDimensions) } : result;
 }
 
-export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
+export function createPerformanceAnalyticsV6(database: GradebookPostgresWritePortV1) {
   return {
     async execute(input: unknown): Promise<PerformanceAnalyticsResponseV6> {
       const parsed = performanceAnalyticsRequestSchemaV6.safeParse(input);
@@ -461,7 +461,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
         return { transportVersion: 6, state: 'unavailable' };
       const request: PerformanceAnalyticsRequestV6 = parsed.data;
       const { includeLearning, includeStudentDimensions, ...matrixRequest } = request;
-      const db = database as D1WriteDatabaseV1 & {
+      const db = database as GradebookPostgresWritePortV1 & {
         transaction<T>(operation: (tx: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
       };
       return db.transaction(async (tx) => {

@@ -157,12 +157,12 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
 
     for (const handler of handlers) {
       expect(handler).toContain('requireAuth');
-      expect(handler).toContain('authorizeGradebookD1RuntimeV1');
+      expect(handler).toContain('authorizeGradebookRuntimeV1');
       expect(handler).toContain('no-store');
     }
-    expect(functions).toContain('authorizeGradebookD1RuntimeV1(session)');
+    expect(functions).toContain('authorizeGradebookRuntimeV1(session)');
     const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_D1);');
+    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
     expect(environmentGate).toBeGreaterThanOrEqual(0);
     expect(bindingAccess).toBeGreaterThan(environmentGate);
   });

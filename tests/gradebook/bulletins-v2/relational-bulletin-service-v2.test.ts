@@ -479,7 +479,7 @@ async function http(
       ...testEnv,
       RUNTIME_ENVIRONMENT: 'local',
       GRADEBOOK_STORAGE_PROVIDER: 'postgres',
-      GRADEBOOK_D1: database,
+      GRADEBOOK_DATABASE: database,
       ...overrides,
     },
   );

@@ -5,12 +5,12 @@ import {
   createInstitutionalReportsRequestHandlerV1,
   GRADEBOOK_INSTITUTIONAL_REPORTS_ROUTE_V1,
 } from '../../../server/gradebook/http/institutional-reports-routes-v1';
-import type { GradebookD1RuntimeAuthorizationV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import type { GradebookRuntimeAuthorizationV1 } from '../../../server/gradebook/authorization-v1';
 import type { InstitutionalReportsServiceV1 } from '../../../server/gradebook/application/reports/institutional-reports-service-v1';
 import { testEnv } from '../../fixtures';
 
 const ORIGIN = 'http://localhost:8788';
-const authorization = {} as GradebookD1RuntimeAuthorizationV1;
+const authorization = {} as GradebookRuntimeAuthorizationV1;
 
 function env(): RuntimeEnv {
   return {
@@ -18,7 +18,7 @@ function env(): RuntimeEnv {
     RUNTIME_ENVIRONMENT: 'local',
     OFFICIAL_ORIGIN: ORIGIN,
     GRADEBOOK_STORAGE_PROVIDER: 'postgres',
-    GRADEBOOK_D1: {} as never,
+    GRADEBOOK_DATABASE: {} as never,
   };
 }
 

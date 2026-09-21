@@ -2,7 +2,7 @@ import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
-import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authorization-v1';
 import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../../server/gradebook/persistence/postgres/postgres-parameters-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
@@ -114,8 +114,8 @@ function actionFor(code: string): string {
 async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   enforceOfficialOrigin(request, env);
   const session = await requireAuth(request, env);
-  authorizeGradebookD1RuntimeV1(session);
-  const database = env.GRADEBOOK_D1 as GradebookPostgresTransactionV1 | undefined;
+  authorizeGradebookRuntimeV1(session);
+  const database = env.GRADEBOOK_DATABASE as GradebookPostgresTransactionV1 | undefined;
   if (!database) return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' }, 503);
   if (request.method === 'GET') {
     const url = new URL(request.url);

@@ -29,9 +29,9 @@ import type { RelationalBulletinSnapshotRepositoryV2 } from '../../persistence/p
 import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import type {
-  D1WriteDatabaseV1,
-  D1WriteValueV1,
-} from '../../persistence/d1/write/d1-write-adapter-v1';
+  GradebookPostgresWritePortV1,
+  GradebookPostgresScalarV1,
+} from '../../persistence/postgres/postgres-database-v1';
 import {
   createRelationalAcademicProjectionServiceV1,
   RELATIONAL_PROJECTION_BATCH_LIMIT_V1,
@@ -59,7 +59,7 @@ const COUNCIL_LABELS: Record<number, string> = {
 };
 
 export interface RelationalBulletinServiceDependenciesV2 {
-  readonly database: D1WriteDatabaseV1;
+  readonly database: GradebookPostgresWritePortV1;
   readonly snapshots: RelationalBulletinSnapshotRepositoryV2;
   readonly now?: () => string;
   readonly createSnapshotId?: () => string;
@@ -109,7 +109,7 @@ function statusLabel(status: SimplifiedEnrollmentStatusV1): string {
 async function rows(
   database: GradebookPostgresReadPortV1,
   sql: string,
-  values: readonly D1WriteValueV1[] = [],
+  values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly Row[]> {
   return database.query<Row>(sql.trim(), values);
 }
