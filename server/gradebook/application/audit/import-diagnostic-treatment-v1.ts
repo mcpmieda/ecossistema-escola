@@ -1,4 +1,6 @@
 import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
+import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import {
   IMPORT_DIAGNOSTIC_TREATMENT_ACTION_LABELS_V1,
   IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
@@ -17,7 +19,7 @@ import type {
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
 const VERSION = IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1;
@@ -85,36 +87,27 @@ function treatmentRecord(row: Row): ImportDiagnosticTreatmentRecordV1 {
 }
 
 async function rows(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   query: string,
   values: readonly D1WriteValueV1[],
 ): Promise<readonly Row[]> {
-  return (
-    await database
-      .prepare(query)
-      .bind(...values)
-      .all<Row>()
-  ).results;
+  return database.query<Row>(query, values);
 }
 
 async function first(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   query: string,
   values: readonly D1WriteValueV1[],
 ): Promise<Row | null> {
-  return database
-    .prepare(query)
-    .bind(...values)
-    .first<Row>();
+  return (await database.query<Row>(query, values))[0] ?? null;
 }
 
 async function listContext(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   request: Extract<ImportDiagnosticTreatmentRequestV1, { operation: 'context' }>,
 ): Promise<ImportDiagnosticTreatmentResponseV1> {
-  const placeholders = request.findings.map(() => '(?,?)').join(',');
-  const values: D1WriteValueV1[] = request.findings.flatMap((item) => [item.fileName, item.key]);
-  values.push(request.year, IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.contextActions + 1);
+  const { param, values } = createGradebookPostgresParametersV1();
+  const placeholders = request.findings.map((item) => `(${param(item.fileName)},${param(item.key)})`).join(',');
   const result = await rows(
     database,
     `WITH requested(arquivo,chave) AS (VALUES ${placeholders})
@@ -122,8 +115,8 @@ async function listContext(
      FROM gradebook.importacao_diagnostico_tratamento a
      JOIN requested r ON r.arquivo=a.arquivo AND r.chave=a.chave
      ${CONTEXT_JOINS}
-     WHERE a.ano=?
-     ORDER BY a.registrado_em DESC,a.id DESC LIMIT ?`,
+     WHERE a.ano=${param(request.year)}
+     ORDER BY a.registrado_em DESC,a.id DESC LIMIT ${param(IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.contextActions + 1)}`,
     values,
   );
   if (result.length > IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.contextActions) {
@@ -138,7 +131,7 @@ async function listContext(
 }
 
 async function listHistory(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   request: Extract<ImportDiagnosticTreatmentRequestV1, { operation: 'history' }>,
 ): Promise<ImportDiagnosticTreatmentResponseV1> {
   const cursorAt = request.cursor?.recordedAt ?? null;
@@ -148,13 +141,13 @@ async function listHistory(
     `SELECT ${SELECT_COLUMNS}
      FROM gradebook.importacao_diagnostico_tratamento a
      ${CONTEXT_JOINS}
-     WHERE a.ano=?
+     WHERE a.ano=$1
        AND (
-         CAST(? AS timestamptz) IS NULL
-         OR a.registrado_em < CAST(? AS timestamptz)
-         OR (a.registrado_em = CAST(? AS timestamptz) AND a.id < ?)
+         CAST($2 AS timestamptz) IS NULL
+         OR a.registrado_em < CAST($3 AS timestamptz)
+         OR (a.registrado_em = CAST($4 AS timestamptz) AND a.id < $5)
        )
-     ORDER BY a.registrado_em DESC,a.id DESC LIMIT ?`,
+     ORDER BY a.registrado_em DESC,a.id DESC LIMIT $6`,
     [request.year, cursorAt, cursorAt, cursorAt, cursorId, request.limit + 1],
   );
   const hasMore = result.length > request.limit;
@@ -170,7 +163,7 @@ async function listHistory(
 }
 
 async function storedCommand(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   idempotencyKey: string,
 ): Promise<Row | null> {
   return first(
@@ -178,7 +171,7 @@ async function storedCommand(
     `SELECT ${SELECT_COLUMNS},a.chave_idempotencia,a.registrado_por
      FROM gradebook.importacao_diagnostico_tratamento a
      ${CONTEXT_JOINS}
-     WHERE a.chave_idempotencia=?`,
+     WHERE a.chave_idempotencia=$1`,
     [idempotencyKey],
   );
 }
@@ -198,7 +191,7 @@ function sameCommand(
 }
 
 async function recordTreatment(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresTransactionV1,
   request: Extract<ImportDiagnosticTreatmentRequestV1, { operation: 'record' }>,
   actorOid: string,
 ): Promise<ImportDiagnosticTreatmentResponseV1> {
@@ -219,19 +212,17 @@ async function recordTreatment(
     `SELECT id,ano,arquivo,encode(hash,'hex') AS diagnostic_hash,chave,nivel,codigo,
             turma_codigo,disciplina,periodo,aluno_numero,campo,rotulo
        FROM gradebook.importacao_diagnostico
-      WHERE ano=? AND id=? FOR SHARE`,
+      WHERE ano=$1 AND id=$2 FOR SHARE`,
     [request.year, request.diagnosticId],
   );
   if (!diagnostic) return failure('not-found');
 
-  await database
-    .prepare(
+  await database.executeNative(
       `INSERT INTO gradebook.importacao_diagnostico_tratamento
         (diagnostico_origem_id,ano,arquivo,hash,chave,nivel,codigo,turma_codigo,disciplina,
          periodo,aluno_numero,campo,rotulo,acao,nota,chave_idempotencia,registrado_por)
-       VALUES (?,?,?,decode(?,'hex'),?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .bind(
+       VALUES ($1,$2,$3,decode($4,'hex'),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+    [
       integer(diagnostic.id),
       request.year,
       String(diagnostic.arquivo),
@@ -249,8 +240,8 @@ async function recordTreatment(
       request.note,
       request.idempotencyKey,
       actorOid,
-    )
-    .run();
+    ],
+  );
 
   await recordResetWriteV1(database, request.year, 'audit-treatment');
   const inserted = await storedCommand(database, request.idempotencyKey);
@@ -282,10 +273,11 @@ export function createImportDiagnosticTreatmentServiceV1(
       const transactional = database as TransactionalDatabase;
       const executeTransaction = () =>
         transactional.transaction(async (transaction) => {
-          await transaction.exec(
+          await transaction.executeNative(
             parsed.data.operation === 'record'
               ? 'SET TRANSACTION ISOLATION LEVEL SERIALIZABLE'
               : 'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY',
+            [],
           );
           if (parsed.data.operation === 'context') return listContext(transaction, parsed.data);
           if (parsed.data.operation === 'history') return listHistory(transaction, parsed.data);

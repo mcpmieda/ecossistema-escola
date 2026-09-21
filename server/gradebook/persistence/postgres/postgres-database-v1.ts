@@ -5,6 +5,7 @@ import type {
   D1WriteValueV1,
 } from '../d1/write/d1-write-adapter-v1';
 import { replaceImportSqlParametersV1 } from '../d1/transaction/d1-bounded-import-transport-v1';
+import { postgresJsonTextV1, type GradebookPostgresValueV1 } from './postgres-values-v1';
 
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresRowV1 = Record<string, unknown>;
@@ -93,11 +94,23 @@ export interface GradebookPostgresReadPortV1 {
   ): Promise<readonly Row[]>;
 }
 
+export interface GradebookPostgresExecutionV1<Row = PostgresRowV1> {
+  readonly rows: readonly Row[];
+  readonly changes: number;
+}
+
+export interface GradebookPostgresWritePortV1 extends GradebookPostgresReadPortV1 {
+  executeNative<Row extends PostgresRowV1 = PostgresRowV1>(
+    text: string,
+    parameters: readonly GradebookPostgresValueV1[],
+  ): Promise<GradebookPostgresExecutionV1<Row>>;
+}
+
 /** What a transaction hands its callback: the D1 statement API plus the native read port,
  * both bound to the transaction's own connection. */
-export type GradebookPostgresTransactionV1 = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
+export type GradebookPostgresTransactionV1 = D1WriteDatabaseV1 & GradebookPostgresWritePortV1;
 
-export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1, GradebookPostgresReadPortV1 {
+export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1, GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
   lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;
   close(): Promise<void>;
@@ -362,11 +375,6 @@ class GradebookPostgresStatementV1 implements D1WriteStatementV1 {
   }
 }
 
-interface PostgresExecutionV1 {
-  readonly rows: readonly PostgresRowV1[];
-  readonly changes: number;
-}
-
 class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
   constructor(
     private readonly sql: GradebookPostgresQuerySqlV1,
@@ -379,25 +387,37 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     return new GradebookPostgresStatementV1(this, query);
   }
 
-  async execute(query: string, values: readonly D1WriteValueV1[]): Promise<PostgresExecutionV1> {
+  async execute(query: string, values: readonly D1WriteValueV1[]): Promise<GradebookPostgresExecutionV1> {
     const translated = castJsonColumnParametersV1(
       translateGradebookD1SqlToPostgresV1(query),
     );
     const jsonParameters = jsonParameterIndexesV1(translated);
     const parameters = values.map((value, index) =>
-      jsonParameters.has(index) && typeof value === 'string' && this.sql.typed
-        ? this.sql.typed(value, POSTGRES_TEXT_OID_V1)
+      jsonParameters.has(index) && typeof value === 'string'
+        ? postgresJsonTextV1(value)
+        : value,
+    );
+    return this.executeNative(translated, parameters);
+  }
+
+  async executeNative<Row extends PostgresRowV1 = PostgresRowV1>(
+    text: string,
+    values: readonly GradebookPostgresValueV1[],
+  ): Promise<GradebookPostgresExecutionV1<Row>> {
+    const parameters = values.map((value) =>
+      value !== null && typeof value === 'object'
+        ? (this.sql.typed ? this.sql.typed(value.jsonText, POSTGRES_TEXT_OID_V1) : value.jsonText)
         : value,
     );
     let result: PostgresQueryResultV1;
     try {
-      result = await this.sql.unsafe(translated, parameters);
+      result = await this.sql.unsafe(text, parameters);
     } catch (cause) {
-      this.failureState.value = failureDiagnostic(translated, cause);
+      this.failureState.value = failureDiagnostic(text, cause);
       throw cause;
     }
     return {
-      rows: Array.from(result, normalizeRow),
+      rows: Array.from(result, normalizeRow) as readonly Row[],
       changes: typeof result.count === 'number' ? result.count : result.length,
     };
   }
@@ -406,14 +426,7 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     text: string,
     parameters: readonly D1WriteValueV1[],
   ): Promise<readonly Row[]> {
-    let result: PostgresQueryResultV1;
-    try {
-      result = await this.sql.unsafe(text, parameters);
-    } catch (cause) {
-      this.failureState.value = failureDiagnostic(text, cause);
-      throw cause;
-    }
-    return Array.from(result, normalizeRow) as unknown as readonly Row[];
+    return (await this.executeNative<Row>(text, parameters)).rows;
   }
 
   async exec(query: string): Promise<unknown> {
@@ -515,6 +528,7 @@ export function createGradebookPostgresDatabaseFromSqlV1(
   return {
     prepare: facade.prepare.bind(facade),
     query: facade.query.bind(facade),
+    executeNative: facade.executeNative.bind(facade),
     exec: facade.exec.bind(facade),
     batch: facade.batch.bind(facade),
     transaction: facade.transaction.bind(facade),
