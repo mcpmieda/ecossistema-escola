@@ -33,7 +33,7 @@ describe('official Gradebook storage boundary', () => {
 
     expect(admin).toContain("state: 'retired', provider: 'postgres'");
     expect(admin).not.toContain('createGradebookD1RuntimeV1');
-    expect(map).toContain('não prova');
+    expect(map).toContain('somente PostgreSQL em todos os ambientes');
     expect(map).toContain('não existe fallback automático para D1 físico');
     expect(legacy).toContain('Documento histórico');
     expect(cutover).toContain('instruções de rollback D1 abaixo estão supersedidas');

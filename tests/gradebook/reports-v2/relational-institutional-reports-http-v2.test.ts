@@ -6,7 +6,6 @@ import {
   GRADEBOOK_INSTITUTIONAL_REPORTS_ROUTE_V1,
 } from '../../../server/gradebook/http/institutional-reports-routes-v1';
 import type { GradebookRuntimeAuthorizationV1 } from '../../../server/gradebook/authorization-v1';
-import type { InstitutionalReportsServiceV1 } from '../../../server/gradebook/application/reports/institutional-reports-service-v1';
 import { testEnv } from '../../fixtures';
 
 const ORIGIN = 'http://localhost:8788';
@@ -42,7 +41,6 @@ function fixture() {
   const createRelationalService = vi.fn(() => relational);
   const handler = createInstitutionalReportsRequestHandlerV1({
     authorizeRequest: vi.fn(async () => ({ runtimeAuthorization: authorization, actorOid: 'actor-oid' })),
-    createService: vi.fn(() => ({ execute: vi.fn() }) as unknown as InstitutionalReportsServiceV1),
     createRelationalService,
   });
   return { handler, execute, createRelationalService };

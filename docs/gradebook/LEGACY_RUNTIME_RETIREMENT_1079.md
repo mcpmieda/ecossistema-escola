@@ -39,6 +39,18 @@ contratos ou calculos apenas por terem sufixo V1. V9/V10/V11 permanecem atuais.
 
 ## Aceite e limites
 
+Varredura AST na candidata integrada: 866 arquivos JS/TS ativos, 3.086 arestas,
+zero imports relativos nao resolvidos, zero modulos em `persistence/d1` e zero
+arestas ativas para D1 ou `Aprendizados`. Imports de valor, tipo, reexports,
+imports dinamicos literais e `require` literal foram examinados. A suite
+`retired-d1-boundary-v1.test.ts` fixa a fronteira; a reintroducao temporaria de
+`prepare` na fachada foi detectada e revertida antes do commit.
+
+Os 75 arquivos movidos preservam o conteudo byte a byte (SHA-256 conferido);
+tres fachadas anteriores e sete testes especificos do tradutor tambem estao
+preservados no arquivo historico. Nao foram acrescentadas exclusoes de testes,
+lint ou TypeScript: o arquivo usa a fronteira de memoria ja existente no repo.
+
 - Testes HTTP: versoes retiradas sem I/O, auth/origem/validacao e versoes atuais.
 - Testes nativos: SQL literal, JSON explicito, contagem/CAS, rollback, mesma
   conexao fisica, diagnostico sanitizado e provider lazy sem fallback D1.
