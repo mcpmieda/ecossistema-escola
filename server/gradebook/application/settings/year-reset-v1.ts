@@ -17,10 +17,11 @@ import type {
   D1WriteDatabaseV1,
   D1WriteValueV1,
 } from '../../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = D1WriteDatabaseV1 & {
-  transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 
 const RESET_TABLES_V1 = [

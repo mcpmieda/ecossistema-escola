@@ -3,7 +3,7 @@ import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
-import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import {
@@ -51,7 +51,7 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
       reason:inspection === 'payload-too-large' ? 'Pacote acadêmico excede o limite permitido.' : 'Pacote acadêmico canônico inválido.',
     },performance.now()-started);
   }
-  const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1 | undefined;
+  const database = env.GRADEBOOK_D1 as GradebookPostgresWritePortV1 | undefined;
   if (!database) return response({transportVersion:9,state:'unavailable'},performance.now()-started);
   const canonical = payload as GradebookImportPersistenceRequestV9;
   // Diagnostics are replaced only by a complete diagnostic observation, including [].

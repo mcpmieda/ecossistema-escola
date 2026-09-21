@@ -70,6 +70,8 @@ describe('year reset V1 HTTP and UI boundary', () => {
     for (const state of ['portal-linked-accounts', null]) {
       const transaction = {
         exec: async () => undefined,
+        query: async (sql: string) =>
+          sql.includes('AS state') && state !== null ? [{ state }] : [],
         prepare: () => {
           const statement = {
             bind: (..._values: unknown[]) => statement,
