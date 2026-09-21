@@ -36,6 +36,10 @@ export function lazyGradebookDatabaseV1(
   }
   return {
     prepare: (query) => new Statement(query),
+    query: async <Row extends Record<string, unknown>>(
+      text: string,
+      parameters: readonly D1WriteValueV1[],
+    ) => (await open()).query<Row>(text, parameters),
     exec: async (query) => (await open()).exec(query),
     batch: async (statements) => {
       if (statements.some((statement) => !(statement instanceof Statement)))

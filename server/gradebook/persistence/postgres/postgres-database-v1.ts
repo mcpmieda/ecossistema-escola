@@ -79,7 +79,21 @@ export interface GradebookPostgresDatabaseOptionsV1 {
   readonly idleInTransactionTimeoutMilliseconds?: number;
 }
 
-export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1 {
+/**
+ * Native PostgreSQL reads for modules migrated off the D1 dialect (B-15). The query is
+ * sent as written: `$n` placeholders and explicit casts, with no D1-to-PostgreSQL
+ * translation. It shares the pool, connection timeouts, failure diagnostic and row
+ * normalization of translated statements, so migrating a module changes its SQL, not
+ * the rows it receives.
+ */
+export interface GradebookPostgresReadPortV1 {
+  query<Row extends Record<string, unknown>>(
+    text: string,
+    parameters: readonly D1WriteValueV1[],
+  ): Promise<readonly Row[]>;
+}
+
+export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1, GradebookPostgresReadPortV1 {
   transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
   lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;
   close(): Promise<void>;
@@ -384,6 +398,20 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     };
   }
 
+  async query<Row extends Record<string, unknown>>(
+    text: string,
+    parameters: readonly D1WriteValueV1[],
+  ): Promise<readonly Row[]> {
+    let result: PostgresQueryResultV1;
+    try {
+      result = await this.sql.unsafe(text, parameters);
+    } catch (cause) {
+      this.failureState.value = failureDiagnostic(text, cause);
+      throw cause;
+    }
+    return Array.from(result, normalizeRow) as unknown as readonly Row[];
+  }
+
   async exec(query: string): Promise<unknown> {
     return this.execute(query, []);
   }
@@ -482,6 +510,7 @@ export function createGradebookPostgresDatabaseFromSqlV1(
   const facade = new GradebookPostgresFacadeV1(sql, sql, false, failureState);
   return {
     prepare: facade.prepare.bind(facade),
+    query: facade.query.bind(facade),
     exec: facade.exec.bind(facade),
     batch: facade.batch.bind(facade),
     transaction: facade.transaction.bind(facade),

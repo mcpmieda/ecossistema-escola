@@ -35,7 +35,7 @@ import {
   type GradebookD1RuntimeAuthorizationV1,
 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
-import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
+import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
 import { createRelationalImportDiagnosticsReadV2 } from '../persistence/postgres/relational-import-diagnostics-read-v2';
 
@@ -132,7 +132,9 @@ const defaultDependencies: InstitutionalReportsRequestHandlerDependenciesV1 = {
     });
   },
   createRelationalService(env, actorOid) {
-    const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+    // Reached only with the PostgreSQL provider: under D1 the handler fails closed before
+    // building this service, so the binding is always the official PostgreSQL database.
+    const database = env.GRADEBOOK_D1 as GradebookPostgresDatabaseV1;
     const bulletins = createRelationalBulletinServiceV2({
       database,
       snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
