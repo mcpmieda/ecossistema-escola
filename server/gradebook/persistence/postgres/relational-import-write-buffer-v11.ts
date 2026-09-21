@@ -1,20 +1,18 @@
+import type { D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
 import type {
-  D1WriteDatabaseV1,
-  D1WriteRunResultV1,
-  D1WriteStatementV1,
-  D1WriteValueV1,
-} from '../d1/write/d1-write-adapter-v1';
-import type { GradebookPostgresReadPortV1 } from './postgres-database-v1';
+  GradebookPostgresExecutionV1,
+  GradebookPostgresWritePortV1,
+} from './postgres-database-v1';
+import { postgresJsonTextV1, type GradebookPostgresValueV1 } from './postgres-values-v1';
 
 type Row = Record<string, unknown>;
-type ReadTransactionV11 = D1WriteDatabaseV1 & GradebookPostgresReadPortV1;
 
-interface TransactionDatabaseV11 extends D1WriteDatabaseV1 {
-  transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T>;
+interface TransactionDatabaseV11 extends GradebookPostgresWritePortV1 {
+  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
 }
 
-export interface BufferedRelationalImportDatabaseV11 extends ReadTransactionV11 {
-  transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T>;
+export interface BufferedRelationalImportDatabaseV11 extends GradebookPostgresWritePortV1 {
+  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
   flush(): Promise<void>;
 }
 
@@ -81,7 +79,7 @@ function emptyBuffer(): BufferedWritesV11 {
   };
 }
 
-function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV11 {
+function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV11 {
   if (
     !('transaction' in database) ||
     typeof (database as { transaction?: unknown }).transaction !== 'function'
@@ -95,88 +93,49 @@ function compactSql(query: string): string {
   return query.trim().replace(/\s+/gu, ' ').toLowerCase();
 }
 
-function integer(value: D1WriteValueV1, label: string): number {
+function integer(value: GradebookPostgresValueV1, label: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
     throw new Error(`gradebook-import-buffer-invalid-${label}`);
   }
   return value;
 }
 
-function nullableInteger(value: D1WriteValueV1, label: string): number | null {
+function nullableInteger(value: GradebookPostgresValueV1, label: string): number | null {
   if (value === null) return null;
   return integer(value, label);
 }
 
-function assertLength(values: readonly D1WriteValueV1[], expected: number, label: string): void {
+function assertLength(values: readonly GradebookPostgresValueV1[], expected: number, label: string): void {
   if (values.length !== expected) {
     throw new Error(`gradebook-import-buffer-invalid-${label}`);
   }
 }
 
-function resultChanges(result: D1WriteRunResultV1): number {
-  const changes = result.meta?.changes ?? result.changes;
+function resultChanges(result: GradebookPostgresExecutionV1): number {
+  const changes = result.changes;
   if (typeof changes !== 'number' || !Number.isSafeInteger(changes) || changes < 0) {
     throw new Error('gradebook-import-buffer-invalid-change-count');
   }
   return changes;
 }
 
-function oneChange(): D1WriteRunResultV1 {
-  return { success: true, changes: 1, meta: { changes: 1 } };
-}
-
-class BufferedStatementV11 implements D1WriteStatementV1 {
-  constructor(
-    private readonly owner: BufferedDatabaseV11,
-    private readonly query: string,
-    private readonly values: readonly D1WriteValueV1[] = [],
-  ) {}
-
-  bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
-    return new BufferedStatementV11(this.owner, this.query, values);
-  }
-
-  async first<ResultRow extends Row>(): Promise<ResultRow | null> {
-    await this.owner.flush();
-    return this.owner.underlying
-      .prepare(this.query)
-      .bind(...this.values)
-      .first<ResultRow>();
-  }
-
-  async all<ResultRow extends Row>(): Promise<{ readonly results: readonly ResultRow[] }> {
-    await this.owner.flush();
-    return this.owner.underlying
-      .prepare(this.query)
-      .bind(...this.values)
-      .all<ResultRow>();
-  }
-
-  async run(): Promise<D1WriteRunResultV1> {
-    if (this.owner.bufferRun(this.query, this.values)) return oneChange();
-    await this.owner.flush();
-    return this.owner.underlying
-      .prepare(this.query)
-      .bind(...this.values)
-      .run();
-  }
-}
-
 class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
-  readonly underlying: ReadTransactionV11;
   private pending: BufferedWritesV11 = emptyBuffer();
 
   constructor(
-    database: D1WriteDatabaseV1,
+    private readonly underlying: GradebookPostgresWritePortV1,
     private readonly finalizers: Array<
-      (database: D1WriteDatabaseV1) => Promise<void>
+      (database: GradebookPostgresWritePortV1) => Promise<void>
     > | null = null,
-  ) {
-    this.underlying = database as ReadTransactionV11;
-  }
+  ) {}
 
-  prepare(query: string): D1WriteStatementV1 {
-    return new BufferedStatementV11(this, query);
+  async executeNative<ResultRow extends Row = Row>(
+    query: string,
+    values: readonly GradebookPostgresValueV1[],
+  ): Promise<GradebookPostgresExecutionV1<ResultRow>> {
+    if (this.bufferRun(query, values)) return { rows: [], changes: 1 };
+    await this.flush();
+    return this.underlying.executeNative<ResultRow>(query, values);
   }
 
   async query<ResultRow extends Row>(query: string, values: readonly D1WriteValueV1[]): Promise<readonly ResultRow[]> {
@@ -184,17 +143,12 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     return this.underlying.query<ResultRow>(query, values);
   }
 
-  async exec(query: string): Promise<unknown> {
-    await this.flush();
-    return await this.underlying.exec(query);
-  }
-
-  afterImportFlush(operation: (database: D1WriteDatabaseV1) => Promise<void>): void {
+  afterImportFlush(operation: (database: GradebookPostgresWritePortV1) => Promise<void>): void {
     if (this.finalizers === null) throw new Error('import-finalizer-outside-transaction');
     this.finalizers.push(operation);
   }
 
-  async transaction<T>(operation: (database: ReadTransactionV11) => Promise<T>): Promise<T> {
+  async transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T> {
     await this.flush();
     return transactionDatabase(this.underlying).transaction(async (transaction) => {
       const finalizers = this.finalizers ?? [];
@@ -208,7 +162,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     });
   }
 
-  bufferRun(query: string, values: readonly D1WriteValueV1[]): boolean {
+  private bufferRun(query: string, values: readonly GradebookPostgresValueV1[]): boolean {
     const sql = compactSql(query);
 
     if (
@@ -228,7 +182,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       return true;
     }
 
-    if (sql.startsWith('update gradebook.nota set valor = ? ')) {
+    if (sql.startsWith('update gradebook.nota set valor = $1 ')) {
       assertLength(values, 3, 'note-update');
       this.pending.noteUpdate.push({
         instrumento_id: integer(values[1]!, 'instrument-id'),
@@ -238,7 +192,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       return true;
     }
 
-    if (sql.startsWith('delete from gradebook.nota where instrumento_id = ? ')) {
+    if (sql.startsWith('delete from gradebook.nota where instrumento_id = $1 ')) {
       assertLength(values, 2, 'note-delete');
       this.pending.noteDelete.push({
         instrumento_id: integer(values[0]!, 'instrument-id'),
@@ -268,13 +222,13 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       return true;
     }
 
-    if (sql.startsWith('update gradebook.fechamento set am1_fonte = ?')) {
+    if (sql.startsWith('update gradebook.fechamento set am1_fonte = $1')) {
       assertLength(values, 11, 'closing-update');
       this.pending.closingUpdate.push(this.closingRow(values, true));
       return true;
     }
 
-    if (sql.startsWith('delete from gradebook.fechamento where oferta_id = ? ')) {
+    if (sql.startsWith('delete from gradebook.fechamento where oferta_id = $1 ')) {
       assertLength(values, 2, 'closing-delete');
       this.pending.closingDelete.push({
         oferta_id: integer(values[0]!, 'offer-id'),
@@ -286,7 +240,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     return false;
   }
 
-  private closingRow(values: readonly D1WriteValueV1[], update: boolean): ClosingRowV11 {
+  private closingRow(values: readonly GradebookPostgresValueV1[], update: boolean): ClosingRowV11 {
     const offset = update ? 0 : 2;
     const ofertaIndex = update ? 9 : 0;
     const alunoIndex = update ? 10 : 1;
@@ -321,7 +275,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
 
     await this.groupedRun(
       `DELETE FROM gradebook.nota AS current
-       USING jsonb_to_recordset(?::jsonb) AS incoming(
+       USING jsonb_to_recordset($1::jsonb) AS incoming(
          instrumento_id integer,
          aluno_id integer
        )
@@ -333,7 +287,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     await this.groupedRun(
       `UPDATE gradebook.nota AS current
        SET valor = incoming.valor
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
          instrumento_id integer,
          aluno_id integer,
          valor integer
@@ -346,7 +300,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     await this.groupedRun(
       `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor)
        SELECT instrumento_id, aluno_id, valor
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
          instrumento_id integer,
          aluno_id integer,
          valor integer
@@ -358,7 +312,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       `INSERT INTO gradebook.fechamento_historico
        (importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo)
        SELECT importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
          importacao_id integer,
          oferta_id integer,
          aluno_id integer,
@@ -373,7 +327,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     );
     await this.groupedRun(
       `DELETE FROM gradebook.fechamento AS current
-       USING jsonb_to_recordset(?::jsonb) AS incoming(
+       USING jsonb_to_recordset($1::jsonb) AS incoming(
          oferta_id integer,
          aluno_id integer
        )
@@ -393,7 +347,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
            rec_nc_mask = incoming.rec_nc_mask,
            rec_rr_mask = incoming.rec_rr_mask,
            u_fonte = incoming.u_fonte
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
          oferta_id integer,
          aluno_id integer,
          am1_fonte integer,
@@ -415,7 +369,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       `INSERT INTO gradebook.fechamento
        (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
        SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
          oferta_id integer,
          aluno_id integer,
          am1_fonte integer,
@@ -437,7 +391,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
 
   private async groupedRun(query: string, rows: readonly object[], label: string): Promise<void> {
     if (rows.length === 0) return;
-    const result = await this.underlying.prepare(query).bind(JSON.stringify(rows)).run();
+    const result = await this.underlying.executeNative(query, [postgresJsonTextV1(JSON.stringify(rows))]);
     if (resultChanges(result) !== rows.length) {
       throw new Error(`gradebook-import-buffer-write-count-mismatch:${label}`);
     }
@@ -445,7 +399,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
 }
 
 export function createBufferedRelationalImportDatabaseV11(
-  database: D1WriteDatabaseV1,
+  database: GradebookPostgresWritePortV1,
 ): BufferedRelationalImportDatabaseV11 {
   return new BufferedDatabaseV11(database);
 }
