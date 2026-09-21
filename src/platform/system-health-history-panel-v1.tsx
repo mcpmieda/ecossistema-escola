@@ -4,17 +4,17 @@ import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
 import { cappedHealthCountV1, type HealthStateV1 } from '../../shared/system-health-v1';
 import { HEALTH_HISTORY_BODY_BYTES_V1, HEALTH_HISTORY_RETENTION_MS_V1, isPortalHistoryV1,
   portalHistoryChangeV1, portalHistoryFreshV1, portalHistoryPointStateV1,
-  type PortalHistoryV1 } from '../../shared/system-health-history-v1';
+  type PortalHistoryPointV1, type PortalHistoryV1 } from '../../shared/system-health-history-v1';
 
-type ReadState = { data: PortalHistoryV1 | null; before: string | null; loading: boolean; error: 'denied' | 'unavailable' | null };
-const initial = (): ReadState => ({ data: null, before: null, loading: false, error: null });
+type ReadState = { data: PortalHistoryV1 | null; boundary: PortalHistoryPointV1 | null;
+  before: string | null; loading: boolean; error: 'denied' | 'unavailable' | null };
+const initial = (): ReadState => ({ data: null, boundary: null, before: null, loading: false, error: null });
 const labels: Record<HealthStateV1, string> = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico', unknown: 'Sem confirmação' };
 const colors = { normal: 'success', attention: 'warning', critical: 'danger', unknown: 'default' } as const;
 const date = (at: string) => new Date(at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' });
 class HistoryAccessError extends Error {}
 async function fetchHistory(before: string | null, controller: AbortController): Promise<PortalHistoryV1> {
-  return healthDeadlineV1(async (deadline) => {
-    const signal = AbortSignal.any([controller.signal, deadline]);
+  return healthDeadlineV1(async (signal) => {
     const response = await fetch('/api/platform/system-health/history', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ before }),
@@ -22,9 +22,11 @@ async function fetchHistory(before: string | null, controller: AbortController):
     if (response.status === 401 || response.status === 403) throw new HistoryAccessError();
     if (!response.ok) throw new Error('history-unavailable');
     const data = await readHealthJsonV1(response, signal, HEALTH_HISTORY_BODY_BYTES_V1);
-    if (!isPortalHistoryV1(data)) throw new Error('history-unavailable');
+    if (!isPortalHistoryV1(data) || (before !== null
+      && data.points.some((point) => Date.parse(point.bucketAt) >= Date.parse(before))))
+      throw new Error('history-unavailable');
     return data;
-  }, 5_000);
+  }, 5_000, controller.signal);
 }
 function notice(state: ReadState, now: number): string {
   if (state.loading) return 'Consultando histórico…';
@@ -50,20 +52,23 @@ function HistoryReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
   const [now, setNow] = useState(Date.now);
   const active = useRef<AbortController | null>(null);
   const denied = useRef(false);
-  const read = useCallback(async (before: string | null) => {
+  const read = useCallback(async (before: string | null, previous: PortalHistoryPointV1 | null = null) => {
     if (active.current || denied.current) return;
     const controller = new AbortController(); active.current = controller;
-    setState({ data: null, before, loading: true, error: null });
+    // Keep only the prior page's boundary, not an ever-growing history in browser memory.
+    const boundary = before !== null && previous?.bucketAt === before ? previous : null;
+    setState({ data: null, boundary: null, before, loading: true, error: null });
     try {
       const data = await fetchHistory(before, controller);
       controller.signal.throwIfAborted();
       if (active.current !== controller) return;
-      setNow(Date.now()); setState({ data, before, loading: false, error: null });
+      setNow(Date.now());
+      setState({ data, boundary: data.points.length ? boundary : null, before, loading: false, error: null });
     } catch (error) {
       if (controller.signal.aborted || active.current !== controller) return;
       const accessLost = error instanceof HistoryAccessError;
       denied.current = accessLost;
-      setState({ data: null, before, loading: false, error: accessLost ? 'denied' : 'unavailable' });
+      setState({ data: null, boundary: null, before, loading: false, error: accessLost ? 'denied' : 'unavailable' });
       if (accessLost) onDenied();
     } finally { if (active.current === controller) active.current = null; }
   }, [onDenied]);
@@ -75,13 +80,16 @@ function HistoryReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
     const clock = setInterval(() => setNow(Date.now()), 15_000);
     return () => { active.current?.abort(); active.current = null; clearInterval(clock); window.removeEventListener('pagehide', hide); };
   }, [read]);
-  const points = state.data?.points.filter((point) => Date.parse(point.observedAt) > now - HEALTH_HISTORY_RETENTION_MS_V1) ?? [];
+  const page = state.data?.points ?? [];
+  const points = (page.length && state.boundary ? [state.boundary, ...page] : page)
+    .filter((point) => Date.parse(point.observedAt) > now - HEALTH_HISTORY_RETENTION_MS_V1);
   return <>
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <p role={state.error ? 'alert' : 'status'} className="text-sm">{notice(state, now)}</p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" isDisabled={state.loading || state.error === 'denied'} onPress={() => { void read(null); }}>Atualizar histórico</Button>
-        {state.data?.nextBefore ? <Button size="sm" variant="secondary" isDisabled={state.loading} onPress={() => { void read(state.data!.nextBefore); }}>Mais antigos</Button> : null}
+        {state.data?.nextBefore ? <Button size="sm" variant="secondary" isDisabled={state.loading}
+          onPress={() => { void read(state.data!.nextBefore, state.data!.points.at(-1) ?? null); }}>Mais antigos</Button> : null}
       </div>
     </div>
     {points.length ? <Table variant="secondary"><Table.ScrollContainer><Table.Content aria-label="Histórico operacional do Portal">
