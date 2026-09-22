@@ -674,7 +674,7 @@
     padding-top: 0.1rem;
   }
   .pa-hero-brand-copy h1 {
-    font-size: 0.78rem;
+    font-size: 0.9rem;
   }
   .pa-hero-body {
     grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
@@ -698,7 +698,10 @@
   }
   .pa-hero-details p {
     max-width: 32rem;
-    font-size: 0.95rem;
+    font-size: 0.78rem;
+  }
+  .pa-hero-details p:last-child {
+    font-size: 0.72rem;
   }
   .pa-hero-portrait {
     min-height: 16.6rem;
