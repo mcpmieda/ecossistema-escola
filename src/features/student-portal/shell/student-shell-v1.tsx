@@ -135,12 +135,6 @@ export function StudentProfileV1({
 
   return (
     <section className="pa-student-hero" aria-labelledby={heading}>
-      <div className="pa-hero-geometry" aria-hidden="true">
-        <span className="pa-hero-geometry-shape pa-hero-geometry-shape-a" />
-        <span className="pa-hero-geometry-shape pa-hero-geometry-shape-b" />
-        <span className="pa-hero-geometry-shape pa-hero-geometry-shape-c" />
-      </div>
-
       <div className="pa-hero-inner">
         <div className="pa-hero-topbar">
           <div className="pa-hero-brand">
