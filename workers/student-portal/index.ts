@@ -3,6 +3,7 @@ import { portalFailureV1, portalJsonV1 } from '../../server/student-portal/runti
 import { servePortalSelfV1 } from '../../server/student-portal/composition/self-v1';
 import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-v1';
 import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
+import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
@@ -42,6 +43,9 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
   async monitoring(context: unknown) {
     return portalMonitoringRpcV1(this.env, context);
   }
+  async monitoringHistory(context: unknown, before: unknown) {
+    return portalHistoryRpcV1(this.env, context, before);
+  }
   async query(context: unknown, request: unknown) {
     return portalAdminRpcV1(this.env, 'query', context, request);
   }
@@ -58,7 +62,8 @@ export default {
     if (selfMayEnqueueLiveV1(request)) ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
     return response;
   },
-  async scheduled(_controller, env) {
-    await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0)]);
+  async scheduled(controller, env) {
+    await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
+      portalHistoryScheduledV1(env, controller.scheduledTime)]);
   },
 } satisfies ExportedHandler<PortalWorkerEnv & PortalCompositionEnvV1>;

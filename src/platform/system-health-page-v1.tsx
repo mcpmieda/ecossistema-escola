@@ -6,6 +6,7 @@ import { cappedHealthCountV1, sampleIsFreshV1, systemHealthStateV1, type HealthS
   type PortalMaintenanceSampleV1, type PortalMonitorSampleV1, type PublicEntrySampleV1,
   type SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 import { createHealthMonitorV1 } from './system-health-controller-v1';
+import { SystemHealthHistoryPanelV1 } from './system-health-history-panel-v1';
 import { usePlatformIdentityV1 } from './platform-identity-v1';
 import { PageHeader } from './presentation';
 
@@ -65,9 +66,9 @@ const COVERAGE = [
   { id: 'public-entry', name: 'Entrada pública', source: 'Verificação HTTP da página inicial', limit: 'Uma verificação; não é porcentagem de disponibilidade.' },
   { id: 'database', name: 'Banco e filas do Portal', source: 'Leitura privada do próprio Portal', limit: 'Amostra atual; filas de até 1.000 itens e indicador de excedente.' },
   { id: 'providers', name: 'Cloudflare e Supabase', source: 'Métricas dos fornecedores: não integradas', limit: 'CPU, tráfego, armazenamento e capacidade total ainda sem medição.' },
-  { id: 'functional', name: 'Login e telas do aluno', source: 'Teste funcional: não configurado', limit: 'Requer conta sintética; nenhum aluno real é usado como monitor.' },
+  { id: 'functional', name: 'Login e telas do aluno', source: 'Teste funcional: não configurado', limit: 'Verificação autenticada protegida ainda pendente.' },
   { id: 'browser', name: 'Erros no navegador', source: 'Recepção e agregação: pendentes', limit: 'Não há taxa de sucesso por tela ou navegador nesta versão.' },
-  { id: 'alerting', name: 'Alertas e histórico', source: 'Envio externo: não configurado', limit: 'Sem vigilância contínua quando esta tela está fechada.' },
+  { id: 'alerting', name: 'Avisos e histórico', source: 'Consulta no histórico operacional', limit: 'Coleta de configuração e filas a cada 5 minutos; sem aviso externo.' },
 ] as const;
 function HealthSummary({ monitor, current }: Readonly<{
   monitor: ReturnType<typeof useMonitor>; current: SystemHealthSnapshotV1 | null;
@@ -81,7 +82,7 @@ function HealthSummary({ monitor, current }: Readonly<{
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3"><HeartPulse className="size-5" aria-hidden="true" /><Status state={overall} /><Chip size="sm" variant="soft">Cobertura parcial</Chip></div>
           <h2 className="mt-4 text-2xl font-semibold tracking-tight">{title}</h2>
-          <p className="mt-2 text-sm text-muted">Login completo, telas no navegador e alertas externos ainda não verificados.</p>
+          <p className="mt-2 text-sm text-muted">Login completo e telas no navegador ainda não verificados.</p>
           <p className="mt-3 text-xs text-muted">{monitor.snapshot ? `Última coleta: ${date(monitor.snapshot.generatedAt)} (Bahia)` : 'Nenhuma coleta disponível.'}</p>
         </div>
         <Button variant="secondary" onPress={() => { void monitor.refresh(); }} isDisabled={monitor.loading || monitor.paused || monitor.error === 'denied'}>
@@ -134,7 +135,7 @@ function LiveMetric({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSa
   let state: HealthStateV1 = 'unknown';
   if (maintenance?.liveOutboxAvailable) state = maintenance.liveBacklog ? 'attention' : 'normal';
   return <Metric icon={RefreshCw} title="Avisos de atualização" value={maintenance?.liveOutboxAvailable ? cappedHealthCountV1(maintenance.livePending) : '—'}
-    state={state} detail="Avisos que atualizam as telas após mudanças. Ausência da estrutura não é tratada como zero." />;
+    state={state} detail="Avisos de atualização usados pelas telas administrativas. Ausência da estrutura não é tratada como zero." />;
 }
 function LockMetric({ maintenance }: Readonly<{ maintenance: PortalMaintenanceSampleV1 | null }>) {
   let state: HealthStateV1 = 'unknown';
@@ -204,6 +205,7 @@ function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: Platfo
     </div>
     <QueueTable maintenance={maintenance} />
     <CleanupNotice maintenance={maintenance} />
+    {monitor.error !== 'denied' ? <SystemHealthHistoryPanelV1 onDenied={onDenied} /> : null}
     <Card variant="default" className="mt-5">
       <Card.Header><Card.Title>Cobertura e preparação para a abertura</Card.Title><Card.Description>Sem informação não significa ausência de falhas.</Card.Description></Card.Header>
       <Card.Content><dl className="grid gap-5 md:grid-cols-2">{COVERAGE.map((item) => <div key={item.id} className="min-w-0">
