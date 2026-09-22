@@ -689,7 +689,7 @@
 
 @media (min-width: 1180px) {
   .pa-student-hero {
-    min-height: 21rem;
+    min-height: 20rem;
   }
   .pa-hero-inner {
     padding-inline: 2.25rem;
