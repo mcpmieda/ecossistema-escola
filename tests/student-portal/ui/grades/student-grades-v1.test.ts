@@ -144,7 +144,7 @@ describe('annual published grades', () => {
     first.officialOutcome = 'failed-attendance';
     data.subjects[1]!.officialOutcome = 'failed';
     const view = render(table(data));
-    expect(screen.getByText('Reprovado por frequência')).toBeTruthy();
+    expect(screen.getByText('Reprovado por falta')).toBeTruthy();
     expect(screen.getByText('Reprovado')).toBeTruthy();
     expect(screen.getByText('Aprovado')).toBeTruthy();
     expect(screen.getAllByText('Em curso')).toHaveLength(10);

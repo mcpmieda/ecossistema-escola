@@ -20,11 +20,15 @@ import {
   Languages,
   LayoutDashboard,
   Monitor,
+  MoveRight,
   Music2,
   Palette,
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
+import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
@@ -50,8 +54,53 @@ const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
 const resultLabels = {
   approved: 'Aprovado',
   failed: 'Reprovado',
-  'failed-attendance': 'Reprovado por frequência',
+  'failed-attendance': 'Reprovado por falta',
 } as const;
+type ToneV1 = 'default' | 'success' | 'warning' | 'danger';
+/** Official BN/Council wording; the coarse `result` is only a fallback for legacy payloads. */
+const ANNUAL_SITUATION_LABELS_V1: Record<
+  NonNullable<SelfResponseV1['profile']['annualSituation']>,
+  { label: string; tone: ToneV1 }
+> = {
+  'in-recovery': { label: 'Em recuperação', tone: 'warning' },
+  'awaiting-council': { label: 'Aguardando Conselho de Classe', tone: 'default' },
+  'approved-direct': { label: 'Aprovado direto', tone: 'success' },
+  'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
+  'approved-special': { label: 'Aprovado', tone: 'success' },
+  'approved-by-council': { label: 'Aprovado pelo Conselho', tone: 'success' },
+  'failed-after-recovery': { label: 'Reprovado após recuperação', tone: 'danger' },
+  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'danger' },
+  'failed-repeat': { label: 'Reprovado', tone: 'danger' },
+  'failed-by-council': { label: 'Reprovado pelo Conselho', tone: 'danger' },
+  'failed-by-absence': { label: 'Reprovado por falta', tone: 'danger' },
+};
+const SUBJECT_SITUATION_LABELS_V1: Record<
+  NonNullable<SubjectV1['annualSituation']>,
+  { label: string; tone: ToneV1 }
+> = {
+  'recovery-pending': { label: 'Em recuperação', tone: 'warning' },
+  'approved-direct': { label: 'Aprovado direto', tone: 'success' },
+  'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
+  'not-approved': { label: 'Não aprovado', tone: 'danger' },
+  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'danger' },
+  'failed-repeat': { label: 'Reprovado', tone: 'danger' },
+};
+const finalResultLabelsV1 = {
+  approved: { label: 'Aprovado', tone: 'success' },
+  failed: { label: 'Reprovado', tone: 'danger' },
+  'failed-attendance': { label: 'Reprovado por falta', tone: 'danger' },
+} as const;
+
+function subjectSituationV1(subject: SubjectV1): { label: string; tone: ToneV1 } | null {
+  if (subject.annualSituation) return SUBJECT_SITUATION_LABELS_V1[subject.annualSituation];
+  if (subject.officialOutcome)
+    return {
+      label: resultLabels[subject.officialOutcome],
+      tone: subject.officialOutcome === 'approved' ? 'success' : 'danger',
+    };
+  return null;
+}
+type SummaryKeyV1 = PeriodIdV1 | 'REC';
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
 const WORKSPACE_HISTORY_KEY_V1 = '__studentPortalWorkspaceV1';
 
@@ -70,6 +119,39 @@ function scoreToneV1(mark: ScoreMarkV1 | null) {
   if (mark?.meetsMinimum === true) return 'positive' as const;
   if (mark?.meetsMinimum === false) return 'negative' as const;
   return 'neutral' as const;
+}
+
+/*
+ * Descriptive trend against the previous trimester, following the gradebook term comparison
+ * (docs/gradebook/TERM_COMPARISON_2026_V4.md): percentages via exact cross-multiplication in
+ * milli units, so T3 (max 40) is fairly compared with T2 (max 30). Only two numeric marks with
+ * a positive maximum are comparable; anything else shows no indicator.
+ */
+const TREND_REFERENCE_V1: Partial<Record<PeriodIdV1, PeriodIdV1>> = { T2: 'T1', T3: 'T2' };
+const RECOVERY_OF_V1: Partial<Record<PeriodIdV1, string>> = {
+  REC1: '1º trimestre',
+  REC2: '2º trimestre',
+  REC3: '3º trimestre',
+};
+const RECOVERY_PERIODS_V1: readonly PeriodIdV1[] = ['REC1', 'REC2', 'REC3'];
+type TrendV1 = 'higher' | 'equal' | 'lower';
+function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): TrendV1 | null {
+  if (!current?.maximum || !reference?.maximum) return null;
+  const milli = (value: number) => BigInt(Math.round(value * 1000));
+  const left = milli(current.value) * milli(reference.maximum);
+  const right = milli(reference.value) * milli(current.maximum);
+  return left > right ? 'higher' : left < right ? 'lower' : 'equal';
+}
+
+function TrendIndicatorV1({ trend, reference }: { trend: TrendV1; reference: PeriodIdV1 }) {
+  const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
+  const verb = trend === 'higher' ? 'Subiu' : trend === 'lower' ? 'Caiu' : 'Manteve';
+  const label = `${verb} em relação ao ${PERIOD_LABELS_V1[reference]}`;
+  return (
+    <span className={'pa-trend pa-trend--' + trend} role="img" aria-label={label} title={label}>
+      <Icon size={17} strokeWidth={2.4} aria-hidden="true" />
+    </span>
+  );
 }
 
 function SubjectIconV1({ label, size = 18 }: { label: string; size?: number }) {
@@ -106,10 +188,12 @@ function PageIntroV1({
   icon,
   eyebrow,
   title,
+  aside,
 }: {
   icon: ReactNode;
   eyebrow: string;
   title: string;
+  aside?: ReactNode;
 }) {
   return (
     <div className="pa-workspace-intro">
@@ -118,6 +202,7 @@ function PageIntroV1({
         <p className="pa-workspace-eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
+      {aside ? <div className="pa-workspace-intro-aside">{aside}</div> : null}
     </div>
   );
 }
@@ -129,29 +214,74 @@ function SummaryV1({
 }: {
   data: SelfResponseV1;
   profile: ReactNode;
-  onOpenSubject: (subjectId: number) => void;
+  onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
-  const available = visibleMainPeriodsV1(subjects);
-  const [selected, setSelected] = useState<PeriodIdV1>(available[0] ?? 'T1');
+  // Only periods present in the payload get a tab: the server already dropped what the admin
+  // has not released. Recoveries share one tab, shown only when any REC was released.
+  const hasRecovery = subjects.some((subject) =>
+    subject.periods.some((period) => RECOVERY_PERIODS_V1.includes(period.period)),
+  );
+  const available: SummaryKeyV1[] = [
+    ...visibleMainPeriodsV1(subjects),
+    ...(hasRecovery ? (['REC'] as const) : []),
+  ];
+  const [selected, setSelected] = useState<SummaryKeyV1>(available[0] ?? 'T1');
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
-  const published = subjects.filter((subject) => subjectPeriodV1(subject, active));
+  const recoveryPeriodsOf = (subject: SubjectV1) =>
+    subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
+  const published = subjects.filter((subject) =>
+    active === 'REC' ? recoveryPeriodsOf(subject).length > 0 : subjectPeriodV1(subject, active),
+  );
+  const situation = data.profile.annualSituation;
+  const finalResult = situation
+    ? ANNUAL_SITUATION_LABELS_V1[situation]
+    : data.profile.result in finalResultLabelsV1
+      ? finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1]
+      : null;
+  const inRecovery = subjects.filter((subject) => subject.annualSituation === 'recovery-pending');
 
   return (
     <div className="pa-workspace-view">
       {profile}
       <section className="pa-boletim-section" aria-labelledby="pa-summary-title">
+        {/* Present only when the server releases it: EM RECUPERAÇÃO with T3, every other
+            situation with the final disclosure. Assisted students never receive one. */}
+        {finalResult ? (
+          <Card className={'pa-final-result pa-final-result--' + finalResult.tone}>
+            <Card.Content className="pa-final-result-content">
+              <div>
+                <p className="pa-workspace-eyebrow">
+                  {situation === 'in-recovery' ? 'Situação' : 'Resultado final'}{' '}
+                  {data.profile.link.academicYear}
+                </p>
+                <p className="pa-final-result-label">{finalResult.label}</p>
+                {situation === 'in-recovery' && inRecovery.length ? (
+                  <p className="pa-final-result-detail">
+                    Recuperação em {inRecovery.map((subject) => subject.label).join(', ')}
+                  </p>
+                ) : null}
+              </div>
+              <Chip size="sm" variant="soft" color={finalResult.tone}>
+                Oficial
+              </Chip>
+            </Card.Content>
+          </Card>
+        ) : null}
+
         {available.length ? (
           <Tabs
             className="pa-boletim-period-tabs"
             selectedKey={active}
-            onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}
+            onSelectionChange={(key) => setSelected(String(key) as SummaryKeyV1)}
           >
             <Tabs.ListContainer>
               <Tabs.List aria-label="Período das notas">
                 {available.map((period) => (
                   <Tabs.Tab id={period} key={period}>
-                    {BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}
+                    {period === 'REC'
+                      ? 'Recuperação'
+                      : (BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period])}
                     <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
@@ -173,11 +303,17 @@ function SummaryV1({
         <ListBox
           aria-label="Disciplinas publicadas"
           selectionMode="none"
-          onAction={(key) => onOpenSubject(Number(key))}
+          onAction={(key) => {
+            // Open the discipline on the period being browsed (first recovery for the REC tab).
+            const subject = published.find((item) => item.subjectId === Number(key));
+            const period =
+              active === 'REC' ? (subject && recoveryPeriodsOf(subject)[0]?.period) : active;
+            onOpenSubject(Number(key), period);
+          }}
           className="pa-workspace-list"
         >
           {published.map((subject) => {
-            const period = subjectPeriodV1(subject, active);
+            const outcome = subjectSituationV1(subject);
             return (
               <ListBox.Item
                 id={String(subject.subjectId)}
@@ -187,8 +323,29 @@ function SummaryV1({
                 <SubjectIconV1 label={subject.label} />
                 <div className="pa-workspace-list-copy">
                   <Label>{subject.label}</Label>
+                  {outcome ? (
+                    <Chip size="sm" variant="soft" color={outcome.tone} className="pa-list-outcome">
+                      <span className="pa-visually-hidden">Resultado oficial: </span>
+                      {outcome.label}
+                    </Chip>
+                  ) : null}
                 </div>
-                <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
+                {active === 'REC' ? (
+                  <span className="pa-recovery-marks">
+                    {recoveryPeriodsOf(subject).map((period) => (
+                      <span key={period.period} className="pa-recovery-mark">
+                        <span className="pa-recovery-mark-label">
+                          {PERIOD_LABELS_V1[period.period].replace('REC ', '')} tri
+                        </span>
+                        <strong><StudentMarkV1 mark={period.final} /></strong>
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <strong>
+                    <StudentMarkV1 mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }} />
+                  </strong>
+                )}
               </ListBox.Item>
             );
           })}
@@ -198,21 +355,42 @@ function SummaryV1({
   );
 }
 
+/** Status copy only restates the server's mark kind/classification; it never infers a result. */
+function periodStatusV1(period: PeriodV1 | undefined, recovery: boolean) {
+  const final = period?.final;
+  if (!final || final.kind === 'absent') return 'Ainda não lançada';
+  if (final.kind === 'recovery-pending') return 'Aguardando nota';
+  if (final.kind !== 'score' || final.meetsMinimum === null) return 'Nota em análise';
+  if (final.meetsMinimum) return recovery ? 'Atingiu o mínimo' : 'Parabéns';
+  return 'Abaixo do esperado';
+}
+
 function SubjectV1View({
   subject,
   subjects,
   onSubjectChange,
+  initialPeriod,
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
+  initialPeriod?: PeriodIdV1;
 }) {
   const available = subject.periods.map((period) => period.period);
-  const [selected, setSelected] = useState<PeriodIdV1>(available[0] ?? 'T1');
+  const [selected, setSelected] = useState<PeriodIdV1>(
+    initialPeriod && available.includes(initialPeriod) ? initialPeriod : (available[0] ?? 'T1'),
+  );
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
-  const result = subject.officialOutcome ? resultLabels[subject.officialOutcome] : 'Em curso';
+  const recoveryOf = RECOVERY_OF_V1[active];
+  const trendReference = TREND_REFERENCE_V1[active];
+  const trend = trendReference
+    ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
+    : null;
+  const official = subjectSituationV1(subject);
+  const result = official?.label ?? 'Em curso';
+  const resultColor = official?.tone ?? 'default';
 
   return (
     <div className="pa-workspace-view">
@@ -220,6 +398,12 @@ function SubjectV1View({
         icon={<SubjectIconV1 label={subject.label} size={20} />}
         eyebrow="Disciplina"
         title={subject.label}
+        aside={
+          <Chip size="sm" variant="soft" color={resultColor}>
+            <span className="pa-visually-hidden">Resultado oficial: </span>
+            {result}
+          </Chip>
+        }
       />
 
       <Tabs
@@ -241,78 +425,94 @@ function SubjectV1View({
       <Tabs selectedKey={active} onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}>
         <Tabs.ListContainer>
           <Tabs.List aria-label={'Períodos de ' + subject.label}>
+            {/* Each period tab carries its own final mark, so the evolution reads at a glance. */}
             {available.map((item) => (
-              <Tabs.Tab id={item} key={item}>
-                {PERIOD_LABELS_V1[item]}
+              <Tabs.Tab id={item} key={item} className="pa-period-tab">
+                <span className="pa-period-tab-label">{PERIOD_LABELS_V1[item]}</span>
+                <span className="pa-period-tab-mark">
+                  <StudentMarkV1 mark={subjectPeriodV1(subject, item)?.final ?? { kind: 'absent' }} />
+                </span>
                 <Tabs.Indicator />
               </Tabs.Tab>
             ))}
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id={active} key={active}>
-          <div className="pa-workspace-grid pa-tab-motion pa-tab-motion--forward">
-            <Card className={'pa-score-card pa-score-card--' + scoreToneV1(mark)}>
-              <Card.Content className="pa-score-card-content">
-                <div className="pa-score-card-copy">
-                  <span className="pa-score-card-label">Sua nota</span>
-                  <span className="pa-score-card-status">
-                    {mark?.meetsMinimum === true
-                      ? 'Parabéns'
-                      : mark?.meetsMinimum === false
-                        ? 'Abaixo do esperado'
-                        : 'Nota em análise'}
-                  </span>
-                </div>
-                <div className="pa-score-card-value" aria-label="Nota do período">
-                  <strong>{mark ? number.format(mark.value) : '—'}</strong>
-                  {mark?.maximum !== null && mark?.maximum !== undefined ? (
-                    <span>/ {number.format(mark.maximum)}</span>
-                  ) : null}
-                </div>
-              </Card.Content>
-            </Card>
-
-            <Card>
-              <Card.Header>
-                <Card.Title>Detalhe do trimestre</Card.Title>
-              </Card.Header>
-              <Card.Content>
-                {period?.partials?.length ? (
-                  <ListBox aria-label="Avaliações publicadas" selectionMode="none">
-                    {period.partials.map((partial) => (
-                      <ListBox.Item
-                        id={String(partial.assessmentId)}
-                        key={partial.assessmentId}
-                        textValue={partial.label}
-                      >
-                        <div className="pa-workspace-list-copy">
-                          <Label>{partial.label}</Label>
-                        </div>
-                        <strong>
-                          {partial.notDone ? '—' : <StudentMarkV1 mark={partial.mark} showMaximum />}
-                        </strong>
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
+          {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated. */}
+          <Card
+            className={
+              'pa-score-card pa-score-card--' + scoreToneV1(mark) + ' pa-tab-motion pa-tab-motion--forward'
+            }
+          >
+            <Card.Content className="pa-score-card-content">
+              <div className="pa-score-card-copy">
+                <span className="pa-score-card-label">
+                  {recoveryOf ? `Recuperação do ${recoveryOf}` : 'Nota do trimestre'}
+                </span>
+                <span className="pa-score-card-status">{periodStatusV1(period, Boolean(recoveryOf))}</span>
+              </div>
+              <div className="pa-score-card-value" aria-label="Nota do período">
+                {mark ? (
+                  <>
+                    {trend && trendReference ? (
+                      <TrendIndicatorV1 trend={trend} reference={trendReference} />
+                    ) : null}
+                    <strong>{number.format(mark.value)}</strong>
+                    {mark.maximum !== null && mark.maximum !== undefined ? (
+                      <span>/ {number.format(mark.maximum)}</span>
+                    ) : null}
+                  </>
                 ) : (
-                  <Description>Não há avaliações parciais publicadas neste período.</Description>
+                  <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
                 )}
-              </Card.Content>
-              <Card.Footer className="pa-card-footer-between">
-                <span>Nota do trimestre</span>
-                <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
-              </Card.Footer>
-            </Card>
-          </div>
+              </div>
+            </Card.Content>
+            {/* No `partials` key means the admin did not release the breakdown (showPartials off):
+                render nothing rather than claiming there are no activities. */}
+            {period?.partials === undefined ? null : (
+            <div className="pa-score-card-partials">
+              {period.partials.length ? (
+                <>
+                  <p className="pa-score-card-partials-title">Detalhamento</p>
+                  <ListBox
+                    aria-label="Avaliações publicadas"
+                    selectionMode="none"
+                    className="pa-partials-list"
+                  >
+                    {period.partials.map((partial) => {
+                      // Same rule as the bulletin table: observed blank → Não fez, numeric 0 → Tirou zero.
+                      const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
+                      return (
+                        <ListBox.Item
+                          id={String(partial.assessmentId)}
+                          key={partial.assessmentId}
+                          textValue={partial.label}
+                        >
+                          <div className="pa-workspace-list-copy">
+                            <Label>{partial.label}</Label>
+                          </div>
+                          <strong>
+                            {partial.notDone || zero ? (
+                              <GranularStatusV1 notDone={partial.notDone} zero={zero} />
+                            ) : (
+                              <StudentMarkV1 mark={partial.mark} showMaximum />
+                            )}
+                          </strong>
+                        </ListBox.Item>
+                      );
+                    })}
+                  </ListBox>
+                </>
+              ) : (
+                <Description className="pa-score-card-empty">
+                  Nenhuma avaliação parcial publicada.
+                </Description>
+              )}
+            </div>
+            )}
+          </Card>
         </Tabs.Panel>
       </Tabs>
-
-      <Card variant="secondary">
-        <Card.Content className="pa-card-footer-between">
-          <span>Resultado oficial</span>
-          <strong>{result}</strong>
-        </Card.Content>
-      </Card>
     </div>
   );
 }
@@ -329,6 +529,7 @@ export function StudentPortalWorkspaceV1({
   const [area, setArea] = useState<WorkspaceAreaV1>('summary');
   const [selectedSubjectId, setSelectedSubjectId] = useState(firstSubjectId);
   const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
+  const [openPeriod, setOpenPeriod] = useState<PeriodIdV1 | undefined>();
   const previousArea = useRef<WorkspaceAreaV1>('summary');
   const selectedSubject =
     subjects.find((subject) => subject.subjectId === selectedSubjectId) ?? subjects[0];
@@ -410,11 +611,13 @@ export function StudentPortalWorkspaceV1({
     return () => window.removeEventListener('popstate', restore);
   }, [firstSubjectId, subjects]);
 
-  const openSubject = (subjectId: number) => {
+  const openSubject = (subjectId: number, period?: PeriodIdV1) => {
+    setOpenPeriod(period);
     pushWorkspaceState('subject', subjectId);
   };
 
   const selectSubject = (subjectId: number) => {
+    setOpenPeriod(undefined);
     pushWorkspaceState('subject', subjectId);
   };
 
@@ -455,13 +658,14 @@ export function StudentPortalWorkspaceV1({
       <Tabs.Panel id="subject">
         {selectedSubject ? (
           <div
-            key={'subject-' + selectedSubject.subjectId}
+            key={'subject-' + selectedSubject.subjectId + '-' + (openPeriod ?? '')}
             className={'pa-tab-motion pa-tab-motion--' + motionDirection}
           >
             <SubjectV1View
               subject={selectedSubject}
               subjects={subjects}
               onSubjectChange={selectSubject}
+              initialPeriod={openPeriod}
             />
           </div>
         ) : null}

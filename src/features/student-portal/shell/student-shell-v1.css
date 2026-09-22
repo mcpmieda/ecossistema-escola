@@ -203,16 +203,18 @@
   min-width: 2rem;
   height: 1.35rem;
   padding-inline: 0.45rem;
-  border: 1px solid rgb(255 255 255 / 0.16);
+  border: 1px solid rgb(255 255 255 / 0.18);
   border-radius: 999px;
-  background: rgb(56 189 248 / 0.35);
-  color: #eff9ff;
+  background: linear-gradient(180deg, #ff3b47, #e0141f);
+  box-shadow: 0 4px 12px rgb(224 20 31 / 0.35);
+  color: #fff;
   font-size: 0.68rem;
   font-weight: 750;
   line-height: 1;
 }
 .pa-hero-action {
   flex: 0 0 auto;
+  border-radius: 1rem;
   color: white;
   border: 1px solid rgb(255 255 255 / 0.2);
   background: rgb(255 255 255 / 0.11);
@@ -496,11 +498,13 @@
   .pa-student-hero {
     top: 0.35rem;
     width: calc(100% - 0.75rem);
-    min-height: 16.8rem;
+    min-height: 15.1rem;
     margin-top: 0.35rem;
     border-radius: 1.9rem;
-    background-position: 60% center;
-    background-size: auto 100%;
+    /* Portrait cover keeps the glass card and red accent behind the student photo. */
+    background-image: url('../../../student-portal/assets/hero-cover-mobile.webp');
+    background-position: center 21%;
+    background-size: 100% auto;
   }
   .pa-hero-inner {
     padding: 0.95rem 1.05rem 0;
@@ -532,7 +536,7 @@
   .pa-hero-body {
     position: relative;
     display: block;
-    min-height: 12.55rem;
+    min-height: 10.35rem;
   }
   .pa-hero-copy {
     width: 58%;
@@ -557,28 +561,29 @@
   .pa-hero-details p {
     max-width: 100%;
     gap: 0.4rem;
-    font-size: 0.58rem;
+    font-size: 0.66rem;
     line-height: 1.22;
   }
   .pa-hero-details svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
   }
   .pa-hero-details p:last-child {
-    font-size: 0.52rem;
+    font-size: 0.56rem;
   }
+  /* Larger portrait sinks below the content sheet, which crops it at chest height. */
   .pa-hero-portrait {
     position: absolute;
-    right: -0.15rem;
-    bottom: -0.1rem;
-    width: 50%;
-    min-height: 13.15rem;
+    right: -0.6rem;
+    bottom: -1.2rem;
+    width: 60%;
+    min-height: 0;
     place-items: end center;
     pointer-events: none;
   }
   .pa-hero-photo {
-    width: min(12.25rem, 100%);
-    max-height: 13.4rem;
+    width: 100%;
+    max-height: none;
     transform: none;
     transform-origin: center bottom;
   }
@@ -600,11 +605,12 @@
   .pa-student-hero {
     --pa-hero-fade-height: 3.2rem;
     width: min(calc(100% - 2rem), 70rem);
-    min-height: 18.6rem;
+    min-height: 20.5rem;
     margin-top: 1rem;
     border-radius: 2.05rem;
-    background-position: center;
-    background-size: cover;
+    /* Oversized cover pulls the glass card inward so it sits behind the portrait. */
+    background-position: right top;
+    background-size: 140% auto;
   }
   .pa-hero-inner {
     padding: 1.15rem 1.5rem 0;
@@ -617,12 +623,15 @@
     gap: 1.25rem;
     min-height: 13.25rem;
   }
+  /* Mobile proportions scaled up (~1.6×): top-anchored copy, details keep pace with the name. */
   .pa-hero-copy {
+    align-self: start;
     max-width: 31rem;
-    padding: 1.35rem 0 1.6rem 2%;
+    padding: 1.75rem 0 0 2%;
   }
   .pa-hero-greeting {
-    font-size: 0.7rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.9rem;
   }
   .pa-student-name {
     max-width: 13ch;
@@ -630,23 +639,36 @@
     line-height: 0.98;
   }
   .pa-hero-details {
-    gap: 0.4rem;
-    margin-top: 0.8rem;
+    gap: 0.45rem;
+    margin-top: 1rem;
   }
   .pa-hero-details p {
     max-width: 28rem;
-    font-size: 0.68rem;
+    font-size: 1rem;
+  }
+  .pa-hero-details svg {
+    width: 20px;
+    height: 20px;
   }
   .pa-hero-details p:last-child {
-    font-size: 0.62rem;
+    font-size: 0.88rem;
   }
+  .pa-hero-body {
+    position: relative;
+  }
+  /* Same composition as mobile: portrait sinks below the content sheet. */
   .pa-hero-portrait {
-    min-height: 14.2rem;
+    position: absolute;
+    right: calc(18% - 9rem);
+    bottom: -2rem;
+    width: 18rem;
+    min-height: 0;
     place-items: end center;
+    pointer-events: none;
   }
   .pa-hero-photo {
-    width: min(17rem, 100%);
-    max-height: 15rem;
+    width: 100%;
+    max-height: none;
   }
   .pa-hero-avatar {
     width: 12rem;
@@ -664,11 +686,11 @@
   .pa-student-hero {
     --pa-hero-fade-height: 3.6rem;
     width: min(calc(100% - 2rem), 76rem);
-    min-height: 20rem;
+    min-height: 21.5rem;
     margin-top: 1rem;
     border-radius: 2.2rem;
-    background-position: center;
-    background-size: cover;
+    background-position: right top;
+    background-size: 140% auto;
   }
   .pa-hero-inner {
     padding: 1.35rem 2.4rem 0;
@@ -685,11 +707,13 @@
     min-height: 14.7rem;
   }
   .pa-hero-copy {
+    align-self: start;
     max-width: 36rem;
-    padding: 1.55rem 0 1.85rem 4%;
+    padding: 1.75rem 0 0 4%;
   }
   .pa-hero-greeting {
-    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.95rem;
   }
   .pa-student-name {
     max-width: 14ch;
@@ -697,22 +721,35 @@
     line-height: 0.97;
   }
   .pa-hero-details {
-    margin-top: 0.9rem;
+    gap: 0.5rem;
+    margin-top: 1.05rem;
   }
   .pa-hero-details p {
     max-width: 32rem;
-    font-size: 0.78rem;
+    font-size: 1.05rem;
+  }
+  .pa-hero-details svg {
+    width: 21px;
+    height: 21px;
   }
   .pa-hero-details p:last-child {
-    font-size: 0.72rem;
+    font-size: 0.92rem;
+  }
+  .pa-hero-body {
+    position: relative;
   }
   .pa-hero-portrait {
-    min-height: 15.6rem;
+    position: absolute;
+    right: calc(18% - 10rem);
+    bottom: -2.2rem;
+    width: 20rem;
+    min-height: 0;
     place-items: end center;
+    pointer-events: none;
   }
   .pa-hero-photo {
-    width: min(20rem, 100%);
-    max-height: 17rem;
+    width: 100%;
+    max-height: none;
   }
   .pa-hero-avatar {
     width: 15rem;

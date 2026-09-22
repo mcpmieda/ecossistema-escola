@@ -20,7 +20,7 @@ const outcome = {
   'in-progress': { label: 'Em curso', color: 'default' },
   approved: { label: 'Aprovado', color: 'success' },
   failed: { label: 'Reprovado', color: 'danger' },
-  'failed-attendance': { label: 'Reprovado por frequência', color: 'danger' },
+  'failed-attendance': { label: 'Reprovado por falta', color: 'danger' },
   'not-applicable': { label: 'Não se aplica', color: 'default' },
 } as const;
 
