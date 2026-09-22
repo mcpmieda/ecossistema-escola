@@ -180,13 +180,20 @@ export function applyPublishedVisibilityV1(
   const projection = selfResponseV1.parse(input);
   const value = settingsValueV1.parse(policy);
   const final = mayDiscloseFinalV1(value, now, officialSourceAuthorized);
+  // EM RECUPERAÇÃO (and which subjects are pending) follows the T3 disclosure so the student
+  // learns it before the recovery week; every other situation waits for the final disclosure.
+  // TODO(student-portal): replace with a dedicated admin control once this branch is merged.
+  const recoveryDisclosed = periodDisclosureV1(value, 'T3', now) === 'allowed';
+  const situationVisible = (situation: string | undefined, earlyValue: string) =>
+    situation !== undefined && (final || (recoveryDisclosed && situation === earlyValue));
   const subjects = value.accessEnabled
     ? projection.subjects
         .map((subject) => {
-          const { officialOutcome, ...base } = subject;
+          const { officialOutcome, annualSituation, ...base } = subject;
           return {
             ...base,
             ...(final && officialOutcome !== undefined ? { officialOutcome } : {}),
+            ...(situationVisible(annualSituation, 'recovery-pending') ? { annualSituation } : {}),
             periods: subject.periods
               .filter((period) => periodDisclosureV1(value, period.period, now) === 'allowed')
               .map((period) => {
@@ -200,11 +207,17 @@ export function applyPublishedVisibilityV1(
         })
         .filter((subject) => subject.periods.length > 0)
     : [];
+  const { annualSituation, ...profile } = projection.profile;
+  const showSituation =
+    value.accessEnabled &&
+    projection.profile.academicState !== 'assisted' &&
+    situationVisible(annualSituation, 'in-recovery');
   return selfResponseV1.parse({
     ...projection,
     state: subjects.length > 0 ? 'ready' : 'no-publication',
     profile: {
-      ...projection.profile,
+      ...profile,
+      ...(showSituation ? { annualSituation } : {}),
       result:
         projection.profile.academicState === 'assisted'
           ? 'not-applicable'
