@@ -198,7 +198,6 @@ export function StudentProfileV1({
           </div>
 
           <div className="pa-hero-portrait" role="img" aria-label={'Avatar de ' + profile.name}>
-            <div className="pa-hero-portrait-backdrop" aria-hidden="true" />
             {portraitSrc ? (
               <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
             ) : (
