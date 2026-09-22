@@ -113,14 +113,12 @@ function PublicationActionsV1({
 function PublicationPeriodV1({
   item,
   data,
-  scope,
   canWrite,
   disabled,
   review,
 }: Readonly<{
   item: PublicationItemV1;
   data: PublicationSnapshotV1;
-  scope: ScopeV1;
   canWrite: boolean;
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
@@ -535,7 +533,6 @@ function PublicationReadyV1({
             key={item.period}
             item={item}
             data={load.data}
-            scope={scope}
             canWrite={canWrite}
             disabled={disabled}
             review={prepare}
