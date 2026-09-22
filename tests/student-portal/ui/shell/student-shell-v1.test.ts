@@ -33,16 +33,17 @@ describe('student shell and canonical profile', () => {
     const slot = vi.fn(grades);
     const user = userEvent.setup();
     render(page({ grades: slot }));
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('PORTAL DO ALUNO');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Portal do Aluno');
     expect(
       screen.getByRole('img', { name: 'Escola Iêda Alves de Oliveira MCPM' }).textContent,
     ).toBe('IA');
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas']);
+    expect(headings).toEqual(['Estudante de exemplo', 'Minhas notas']);
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
-    expect(screen.getByText(/Turma de exemplo.*2026/u)).toBeTruthy();
+    expect(screen.getByText('Turma de exemplo')).toBeTruthy();
+    expect(screen.getByText('2026')).toBeTruthy();
     expect(screen.getByText('Em curso')).toBeTruthy();
     expect(slot).not.toHaveBeenCalled();
     await user.click(screen.getByRole('tab', { name: 'Boletim' }));
