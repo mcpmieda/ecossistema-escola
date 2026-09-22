@@ -73,6 +73,12 @@ function asNumber(value: unknown, label: string): number {
   return number;
 }
 
+function asBoolean(value: unknown, label: string): boolean {
+  if (value === true || value === 1 || value === '1' || value === 't') return true;
+  if (value === false || value === 0 || value === '0' || value === 'f') return false;
+  throw new Error(`invalid-${label}`);
+}
+
 async function first<T extends Row>(
   database: GradebookPostgresWritePortV1,
   query: string,
@@ -438,10 +444,10 @@ async function reconcileSplitRelationIdentityV9(
   );
   if (
     !collision ||
-    collision.nota === true ||
-    collision.fechamento === true ||
-    collision.conselho_decisao === true ||
-    collision.conselho_votacao === true
+    asBoolean(collision.nota, 'identity-repair-note-collision') ||
+    asBoolean(collision.fechamento, 'identity-repair-closing-collision') ||
+    asBoolean(collision.conselho_decisao, 'identity-repair-decision-collision') ||
+    asBoolean(collision.conselho_votacao, 'identity-repair-vote-collision')
   ) {
     throw new RelationalImportErrorV9(
       'conflict',
