@@ -40,7 +40,7 @@ describe('student shell and canonical profile', () => {
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(['Estudante de exemplo', 'Minhas notas']);
+    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas']);
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
     expect(screen.getByText('2026')).toBeTruthy();
