@@ -23,6 +23,7 @@ export const portalSignalPointV1 = z.object({
   totalMs: z.number().int().min(0).max(60_000_000), maxMs: duration,
   slow: z.number().int().min(0).max(1000), capped: z.boolean(),
 }).strict().refine((value) => browserShape(value) && value.slow <= value.samples
+  && (!value.source.startsWith('browser-') || value.samples <= 60)
   && value.totalMs >= value.maxMs && value.totalMs <= value.samples * value.maxMs
   && (value.maxMs >= 3000 || value.slow === 0));
 export type PortalSignalPointV1 = z.infer<typeof portalSignalPointV1>;
