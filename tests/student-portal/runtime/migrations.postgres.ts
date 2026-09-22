@@ -1051,6 +1051,7 @@ describe('native publication targets and competing job leases', () => {
   const other = new PublicationJobsV1(secondary);
   const reader = new SelfProjectionReaderV1(primary);
   const policy = new PolicyServiceV1(secondary);
+  const reconciler = new PublicationReconcilerV1(primary);
   let accountId: string;
   const scope = () => ({ kind: 'account', academicYear: 2026, accountId } as const);
   async function command(operation = 'publish', period = 'T1') {
@@ -1060,6 +1061,20 @@ describe('native publication targets and competing job leases', () => {
   }
   const self = () => reader.read(accountId, crypto.randomUUID());
   const t1 = async () => (await self())?.subjects.flatMap((subject) => subject.periods).filter((period) => period.period === 'T1');
+  async function makeT1Pending() {
+    await gradebook`UPDATE gradebook.fechamento
+      SET am1_fonte=COALESCE(am1_fonte,0)+1
+      WHERE oferta_id=910001 AND aluno_id=910001`;
+    await gradebook.unsafe(
+      `SELECT * FROM student_portal.record_gradebook_change_v1(
+        $1::uuid,2026::smallint,'marks'::text,true,ARRAY[910001]::integer[],statement_timestamp()
+      )`,
+      [crypto.randomUUID()],
+    );
+    expect((await reconciler.run()).failed).toBe(0);
+    expect((await publications.read(scope())).items.find((item) => item.period === 'T1'))
+      .toMatchObject({ state: 'update-pending' });
+  }
 
   it('claims once across real connections and commits only the exact approved target', async () => {
     await openSyntheticSchoolV1(primary);
@@ -1098,6 +1113,7 @@ describe('native publication targets and competing job leases', () => {
   });
 
   it('unpublish wins over an already claimed job on another Portal connection', async () => {
+    await makeT1Pending();
     await publications.command(actor, await command('publish-update'));
     const claimed = await other.claim();
     expect(claimed).not.toBeNull();
@@ -1111,6 +1127,7 @@ describe('native publication targets and competing job leases', () => {
   });
 
   it('a changed policy fences pending work and filters the committed copy immediately', async () => {
+    await makeT1Pending();
     await publications.command(actor, await command('publish-update'));
     const claimed = await jobs.claim();
     const before = await self();
