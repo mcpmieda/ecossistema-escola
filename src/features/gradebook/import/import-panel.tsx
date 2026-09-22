@@ -9,6 +9,7 @@ import {
   type ImportPersistenceStateV9,
 } from './use-import-batch';
 import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
+import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1';
 import { WorkbookInspector } from './workbook-inspector';
 
 function FileHash({ sha256 }: { sha256: string }) {
@@ -224,7 +225,9 @@ export function NotesImportPanel() {
   } = useImportBatch();
 
   const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
-  const selectedDiagnostics = selectedResult ? (sourceDiagnostics[selectedResult.id] ?? []) : [];
+  const selectedDiagnostics = selectedResult
+    ? actionableGradebookImportDiagnosticsV1(sourceDiagnostics[selectedResult.id] ?? [])
+    : [];
 
   return (
     <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
@@ -372,8 +375,12 @@ export function NotesImportPanel() {
 
           <div className="mt-5 grid gap-3 lg:grid-cols-2">
             {results.map((result) => {
-              const diagnostics = sourceDiagnostics[result.id] ?? [];
-              const blocking = diagnostics.filter((value) => value.severity === 'blocking-error').length;
+              const diagnostics = actionableGradebookImportDiagnosticsV1(
+                sourceDiagnostics[result.id] ?? [],
+              );
+              const blocking = diagnostics.filter(
+                (value) => value.severity === 'blocking-error',
+              ).length;
               const warnings = diagnostics.filter((value) => value.severity === 'warning').length;
               return (
                 <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
