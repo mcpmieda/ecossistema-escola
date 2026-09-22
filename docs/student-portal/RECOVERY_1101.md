@@ -41,3 +41,11 @@ Prévia descartável em loopback (`127.0.0.1:4182`, Worker local + PostgreSQL na
 - Mobile 390 px: sem rolagem horizontal da página; ficha ocupa a largura e não corta ações.
 
 Defeitos encontrados e corrigidos nessa validação: CSS de impressão embutido como `data:` bloqueado por `style-src 'self'`; QR exibido/impresso via `blob:` bloqueado por `img-src 'self' data:` (a imagem aparecia vazia); prévia em massa sempre 403 porque o handler HTTP não elevava a capacidade de escrita exigida pela API; grade da ficha cortando conteúdo em telas estreitas.
+
+## Aplicação em produção (22/09/2026)
+
+Com autorização do responsável, após todos os gates oficiais verdes no head `a832a350`:
+
+- Pré-condição conferida: `enqueue_portal_live_event_v1` e `enqueue_revision_live_event_v1` em produção eram idênticas às de 0011 (md5 do corpo). A 0017 só acrescenta `security_relevant`; o guarda de 2026 repete o `WHEN` já existente no trigger (0012). As colunas de 0016/0017 estavam ausentes.
+- 0016 e 0017 aplicadas nessa ordem via Supabase CLI, cada uma em transação própria com `lock_timeout`/`statement_timeout`; histórico `20260922150000` e `20260922150001`.
+- Pós-verificação: 4 colunas em `audit_event`, `live_event_outbox_v1.security_relevant` e o trigger `student_portal_capture_audit_entities_v1` presentes. Nenhuma permissão, secret ou proteção alterada. O runtime anterior continua compatível (somente colunas anuláveis/com default).

@@ -21,8 +21,8 @@ Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separa
 | `0013_publication_inheritance_v1.sql` | #827: marca herança lógica da decisão do escopo pai sem apagar release nem copiar fatos acadêmicos |
 | `0014_year_reset_full_cleanup_v1.sql` | mantém o contrato do reset anual e remove, ao concluir, eventos de revisão, provas técnicas e coordenação anual do ano apagado |
 | `0015_student_portal_rls_v1.sql` | defesa em profundidade #859: RLS não-forçado nas 27 tabelas privadas, policy restrita a `student_portal_app` e ACL existente preservada |
-| `0016_audit_entities_v1.sql` | #1102 (candidata, não aplicada em produção): rótulos históricos de operador/aluno/turma em `audit_event`, sem backfill fabricado nem novas permissões |
-| `0017_security_event_priority_v1.sql` | #1101 (candidata, não aplicada em produção): marca `security_relevant` no outbox live para o canal exclusivo de segurança, sem novo payload protegido |
+| `0016_audit_entities_v1.sql` | #1102 (aplicada em produção em 22/09/2026, versão `20260922150000`): rótulos históricos de operador/aluno/turma em `audit_event`, sem backfill fabricado nem novas permissões |
+| `0017_security_event_priority_v1.sql` | #1101 (aplicada em produção em 22/09/2026, versão `20260922150001`): marca `security_relevant` no outbox live para o canal exclusivo de segurança, sem novo payload protegido |
 
 The ledger above is the **repository migration sequence**, not independent proof that every file has been applied remotely. Production application is recorded by the owning issue/deploy evidence and by the canonical project state. The sequence began against the Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`; later Portal migrations declare newer Gradebook dependencies explicitly (for example `0012` depends on Gradebook `0009`). `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
 
