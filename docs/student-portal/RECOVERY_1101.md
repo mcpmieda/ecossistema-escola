@@ -29,3 +29,15 @@ As migrations candidatas 0016 e 0017 foram revisadas antes de entrar no código.
 A migration 0016 precisa preceder consultas com entidades. A migration 0017 precisa preceder o runtime que lê `security_relevant`. Não publicar uma combinação incompatível de schema e aplicação. Nenhuma permissão, secret ou proteção é alterada por esta recuperação.
 
 Exigir `npm run verify`, PostgreSQL nativo, revisão independente, validação visual e gates oficiais no head final. Integração somente por merge commit e publicação pelo workflow oficial. Registrar SHA, ambiente e evidências finais no PR. Uma aba anterior ao deploy só incorpora o cliente de segurança ao recarregar uma vez. O endpoint acadêmico legado permanece compatível; o cliente novo não o utiliza para atualizar notas.
+
+## Validação visual local (dados fictícios)
+
+Prévia descartável em loopback (`127.0.0.1:4182`, Worker local + PostgreSQL nativo local, somente contas `SYNTHETIC`), Edge headless com a CSP administrativa real. Tráfego fora de loopback bloqueado.
+
+- Desktop 1440 px: lista de alunos, ficha, QR atual, Políticas, Sessões e Auditoria renderizam sem erro de página.
+- Clipboard: "Copiar imagem" grava PNG real 456×456 na área de transferência.
+- Impressão: `print()` só é chamado após o CSS e a imagem carregarem; QR de 38 mm em A4 com margem de 5 mm.
+- Operação em massa: prévia integral (18 contas no cenário) com confirmação desabilitada até a digitação da contagem.
+- Mobile 390 px: sem rolagem horizontal da página; ficha ocupa a largura e não corta ações.
+
+Defeitos encontrados e corrigidos nessa validação: CSS de impressão embutido como `data:` bloqueado por `style-src 'self'`; QR exibido/impresso via `blob:` bloqueado por `img-src 'self' data:` (a imagem aparecia vazia); prévia em massa sempre 403 porque o handler HTTP não elevava a capacidade de escrita exigida pela API; grade da ficha cortando conteúdo em telas estreitas.
