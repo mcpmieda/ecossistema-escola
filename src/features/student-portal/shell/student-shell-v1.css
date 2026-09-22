@@ -104,15 +104,9 @@
   border: 1px solid rgb(219 234 254 / 0.18);
   border-radius: 2rem;
   background-color: #063b8d;
-  background-image:
-    url('../../../student-portal/assets/hero-cover.webp'),
-    linear-gradient(115deg, #0a4ba1 0%, #063e91 46%, #02499f 100%);
-  background-position:
-    right center,
-    center;
-  background-size:
-    auto 112%,
-    cover;
+  background-image: url('../../../student-portal/assets/hero-cover.webp');
+  background-position: center 23%;
+  background-size: 100% auto;
   background-repeat: no-repeat;
   box-shadow:
     0 24px 60px -24px rgb(4 32 91 / 0.5),
@@ -505,12 +499,8 @@
     min-height: 16.8rem;
     margin-top: 0.35rem;
     border-radius: 1.9rem;
-    background-position:
-      right center,
-      center;
-    background-size:
-      auto 100%,
-      cover;
+    background-position: center 22%;
+    background-size: 100% auto;
   }
   .pa-hero-inner {
     padding: 0.95rem 1.05rem 0;
@@ -613,12 +603,8 @@
     min-height: 18.6rem;
     margin-top: 1rem;
     border-radius: 2.05rem;
-    background-position:
-      right 47%,
-      center;
-    background-size:
-      auto 122%,
-      cover;
+    background-position: center 23%;
+    background-size: 100% auto;
   }
   .pa-hero-inner {
     padding: 1.15rem 1.5rem 0;
@@ -681,12 +667,8 @@
     min-height: 20rem;
     margin-top: 1rem;
     border-radius: 2.2rem;
-    background-position:
-      right 45%,
-      center;
-    background-size:
-      auto 132%,
-      cover;
+    background-position: center 24%;
+    background-size: 100% auto;
   }
   .pa-hero-inner {
     padding: 1.35rem 2.4rem 0;
