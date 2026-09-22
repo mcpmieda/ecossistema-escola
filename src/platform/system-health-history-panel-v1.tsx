@@ -5,6 +5,7 @@ import { cappedHealthCountV1, type HealthStateV1 } from '../../shared/system-hea
 import { HEALTH_HISTORY_BODY_BYTES_V1, HEALTH_HISTORY_RETENTION_MS_V1, isPortalHistoryV1,
   portalHistoryChangeV1, portalHistoryFreshV1, portalHistoryPointStateV1,
   type PortalHistoryPointV1, type PortalHistoryV1 } from '../../shared/system-health-history-v1';
+import { SystemHealthSignalsPanelV1 } from './system-health-signals-panel-v1';
 
 type ReadState = { data: PortalHistoryV1 | null; boundary: PortalHistoryPointV1 | null;
   before: string | null; loading: boolean; error: 'denied' | 'unavailable' | null };
@@ -112,7 +113,7 @@ function HistoryReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
 }
 export function SystemHealthHistoryPanelV1({ onDenied }: Readonly<{ onDenied: () => void }>) {
   const [open, setOpen] = useState(false);
-  return <Card variant="default" className="mt-5 min-w-0 overflow-hidden">
+  return <><Card variant="default" className="mt-5 min-w-0 overflow-hidden">
     <Card.Header>
       <div className="flex flex-wrap items-center justify-between gap-3"><Card.Title>Histórico operacional</Card.Title>
         <Button size="sm" variant="secondary" aria-expanded={open} onPress={() => setOpen((value) => !value)}>{open ? 'Fechar histórico' : 'Ver histórico'}</Button>
@@ -120,5 +121,5 @@ export function SystemHealthHistoryPanelV1({ onDenied }: Readonly<{ onDenied: ()
       <Card.Description>Últimos 30 dias · configuração e filas · avisos somente nesta área</Card.Description>
     </Card.Header>
     {open ? <Card.Content className="p-0"><HistoryReader onDenied={onDenied} /></Card.Content> : null}
-  </Card>;
+  </Card><SystemHealthSignalsPanelV1 onDenied={onDenied} /></>;
 }

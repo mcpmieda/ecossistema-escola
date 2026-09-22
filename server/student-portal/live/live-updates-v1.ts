@@ -7,6 +7,7 @@ import {
   type LivePublishEventV1,
 } from '../../../shared/student-portal-contracts/live-v1';
 import type { PortalCompositionEnvV1 } from '../composition/config-v1';
+import { PortalSignalBufferV1 } from '../observability/signal-buffer-v1';
 
 const socketIdentityV1 = z.object({
   audience: liveAudienceV1,
@@ -20,6 +21,7 @@ const socketAttachmentV1 = socketIdentityV1.extend({ resumed: z.boolean() }).str
 
 /** One SQLite-backed coordination atom per authenticated audience/year. Browser sockets never access it directly. */
 export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
+  private signals: PortalSignalBufferV1 | undefined;
   constructor(ctx: DurableObjectState, env: PortalCompositionEnvV1) {
     super(ctx, env);
     this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS live_head_v1 (
@@ -30,6 +32,21 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       occurred_at TEXT NOT NULL
     )`);
   }
+  private signalBuffer(): PortalSignalBufferV1 {
+    if (this.signals) return this.signals;
+    const sql = this.ctx.storage.sql;
+    sql.exec('CREATE TABLE IF NOT EXISTS operational_signal_checkpoint_v1 (singleton INTEGER PRIMARY KEY CHECK(singleton=1), payload TEXT NOT NULL)');
+    this.signals = new PortalSignalBufferV1({
+      read: () => {
+        const row = sql.exec<{ payload: string }>('SELECT payload FROM operational_signal_checkpoint_v1 WHERE singleton=1').toArray()[0];
+        try { return row ? JSON.parse(row.payload) as unknown : null; } catch { return null; }
+      },
+      write: (value) => { sql.exec('INSERT INTO operational_signal_checkpoint_v1(singleton,payload) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET payload=excluded.payload', JSON.stringify(value)); },
+    });
+    return this.signals;
+  }
+  async recordOperationalSignal(input: unknown): Promise<boolean> { return this.signalBuffer().record(input); }
+  async operationalSignals() { return this.signalBuffer().snapshot(); }
 
   private head(): string | null {
     const row = this.ctx.storage.sql.exec<{ cursor: string }>(
@@ -120,11 +137,6 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     socket.serializeAttachment({ ...identity.data, resumed: true } satisfies SocketIdentityV1);
   }
 
-  override webSocketClose(socket: WebSocket, code: number, reason: string): void {
-    socket.close(code, reason);
-  }
-
-  override webSocketError(socket: WebSocket): void {
-    socket.close(1011, 'socket-error');
-  }
+  override webSocketClose(socket: WebSocket, code: number, reason: string): void { socket.close(code, reason); }
+  override webSocketError(socket: WebSocket): void { socket.close(1011, 'socket-error'); }
 }

@@ -1,9 +1,10 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { portalFailureV1, portalJsonV1 } from '../../server/student-portal/runtime/http-v1';
-import { servePortalSelfV1 } from '../../server/student-portal/composition/self-v1';
+import { serveObservedPortalSelfV1 } from '../../server/student-portal/composition/observed-self-v1';
 import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-v1';
 import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
 import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
+import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/student-portal/composition/signals-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
@@ -17,7 +18,7 @@ const selfMayEnqueueLiveV1 = (request: Request) => request.method !== 'GET'
 
 export class PortalSelfEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & PortalCompositionEnvV1> {
   override async fetch(request: Request): Promise<Response> {
-    const response = await servePortalSelfV1(request, this.env);
+    const response = await serveObservedPortalSelfV1(request, this.env, (promise) => this.ctx.waitUntil(promise));
     if (selfMayEnqueueLiveV1(request)) this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return response;
   }
@@ -40,15 +41,10 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
     return connectPortalLiveV1(this.env, request, { audience: 'admin', expiresAt: parsed.data.expiresAt,
       accountId: null, studentId: null, classId: null });
   }
-  async monitoring(context: unknown) {
-    return portalMonitoringRpcV1(this.env, context);
-  }
-  async monitoringHistory(context: unknown, before: unknown) {
-    return portalHistoryRpcV1(this.env, context, before);
-  }
-  async query(context: unknown, request: unknown) {
-    return portalAdminRpcV1(this.env, 'query', context, request);
-  }
+  async monitoring(context: unknown) { return portalMonitoringRpcV1(this.env, context); }
+  async monitoringHistory(context: unknown, before: unknown) { return portalHistoryRpcV1(this.env, context, before); }
+  async monitoringSignals(context: unknown, before: unknown) { return portalSignalsRpcV1(this.env, context, before); }
+  async query(context: unknown, request: unknown) { return portalAdminRpcV1(this.env, 'query', context, request); }
   async command(context: unknown, request: unknown) {
     const result = await portalAdminRpcV1(this.env, 'command', context, request);
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
@@ -58,12 +54,12 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
 // No admin RPC on the default/self capability. Population remains an explicit, separate operation.
 export default {
   async fetch(request, env, ctx) {
-    const response = await servePortalSelfV1(request, env);
+    const response = await serveObservedPortalSelfV1(request, env, (promise) => ctx.waitUntil(promise));
     if (selfMayEnqueueLiveV1(request)) ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
     return response;
   },
   async scheduled(controller, env) {
     await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
-      portalHistoryScheduledV1(env, controller.scheduledTime)]);
+      portalHistoryScheduledV1(env, controller.scheduledTime), portalSignalsScheduledV1(env, controller.scheduledTime)]);
   },
 } satisfies ExportedHandler<PortalWorkerEnv & PortalCompositionEnvV1>;

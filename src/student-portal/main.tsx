@@ -2,6 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentPortalApp, type StudentEntryV1 } from './app';
 import { consumeStudentQrLocationV1 } from '../features/student-portal/auth/qr-input-v1';
+import { StudentDiagnosticBoundaryV1 } from './diagnostic-boundary-v1';
+import { enableStudentDiagnosticsV1 } from './diagnostics-v1';
 import '../features/student-portal/shared/styles.css';
 
 const root = document.getElementById('root');
@@ -18,8 +20,9 @@ try {
 } catch {
   entry.invalidQr = true;
 }
+enableStudentDiagnosticsV1();
 createRoot(root).render(
   <StrictMode>
-    <StudentPortalApp entry={entry} />
+    <StudentDiagnosticBoundaryV1><StudentPortalApp entry={entry} /></StudentDiagnosticBoundaryV1>
   </StrictMode>,
 );
