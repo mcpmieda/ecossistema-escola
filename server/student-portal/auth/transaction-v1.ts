@@ -38,7 +38,7 @@ export async function accessContextV1(sql: StudentPortalPostgresSqlV1, tx: Stude
   if (eligibility.state !== 'eligible') return null;
   const policy = await new PolicyServiceV1(sql).readSnapshotInTransaction(tx, accountScopeV1(accountId));
   const now = await authNowV1(tx);
-  if (!sessionExpiryV1(policy.settings.value, now, false)) return null;
+  if (!sessionExpiryV1(policy.enforcedValue, now, false)) return null;
   return { account, policy, eligibility, now };
 }
 export type AccessContextV1 = NonNullable<Awaited<ReturnType<typeof accessContextV1>>>;

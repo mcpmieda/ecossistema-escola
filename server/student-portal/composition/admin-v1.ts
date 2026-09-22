@@ -1,3 +1,5 @@
+import { portalLiveStubV1 } from '../live/live-connect-v1';
+import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { adminCommandV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { adminQueryRequestV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { PortalAdminApiV1 } from '../admin/api-v1';
@@ -19,12 +21,16 @@ export async function portalAdminRpcV1(env: PortalCompositionEnvV1, kind: 'query
   if (!parsed.success) return fail('invalid-request');
   if (env.PORTAL_SERVING_ENABLED !== 'true' && !(kind === 'query' && parsed.data.operation === 'health')) return fail('unavailable');
   try {
+    if (kind === 'query' && parsed.data.operation === 'presence') {
+      const result = await portalLiveStubV1(env, 'student').presence(parsed.data.scope);
+      return adminResponseV1.parse({ contractVersion: 1, requestId: trusted.data.requestId, state: 'presence', ...result });
+    }
     const keys = portalKeysV1(env);
     return await portalDatabaseV1(env, kind === 'query' ? 'admin-query' : 'admin-command', async (sql) => {
       const capable = env.PORTAL_PUBLICATION_MODE === 'scoped-v2';
       const scopedPublication = capable && await scopedPublicationEnabledV2(sql);
       // V2 reads set isolation before their first query; the audit wrapper stays on every V1 command.
-      return new PortalAdminApiV1(kind === 'query' && parsed.data.contractVersion === 2 ? sql : withAuditSqlV1(sql, trusted.data.clientIp ?? null),
+      return new PortalAdminApiV1(kind === 'query' && (parsed.data.contractVersion === 2 || parsed.data.operation === 'bulk-preview') ? sql : withAuditSqlV1(sql, trusted.data.clientIp ?? null, trusted.data),
         { ...keys, tenantId: env.PORTAL_ADMIN_TENANT_ID, scopedPublication, scopedPublicationCapable: capable })[kind](trusted.data, parsed.data);
     });
   } catch { return fail('unavailable'); }

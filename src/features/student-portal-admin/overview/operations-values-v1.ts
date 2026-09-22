@@ -15,14 +15,13 @@ export interface OperationsPropsV1 {
   catalog?: PortalClassCatalogV2;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
 }
+const operationDateFormatterV1 = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  dateStyle: 'short',
+  timeStyle: 'medium',
+});
 export const operationDateV1 = (value: string | null) =>
-  value === null
-    ? 'Não disponível'
-    : new Intl.DateTimeFormat('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        dateStyle: 'short',
-        timeStyle: 'medium',
-      }).format(new Date(value));
+  value === null ? 'Não disponível' : operationDateFormatterV1.format(new Date(value));
 export const authorizationLostV1 = (error: PortalClientErrorV1) =>
   error.state === 'unauthenticated' || error.state === 'forbidden';
 export function useOperationalReadV1<T>(

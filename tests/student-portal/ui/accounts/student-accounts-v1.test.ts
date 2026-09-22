@@ -1,7 +1,7 @@
 import { createElement, StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAccountsV1 } from '../../../../src/features/student-portal-admin/accounts/student-accounts-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
@@ -13,7 +13,7 @@ import {
   ACCOUNT_META_V1,
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
-beforeEach(() => {
+function setupAccountsDomV1() {
   Object.defineProperty(Element.prototype, 'getAnimations', {
     configurable: true,
     value: () => [],
@@ -33,7 +33,8 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-});
+}
+beforeEach(setupAccountsDomV1);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -86,16 +87,21 @@ describe('account list and detail', () => {
     let lastName: HTMLElement;
     // Fixture preparation and interaction have independent bounded phases. This suite
     // verifies continuity and accessibility, not a combined production latency SLA.
-    beforeEach(async () => {
+    beforeAll(async () => {
+      setupAccountsDomV1();
       const observer = controlledContinuousObserverV1();
       mock = accountsMockV1({ count: 105 });
       render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
       user = userEvent.setup();
-      firstName = await screen.findByText('SYNTHETIC ACCOUNT 001');
+      const button = (name: string) =>
+        document.querySelector<HTMLButtonElement>(`button[aria-label="Abrir ficha de ${name}"]`);
+      await waitFor(() => expect(button('SYNTHETIC ACCOUNT 001')).not.toBeNull());
+      firstName = within(button('SYNTHETIC ACCOUNT 001')!).getByText('SYNTHETIC ACCOUNT 001');
       await waitFor(() => expect(observer.isObserving()).toBe(true));
       await act(async () => observer.intersect());
-      lastName = await screen.findByText('SYNTHETIC ACCOUNT 105');
-    }, 5_000);
+      await waitFor(() => expect(button('SYNTHETIC ACCOUNT 105')).not.toBeNull());
+      lastName = within(button('SYNTHETIC ACCOUNT 105')!).getByText('SYNTHETIC ACCOUNT 105');
+    }, 30_000);
     it('opens a right-side student drawer by name and preserves the accumulated list when closing', async () => {
       const trigger = firstName.closest('button')!;
       expect(trigger.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 001');

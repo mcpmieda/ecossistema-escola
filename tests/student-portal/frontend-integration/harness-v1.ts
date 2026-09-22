@@ -15,6 +15,7 @@ export interface IntegrationRequestV1 {
   role?: 'ADMINISTRADOR' | 'PROFESSOR';
   origin?: string;
   hostname?: string;
+  upgrade?: boolean;
 }
 export async function createIntegrationHarnessV1(databaseUrl: string) {
   const portalDatabase = localPortalDatabaseV1(databaseUrl);
@@ -50,6 +51,7 @@ export async function createIntegrationHarnessV1(databaseUrl: string) {
           compatibilityDate: config.compatibility_date,
           compatibilityFlags: config.compatibility_flags,
           hyperdrives: { PORTAL_DB: portalDatabase },
+          durableObjects: { PORTAL_LIVE: { className: 'PortalLiveUpdatesV1', useSQLite: true } },
           bindings: {
             ...config.env.production.vars,
             PORTAL_SERVING_ENABLED: 'true',

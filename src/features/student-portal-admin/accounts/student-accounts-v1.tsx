@@ -7,6 +7,8 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from './accounts-client-v2';
 import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1';
+import { StudentBulkV1 } from './student-bulk-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
@@ -80,23 +82,35 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
             <ClassFilterV1
               catalog={props.catalog}
               selected={selectedClass}
-              onChange={setSelectedClass}
+              onChange={(value) => {
+                if (allowDraftNavigationV1()) setSelectedClass(value);
+              }}
             />
           )}
-          <TextField className="min-w-48 max-w-72" value={name} onChange={setName}>
+          <TextField
+            className="min-w-48 max-w-72"
+            value={name}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setName(value);
+            }}
+          >
             <Label>Buscar aluno</Label>
             <Input maxLength={200} />
           </TextField>
           <AccountFilterTagsV1
             label="Situação"
             selected={states}
-            onChange={setStates}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setStates(value);
+            }}
             options={ACCOUNT_STATE_OPTIONS_V1}
           />
           <AccountFilterTagsV1
             label="Bloqueio"
             selected={blocks}
-            onChange={setBlocks}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setBlocks(value);
+            }}
             options={ACCOUNT_BLOCK_OPTIONS_V1}
           />
         </Card.Content>
@@ -107,6 +121,9 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         query={query}
         states={states}
         blocks={blocks}
+        bulkScopeLabel={
+          selectedClass?.label ?? props.scopeLabel ?? (scope.kind === 'school' ? 'Escola' : 'Turma')
+        }
       />
     </section>
   );
@@ -116,6 +133,7 @@ function AccountsResultsV1(
     query: AdminReadQueryV2;
     states: Set<string>;
     blocks: Set<string>;
+    bulkScopeLabel: string;
   },
 ) {
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -155,6 +173,17 @@ function AccountsResultsV1(
   };
   return (
     <>
+      {props.canWrite &&
+        !authorizationError &&
+        !protectedFailure &&
+        props.query.scope.kind !== 'account' && (
+          <StudentBulkV1
+            client={props.client}
+            scope={props.query.scope}
+            scopeLabel={props.bulkScopeLabel}
+            onAuthorizationLost={onAuthorizationLost}
+          />
+        )}
       <Card>
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>

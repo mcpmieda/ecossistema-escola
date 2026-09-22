@@ -121,11 +121,11 @@ function effectiveSessionExpiryV2(
   context: SessionContextV2,
 ) {
   const { policy } = context;
-  const end = policy?.settings.value.calendar.yearEndsAt;
+  const end = policy?.enforcedValue.calendar.accessEndsAt ?? policy?.enforcedValue.calendar.yearEndsAt;
   if (!policy || !end) return null;
   const durationSeconds = persistent
-    ? policy.settings.value.risk.persistentSeconds
-    : policy.settings.value.risk.shortSeconds;
+    ? policy.enforcedValue.risk.persistentSeconds
+    : policy.enforcedValue.risk.shortSeconds;
   return new Date(
     Math.min(Date.parse(expiresAt), Date.parse(end), created + durationSeconds * 1000),
   ).toISOString();

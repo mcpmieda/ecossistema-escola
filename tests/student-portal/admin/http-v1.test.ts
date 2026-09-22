@@ -74,9 +74,9 @@ describe('ADM Pages to private Portal binding', () => {
 
   it('verifies the existing sealed session and produces fresh context rather than accepting browser identity', async () => {
     const { rpc, seen } = binding();
-    const response = await servePortalAdminV1(await request(query, { headers: { 'x-portal-actor': TENANT, 'x-portal-capability': 'platform.settings.write' } }), env, rpc);
+    const response = await servePortalAdminV1(await request(query, { headers: { 'x-portal-actor': TENANT, 'x-portal-actor-name': 'SYNTHETIC SPOOFED', 'x-portal-capability': 'platform.settings.write' } }), env, rpc);
     expect(response.status).toBe(200);
-    expect(seen[0]).toMatchObject({ actorId: ACTOR, tenantId: TENANT, capability: 'platform.settings.read' });
+    expect(seen[0]).toMatchObject({ actorId: ACTOR, actorName: 'SYNTHETIC ADMIN', tenantId: TENANT, capability: 'platform.settings.read' });
     expect(Date.now() - Date.parse(seen[0]!.authenticatedAt)).toBeLessThan(5000);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");

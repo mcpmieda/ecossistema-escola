@@ -106,6 +106,8 @@ beforeAll(async () => {
     '0012_granular_observations_names_v1.sql',
     '0013_publication_inheritance_v1.sql',
     '0015_student_portal_rls_v1.sql',
+    '0016_audit_entities_v1.sql',
+    '0017_security_event_priority_v1.sql',
   ])
     await exec(readFileSync('migrations/student-portal/' + migration, 'utf8'));
   await exec(`

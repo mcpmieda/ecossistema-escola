@@ -24,6 +24,7 @@ export default {
       role?: 'ADMINISTRADOR' | 'PROFESSOR';
       origin?: string;
       hostname?: string;
+  upgrade?: boolean;
     };
     if (!input.path.startsWith('/') || input.path.startsWith('//'))
       return new Response(null, { status: 400 });
@@ -49,6 +50,7 @@ export default {
         host: input.hostname ?? new URL(origin).host,
         origin: input.origin ?? origin,
         'Content-Type': 'application/json',
+        ...(input.upgrade ? { Upgrade: 'websocket' } : {}),
         ...(cookie ? { cookie } : {}),
       },
       ...(input.body === undefined ? {} : { body: input.body }),

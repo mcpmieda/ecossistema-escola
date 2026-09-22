@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ScopedPublicationServiceV2 } from '../../../server/student-portal/publication/scoped-publication-service-v2';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
 import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
@@ -371,7 +371,8 @@ it('fences obsolete writers in SQL while preserving lifecycle deletion and moder
 });
 
 // This last scenario uses a separate synthetic cohort; no real database or student is involved.
-it('releases 400 students with 10 subjects and 156000 marks without per-account publication work', async () => {
+describe('synthetic cohort load', () => {
+  beforeAll(async () => {
   await owner.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
       SELECT 804000+n,2026,'SYNTHETIC LOAD STUDENT '||n FROM generate_series(1,400) n;
     INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id)
@@ -389,12 +390,16 @@ it('releases 400 students with 10 subjects and 156000 marks without per-account 
   // Seed construction is not the measured release. Keep each fixture insertion bounded,
   // without disabling foreign keys, preparation triggers or the five-second runtime budget.
   for (let offer = 804001; offer <= 804010; offer++) {
-    await owner.unsafe(`INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor)
-      SELECT i.id,804000+n,1000 FROM gradebook.instrumento i CROSS JOIN generate_series(1,400) n WHERE i.oferta_id=$1`, [offer]);
+    for (let first = 1; first <= 400; first += 100) {
+      await owner.unsafe(`INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor)
+        SELECT i.id,804000+n,1000 FROM gradebook.instrumento i CROSS JOIN generate_series($2::integer,$3::integer) n WHERE i.oferta_id=$1`, [offer, first, first + 99]);
+    }
   }
   await owner.unsafe(`INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte)
     SELECT 804000+o,804000+n,8000 FROM generate_series(1,10) o CROSS JOIN generate_series(1,400) n`);
   await owner.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
+  }, 90_000);
+  it('releases 400 students with 10 subjects and 156000 marks without per-account publication work', async () => {
   const preparing = performance.now();
   await owner.unsafe('UPDATE student_portal.academic_revision SET academic_counter=academic_counter+1 WHERE academic_year=2026');
   const preparationMs = performance.now() - preparing;
@@ -418,3 +423,4 @@ it('releases 400 students with 10 subjects and 156000 marks without per-account 
   console.log('P803_SYNTHETIC_LOAD', JSON.stringify({ students: 400, subjects: 10, marks: 156000,
     preparationMs, releaseMs, readMs, queries: calls, jobs: 0 }));
 }, 30_000);
+});

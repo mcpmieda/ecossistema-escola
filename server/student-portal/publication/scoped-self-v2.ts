@@ -267,7 +267,7 @@ export async function scopedSelfV2(
   });
   return applyPublishedVisibilityV1(
     projection,
-    context.policy.settings.value,
+    context.policy.enforcedValue,
     context.now,
     finalAuthority,
   );

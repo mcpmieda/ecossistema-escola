@@ -1,3 +1,5 @@
+import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
+import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -31,6 +33,7 @@ async function command(input: object) {
   return adminResponseV1.parse(await response.json());
 }
 beforeAll(async () => {
+  await openSyntheticSchoolV1(sql as unknown as StudentPortalPostgresSqlV1);
   // Schema was replayed by the preceding native suite. New synthetic class avoids all H fixture state.
   await sql.unsafe(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(970001,2026,'I715','SYNTHETIC COMPOSITION',6,'TESTE');
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES(970001,2026,'SYNTHETIC COMPOSITION ACCOUNT');

@@ -65,7 +65,7 @@ async function attempts(
     (previous.blockedUntil !== null &&
       Date.parse(previous.blockedUntil) <= context.now.getTime()) ||
     Date.parse(previous.windowStartedAt) +
-      context.policy.settings.value.risk.failureWindowSeconds * 1000 <=
+      context.policy.enforcedValue.risk.failureWindowSeconds * 1000 <=
       context.now.getTime()
   ) {
     return {
@@ -107,9 +107,9 @@ async function failed(
     failures,
     version: previous.version + 1,
     blockedUntil:
-      failures >= context.policy.settings.value.risk.blockAfter
+      failures >= context.policy.enforcedValue.risk.blockAfter
         ? new Date(
-            context.now.getTime() + context.policy.settings.value.risk.blockSeconds * 1000,
+            context.now.getTime() + context.policy.enforcedValue.risk.blockSeconds * 1000,
           ).toISOString()
         : null,
   };
@@ -243,7 +243,7 @@ async function credentialProofV1(
     if (!context) return null;
     const attempt = await attempts(store, context);
     if (blocked(attempt, context, requestId)) return null;
-    if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
+    if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
       return null;
     const verifier = kind === 'pin' ? credential.pin : credential.password;
     return verifier ? { accountId, verifier } : null;
@@ -360,7 +360,7 @@ export class AuthServiceV1 {
       const limited = blocked(attempt, context, requestId);
       if (limited) return limited;
       if (context.account.state === 'active') {
-        if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
+        if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
           return required(requestId, 'risk');
         return required(requestId, 'password');
       }
@@ -372,7 +372,7 @@ export class AuthServiceV1 {
         credential.pinVersion !== context.account.pinVersion
       )
         return auditedDenied(store, context.account, context.now, requestId);
-      if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
+      if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
         return required(requestId, 'risk');
       if (request.pin === undefined) return required(requestId, 'pin');
       if (
@@ -386,8 +386,8 @@ export class AuthServiceV1 {
       const token = this.cryptoPort.randomToken(32);
       const expiresAt = new Date(
         Math.min(
-          context.now.getTime() + context.policy.settings.value.risk.challengeTtlSeconds * 1000,
-          Date.parse(context.policy.settings.value.calendar.yearEndsAt!),
+          context.now.getTime() + context.policy.enforcedValue.risk.challengeTtlSeconds * 1000,
+          Date.parse((context.policy.enforcedValue.calendar.accessEndsAt ?? context.policy.enforcedValue.calendar.yearEndsAt)!),
         ),
       ).toISOString();
       if (Date.parse(expiresAt) <= context.now.getTime())
@@ -502,7 +502,7 @@ export class AuthServiceV1 {
         return auditedDenied(store, context.account, context.now, requestId);
       const limited = blocked(attempt, context, requestId);
       if (limited) return limited;
-      if (attempt.failures >= context.policy.settings.value.risk.challengeAfter && !riskPassed)
+      if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
         return auditedDenied(store, context.account, context.now, requestId);
       if (
         !passwordProof ||

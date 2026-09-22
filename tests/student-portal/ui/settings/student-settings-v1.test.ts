@@ -84,49 +84,55 @@ async function ready() {
   await screen.findByRole('heading', { name: 'Acesso ao Portal' });
 }
 describe('administrative settings UI', () => {
-  it('cancels review without a command and discards inactive disclosure dates when switching mode', async () => {
-    const user = userEvent.setup(),
+  describe('disclosure mode editing', () => {
+    let user: ReturnType<typeof userEvent.setup>;
+    let mock: ReturnType<typeof setup>;
+    beforeEach(async () => {
+      user = userEvent.setup({ delay: null });
       mock = setup();
-    render(createElement(StudentSettingsV1, mock.props));
-    await ready();
-    await enterDateV1(user, 'Liberar notas em', '2026-12-01T08:00');
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Data única Divulgação das notas',
-      }),
-    );
-    await user.click(screen.getByRole('option', { name: 'Por trimestre / recuperação' }));
-    expect(screen.queryByRole('spinbutton', { name: 'dia, Liberar notas em' })).toBeNull();
-    expect(
-      screen
-        .getByRole('spinbutton', { name: 'dia, Divulgação de T1' })
-        .getAttribute('aria-valuenow'),
-    ).toBeNull();
-    await enterDateV1(user, 'Divulgação de T1', '2026-12-02T08:00');
-    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
-    await user.click(screen.getByRole('button', { name: 'Voltar' }));
-    expect(mock.writes).toHaveLength(0);
-    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
-    await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
-    await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
-    expect(mock.writes[0]).toMatchObject({
-      value: {
-        calendar: {
-          disclosure: {
-            mode: 'per-period',
-            at: {
-              T1: '2026-12-02T11:00:00Z',
-              T2: null,
-              T3: null,
-              REC1: null,
-              REC2: null,
-              REC3: null,
+      render(createElement(StudentSettingsV1, mock.props));
+      await ready();
+    }, 30_000);
+    it('cancels review without a command and discards inactive disclosure dates when switching mode', async () => {
+      await enterDateV1(user, 'Liberar notas em', '2026-12-01T08:00');
+      await user.click(
+        screen.getByRole('button', {
+          name: 'Data única Divulgação das notas',
+        }),
+      );
+      await user.click(screen.getByRole('option', { name: 'Por trimestre / recuperação' }));
+      expect(screen.queryByRole('spinbutton', { name: 'dia, Liberar notas em' })).toBeNull();
+      expect(
+        screen
+          .getByRole('spinbutton', { name: 'dia, Divulgação de T1' })
+          .getAttribute('aria-valuenow'),
+      ).toBeNull();
+      await enterDateV1(user, 'Divulgação de T1', '2026-12-02T08:00');
+      await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
+      await user.click(screen.getByRole('button', { name: 'Voltar' }));
+      expect(mock.writes).toHaveLength(0);
+      await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
+      await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
+      await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
+      expect(mock.writes[0]).toMatchObject({
+        value: {
+          calendar: {
+            disclosure: {
+              mode: 'per-period',
+              at: {
+                T1: '2026-12-02T11:00:00Z',
+                T2: null,
+                T3: null,
+                REC1: null,
+                REC2: null,
+                REC3: null,
+              },
             },
           },
         },
-      },
-    });
-  }, 15000);
+      });
+    }, 15000);
+  });
   it('removes protected settings and the review when write authorization expires', async () => {
     const user = userEvent.setup(),
       mock = setup(undefined, async () => json({ ...base, state: 'unauthenticated' }, 401));

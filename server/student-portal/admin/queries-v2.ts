@@ -75,9 +75,9 @@ export async function readAdminV2(
       sessionPolicies.push({
         id: item.accountId,
         security: securityVersion,
-        end: policy.settings.value.calendar.yearEndsAt!,
-        persistent: policy.settings.value.risk.persistentSeconds,
-        short: policy.settings.value.risk.shortSeconds,
+        end: (policy.enforcedValue.calendar.accessEndsAt ?? policy.enforcedValue.calendar.yearEndsAt)!,
+        persistent: policy.enforcedValue.risk.persistentSeconds,
+        short: policy.enforcedValue.risk.shortSeconds,
       });
   }
   if (sessionPolicies.length > 0) {

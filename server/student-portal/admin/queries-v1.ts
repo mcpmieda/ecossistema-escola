@@ -68,7 +68,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   if (query.scope.kind === 'class') {
     const classParam = bind(query.scope.classId);
     predicates.push(`((e.scope_json->>'kind'='class' AND e.scope_json->>'classId'=${classParam}::text)
-      OR EXISTS(SELECT 1 ${ACCOUNT_JOIN_V1} WHERE a.id=e.account_id AND b.class_id=${classParam}::integer))`);
+      OR ${query.includeEntities ? `e.subject_class_id=${classParam}::integer` : `EXISTS(SELECT 1 ${ACCOUNT_JOIN_V1} WHERE a.id=e.account_id AND b.class_id=${classParam}::integer)`})`);
   }
   if (query.from) predicates.push(`e.occurred_at>=${bind(query.from)}::text::timestamptz`);
   if (query.until) predicates.push(`e.occurred_at<=${bind(query.until)}::text::timestamptz`);
@@ -78,7 +78,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   // Keep microseconds as text through postgres.js; its timestamp serializer otherwise truncates to JS milliseconds.
   if (after) predicates.push(`(e.occurred_at,e.event_id)<(${bind(after.at)}::text::timestamptz,${bind(after.id)}::uuid)`);
   const rows = await tx.unsafe(`SELECT e.event_id,e.occurred_at,to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,e.actor_id,e.account_id,e.scope_json,e.kind,e.result,
-    e.request_id,e.version::text,e.masked_ip ${query.operation === 'audit-detail' ? `,
+    e.request_id,e.version::text,e.masked_ip ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${query.operation === 'audit-detail' ? `,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days' THEN host(e.raw_ip) ELSE NULL END AS ip,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days'
       THEN LEAST(e.ip_expires_at,e.occurred_at+interval '90 days') ELSE NULL END AS ip_expires_at` : ''}
@@ -86,7 +86,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
     LIMIT ${bind(query.operation === 'audit-detail' ? 1 : query.page.limit + 1)}`, parameters);
   const event = (row: Record<string, unknown>) => auditEventV1.parse({ eventId: row.event_id, at: adminInstantV1(row.occurred_at),
     actorId: row.actor_id, accountId: row.account_id, scope: row.scope_json, kind: row.kind, result: row.result,
-    requestId: row.request_id, version: Number(row.version), maskedIp: row.masked_ip });
+    requestId: row.request_id, version: Number(row.version), maskedIp: row.masked_ip, ...(query.includeEntities ? { entities: { actorName: row.actor_name, subjectName: row.subject_name, classId: row.subject_class_id, classLabel: row.subject_class_label } } : {}) });
   if (query.operation === 'audit-detail') {
     if (rows.length !== 1) throw new Error('student-portal-audit-forbidden');
     return { event: event(rows[0]!), ip: rows[0]!.ip,

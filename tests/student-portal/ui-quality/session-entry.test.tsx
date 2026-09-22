@@ -74,7 +74,7 @@ it.each(['focus', 'pageshow', 'popstate'])(
 );
 
 it.each([false, true])(
-  'clears protected data before pagehide and reauthorizes restored history (persisted=%s)',
+  'clears protected history and reauthorizes only on explicit retry (persisted=%s)',
   async (persisted) => {
     const restoredSession = deferredResponse();
     let restoring = false;
@@ -101,6 +101,9 @@ it.each([false, true])(
     const show = new Event('pageshow');
     Object.defineProperty(show, 'persisted', { value: persisted });
     await act(async () => { fireEvent(window, show); });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' })); });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
     await act(async () => restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)));

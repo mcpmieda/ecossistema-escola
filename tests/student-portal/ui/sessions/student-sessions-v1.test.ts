@@ -107,22 +107,20 @@ describe('administrative sessions interface', () => {
         }),
       ),
     );
-    await screen.findByRole('grid', { name: 'Sessões ativas' });
-    expect(screen.queryByRole('button', { name: 'Encerrar sessões da turma' })).toBeNull();
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(100),
-    );
+    const activeGrid = await screen.findByLabelText('Sessões ativas', {
+      selector: '[role="grid"]',
+    });
+    const revokeButtons = () =>
+      Array.from(
+        activeGrid.querySelectorAll<HTMLButtonElement>('button[aria-label^="Encerrar sessão de"]'),
+      );
+    expect(screen.queryByText('Encerrar sessões da turma', { selector: 'button' })).toBeNull();
+    await waitFor(() => expect(revokeButtons()).toHaveLength(100));
     await waitFor(() => expect(observer.isObserving()).toBe(true));
     await act(async () => observer.intersect());
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(105),
-    );
-    expect(
-      screen
-        .getAllByRole('button', { name: /Encerrar sessão de/ })
-        .every((b) => (b as HTMLButtonElement).disabled),
-    ).toBe(true);
-    expect(screen.queryByRole('button', { name: 'Próxima' })).toBeNull();
+    await waitFor(() => expect(revokeButtons()).toHaveLength(105));
+    expect(revokeButtons().every((button) => button.disabled)).toBe(true);
+    expect(screen.queryByText('Próxima', { selector: 'button' })).toBeNull();
     expect(mock.queries.some((q) => q.operation === 'sessions-read' && q.page.cursor)).toBe(true);
     expect(mock.writes).toHaveLength(0);
   }, 20_000);

@@ -1,3 +1,4 @@
+import { enforceSchoolAccessV1 } from './school-access-v1';
 import { z } from 'zod';
 import {
   adminCommandV1,
@@ -209,6 +210,7 @@ export async function resolvePolicySnapshotRowsV1(
   const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
   return {
     settings,
+    enforcedValue: enforceSchoolAccessV1(settings.value, settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])))),
     classId,
     epoch,
     policyVersion: `policy:${await hash({ settings, classId })}`,

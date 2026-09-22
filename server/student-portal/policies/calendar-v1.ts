@@ -93,6 +93,43 @@ export function sessionExpiryV1(
   return new Date(Math.min(current + seconds * 1000, end)).toISOString();
 }
 
+function periodStartV1(calendar: CalendarV1, period: PeriodV1): string | null {
+  return period === 'T1'
+    ? calendar.yearStartsAt
+    : period === 'T2'
+      ? (calendar.t2StartsAt ?? calendar.t1EndsAt)
+      : period === 'T3'
+        ? (calendar.t3StartsAt ?? calendar.t2EndsAt)
+        : calendar.recoveriesStartAt;
+}
+
+/** Joint publication window: inclusive start, exclusive end; never grants academic authority. */
+export function publicationWindowV1(
+  input: PolicyValueV1,
+  periods: readonly PeriodV1[],
+): { start: Date; end: Date } | null {
+  const value = settingsValueV1.parse(input);
+  const calendar = value.calendar;
+  let start = timestamp(calendar.accessStartsAt ?? calendar.yearStartsAt);
+  let end = timestamp(calendar.accessEndsAt ?? calendar.yearEndsAt);
+  if (!value.accessEnabled || start === null || end === null || periods.length === 0) return null;
+  const disclosure = calendar.disclosure;
+  for (const period of periods) {
+    periodV1.parse(period);
+    if (!value.allowedPeriods.includes(period)) return null;
+    if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return null;
+    const periodStart = timestamp(periodStartV1(calendar, period));
+    if (periodStart === null) return null;
+    const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
+    const until = timestamp(
+      (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
+    );
+    start = Math.max(start, periodStart, at ?? periodStart);
+    if (until !== null) end = Math.min(end, until);
+  }
+  return start < end ? { start: new Date(start), end: new Date(end) } : null;
+}
+
 export function periodDisclosureV1(
   input: PolicyValueV1,
   period: PeriodV1,
@@ -103,15 +140,7 @@ export function periodDisclosureV1(
   if (!Number.isFinite(now.getTime())) throw new Error('student-portal-clock-invalid');
   if (!value.allowedPeriods.includes(period)) return 'disabled';
   const calendar = value.calendar;
-  const start = timestamp(
-    period === 'T1'
-      ? calendar.yearStartsAt
-      : period === 'T2'
-        ? (calendar.t2StartsAt ?? calendar.t1EndsAt)
-        : period === 'T3'
-          ? (calendar.t3StartsAt ?? calendar.t2EndsAt)
-          : calendar.recoveriesStartAt,
-  );
+  const start = timestamp(periodStartV1(calendar, period));
   const disclosure = calendar.disclosure;
   if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return 'disabled';
   const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);

@@ -23,7 +23,7 @@ const env: PortalCompositionEnvV1 = {
   PORTAL_DB: { connectionString: appUrl.toString() },
   PORTAL_LIVE: {
     idFromName: (value) => ({ toString: () => value }) as DurableObjectId,
-    get: () => ({ fetch: async () => new Response(null, { status: 404 }), publish: async (input) => {
+    get: () => ({ presence: async () => ({ connectedStudents: 0, observedAt: new Date().toISOString(), windowSeconds: 60 }), fetch: async () => new Response(null, { status: 404 }), publish: async (input) => {
       if (failDelivery) throw new Error('synthetic-delivery-failure');
       accepted.push(input as LivePublishEventV1);
       return 'delivered' as const;
@@ -43,7 +43,7 @@ beforeAll(async () => {
   CREATE SCHEMA student_portal;
   CREATE TABLE student_portal.live_event_outbox_v1 (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    audience text NOT NULL, domain text NOT NULL, version text NOT NULL,
+    audience text NOT NULL, domain text NOT NULL, version text NOT NULL, security_relevant boolean NOT NULL DEFAULT false,
     account_id uuid, class_id integer, student_ids integer[] NOT NULL DEFAULT '{}',
     occurred_at timestamptz NOT NULL DEFAULT statement_timestamp(),
     delivered_at timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT statement_timestamp(),

@@ -177,6 +177,19 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     keepConnected: true,
   });
   expect((await student.session()).state).toBe('authenticated');
+  const bound = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + account.accountId, cookie });
+  expect(bound.status).toBe(200);
+  expect(await bound.json()).toMatchObject({ state: 'authenticated' });
+  const foreign = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + crypto.randomUUID(), cookie });
+  expect(foreign.status).toBe(401);
+  const security = await harness.fetch({ surface: 'student', path: '/api/student/live?purpose=security&accountId=' + account.accountId, cookie, upgrade: true });
+  expect(security.status).toBe(101);
+  const socket = security.webSocket!;
+  const connected = new Promise<string>((resolve) => socket.addEventListener('message', event => resolve(String(event.data)), { once: true }));
+  socket.accept();
+  expect(JSON.parse(await connected)).toEqual({ contractVersion: 1, type: 'security-connected' });
+  socket.close(1000, 'synthetic-test-complete');
+
   expect((await student.me()).profile.accountId).toBe(account.accountId);
   // Source becomes available through the deployed scheduled reconciler, not a direct fixture write.
   for (let n = 0; n < 10; n++) {
