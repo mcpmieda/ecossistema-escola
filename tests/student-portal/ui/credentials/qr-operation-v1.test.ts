@@ -175,3 +175,39 @@ describe('private credential operation lifecycle', () => {
     readonly.clear();
   });
 });
+
+it('keeps an explicitly retained current QR until disposal and revokes its private image URL', async () => {
+  vi.useFakeTimers();
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: vi.fn(() => 'blob:synthetic-retained'),
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  const mock = qrMockV1(),
+    states: QrOperationStateV1[] = [];
+  const op = createQrOperationV1({
+    client: mock.client,
+    canWrite: true,
+    publish: (s) => states.push(s),
+    render: syntheticQrRendererV1,
+    retainUntilClear: true,
+  });
+  await op.submit(
+    {
+      contractVersion: 1,
+      operation: 'qr-reprint',
+      accountId: qrPrintIdV1(1),
+      expectedVersion: 7,
+      idempotencyKey: qrPrintIdV1(9988),
+    },
+    'png',
+  );
+  expect(op.imageUrl()).toBe('blob:synthetic-retained');
+  await vi.advanceTimersByTimeAsync(6 * 60_000);
+  expect(states.at(-1)).toMatchObject({ state: 'ready' });
+  expect(op.imageUrl()).toBe('blob:synthetic-retained');
+  expect(mock.writes).toHaveLength(1);
+  op.clear();
+  expect(op.imageUrl()).toBeNull();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic-retained');
+});

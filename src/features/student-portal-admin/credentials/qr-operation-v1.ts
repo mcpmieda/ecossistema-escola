@@ -43,13 +43,8 @@ const defaultRenderer: QrRendererV1 = async (cards, format, signal, progress) =>
     ? render.renderQrPdfV1(cards, signal, progress)
     : render.renderQrPngV1(cards[0]!.qr, signal);
 };
-function orderedCardsV1(
-  received: PrintCardV1[],
-  captured: QrCommandV1,
-  responseVersion: number,
-) {
-  const ids =
-    captured.operation === 'qr-batch' ? captured.accountIds : [captured.accountId];
+function orderedCardsV1(received: PrintCardV1[], captured: QrCommandV1, responseVersion: number) {
+  const ids = captured.operation === 'qr-batch' ? captured.accountIds : [captured.accountId];
   const mode = captured.operation === 'qr-batch' ? captured.mode : 'qr-only';
   const byId = new Map(received.map((card) => [card.accountId.toLowerCase(), card]));
   const missing = ids.some((id) => !byId.has(id.toLowerCase()));
@@ -64,11 +59,7 @@ function orderedCardsV1(
   return ids.map((id) => byId.get(id.toLowerCase())!);
 }
 
-function artifactValidV1(
-  artifact: QrArtifactV1,
-  format: 'pdf' | 'png',
-  expectedCount: number,
-) {
+function artifactValidV1(artifact: QrArtifactV1, format: 'pdf' | 'png', expectedCount: number) {
   const expectedType = format === 'pdf' ? 'application/pdf' : 'image/png';
   return (
     artifact.format === format &&
@@ -86,7 +77,9 @@ export function createQrOperationV1({
   render = defaultRenderer,
   now = Date.now,
   onAuthorizationLost,
+  retainUntilClear = false,
 }: Readonly<{
+  retainUntilClear?: boolean;
   client: PortalAdminClientV1;
   publish: (state: QrOperationStateV1) => void;
   canWrite: boolean;
@@ -102,6 +95,7 @@ export function createQrOperationV1({
   let format: 'pdf' | 'png' = 'pdf';
   let cards: PrintCardV1[] | undefined;
   let artifact: QrArtifactV1 | undefined;
+  let previewUrl: string | undefined;
   let startedAt = 0;
   let expires: ReturnType<typeof setTimeout> | undefined;
   const downloads = createQrDownloadsV1();
@@ -117,6 +111,8 @@ export function createQrOperationV1({
     active = undefined;
     clearTimeout(expires);
     expires = undefined;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = undefined;
     prepared = command = cards = artifact = undefined;
     downloads.clear();
     emit({ state: next });
@@ -164,7 +160,7 @@ export function createQrOperationV1({
       copy: 'none',
       downloadFailed: false,
     });
-    expires = setTimeout(() => clear('expired'), 5 * 60_000);
+    if (!retainUntilClear) expires = setTimeout(() => clear('expired'), 5 * 60_000);
   }
 
   function handleFailure(
@@ -184,9 +180,7 @@ export function createQrOperationV1({
     }
     const retryable =
       stage === 'render' ||
-      ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(
-        failure.state,
-      );
+      ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(failure.state);
     if (!retryable) prepared = command = undefined;
     emit({
       state: 'error',
@@ -248,10 +242,15 @@ export function createQrOperationV1({
       const result = await copyQrImageV1(artifact);
       if (current === generation) emit({ ...ready, copy: result });
     },
-    download() {
+    imageUrl() {
+      if (!artifact || state.state !== 'ready' || artifact.format !== 'png') return null;
+      previewUrl ??= URL.createObjectURL(artifact.blob);
+      return previewUrl;
+    },
+    download(filename?: string) {
       if (!artifact || state.state !== 'ready') return;
       try {
-        downloads.download(artifact);
+        downloads.download(artifact, filename);
         emit({ ...state, downloadFailed: false });
       } catch {
         emit({ ...state, downloadFailed: true });

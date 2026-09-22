@@ -11,7 +11,7 @@ export type CalendarV1 = z.infer<typeof calendarV1>;
 export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   accessEnabled: 'Acesso ao Portal',
   showPartials: 'Notas parciais',
-  autoUpdate: 'Atualização automática',
+  autoUpdate: 'Atualizar notas já publicadas',
   showFinalResult: 'Resultado final',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
@@ -19,6 +19,9 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
 };
 export const PERIODS_V1 = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 export const CALENDAR_LABELS_V1 = {
+  accessStartsAt: 'Permitir acesso a partir de',
+  accessEndsAt: 'Encerrar acesso em',
+  finalDisclosureEndsAt: 'Ocultar resultado final em',
   enrollmentStartsAt: 'Início das matrículas',
   yearStartsAt: 'Início do ano e 1º trimestre',
   t1EndsAt: 'Encerramento do 1º trimestre',
@@ -94,11 +97,24 @@ export function changedPastDatesV1(before: CalendarV1, after: CalendarV1, now: n
     ...Object.fromEntries(
       Object.keys(CALENDAR_LABELS_V1).map((key) => [
         key,
-        calendar[key as keyof typeof CALENDAR_LABELS_V1],
+        calendar[key as keyof typeof CALENDAR_LABELS_V1] ?? null,
       ]),
     ),
+    ...(calendar.disclosure.mode === 'per-period'
+      ? Object.fromEntries(
+          PERIODS_V1.map((period) => [
+            `disclosure.endsAt.${period}`,
+            calendar.disclosure.mode === 'per-period'
+              ? (calendar.disclosure.endsAt?.[period] ?? null)
+              : null,
+          ]),
+        )
+      : {}),
     ...(calendar.disclosure.mode === 'single'
-      ? { disclosure: calendar.disclosure.at }
+      ? {
+          disclosure: calendar.disclosure.at,
+          'disclosure.endsAt': calendar.disclosure.endsAt ?? null,
+        }
       : Object.fromEntries(
           PERIODS_V1.map((period) => [
             `disclosure.${period}`,

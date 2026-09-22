@@ -32,7 +32,7 @@ export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; descri
       'Invalida o QR e a senha atuais, gera outro QR e revoga as sessões. Volta ao primeiro acesso. Preserva nascimento, vínculo e histórico acadêmico; não encerra o vínculo nem libera o reset anual do Banco.',
   },
   'qr-regenerate': {
-    label: 'Regenerar QR',
+    label: 'Mudar QR',
     description:
       'Invalida o QR atual, gera outro e revoga as sessões. Preserva a senha, o estado de autenticação, o nascimento e o vínculo acadêmico.',
   },

@@ -18,6 +18,7 @@ export interface BirthCursorsV1 {
 export interface BirthPageV1 {
   rows: BirthRecordV1[];
   scopeVersion: number;
+  accountsScopeVersion?: number;
   next: BirthCursorsV1 | null;
 }
 
@@ -88,6 +89,7 @@ export async function readBirthPageV1(
   return {
     rows,
     scopeVersion: birth.scopeVersion,
+    accountsScopeVersion: accounts.scopeVersion,
     next:
       accounts.nextCursor && birth.nextCursor
         ? { accounts: accounts.nextCursor, birth: birth.nextCursor }
@@ -119,6 +121,11 @@ export async function readBirthCollectionV1(
     }
     const page = await readBirthPageV1(client, reader, scope, cursor, signal);
     signal.throwIfAborted();
+    if (
+      result?.accountsScopeVersion !== undefined &&
+      result.accountsScopeVersion !== page.accountsScopeVersion
+    )
+      throw new PortalClientErrorV1('conflict');
     for (const row of page.rows) {
       if (!rows.has(row.account.accountId)) added++;
       rows.set(row.account.accountId, row);

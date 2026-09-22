@@ -9,12 +9,10 @@ export function useAccountQrHandoffV1() {
   const artifact = useRef<QrArtifactV1 | null>(null);
   const downloads = useRef(createQrDownloadsV1());
   const generation = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [opened, setOpened] = useState(false);
   const [notice, setNotice] = useState('');
   const clear = useCallback(() => {
     generation.current++;
-    clearTimeout(timer.current);
     artifact.current = null;
     downloads.current.clear();
     setOpened(false);
@@ -34,7 +32,6 @@ export function useAccountQrHandoffV1() {
       if (current !== generation.current) throw new DOMException('Discarded', 'AbortError');
       artifact.current = rendered;
       setOpened(true);
-      timer.current = setTimeout(clear, 300_000);
     },
     [clear],
   );
@@ -52,9 +49,6 @@ export function useAccountQrHandoffV1() {
           </Modal.Header>
           <Modal.Body>
             <p>A ação foi confirmada. Copie ou baixe a imagem do novo cartão.</p>
-            <p>
-              O arquivo fica disponível nesta tela por cinco minutos. Depois, use a reimpressão.
-            </p>
             {notice && (
               <Alert>
                 <Alert.Content>

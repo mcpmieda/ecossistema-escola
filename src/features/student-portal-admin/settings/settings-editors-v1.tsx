@@ -182,11 +182,15 @@ export function DateInputV1({
   );
 }
 const DATE_GROUPS: { label: string; keys: CalendarDateKeyV1[] }[] = [
+  { label: 'Quando o aluno pode entrar', keys: ['accessStartsAt', 'accessEndsAt'] },
   { label: 'Ano letivo', keys: ['enrollmentStartsAt', 'yearEndsAt'] },
   { label: '1º trimestre', keys: ['yearStartsAt', 't1EndsAt'] },
   { label: '2º trimestre', keys: ['t2StartsAt', 't2EndsAt'] },
   { label: '3º trimestre', keys: ['t3StartsAt', 't3EndsAt'] },
-  { label: 'Recuperação e resultado', keys: ['recoveriesStartAt', 'finalDisclosureAt'] },
+  {
+    label: 'Recuperação e resultado',
+    keys: ['recoveriesStartAt', 'finalDisclosureAt', 'finalDisclosureEndsAt'],
+  },
 ];
 export function CalendarEditorV1({
   value,
@@ -203,7 +207,8 @@ export function CalendarEditorV1({
         <span>Horário de Brasília</span>
         <InfoV1 label="Sobre os horários">
           Início incluído. No horário de encerramento, o acesso ao período termina. Campo vazio não
-          define uma data.
+          define uma data. Sem datas específicas de acesso, valem o início e o fim do ano letivo. O
+          botão Acesso ao Portal precisa estar ativado; agendar notas não abre o Portal.
         </InfoV1>
       </div>
       <div className="pa-calendar-sections">
@@ -267,6 +272,12 @@ export function CalendarEditorV1({
               disabled={disabled}
               onChange={(singleAt) => onChange({ ...value, singleAt })}
             />
+            <DateInputV1
+              label="Ocultar notas em"
+              value={value.singleUntil ?? ''}
+              disabled={disabled}
+              onChange={(singleUntil) => onChange({ ...value, singleUntil })}
+            />
             <PeriodsEditorV1
               label="Notas incluídas"
               value={value.singlePeriods}
@@ -277,15 +288,36 @@ export function CalendarEditorV1({
         ) : (
           <div className="pa-settings-grid">
             {PERIODS_V1.map((period) => (
-              <DateInputV1
-                key={period}
-                label={`Divulgação de ${period}`}
-                value={value.periodAt[period]}
-                disabled={disabled}
-                onChange={(date) =>
-                  onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
-                }
-              />
+              <div key={period} className="grid gap-2">
+                <DateInputV1
+                  label={`Divulgação de ${period}`}
+                  value={value.periodAt[period]}
+                  disabled={disabled}
+                  onChange={(date) =>
+                    onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
+                  }
+                />
+                <DateInputV1
+                  label={`Ocultar ${period} em`}
+                  value={value.periodUntil?.[period] ?? ''}
+                  disabled={disabled}
+                  onChange={(date) =>
+                    onChange({
+                      ...value,
+                      periodUntil: {
+                        T1: '',
+                        T2: '',
+                        T3: '',
+                        REC1: '',
+                        REC2: '',
+                        REC3: '',
+                        ...value.periodUntil,
+                        [period]: date,
+                      },
+                    })
+                  }
+                />
+              </div>
             ))}
           </div>
         )}
@@ -416,23 +448,27 @@ export function SettingsValueSummaryV1({
         <p className="text-xs text-muted">Horário de Brasília</p>
         <dl className="pa-settings-summary">
           {Object.entries(CALENDAR_LABELS_V1)
-            .filter(([key]) => calendar[key as CalendarDateKeyV1] !== null)
+            .filter(([key]) => calendar[key as CalendarDateKeyV1] != null)
             .map(([key, label]) => (
               <div key={key}>
                 <dt>{label}</dt>
-                <dd>{dateLabel(calendar[key as CalendarDateKeyV1])}</dd>
+                <dd>{dateLabel(calendar[key as CalendarDateKeyV1] ?? null)}</dd>
               </div>
             ))}
           {calendar.disclosure.mode === 'single' ? (
             <div>
               <dt>Data única: {calendar.disclosure.periods.join(', ')}</dt>
-              <dd>{dateLabel(calendar.disclosure.at)}</dd>
+              <dd>
+                {dateLabel(calendar.disclosure.at)} até{' '}
+                {dateLabel(calendar.disclosure.endsAt ?? null)}
+              </dd>
             </div>
           ) : (
             PERIODS_V1.filter(
               (period) =>
                 calendar.disclosure.mode === 'per-period' &&
-                calendar.disclosure.at[period] !== null,
+                (calendar.disclosure.at[period] !== null ||
+                  calendar.disclosure.endsAt?.[period] != null),
             ).map((period) => (
               <div key={period}>
                 <dt>Divulgação de {period}</dt>
@@ -440,6 +476,12 @@ export function SettingsValueSummaryV1({
                   {dateLabel(
                     calendar.disclosure.mode === 'per-period'
                       ? calendar.disclosure.at[period]
+                      : null,
+                  )}{' '}
+                  até{' '}
+                  {dateLabel(
+                    calendar.disclosure.mode === 'per-period'
+                      ? (calendar.disclosure.endsAt?.[period] ?? null)
                       : null,
                   )}
                 </dd>

@@ -11,7 +11,7 @@ import {
 export const QR_LAYOUT_V1 = {
   pageWidth: 595.28,
   pageHeight: 841.89,
-  margin: 18,
+  margin: (72 * 0.5) / 2.54,
   gap: 0,
   columns: 3,
   qrSize: 108,
@@ -116,23 +116,32 @@ export function wrapQrLabelV1(value: string, width: number, measure: (s: string)
   if (line.trim()) lines.push(line.trim());
   return lines;
 }
-function labelPartsV1(card: PrintCardV1) {
-  return card.mode === 'qr-only'
-    ? []
-    : [
-        { text: cleanLabelV1(card.name), size: 9, leading: 11 },
-        ...(card.mode === 'qr-name-class'
-          ? [{ text: cleanLabelV1(card.classLabel), size: 8.5, leading: 10.5 }]
-          : []),
-      ];
+function labelPartsV1(card: PrintCardV1, instruction = '') {
+  const parts =
+    card.mode === 'qr-only'
+      ? []
+      : [
+          { text: cleanLabelV1(card.name), size: 9, leading: 11 },
+          ...(card.mode === 'qr-name-class'
+            ? [{ text: cleanLabelV1(card.classLabel), size: 8.5, leading: 10.5 }]
+            : []),
+        ];
+  if (instruction.trim())
+    parts.push({ text: cleanLabelV1(instruction).slice(0, 240), size: 8, leading: 10 });
+  return parts;
 }
 type LabelPlanV1 = {
   supported: boolean;
   height: number;
   parts: { size: number; leading: number; lines: string[] }[];
 };
-function planLabelsV1(font: PDFFont, card: PrintCardV1, width: number): LabelPlanV1 {
-  const parts = labelPartsV1(card);
+function planLabelsV1(
+  font: PDFFont,
+  card: PrintCardV1,
+  width: number,
+  instruction = '',
+): LabelPlanV1 {
+  const parts = labelPartsV1(card, instruction);
   let supported = true;
   try {
     for (const part of parts) font.encodeText(part.text);
@@ -225,6 +234,7 @@ export async function renderQrPdfV1(
   input: unknown,
   signal: AbortSignal,
   progress: (completed: number, total: number) => void = () => {},
+  instruction = '',
 ): Promise<QrArtifactV1> {
   signal.throwIfAborted();
   const cards = validatePrintCardsV1(input),
@@ -242,7 +252,7 @@ export async function renderQrPdfV1(
     await yieldToBrowser();
     signal.throwIfAborted();
     const row = cards.slice(start, start + layout.columns),
-      plans = row.map((card) => planLabelsV1(font, card, width - 16));
+      plans = row.map((card) => planLabelsV1(font, card, width - 16, instruction));
     const height = Math.max(
       128,
       6 + layout.qrSize + 4 + Math.max(...plans.map((plan) => plan.height)) + 8,

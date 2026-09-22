@@ -1,3 +1,4 @@
+import { StudentNameV1 } from '../shared/account-open-v1';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertDialog, Button, Card, Chip, Table, Tooltip } from '@heroui/react';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
@@ -483,7 +484,13 @@ function SessionFeedV1({
                       <div className="pa-account-identity">
                         <StudentAvatarV1 id={row.accountId} />
                         <div>
-                          <strong>{row.name || 'Nome indisponível'}</strong>
+                          <StudentNameV1
+                            accountId={row.accountId}
+                            name={row.name || 'Nome indisponível'}
+                            parentScope={scope}
+                          >
+                            <strong>{row.name || 'Nome indisponível'}</strong>
+                          </StudentNameV1>
                           {scope.kind === 'school' ? (
                             <span>{row.classLabel || 'Turma indisponível'}</span>
                           ) : null}

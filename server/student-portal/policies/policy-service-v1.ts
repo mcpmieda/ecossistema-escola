@@ -1,16 +1,44 @@
 import { z } from 'zod';
-import { adminCommandV1, type AdminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import {
+  adminCommandV1,
+  type AdminCommandV1,
+} from '../../../shared/student-portal-contracts/admin-v1';
 import { scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
-import { effectiveSettingsV1, settingsValueV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
-import type { EffectivePolicyPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
-import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import {
+  effectiveSettingsV1,
+  settingsValueV1,
+  type EffectiveSettingsV1,
+} from '../../../shared/student-portal-contracts/policy-v1';
+import type {
+  EffectivePolicyPortV1,
+  PortalTransactionV1,
+} from '../../../shared/student-portal-contracts/ports-v1';
+import {
+  StudentPortalPostgresPersistenceV1,
+  type StudentPortalPostgresQueryV1,
+  type StudentPortalPostgresSqlV1,
+} from '../persistence/postgres-persistence-v1';
 import { initialPolicyDefaultsV1 } from './defaults-v1';
 import { normalizeCalendarV1 } from './calendar-v1';
 
-const FIELDS = ['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult', 'allowedPeriods', 'risk', 'calendar'] as const;
-type Field = typeof FIELDS[number];
+const FIELDS = [
+  'accessEnabled',
+  'showPartials',
+  'autoUpdate',
+  'showFinalResult',
+  'allowedPeriods',
+  'risk',
+  'calendar',
+] as const;
+type Field = (typeof FIELDS)[number];
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
-const storedRow = z.object({ scope_key: z.string(), field_key: z.enum(FIELDS), value_json: z.unknown(), source_scope_json: scopeV1, version: versionV1 });
+const storedRow = z.object({
+  scope_key: z.string(),
+  field_key: z.enum(FIELDS),
+  value_json: z.unknown(),
+  source_scope_json: scopeV1,
+  version: versionV1,
+});
 type StoredRowV1 = z.infer<typeof storedRow>;
 
 function normalizedScope(input: ScopeV1): ScopeV1 {
@@ -37,7 +65,9 @@ function canonical(input: unknown): string {
 }
 
 async function hash(input: unknown): Promise<string> {
-  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical(input))));
+  const bytes = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical(input))),
+  );
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -46,33 +76,72 @@ async function lockYear(tx: StudentPortalPostgresQueryV1) {
   await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
 }
 
-async function writeField(tx: StudentPortalPostgresQueryV1, scope: ScopeV1, field: Field, value: unknown, version: number) {
-  await tx.unsafe(`INSERT INTO student_portal.setting
+async function writeField(
+  tx: StudentPortalPostgresQueryV1,
+  scope: ScopeV1,
+  field: Field,
+  value: unknown,
+  version: number,
+) {
+  await tx.unsafe(
+    `INSERT INTO student_portal.setting
     (scope_key,field_key,scope_kind,academic_year,class_id,account_id,value_json,source_scope_json,version)
     VALUES ($1,$2,$3,2026,$4,$5::uuid,$6::text::jsonb,$7::text::jsonb,$8)
     ON CONFLICT (scope_key,field_key) DO UPDATE SET value_json=EXCLUDED.value_json,
       source_scope_json=EXCLUDED.source_scope_json,version=EXCLUDED.version,updated_at=statement_timestamp()`,
-  [key(scope), field, scope.kind, scope.kind === 'class' ? scope.classId : null,
-    scope.kind === 'account' ? scope.accountId : null, JSON.stringify(value), JSON.stringify(scope), version]);
+    [
+      key(scope),
+      field,
+      scope.kind,
+      scope.kind === 'class' ? scope.classId : null,
+      scope.kind === 'account' ? scope.accountId : null,
+      JSON.stringify(value),
+      JSON.stringify(scope),
+      version,
+    ],
+  );
 }
 
 function immediateCalendarChange(previous: unknown, next: unknown, now: number): boolean {
   const before = normalizeCalendarV1(previous);
   const after = normalizeCalendarV1(next);
   const past = (value: string | null) => value !== null && Date.parse(value) <= now;
-  const changedDate = (left: string | null, right: string | null) => left !== right && (past(left) || past(right));
-  const dates = ['enrollmentStartsAt', 'yearStartsAt', 't1EndsAt', 't2StartsAt', 't2EndsAt', 't3StartsAt', 't3EndsAt',
-    'recoveriesStartAt', 'yearEndsAt', 'finalDisclosureAt'] as const;
-  if (dates.some((field) => changedDate(before[field], after[field]))) return true;
+  const changedDate = (left: string | null, right: string | null) =>
+    left !== right && (past(left) || past(right));
+  const dates = [
+    'enrollmentStartsAt',
+    'yearStartsAt',
+    't1EndsAt',
+    't2StartsAt',
+    't2EndsAt',
+    't3StartsAt',
+    't3EndsAt',
+    'recoveriesStartAt',
+    'yearEndsAt',
+    'finalDisclosureAt',
+    'accessStartsAt',
+    'accessEndsAt',
+    'finalDisclosureEndsAt',
+  ] as const;
+  if (dates.some((field) => changedDate(before[field] ?? null, after[field] ?? null))) return true;
   const left = before.disclosure;
   const right = after.disclosure;
   if (left.mode !== right.mode) return true;
   if (left.mode === 'single' && right.mode === 'single') {
-    return changedDate(left.at, right.at)
-      || (canonical([...left.periods].sort((a, b) => a.localeCompare(b))) !== canonical([...right.periods].sort((a, b) => a.localeCompare(b))) && (past(left.at) || past(right.at)));
+    return (
+      changedDate(left.at, right.at) ||
+      changedDate(left.endsAt ?? null, right.endsAt ?? null) ||
+      (canonical([...left.periods].sort((a, b) => a.localeCompare(b))) !==
+        canonical([...right.periods].sort((a, b) => a.localeCompare(b))) &&
+        (past(left.at) || past(right.at)))
+    );
   }
   if (left.mode === 'per-period' && right.mode === 'per-period') {
-    return (['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const).some((period) => changedDate(left.at[period], right.at[period]));
+    return (['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const).some(
+      (period) =>
+        changedDate(left.at[period], right.at[period]) ||
+        changedDate(left.endsAt?.[period] ?? null, right.endsAt?.[period] ?? null),
+    );
   }
   return false;
 }
@@ -192,8 +261,8 @@ function storedMatchesV1(
 ) {
   return Boolean(
     previous &&
-      canonical(previous.value_json) === canonical(value) &&
-      canonical(previous.source_scope_json) === canonical(scope),
+    canonical(previous.value_json) === canonical(value) &&
+    canonical(previous.source_scope_json) === canonical(scope),
   );
 }
 
@@ -316,7 +385,8 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
   /** One SQL snapshot includes current class, account version, overrides and school epoch. */
   async readSnapshotInTransaction(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
     const scope = normalizedScope(input);
-    const rows = await tx.unsafe(`WITH current_account AS (
+    const rows = await tx.unsafe(
+      `WITH current_account AS (
       SELECT a.version::text AS account_version,b.class_id,b.matches FROM student_portal.account a
       CROSS JOIN LATERAL (SELECT min(class_id) AS class_id,count(*)::integer AS matches
         FROM student_portal.academic_binding_v1 WHERE academic_year=2026 AND student_id=a.gradebook_student_id
@@ -331,14 +401,21 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       FROM student_portal.setting s WHERE s.scope_key='school:2026'
         OR s.scope_key='class:2026:'||target.class_id::text
         OR ($1='account' AND s.scope_key='account:2026:'||$2::uuid::text)), '[]'::jsonb) AS settings_rows FROM target`,
-    [scope.kind, scope.kind === 'account' ? scope.accountId : null, scope.kind === 'class' ? scope.classId : null]);
+      [
+        scope.kind,
+        scope.kind === 'account' ? scope.accountId : null,
+        scope.kind === 'class' ? scope.classId : null,
+      ],
+    );
     return resolvePolicySnapshotRowsV1(scope, rows);
   }
 
   async initializeDefaults() {
     return this.sql.begin(async (tx) => {
       await lockYear(tx);
-      const rows = await tx.unsafe("SELECT field_key FROM student_portal.setting WHERE scope_key='school:2026' FOR UPDATE");
+      const rows = await tx.unsafe(
+        "SELECT field_key FROM student_portal.setting WHERE scope_key='school:2026' FOR UPDATE",
+      );
       if (rows.length === 0) {
         const defaults = initialPolicyDefaultsV1();
         for (const field of FIELDS) await writeField(tx, SCHOOL, field, defaults[field], 1);
@@ -413,5 +490,4 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       );
     });
   }
-
 }

@@ -110,7 +110,9 @@ describe('account list and detail', () => {
       await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
       await waitFor(() => expect(drawer.isConnected).toBe(false));
       expect(lastName.isConnected).toBe(true);
-      expect(lastName.closest('button')!.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 105');
+      expect(lastName.closest('button')!.getAttribute('aria-label')).toBe(
+        'Abrir ficha de SYNTHETIC ACCOUNT 105',
+      );
       expect(screen.getByText('SYNTHETIC ACCOUNT 001').closest('button')).toBe(trigger);
       expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(true);
       expect(mock.writes).toHaveLength(0);
@@ -133,7 +135,11 @@ describe('account list and detail', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await screen.findByText(/Alteração salva/);
     expect(mock.writes[0]).toMatchObject({ operation: 'password-reset', expectedVersion: 12 });
-    await waitFor(() => expect(within(screen.getByLabelText('Ficha da conta')).getByText('Redefinição pendente')).toBeTruthy());
+    await waitFor(() =>
+      expect(
+        within(screen.getByLabelText('Ficha da conta')).getByText('Redefinição pendente'),
+      ).toBeTruthy(),
+    );
   });
   it('requires a new review after conflict and does not infer success from optimism', async () => {
     const mock = accountsMockV1();
@@ -154,15 +160,20 @@ describe('account list and detail', () => {
     expect(mock.writes[0]!.idempotencyKey).not.toBe(mock.writes[1]!.idempotencyKey);
   });
   it('keeps account reset distinct from QR regeneration and never renders the credential', async () => {
-    const mock = accountsMockV1(), onQr = vi.fn();
+    const mock = accountsMockV1(),
+      onQr = vi.fn();
     render(createElement(StudentAccountsV1, { ...mock.props, onQr }));
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();
     await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
-    expect(within(screen.getByRole('alertdialog')).getByText(/não encerra o vínculo nem libera o reset anual/)).toBeTruthy();
+    expect(
+      within(screen.getByRole('alertdialog')).getByText(
+        /não encerra o vínculo nem libera o reset anual/,
+      ),
+    ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
-    await user.click(await screen.findByRole('button', { name: 'Regenerar QR' }));
+    await user.click(await screen.findByRole('button', { name: 'Mudar QR' }));
     expect(within(screen.getByRole('alertdialog')).getByText(/Preserva a senha/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await waitFor(() => expect(onQr).toHaveBeenCalledOnce());
@@ -170,7 +181,8 @@ describe('account list and detail', () => {
     expect(mock.writes[0]?.operation).toBe('qr-regenerate');
   });
   it('disables actions for a closed Portal account despite an existing eligible academic link', async () => {
-    const mock = accountsMockV1(); mock.accounts[0]!.linkClosed = true;
+    const mock = accountsMockV1();
+    mock.accounts[0]!.linkClosed = true;
     render(createElement(StudentAccountsV1, mock.props));
     await userEvent.setup().click(await ready());
     expect((await detail()).hasAttribute('disabled')).toBe(true);
@@ -178,28 +190,51 @@ describe('account list and detail', () => {
     expect(mock.writes).toHaveLength(0);
   });
   it('blocks destructive recovery actions when the backend says recovery is not ready', async () => {
-    const mock = accountsMockV1(); mock.accounts[0]!.firstAccess.recoveryReady = false;
+    const mock = accountsMockV1();
+    mock.accounts[0]!.firstAccess.recoveryReady = false;
     render(createElement(StudentAccountsV1, mock.props));
-    const user = userEvent.setup(); await user.click(await ready()); await detail();
-    expect((screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Regenerar QR' }) as HTMLButtonElement).disabled).toBe(false);
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await detail();
+    expect(
+      (screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect((screen.getByRole('button', { name: 'Mudar QR' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
     expect(mock.writes).toHaveLength(0);
   });
   it('clears selected data and open confirmation when identity or capability changes', async () => {
-    const mock = accountsMockV1(); const view = render(createElement(StudentAccountsV1, mock.props));
-    const user = userEvent.setup(); await user.click(await ready()); await detail();
+    const mock = accountsMockV1();
+    const view = render(createElement(StudentAccountsV1, mock.props));
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await detail();
     await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
-    view.rerender(createElement(StudentAccountsV1, { ...mock.props, identityKey: 'another-synthetic-admin', canWrite: false }));
+    view.rerender(
+      createElement(StudentAccountsV1, {
+        ...mock.props,
+        identityKey: 'another-synthetic-admin',
+        canWrite: false,
+      }),
+    );
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Bloquear acesso' })).toBeNull();
     await user.click(await ready());
-    expect((await detail()).hasAttribute('disabled')).toBe(true); expect(mock.writes).toHaveLength(0);
+    expect((await detail()).hasAttribute('disabled')).toBe(true);
+    expect(mock.writes).toHaveLength(0);
   });
   it('clears the list and the detail when a command loses administrative authorization', async () => {
-    const mock = accountsMockV1({ write: async () => accountJsonV1({ ...ACCOUNT_META_V1, state: 'unauthenticated' }, 401) });
+    const mock = accountsMockV1({
+      write: async () => accountJsonV1({ ...ACCOUNT_META_V1, state: 'unauthenticated' }, 401),
+    });
     render(createElement(StudentAccountsV1, mock.props));
-    const user = userEvent.setup(); await user.click(await ready()); await detail();
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await detail();
     await user.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await screen.findByText('Sessão administrativa expirada. Entre novamente.');
@@ -208,47 +243,84 @@ describe('account list and detail', () => {
     expect(mock.writes).toHaveLength(1);
   });
   it('applies state and manual-block filters without selecting rows by their position', async () => {
-    const mock = accountsMockV1(); mock.accounts[1]!.state = 'pending-activation'; mock.accounts[1]!.blocked = true;
-    render(createElement(StudentAccountsV1, mock.props)); await ready();
+    const mock = accountsMockV1();
+    mock.accounts[1]!.state = 'pending-activation';
+    mock.accounts[1]!.blocked = true;
+    render(createElement(StudentAccountsV1, mock.props));
+    await ready();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Todas Situação' }));
-    await user.click(screen.getByRole('option', { name: 'Primeiro acesso' }));
+    await user.click(
+      within(screen.getByRole('grid', { name: 'Situação' })).getByRole('row', {
+        name: 'Primeiro acesso',
+      }),
+    );
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    await user.click(screen.getByRole('button', { name: 'Todos Bloqueio' }));
-    await user.click(screen.getByRole('option', { name: 'Bloqueadas' }));
+    await user.click(
+      within(screen.getByRole('grid', { name: 'Bloqueio' })).getByRole('row', {
+        name: 'Bloqueadas',
+      }),
+    );
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    expect(mock.queries.at(-1)).toMatchObject({ accountState: 'pending-activation', blocked: true });
-    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
+    expect(mock.queries.at(-1)).toMatchObject({
+      accountState: 'pending-activation',
+      blocked: true,
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' }),
+    ).toBeNull();
   });
   it('discards a late name-search result after filter changes', async () => {
     let resolve!: (response: Response) => void;
-    const mock = accountsMockV1({ query: (input) => input.nameSearch === 'old' ? new Promise((done) => { resolve = done; }) : undefined });
-    render(createElement(StudentAccountsV1, mock.props)); await ready();
+    const mock = accountsMockV1({
+      query: (input) =>
+        input.nameSearch === 'old'
+          ? new Promise((done) => {
+              resolve = done;
+            })
+          : undefined,
+    });
+    render(createElement(StudentAccountsV1, mock.props));
+    await ready();
     fireEvent.change(screen.getByLabelText('Buscar aluno'), { target: { value: 'old' } });
     await waitFor(() => expect(resolve).toBeTypeOf('function'));
     fireEvent.change(screen.getByLabelText('Buscar aluno'), { target: { value: '003' } });
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 003' });
     await act(async () => resolve(accountJsonV1(accountPageV1([accountFixtureV1(1)]))));
-    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' }),
+    ).toBeNull();
   });
   it('recovers an uncertain response under StrictMode with identical bytes', async () => {
     let attempt = 0;
-    const mock = accountsMockV1({ write: async () => {
-      if (attempt++ < 2) throw new Error('Synthetic lost response');
-      return accountJsonV1({ ...ACCOUNT_META_V1, state: 'committed', operationId: ACCOUNT_META_V1.requestId, version: 10 });
-    } });
+    const mock = accountsMockV1({
+      write: async () => {
+        if (attempt++ < 2) throw new Error('Synthetic lost response');
+        return accountJsonV1({
+          ...ACCOUNT_META_V1,
+          state: 'committed',
+          operationId: ACCOUNT_META_V1.requestId,
+          version: 10,
+        });
+      },
+    });
     render(createElement(StrictMode, null, createElement(StudentAccountsV1, mock.props)));
-    const user = userEvent.setup(); await user.click(await ready()); await detail();
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await detail();
     await user.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await user.click(await screen.findByRole('button', { name: 'Repetir mesma solicitação' }));
     await screen.findByText(/Alteração salva/);
-    expect(mock.bodies).toHaveLength(3); expect(new Set(mock.bodies).size).toBe(1);
+    expect(mock.bodies).toHaveLength(3);
+    expect(new Set(mock.bodies).size).toBe(1);
   });
 });
 it('confirms a complete reset and tells the operator to reprint the current QR', async () => {
-  const mock = accountsMockV1(); render(createElement(StudentAccountsV1, mock.props));
-  const user = userEvent.setup(); await user.click(await ready()); await detail();
+  const mock = accountsMockV1();
+  render(createElement(StudentAccountsV1, mock.props));
+  const user = userEvent.setup();
+  await user.click(await ready());
+  await detail();
   await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
   await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
   await screen.findByText(/Conta redefinida: o QR anterior/);

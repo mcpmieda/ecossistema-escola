@@ -13,8 +13,10 @@ export interface CalendarDraftV1 {
   dates: Record<CalendarDateKeyV1, string>;
   mode: 'single' | 'per-period';
   singleAt: string;
+  singleUntil?: string;
   singlePeriods: CalendarPeriodV1[];
   periodAt: Record<CalendarPeriodV1, string>;
+  periodUntil?: Record<CalendarPeriodV1, string>;
 }
 const emptyPeriodDates = (): Record<CalendarPeriodV1, string> => ({
   T1: '',
@@ -29,10 +31,22 @@ export function calendarDraftV1(value: CalendarV1): CalendarDraftV1 {
     dates: Object.fromEntries(
       Object.entries(CALENDAR_LABELS_V1).map(([key]) => [
         key,
-        calendarInputV1(value[key as CalendarDateKeyV1]),
+        calendarInputV1(value[key as CalendarDateKeyV1] ?? null),
       ]),
     ) as CalendarDraftV1['dates'],
     mode: value.disclosure.mode,
+    singleUntil:
+      value.disclosure.mode === 'single' ? calendarInputV1(value.disclosure.endsAt ?? null) : '',
+    periodUntil: Object.fromEntries(
+      PERIODS_V1.map((period) => [
+        period,
+        calendarInputV1(
+          value.disclosure.mode === 'per-period'
+            ? (value.disclosure.endsAt?.[period] ?? null)
+            : null,
+        ),
+      ]),
+    ) as Record<CalendarPeriodV1, string>,
     singleAt: value.disclosure.mode === 'single' ? calendarInputV1(value.disclosure.at) : '',
     singlePeriods:
       value.disclosure.mode === 'single' ? [...value.disclosure.periods] : [...PERIODS_V1],
@@ -59,6 +73,8 @@ export function calendarDraftModeV1(
     ...draft,
     mode,
     singleAt: '',
+    singleUntil: '',
+    periodUntil: emptyPeriodDates(),
     singlePeriods: [...PERIODS_V1],
     periodAt: emptyPeriodDates(),
   };
@@ -70,14 +86,33 @@ export function parseCalendarDraftV1(draft: CalendarDraftV1): CalendarV1 {
       calendarInstantV1(draft.dates[key as CalendarDateKeyV1]),
     ]),
   );
+  // Absent optional bounds remain absent, preserving old calendars byte-for-byte when untouched.
+  for (const key of ['accessStartsAt', 'accessEndsAt', 'finalDisclosureEndsAt']) {
+    if (dates[key] === null) delete dates[key];
+  }
   return calendarV1.parse({
     timezone: 'America/Sao_Paulo',
     ...dates,
     disclosure:
       draft.mode === 'single'
-        ? { mode: 'single', at: calendarInstantV1(draft.singleAt), periods: draft.singlePeriods }
+        ? {
+            mode: 'single',
+            at: calendarInstantV1(draft.singleAt),
+            periods: draft.singlePeriods,
+            ...(draft.singleUntil ? { endsAt: calendarInstantV1(draft.singleUntil) } : {}),
+          }
         : {
             mode: 'per-period',
+            ...(PERIODS_V1.some((period) => draft.periodUntil?.[period])
+              ? {
+                  endsAt: Object.fromEntries(
+                    PERIODS_V1.map((period) => [
+                      period,
+                      calendarInstantV1(draft.periodUntil?.[period] ?? ''),
+                    ]),
+                  ),
+                }
+              : {}),
             at: Object.fromEntries(
               PERIODS_V1.map((period) => [period, calendarInstantV1(draft.periodAt[period])]),
             ),

@@ -1,15 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Card,
-  Chip,
-  Input,
-  Label,
-  Skeleton,
-  Table,
-  TextField,
-  Tooltip,
-} from '@heroui/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Card, Chip, Checkbox, Skeleton, Table, Tooltip } from '@heroui/react';
 import { Info } from 'lucide-react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -18,7 +8,7 @@ import { ClassFilterV1 } from '../accounts/class-filter-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createBirthEditorV1, emptyBirthEditorV1 } from './birth-editor-v1';
-import { birthDirtyV1, validBirthYearV1, type BirthDraftRowV1 } from './birth-values-v1';
+import { birthDirtyV1 } from './birth-values-v1';
 import { ContinuousEndV1 } from '../shared/continuous-read-v1';
 import type { BirthScopeV1 } from './birth-read-v1';
 import { BirthDiscardDialogV1 } from './birth-review-v1';
@@ -26,9 +16,16 @@ import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1'
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
+import { BirthInputV1 } from './birth-input-v1';
+import { StudentNameV1 } from '../shared/account-open-v1';
+import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
+import type { QrRendererV1 } from '../credentials/qr-operation-v1';
+import { accountCredentialPreparableV1, firstAccessLabelV1 } from '../accounts/accounts-values-v1';
 import './student-birth-years-v1.css';
 
 export interface StudentBirthYearsPropsV1 {
+  qrMode?: boolean;
+  renderArtifact?: QrRendererV1;
   client: PortalAdminClientV1;
   reader: PortalAdminReadClientV2;
   scope: ScopeV1;
@@ -64,7 +61,7 @@ function BirthAreaV1(props: StudentBirthYearsPropsV1) {
   return (
     <section className="pa-birth" aria-label="Anos de nascimento">
       <header className="pa-section-heading">
-        <h2>Ano de nascimento</h2>
+        <h2>{props.qrMode ? 'QR code' : 'Nascimento'}</h2>
         <Tooltip>
           <Tooltip.Trigger aria-label="Sobre o salvamento do ano">
             <Info size={16} />
@@ -113,6 +110,13 @@ function BirthPageBodyV1(props: PageProps) {
     [clock, setClock] = useState(Date.now),
     [discard, setDiscard] = useState(false);
   const { client, reader, scope, canWrite, onChanged, onAuthorizationLost, onBlock } = props;
+  const [selectedQr, setSelectedQr] = useState<Set<string>>(() => new Set());
+  const [pendingRefresh, setPendingRefresh] = useState(false);
+  const requestRefresh = useCallback(() => setPendingRefresh(true), []);
+  const saved = useCallback(() => {
+    if (props.qrMode) requestRefresh();
+    onChanged?.();
+  }, [props.qrMode, requestRefresh, onChanged]);
   const editor = useMemo(
     () =>
       createBirthEditorV1({
@@ -123,10 +127,10 @@ function BirthPageBodyV1(props: PageProps) {
         canWrite,
         confirmOnEdit: true,
         publish: setState,
-        onChanged,
+        onChanged: saved,
         onAuthorizationLost,
       }),
-    [client, reader, scope, canWrite, onChanged, onAuthorizationLost],
+    [client, reader, scope, canWrite, saved, onAuthorizationLost],
   );
   useEffect(() => {
     void editor.load();
@@ -143,6 +147,16 @@ function BirthPageBodyV1(props: PageProps) {
     return () => onBlock(false);
   }, [onBlock, blocked]);
   useDraftNavigationGuardV1(blocked);
+  useEffect(() => {
+    if (!pendingRefresh || blocked || !editor.canRefresh()) return;
+    setPendingRefresh(false);
+    void editor.refresh();
+  }, [pendingRefresh, blocked, editor]);
+  const eligibleQr = new Set(
+    state.rows
+      .filter((row) => accountCredentialPreparableV1(row.record.account))
+      .map((row) => row.record.account.accountId),
+  );
   const retryAt = Math.max(state.retryAt, state.singleFailure?.retryAt ?? 0);
   useEffect(() => {
     if (!retryAt) return;
@@ -210,6 +224,29 @@ function BirthPageBodyV1(props: PageProps) {
             <p className="text-sm text-muted">Nenhum aluno nesta turma.</p>
           ) : (
             <>
+              {props.qrMode && scope.kind === 'class' ? (
+                <QrBatchToolsV1
+                  client={client}
+                  rows={state.rows}
+                  selected={selectedQr}
+                  onSelectAll={(selected) => setSelectedQr(selected ? eligibleQr : new Set())}
+                  classId={scope.classId}
+                  scopeVersion={state.accountsScopeVersion ?? -1}
+                  label={props.scopeLabel}
+                  canWrite={canWrite}
+                  pendingBirth={
+                    state.accountsScopeVersion === undefined ||
+                    blocked ||
+                    pendingRefresh ||
+                    Boolean(state.refreshing) ||
+                    Boolean(state.refreshError)
+                  }
+                  hasMore={Boolean(state.next)}
+                  onCommitted={requestRefresh}
+                  onAuthorizationLost={onAuthorizationLost}
+                  renderArtifact={props.renderArtifact}
+                />
+              ) : null}
               <Table variant="secondary">
                 <Table.ScrollContainer
                   className="pa-birth-scroll"
@@ -217,60 +254,89 @@ function BirthPageBodyV1(props: PageProps) {
                   tabIndex={0}
                   aria-label="Anos de nascimento por aluno"
                 >
-                  <Table.Content aria-label="Anos de nascimento por conta">
+                  <Table.Content
+                    aria-label="Anos de nascimento por conta"
+                    selectionMode={props.qrMode ? 'multiple' : 'none'}
+                    selectedKeys={selectedQr}
+                    disabledBehavior="selection"
+                    disabledKeys={state.rows
+                      .filter((row) => !canWrite || !eligibleQr.has(row.record.account.accountId))
+                      .map((row) => row.record.account.accountId)}
+                    onSelectionChange={(keys) =>
+                      setSelectedQr(
+                        new Set(
+                          keys === 'all'
+                            ? eligibleQr
+                            : [...keys].map(String).filter((id) => eligibleQr.has(id)),
+                        ),
+                      )
+                    }
+                  >
                     <Table.Header>
+                      {props.qrMode ? (
+                        <Table.Column id="selection" aria-label="Selecionar alunos">
+                          <Checkbox slot="selection" aria-label="Selecionar alunos disponíveis">
+                            <Checkbox.Content>
+                              <Checkbox.Control>
+                                <Checkbox.Indicator />
+                              </Checkbox.Control>
+                            </Checkbox.Content>
+                          </Checkbox>
+                        </Table.Column>
+                      ) : null}
                       <Table.Column id="name" isRowHeader>
                         Aluno
                       </Table.Column>
                       <Table.Column id="year">Ano de nascimento</Table.Column>
-                      <Table.Column id="status">Salvamento</Table.Column>
+                      {props.qrMode ? <Table.Column id="class">Turma</Table.Column> : null}
+                      {props.qrMode ? <Table.Column id="readiness">Acesso</Table.Column> : null}
                     </Table.Header>
                     <Table.Body>
                       {state.rows.map((row) => {
                         const id = row.record.account.accountId,
                           name = row.record.account.name || 'Aluno sem nome';
-                        const status = rowStatus(row);
                         return (
                           <Table.Row key={id} id={id}>
+                            {props.qrMode ? (
+                              <Table.Cell>
+                                <Checkbox slot="selection" aria-label="Selecionar">
+                                  <Checkbox.Content>
+                                    <Checkbox.Control>
+                                      <Checkbox.Indicator />
+                                    </Checkbox.Control>
+                                  </Checkbox.Content>
+                                </Checkbox>
+                              </Table.Cell>
+                            ) : null}
                             <Table.Cell>
-                              <div className="pa-account-identity">
-                                <StudentAvatarV1 id={id} />
-                                <strong>{name}</strong>
-                              </div>
+                              <StudentNameV1 accountId={id} name={name} parentScope={scope}>
+                                <div className="pa-account-identity">
+                                  <StudentAvatarV1 id={id} />
+                                  <strong>{name}</strong>
+                                </div>
+                              </StudentNameV1>
                             </Table.Cell>
                             <Table.Cell>
-                              <TextField
-                                value={row.year}
-                                onChange={(value) => editor.edit(id, value)}
-                                isDisabled={!canWrite || discard}
-                                isInvalid={row.year.length === 4 && !validBirthYearV1(row.year)}
-                              >
-                                <Label className="sr-only">Ano de nascimento de {name}</Label>
-                                <Input
-                                  className="pa-birth-year-input"
-                                  inputMode="numeric"
-                                  maxLength={4}
-                                  placeholder="AAAA"
-                                  onBlur={() => {
-                                    if (birthDirtyV1(row)) void editor.flush(id);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                      void editor.flush(id);
-                                    } else if (event.key === 'Escape') {
-                                      event.preventDefault();
-                                      editor.restore(id);
-                                    }
-                                  }}
-                                />
-                              </TextField>
+                              <BirthInputV1
+                                row={row}
+                                editor={editor}
+                                disabled={!canWrite || discard}
+                              />
                             </Table.Cell>
-                            <Table.Cell>
-                              <Chip size="sm" color={status.color} variant="soft">
-                                <Chip.Label aria-live="polite">{status.label}</Chip.Label>
-                              </Chip>
-                            </Table.Cell>
+                            {props.qrMode ? (
+                              <Table.Cell>{row.record.account.classLabel}</Table.Cell>
+                            ) : null}
+                            {props.qrMode ? (
+                              <Table.Cell>
+                                <Chip
+                                  size="sm"
+                                  variant="soft"
+                                  color={eligibleQr.has(id) ? 'success' : 'warning'}
+                                >
+                                  <Chip.Label>{firstAccessLabelV1(row.record.account)}</Chip.Label>
+                                </Chip>
+                              </Table.Cell>
+                            ) : null}
                           </Table.Row>
                         );
                       })}
@@ -317,19 +383,4 @@ function birthFailureText(error: PortalClientErrorV1) {
     default:
       return 'Não foi possível confirmar o salvamento.';
   }
-}
-function rowStatus(row: BirthDraftRowV1): {
-  label: string;
-  color: 'success' | 'warning' | 'danger' | 'default';
-} {
-  if (row.status === 'saving') return { label: 'Salvando…', color: 'warning' };
-  if (row.status === 'error' || row.status === 'conflict')
-    return { label: 'Não salvo', color: 'danger' };
-  if (row.status === 'refresh-error') return { label: 'Confirmando…', color: 'warning' };
-  if (birthDirtyV1(row))
-    return { label: validBirthYearV1(row.year) ? 'Editando' : 'Incompleto', color: 'warning' };
-  if (!row.year) return { label: 'Pendente', color: 'default' };
-  return row.confirmation === 'confirmed'
-    ? { label: 'Salvo', color: 'success' }
-    : { label: 'Confira o ano', color: 'warning' };
 }
