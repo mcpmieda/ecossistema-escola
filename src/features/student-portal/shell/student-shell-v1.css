@@ -416,6 +416,26 @@
 .pa-state-action {
   margin-top: 0.75rem;
 }
+.pa-page-skeleton .pa-profile-card {
+  padding: 0;
+  gap: 0;
+}
+.pa-page-skeleton .pa-profile-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+.pa-page-skeleton .pa-profile-identity {
+  min-width: 0;
+  flex: 1;
+}
+.pa-skeleton-avatar {
+  flex: 0 0 auto;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1rem;
+}
 .pa-skeleton-lines {
   display: grid;
   gap: 0.5rem;
