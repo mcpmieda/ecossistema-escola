@@ -26,10 +26,12 @@ import {
 } from './import-relational-instrument-decisions-v9';
 import {
   buildRelationPlanV9,
+  normalizeRelationNameV9,
   RelationPlanErrorV9,
   relationBindingKeyV9,
   type ExistingRelationBindingV9,
   type RelationComponentV9,
+  type RelationIdentityRepairV9,
   type RelationSourceBindingV9,
 } from './import-relational-relation-plan-v9';
 import type { GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
@@ -298,6 +300,98 @@ function relationPlanOrThrowV9(
   }
 }
 
+async function reconcileSplitRelationIdentityV9(
+  database: GradebookPostgresWritePortV1,
+  state: ImportStateV9,
+  request: GradebookRelationImportRequestV9,
+  repair: RelationIdentityRepairV9,
+  expectedName: string,
+): Promise<void> {
+  const { canonicalAlunoId, duplicateAlunoId } = repair;
+  if (canonicalAlunoId === duplicateAlunoId) return;
+
+  const students = await all<Row>(
+    database,
+    `SELECT id,nome FROM gradebook.aluno
+     WHERE ano=$1 AND id IN ($2,$3)
+     ORDER BY id
+     FOR UPDATE`,
+    [request.ano, canonicalAlunoId, duplicateAlunoId],
+  );
+  if (
+    students.length !== 2 ||
+    students.some((row) => normalizeRelationNameV9(String(row.nome)) !== normalizeRelationNameV9(expectedName))
+  ) {
+    throw new RelationalImportErrorV9(
+      'conflict',
+      'A movimentação corrigida não pode reparar a identidade com segurança.',
+    );
+  }
+
+  const collision = await first<Row>(
+    database,
+    `SELECT
+       EXISTS (
+         SELECT 1 FROM gradebook.nota duplicate
+         JOIN gradebook.nota canonical
+           ON canonical.instrumento_id=duplicate.instrumento_id
+          AND canonical.aluno_id=$1
+         WHERE duplicate.aluno_id=$2
+       ) AS nota,
+       EXISTS (
+         SELECT 1 FROM gradebook.fechamento duplicate
+         JOIN gradebook.fechamento canonical
+           ON canonical.oferta_id=duplicate.oferta_id
+          AND canonical.aluno_id=$1
+         WHERE duplicate.aluno_id=$2
+       ) AS fechamento,
+       (
+         EXISTS (SELECT 1 FROM gradebook.conselho_decisao WHERE aluno_id=$1)
+         AND EXISTS (SELECT 1 FROM gradebook.conselho_decisao WHERE aluno_id=$2)
+       ) AS conselho_decisao,
+       EXISTS (
+         SELECT 1 FROM gradebook.conselho_votacao duplicate
+         JOIN gradebook.conselho_votacao canonical
+           ON canonical.ano=duplicate.ano
+          AND canonical.turma_id=duplicate.turma_id
+          AND canonical.aluno_id=$1
+         WHERE duplicate.aluno_id=$2
+       ) AS conselho_votacao`,
+    [canonicalAlunoId, duplicateAlunoId],
+  );
+  if (
+    !collision ||
+    collision.nota === true ||
+    collision.fechamento === true ||
+    collision.conselho_decisao === true ||
+    collision.conselho_votacao === true
+  ) {
+    throw new RelationalImportErrorV9(
+      'conflict',
+      'A movimentação corrigida conflita com dados acadêmicos já existentes.',
+    );
+  }
+
+  for (const query of [
+    'UPDATE gradebook.nota SET aluno_id=$1 WHERE aluno_id=$2',
+    'UPDATE gradebook.fechamento SET aluno_id=$1 WHERE aluno_id=$2',
+    'UPDATE gradebook.conselho_decisao SET aluno_id=$1 WHERE aluno_id=$2',
+    'UPDATE gradebook.conselho_votacao SET aluno_id=$1 WHERE aluno_id=$2',
+    'UPDATE gradebook.vinculo SET aluno_id=$1 WHERE aluno_id=$2 AND ano=$3',
+  ]) {
+    await changedRun(
+      database,
+      state,
+      request,
+      1,
+      query,
+      query.includes('vinculo')
+        ? [canonicalAlunoId, duplicateAlunoId, request.ano]
+        : [canonicalAlunoId, duplicateAlunoId],
+    );
+  }
+}
+
 async function resolveRelationComponentStudentV9(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
@@ -429,7 +523,18 @@ async function persistRelation(
   );
 
   const alunoForSource = new Map<number, number>();
+  const repairedSource = new Map<number, RelationIdentityRepairV9>();
   for (const component of plan.components) {
+    if (component.identityRepair) {
+      await reconcileSplitRelationIdentityV9(
+        database,
+        state,
+        request,
+        component.identityRepair,
+        component.preferred.nome,
+      );
+      for (const item of component.items) repairedSource.set(item.index, component.identityRepair);
+    }
     const alunoId = await resolveRelationComponentStudentV9(database, state, request, component);
     for (const item of component.items) alunoForSource.set(item.index, alunoId);
   }
@@ -437,7 +542,12 @@ async function persistRelation(
   for (const item of plan.orderedSource) {
     const alunoId = alunoForSource.get(item.index);
     if (alunoId === undefined) throw new Error('component-aluno-missing');
-    const current = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
+    const stored = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
+    const repair = repairedSource.get(item.index);
+    const current =
+      stored && repair && stored.alunoId === repair.duplicateAlunoId
+        ? { ...stored, alunoId: repair.canonicalAlunoId }
+        : stored;
     await persistRelationBindingV9(database, state, request, item, alunoId, current);
   }
 }
