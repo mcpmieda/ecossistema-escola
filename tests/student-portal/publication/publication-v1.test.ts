@@ -139,6 +139,14 @@ describe('durable publication and authorized self snapshots', () => {
     }
   });
 
+  it('rejects a legacy manual refresh when the published period already uses the current revision', async () => {
+    await publish('T1');
+    expect((await service.read(scope())).items[0]).toMatchObject({ state: 'published' });
+    await expect(
+      service.command(ACTOR, await input('publish-update', 'T1')),
+    ).rejects.toThrow('student-portal-publication-no-update-conflict');
+  });
+
   it('rejects obsolete source targets and idempotency payload changes without accepting a newer revision', async () => {
     const request = await input();
     const first = await service.command(ACTOR, request);
@@ -159,6 +167,10 @@ describe('durable publication and authorized self snapshots', () => {
     await jobs.run(25);
     expect(valueOf(await self())).toMatchObject({ value: 25 });
     expect(valueOf(await self(), 'T2')).toMatchObject({ value: 20 });
+    await pg.exec('UPDATE gradebook.fechamento SET am1_fonte=26000 WHERE oferta_id=910001');
+    await change();
+    await reconcile.run();
+    expect((await service.read(scope())).items[0]).toMatchObject({ state: 'update-pending' });
     await service.command(ACTOR, await input('publish-update', 'T1'));
     const old = await jobs.claim();
     await service.command(ACTOR, await input('unpublish', 'T1'));
