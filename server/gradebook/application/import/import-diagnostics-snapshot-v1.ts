@@ -41,7 +41,13 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   // Capture all scalar input before the first await; later caller mutation is irrelevant.
   const { academicYear, fileName } = request;
   const sha256 = request.sha256.toLowerCase();
+  // The persistent Audit is intentionally narrower than the import preflight.
+  // Keep only findings that require human action: all blocking errors plus the
+  // explicit above-maximum warning. Technical/expected warnings (for example
+  // REC formulas without a saved cache or qualitative "*" maxima) stay out of
+  // the durable current snapshot.
   const rows = request.diagnostics
+    .filter((item) => item.severity === 'blocking-error' || item.code === 'above-maximum')
     .map((item) => ({
       ano: academicYear,
       arquivo: fileName,

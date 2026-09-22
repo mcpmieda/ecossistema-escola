@@ -81,7 +81,7 @@ function observation(keys:readonly string[]=['synthetic-key'], input:{fileName?:
   return {
     version:1,academicYear:input.year===undefined?2090:input.year,
     fileName:input.fileName??'synthetic.xlsx',sha256:(input.hash??'a').repeat(64),
-    diagnostics:keys.map((key)=>({key,severity:'warning',code:'source-unavailable',message:'Valor indisponível.',recommendedAction:'Confira a fonte.',fieldKind:'recovery'})),
+    diagnostics:keys.map((key)=>({key,severity:'blocking-error',code:'invalid-text',message:'Valor inválido.',recommendedAction:'Corrija a fonte.',fieldKind:'assessment'})),
   };
 }
 async function state() {
@@ -136,6 +136,52 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     expect((await state()).map((row)=>row.chave)).toEqual(['k1','k2']);
   });
 
+  it('persists only blocking findings and the actionable above-maximum warning', async () => {
+    const mixed: GradebookImportDiagnosticsAuditRequestV1 = {
+      ...observation([]),
+      diagnostics: [
+        {
+          key:'blocking-invalid-maximum',
+          severity:'blocking-error',
+          code:'invalid-maximum',
+          message:'Máximo obrigatório inválido.',
+          recommendedAction:'Corrija a configuração.',
+          fieldKind:'configuration',
+        },
+        {
+          key:'above-maximum',
+          severity:'warning',
+          code:'above-maximum',
+          message:'Nota acima do máximo.',
+          recommendedAction:'Confira o lançamento.',
+          fieldKind:'assessment',
+        },
+        {
+          key:'recovery-cache-missing',
+          severity:'warning',
+          code:'source-unavailable',
+          message:'Resultado de recuperação indisponível.',
+          recommendedAction:'Recalcule a planilha.',
+          fieldKind:'recovery',
+        },
+        {
+          key:'qualitative-star',
+          severity:'warning',
+          code:'invalid-maximum',
+          message:'Máximo qualitativo não definido.',
+          recommendedAction:'Confira a atividade.',
+          fieldKind:'configuration',
+          foundValue:'*',
+        },
+      ],
+    };
+    expect(await replace(database,mixed)).toBe(2);
+    expect((await state()).map((row)=>({chave:row.chave,nivel:row.nivel,codigo:row.codigo}))).toEqual([
+      {chave:'above-maximum',nivel:'warning',codigo:'above-maximum'},
+      {chave:'blocking-invalid-maximum',nivel:'blocking-error',codigo:'invalid-maximum'},
+    ]);
+  });
+
   it('removes resolved evidence and leaves only the current source version', async () => {
     await replace(database,observation(['old1','old2']));
     expect(await replace(database,observation(['current'],{hash:'b'}))).toBe(3);
@@ -154,7 +200,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
       await pg.query(
         `INSERT INTO gradebook.importacao_diagnostico_tratamento
         (diagnostico_origem_id,ano,arquivo,hash,chave,nivel,codigo,campo,acao,nota,chave_idempotencia,registrado_por)
-        VALUES ($1,2026,'synthetic.xlsx',decode(repeat('a',64),'hex'),$2,'warning','source-unavailable','recovery',1,NULL,$3,'00000000-0000-4000-8000-000000000001')`,
+        VALUES ($1,2026,'synthetic.xlsx',decode(repeat('a',64),'hex'),$2,'blocking-error','invalid-text','assessment',1,NULL,$3,'00000000-0000-4000-8000-000000000001')`,
         [row.id,row.chave,key],
       );
     }
@@ -266,7 +312,7 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
     }
     expect(result.status).toBe(200);
     expect(result.headers.get('Cache-Control')).toContain('no-store');
-    expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'source-unavailable',studentName:null}]});
+    expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'invalid-text',studentName:null}]});
     expect(queries).toHaveLength(1);
     expect(queries[0]).toMatch(/^SELECT/u);
     expect(await state()).toEqual(previous);

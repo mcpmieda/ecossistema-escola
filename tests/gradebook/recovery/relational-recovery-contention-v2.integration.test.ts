@@ -66,9 +66,9 @@ function diagnosticRequest(
     sha256: hash,
     diagnostics: [1, 2].map((index) => ({
       key: `${marker}-${String(index)}`,
-      severity: 'warning' as const,
-      code: 'source-unavailable' as const,
-      message: 'Diagnóstico sintético do ensaio local.',
+      severity: 'blocking-error' as const,
+      code: 'invalid-text' as const,
+      message: 'Diagnóstico sintético acionável do ensaio local.',
       recommendedAction: 'Nenhuma ação; massa descartável de contenção.',
       fieldKind: 'file' as const,
     })),
