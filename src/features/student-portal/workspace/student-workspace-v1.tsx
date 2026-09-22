@@ -228,6 +228,8 @@ function SummaryV1({
   ];
   const [selected, setSelected] = useState<SummaryKeyV1>(available[0] ?? 'T1');
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
+  // Null until the first switch, so the list does not animate twice on mount.
+  const [listMotion, setListMotion] = useState<'forward' | 'back' | null>(null);
   const recoveryPeriodsOf = (subject: SubjectV1) =>
     subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
   const published = subjects.filter((subject) =>
@@ -273,7 +275,11 @@ function SummaryV1({
           <Tabs
             className="pa-boletim-period-tabs"
             selectedKey={active}
-            onSelectionChange={(key) => setSelected(String(key) as SummaryKeyV1)}
+            onSelectionChange={(key) => {
+              const next = String(key) as SummaryKeyV1;
+              setListMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
+              setSelected(next);
+            }}
           >
             <Tabs.ListContainer>
               <Tabs.List aria-label="Período das notas">
@@ -292,7 +298,6 @@ function SummaryV1({
 
         <div className="pa-workspace-heading-row">
           <div>
-            <p className="pa-workspace-eyebrow">Notas publicadas</p>
             <h2 id="pa-summary-title">Minhas notas</h2>
           </div>
           <Chip size="sm" color="accent" variant="soft">
@@ -300,6 +305,8 @@ function SummaryV1({
           </Chip>
         </div>
 
+        {/* Keyed by period so the list slides in from the side of the tab that was chosen. */}
+        <div key={active} className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : undefined}>
         <ListBox
           aria-label="Disciplinas publicadas"
           selectionMode="none"
@@ -350,6 +357,7 @@ function SummaryV1({
             );
           })}
         </ListBox>
+        </div>
       </section>
     </div>
   );
@@ -381,6 +389,9 @@ function SubjectV1View({
     initialPeriod && available.includes(initialPeriod) ? initialPeriod : (available[0] ?? 'T1'),
   );
   const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
+  // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
+  // whole view already slides in when it opens.
+  const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
   const recoveryOf = RECOVERY_OF_V1[active];
@@ -422,7 +433,14 @@ function SubjectV1View({
         </Tabs.ListContainer>
       </Tabs>
 
-      <Tabs selectedKey={active} onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}>
+      <Tabs
+        selectedKey={active}
+        onSelectionChange={(key) => {
+          const next = String(key) as PeriodIdV1;
+          setPeriodMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
+          setSelected(next);
+        }}
+      >
         <Tabs.ListContainer>
           <Tabs.List aria-label={'Períodos de ' + subject.label}>
             {/* Each period tab carries its own final mark, so the evolution reads at a glance. */}
@@ -441,7 +459,9 @@ function SubjectV1View({
           {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated. */}
           <Card
             className={
-              'pa-score-card pa-score-card--' + scoreToneV1(mark) + ' pa-tab-motion pa-tab-motion--forward'
+              'pa-score-card pa-score-card--' +
+              scoreToneV1(mark) +
+              (periodMotion ? ' pa-tab-motion pa-tab-motion--' + periodMotion : '')
             }
           >
             <Card.Content className="pa-score-card-content">
