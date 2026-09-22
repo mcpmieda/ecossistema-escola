@@ -111,12 +111,39 @@ describe('publication interface', () => {
     expect(screen.getAllByText('Não definida')).toHaveLength(1); // Dates without values are omitted from repeated cards.
     expect(mock.writes).toHaveLength(0);
   });
+  it('hides manual refresh while auto-update is on and shows it only for a pending manual revision', async () => {
+    const automatic = setup();
+    automatic.fixture.settings.value.autoUpdate = true;
+    render(createElement(StudentPublicationV1, automatic.props));
+    await ready();
+    expect(screen.getByRole('button', { name: 'Publicar notas de T1' })).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Atualizar notas publicadas de T2' }),
+    ).toBeNull();
+    expect(screen.queryByText('Publicar para todos')).toBeNull();
+    cleanup();
+
+    const manual = setup();
+    manual.fixture.settings.value.autoUpdate = false;
+    render(createElement(StudentPublicationV1, manual.props));
+    await ready();
+    expect(
+      screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }),
+    ).toBeTruthy();
+    const published = screen
+      .getByRole('heading', { name: 'Recuperação 1' })
+      .closest('.pa-publication-card')!;
+    expect(
+      within(published as HTMLElement).queryByText('Atualizar notas publicadas'),
+    ).toBeNull();
+  });
+
   it('reviews only the chosen period and does not equate command acceptance with materialization', async () => {
     const user = userEvent.setup(),
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas de T1' }));
     expect(mock.writes).toHaveLength(0);
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
@@ -146,7 +173,7 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar atualização de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
     await user.click(screen.getByRole('button', { name: 'Voltar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mock.writes).toHaveLength(0);
@@ -156,12 +183,12 @@ describe('publication interface', () => {
       mock = setup({ write: async () => json({ ...PUBLICATION_META_V1, state: 'conflict' }, 409) });
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar atualização de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
     mock.fixture.items.forEach((item) => {
       item.version = 11;
       if (item.availableRevision) item.availableRevision = 'synthetic:2026:revision:3';
     });
-    await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar atualização' }));
     await screen.findByText(
       'A fonte, o escopo ou a configuração mudou. Recarregue e revise uma nova decisão; a revisão não será substituída automaticamente.',
     );
@@ -175,9 +202,9 @@ describe('publication interface', () => {
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Recarregar' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar atualização de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar atualização' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
     expect(mock.writes[1]).toMatchObject({
       expectedVersion: 11,
@@ -216,11 +243,11 @@ describe('publication interface', () => {
       mock = setup();
     const view = render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas de T1' }));
     view.rerender(createElement(StudentPublicationV1, { ...mock.props, canWrite: false }));
     expect(screen.queryByRole('dialog')).toBeNull();
     await ready();
-    expect(screen.queryByRole('button', { name: /Publicar|Retirar publicação/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Publicar|Atualizar|Retirar publicação/u })).toBeNull();
     expect(mock.writes).toHaveLength(0);
   });
   it('clears the previous scope and ignores a late response after a scope switch', async () => {
@@ -270,7 +297,7 @@ describe('publication interface', () => {
     });
     render(createElement(StrictMode, null, createElement(StudentPublicationV1, mock.props)));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas de T1' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
     await screen.findByRole('button', { name: 'Tentar novamente' });
     expect(screen.queryByRole('dialog')).toBeNull();

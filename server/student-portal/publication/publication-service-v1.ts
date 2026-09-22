@@ -71,8 +71,16 @@ export class PublicationServiceV1 {
       const stored = await tx.unsafe(`SELECT account_id,period,state,available_revision,published_revision,version::text
         FROM student_portal.publication WHERE account_id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))`, [ids]);
       const before = new Map(accounts.map((account) => [account.id, normalizePublicationRowsV1(stored.filter((row) => row.account_id === account.id))]));
-      if (command.operation === 'publish-update' && accounts.some((account) => !before.get(account.id)!.find((row) => row.period === command.period)!.publishedRevision))
-        throw new Error('student-portal-publication-not-published');
+      if (command.operation === 'publish-update') {
+        const targets = accounts.map((account) =>
+          before.get(account.id)!.find((row) => row.period === command.period)!,
+        );
+        if (targets.some((row) => !row.publishedRevision))
+          throw new Error('student-portal-publication-not-published');
+        if (targets.some((row) =>
+          row.state !== 'update-pending' && row.publishedRevision === revision))
+          throw new Error('student-portal-publication-no-update-conflict');
+      }
       const queued = await tx.unsafe(`SELECT account_id,data_version,policy_version,publication_version FROM student_portal.publication_job
         WHERE account_id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND state IN ('queued','running')`, [ids]);
       const removed = command.operation === 'unpublish';

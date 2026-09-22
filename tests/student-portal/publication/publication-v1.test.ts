@@ -46,6 +46,18 @@ async function publish(period = 'T1', operation = 'publish') {
 }
 const self = () => reader.read(accountId, crypto.randomUUID());
 const valueOf = (response: Awaited<ReturnType<typeof self>>, period = 'T1') => response?.subjects.find((subject) => subject.label === 'MATEMATICA')?.periods.find((item) => item.period === period)?.final;
+async function claimOwnJob() {
+  await pg.query(
+    `UPDATE student_portal.publication_job
+      SET state='failed',lease_until=NULL,updated_at=statement_timestamp()
+      WHERE account_id<>$1::uuid AND state IN ('queued','running')`,
+    [accountId],
+  );
+  const claimed = await jobs.claim();
+  expect(claimed).not.toBeNull();
+  expect(claimed!.accountId).toBe(accountId);
+  return claimed!;
+}
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -139,6 +151,14 @@ describe('durable publication and authorized self snapshots', () => {
     }
   });
 
+  it('rejects a legacy manual refresh when the published period already uses the current revision', async () => {
+    await publish('T1');
+    expect((await service.read(scope())).items[0]).toMatchObject({ state: 'published' });
+    await expect(
+      service.command(ACTOR, await input('publish-update', 'T1')),
+    ).rejects.toThrow('student-portal-publication-no-update-conflict');
+  });
+
   it('rejects obsolete source targets and idempotency payload changes without accepting a newer revision', async () => {
     const request = await input();
     const first = await service.command(ACTOR, request);
@@ -159,10 +179,14 @@ describe('durable publication and authorized self snapshots', () => {
     await jobs.run(25);
     expect(valueOf(await self())).toMatchObject({ value: 25 });
     expect(valueOf(await self(), 'T2')).toMatchObject({ value: 20 });
+    await pg.exec('UPDATE gradebook.fechamento SET am1_fonte=26000 WHERE oferta_id=910001');
+    await change();
+    await reconcile.run();
+    expect((await service.read(scope())).items[0]).toMatchObject({ state: 'update-pending' });
     await service.command(ACTOR, await input('publish-update', 'T1'));
-    const old = await jobs.claim();
+    const old = await claimOwnJob();
     await service.command(ACTOR, await input('unpublish', 'T1'));
-    expect(await jobs.perform(old!)).toBe('stale');
+    expect(await jobs.perform(old)).toBe('stale');
     expect(valueOf(await self())).toBeUndefined();
     expect(valueOf(await self(), 'T2')).toMatchObject({ value: 20 });
     const stored = JSON.stringify((await pg.query('SELECT payload_json FROM student_portal.published_projection WHERE account_id=$1', [accountId])).rows);
@@ -170,7 +194,7 @@ describe('durable publication and authorized self snapshots', () => {
     await service.command(ACTOR, await input('publish', 'T1'));
     expect(valueOf(await self())).toBeUndefined();
     await jobs.run(25);
-    expect(valueOf(await self())).toMatchObject({ value: 25 });
+    expect(valueOf(await self())).toMatchObject({ value: 26 });
   });
 
   it('fences an expired lease after a restart and never lets the old worker commit', async () => {
