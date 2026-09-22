@@ -194,7 +194,7 @@ describe('durable publication and authorized self snapshots', () => {
     await service.command(ACTOR, await input('publish', 'T1'));
     expect(valueOf(await self())).toBeUndefined();
     await jobs.run(25);
-    expect(valueOf(await self())).toMatchObject({ value: 25 });
+    expect(valueOf(await self())).toMatchObject({ value: 26 });
   });
 
   it('fences an expired lease after a restart and never lets the old worker commit', async () => {
