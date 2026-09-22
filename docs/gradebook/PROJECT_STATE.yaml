@@ -86,11 +86,20 @@ student_portal_integration:
   integrated_academic_presentation: 747
 repository_snapshot:
   gradebook_latest_migration_in_tree: 0012_current_state_cleanup_v1.sql
-  student_portal_latest_migration_in_tree: 0017_security_event_priority_v1.sql
-  student_portal_candidate_migrations_status: applied-and-postflight-verified-issue-1102
+  student_portal_latest_migration_in_tree: 0018_shared_student_identity_v1.sql
+  student_portal_candidate_migrations_status: identity-0018-candidate-not-applied-issue-1114
   git_presence_alone_is_production_proof: false
   current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
   historical_checkpoint_668_is_runtime_authority: false
+shared_student_identity_1114:
+  issue: 1114
+  pull_request: 1115
+  updated_at: 2026-09-22
+  canonical_key: studentUid
+  migration: 0018_shared_student_identity_v1.sql
+  status: candidate-in-validation-not-applied
+  production_migration_applied: false
+  evidence: docs/student-identity/README.md
 next_safe_action:
   issue: 970
   description: execute-bn-maintenance-children-in-order-with-current-main-revalidation
@@ -291,7 +300,7 @@ historical_checkpoint_668:
     - phase: FINAL-3
       issue: 635
       branch: null
-      status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending
+      status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-pending
     - phase: FINAL-4
       issue: 406
       branch: test/bn-final-4-piloto-integral

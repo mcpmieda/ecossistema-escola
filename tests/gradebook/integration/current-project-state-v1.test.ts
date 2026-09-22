@@ -21,20 +21,25 @@ describe('current canonical project state', () => {
     expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
   });
 
-  it('tracks the latest Student Portal migration present in the current tree', () => {
+  it('distinguishes the candidate identity migration from the verified production baseline', () => {
     const gradebookState = source('docs/gradebook/PROJECT_STATE.yaml');
     const portalState = source('docs/student-portal/PROJECT_STATE.yaml');
     const latest = latestMigration('migrations/student-portal');
 
-    expect(latest).toBe('0017_security_event_priority_v1.sql');
+    expect(latest).toBe('0018_shared_student_identity_v1.sql');
     expect(gradebookState).toContain(`student_portal_latest_migration_in_tree: ${latest}`);
     expect(portalState).toContain(`student_portal_latest_migration_in_tree: ${latest}`);
-    // Tree presence alone is not production evidence; #1102 recorded the postflight of 0016/0017.
+    // #1114 is a candidate, not evidence of a remote migration. Preserve #1102 postflight.
     expect(gradebookState).toContain('schema_migration_file: 0017_security_event_priority_v1.sql');
     expect(portalState).toContain('student_portal_schema_latest_migration: 0017_security_event_priority_v1.sql');
     expect(portalState).toContain('production_migrations_applied: true');
     expect(portalState).toContain('student_portal_schema_production_version: 20260922150001');
     expect(portalState).toContain('student_portal_schema_table_count: 27');
+    for (const state of [gradebookState, portalState]) {
+      expect(state).toContain('shared_student_identity_1114:');
+      expect(state).toContain('status: candidate-in-validation-not-applied');
+      expect(state).toContain('production_migration_applied: false');
+    }
   });
 
   it('keeps historical checkpoint 668 explicitly non-authoritative', () => {

@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { applyCurrentGradebookSchemaV1, assertCurrentGradebookSchemaV1 } from '../../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
 import { assertStudentIdentitySchemaV1 } from '../../../server/student-identity/schema-state-v1.ts';
-import { installResetSchemaFixtureV1 } from '../year-reset/schema-fixture';
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1'
@@ -33,8 +32,10 @@ async function createTarget() {
   connections.push(connection);
   await applyCurrentGradebookSchemaV1(adapter(connection), process.cwd());
   await assertCurrentGradebookSchemaV1(adapter(connection));
-  await installResetSchemaFixtureV1({ exec: text => exec(connection, text) });
-  await exec(connection, readFileSync('migrations/student-portal/0015_student_portal_rls_v1.sql', 'utf8'));
+  const baseline = readdirSync('migrations/student-portal')
+    .filter(file => /^\d{4}_.+\.sql$/u.test(file) && Number(file.slice(0, 4)) <= 17).sort();
+  if (baseline.length !== 17) throw new Error('student-identity-portal-baseline-incomplete');
+  for (const file of baseline) await exec(connection, readFileSync('migrations/student-portal/' + file, 'utf8'));
   await exec(connection, `CREATE TABLE student_portal.profile_photo (
     account_id uuid PRIMARY KEY REFERENCES student_portal.account(id) ON DELETE RESTRICT,
     sharepoint_drive_id text NOT NULL,sharepoint_item_id text NOT NULL

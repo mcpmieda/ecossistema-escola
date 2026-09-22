@@ -19,7 +19,16 @@ runtime: production_composed_and_verified
 student_portal_schema: migrations_0001_through_0017_applied
 student_portal_schema_table_count: 27
 student_portal_schema_latest_migration: 0017_security_event_priority_v1.sql
-student_portal_latest_migration_in_tree: 0017_security_event_priority_v1.sql
+student_portal_latest_migration_in_tree: 0018_shared_student_identity_v1.sql
+shared_student_identity_1114:
+  issue: 1114
+  pull_request: 1115
+  updated_at: 2026-09-22
+  canonical_key: studentUid
+  migration: 0018_shared_student_identity_v1.sql
+  status: candidate-in-validation-not-applied
+  production_migration_applied: false
+  evidence: docs/student-identity/README.md
 recovery_1101:
   contract_issue: 1102
   pull_request: 1103
