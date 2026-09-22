@@ -47,10 +47,6 @@ export function createStudentSessionV1(
     clearTimeout(timer);
     latest.clear();
   };
-  const securityUnavailable = () => {
-    clear();
-    publish({ state: 'error', error: new PortalClientErrorV1('network-error') });
-  };
   const authorizeSecurity = async (signal: AbortSignal) => {
     if (blocked || disposed || lastLoad.state !== 'ready') return;
     const generation = securityGeneration;
@@ -108,7 +104,11 @@ export function createStudentSessionV1(
   return {
     clear,
     authorizeSecurity,
-    securityUnavailable,
+    /** Content was dropped on pagehide (never frozen in history); reload it on return. */
+    restoredFromHistory() {
+      clear();
+      void refresh();
+    },
     refresh,
     async authenticated() {
       blocked = false;
@@ -165,7 +165,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       // The ordinary initial pageshow must not duplicate the entry request.
       if (!hiddenByNavigation && !event.persisted) return;
       hiddenByNavigation = false;
-      current.securityUnavailable();
+      current.restoredFromHistory();
     };
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', show);
@@ -190,7 +190,6 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
         return new window.WebSocket(url);
       },
       authorize: current.authorizeSecurity,
-      unavailable: current.securityUnavailable,
     });
     return () => security.dispose();
   }, [securityAccountId, client]);

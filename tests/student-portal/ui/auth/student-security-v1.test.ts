@@ -51,7 +51,6 @@ async function setup() {
       return socket;
     },
     authorize: session.authorizeSecurity,
-    unavailable: session.securityUnavailable,
   });
   return {
     client,
@@ -114,21 +113,35 @@ describe('student security channel', () => {
     expect(s.client.me).toHaveBeenCalledTimes(1);
     s.dispose();
   });
-  it('expires the authorization lease on network failure without claiming revocation', async () => {
+  it('keeps content through network uncertainty and keeps re-checking only the session', async () => {
     const s = await setup();
     s.client.session.mockRejectedValue(new PortalClientErrorV1('network-error'));
     s.sockets[0]!.open();
-    await vi.advanceTimersByTimeAsync(59_999);
+    await vi.advanceTimersByTimeAsync(0);
+    const beforeExpiry = s.client.session.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(s.publish.mock.lastCall![0].state).toBe('ready');
-    await vi.advanceTimersByTimeAsync(1);
+    expect(s.client.session.mock.calls.length).toBeGreaterThan(beforeExpiry);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(s.publish.mock.lastCall![0].state).toBe('ready');
+    // Stable login never re-reads grades on its own.
+    expect(s.client.me).toHaveBeenCalledTimes(1);
+    s.dispose();
+  });
+  it('hides content when the session check at lease expiry confirms revocation', async () => {
+    const s = await setup();
+    s.sockets[0]!.open();
+    await vi.advanceTimersByTimeAsync(0);
+    s.client.session.mockRejectedValue(new PortalClientErrorV1('unauthenticated', 401));
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(s.publish.mock.lastCall![0]).toMatchObject({
       state: 'error',
-      error: { state: 'network-error' },
+      error: { state: 'unauthenticated' },
     });
     expect(s.client.me).toHaveBeenCalledTimes(1);
     s.dispose();
   });
-  it('never restores payload after a delayed check or disposed channel', async () => {
+  it('a delayed check never outlives a disposed channel', async () => {
     const s = await setup();
     let resolve!: (value: typeof SESSION) => void;
     s.client.session.mockImplementationOnce(
@@ -138,12 +151,10 @@ describe('student security channel', () => {
         }),
     );
     s.sockets[0]!.open();
-    await vi.advanceTimersByTimeAsync(60_000);
-    resolve(SESSION);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(s.publish.mock.lastCall![0].state).toBe('error');
-    expect(s.client.me).toHaveBeenCalledTimes(1);
     s.dispose();
+    resolve(SESSION);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(s.client.me).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
   });
   it('rechecks an event arriving during an outstanding session check', async () => {
@@ -182,21 +193,25 @@ describe('student security channel', () => {
     });
     expect(fetch).toHaveBeenCalledOnce();
   });
-  it('backs off failed connections and stops all attempts at lease expiration', async () => {
+  it('backs off failed connections and verifies over HTTP when the socket never connects', async () => {
     const connect = vi.fn(() => {
       throw new Error('offline');
     });
-    const unavailable = vi.fn(),
-      authorize = vi.fn();
-    createStudentSecurityV1({ connect, unavailable, authorize });
-    await vi.advanceTimersByTimeAsync(60_000);
+    const authorize = vi.fn(() => Promise.resolve());
+    const security = createStudentSecurityV1({ connect, authorize });
+    await vi.advanceTimersByTimeAsync(59_999);
     expect(connect).toHaveBeenCalledTimes(7);
-    expect(unavailable).toHaveBeenCalledOnce();
     expect(authorize).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(authorize).toHaveBeenCalledOnce();
+    // Reconnection keeps backing off (capped at 15 s) instead of giving up.
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(connect).toHaveBeenCalledTimes(7);
+    expect(connect.mock.calls.length).toBeGreaterThan(7);
+    expect(authorize).toHaveBeenCalledTimes(2);
+    security.dispose();
+    expect(vi.getTimerCount()).toBe(0);
   });
-  it('starts only for authenticated content and clears restored history without fetching grades', async () => {
+  it('starts only for authenticated content and reloads after a history restore', async () => {
     const urls: string[] = [];
     class BrowserSocket extends Socket {
       constructor(url: string) {
@@ -218,14 +233,13 @@ describe('student security channel', () => {
       window.dispatchEvent(new Event('pagehide'));
     });
     expect(hook.result.current.load.state).toBe('idle');
-    act(() => {
+    // Content was never frozen in history; on return it is re-verified and reloaded.
+    await act(async () => {
       window.dispatchEvent(new Event('pageshow'));
+      await vi.advanceTimersByTimeAsync(0);
     });
-    expect(hook.result.current.load).toMatchObject({
-      state: 'error',
-      error: { state: 'network-error' },
-    });
-    expect(client.me).toHaveBeenCalledTimes(1);
-    expect(client.session).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.load).toMatchObject({ state: 'ready', data: SYNTHETIC_SELF_V1 });
+    expect(client.me).toHaveBeenCalledTimes(2);
+    expect(client.session).toHaveBeenCalledTimes(2);
   });
 });

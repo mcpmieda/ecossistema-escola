@@ -392,6 +392,13 @@ function SubjectV1View({
   // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
   // whole view already slides in when it opens.
   const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
+  // The view remounts per subject, resetting the horizontal scroller to its start; bring the
+  // chosen subject back into view (inline only, so the page itself does not jump).
+  const subjectTabs = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tab = subjectTabs.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    tab?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  }, [subject.subjectId]);
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
   const recoveryOf = RECOVERY_OF_V1[active];
@@ -417,6 +424,7 @@ function SubjectV1View({
         }
       />
 
+      <div ref={subjectTabs}>
       <Tabs
         selectedKey={String(subject.subjectId)}
         onSelectionChange={(key) => onSubjectChange(Number(key))}
@@ -432,6 +440,7 @@ function SubjectV1View({
           </Tabs.List>
         </Tabs.ListContainer>
       </Tabs>
+      </div>
 
       <Tabs
         selectedKey={active}
