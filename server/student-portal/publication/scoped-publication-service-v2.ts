@@ -44,7 +44,8 @@ export class ScopedPublicationServiceV2 {
         if (!removed && 'targetDataVersion' in command && command.targetDataVersion !== summary.dataVersion)
           throw new Error('student-portal-publication-source-conflict');
         const periodState = summary.items.find((item) => item.period === command.period);
-        if (!removed && !periodState?.availableRevision)
+        if (!periodState) throw new Error('student-portal-publication-no-data-conflict');
+        if (!removed && !periodState.availableRevision)
           throw new Error('student-portal-publication-no-data-conflict');
         if (command.operation === 'publish-update') {
           if (!summary.allPublished.has(command.period))
