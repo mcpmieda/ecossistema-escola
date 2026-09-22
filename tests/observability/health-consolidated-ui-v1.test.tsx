@@ -7,6 +7,7 @@ import { SystemHealthSignalsPanelV1 } from '../../src/platform/system-health-sig
 import { SystemHealthReviewPanelV1 } from '../../src/platform/system-health-review-panel-v1';
 import { SystemHealthProvidersPanelV1 } from '../../src/platform/system-health-providers-panel-v1';
 import { buildHealthReviewV1 } from '../../shared/health-review-v1';
+import { setupOperationsDomV1 } from '../student-portal/ui/overview/dom-v1';
 const NOW = Date.parse('2026-09-22T03:00:00.000Z'), at = (t: number) => new Date(t).toISOString();
 const point = (i: number, maintenanceState = 'normal') => ({ bucketAt: at(NOW - i * 300_000), observedAt: at(NOW - i * 300_000),
   maintenanceState, servingEnabled: true, credentialsConfigured: true, publicationDue: 0, livePending: 0, waitingConnections: 0, readDurationMs: 10 });
@@ -16,8 +17,7 @@ const flush = () => act(async () => { for (let i = 0; i < 70; i++) await Promise
 let read: ReturnType<typeof vi.fn<typeof fetch>>;
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(NOW);
-  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() }));
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  setupOperationsDomV1();
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   read = vi.fn<typeof fetch>(async () => Response.json(buildHealthReviewV1(at(NOW), [], []))); vi.stubGlobal('fetch', read);
 });
