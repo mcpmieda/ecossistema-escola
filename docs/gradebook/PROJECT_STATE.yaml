@@ -300,7 +300,7 @@ historical_checkpoint_668:
     - phase: FINAL-3
       issue: 635
       branch: null
-      status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-pending
+      status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending
     - phase: FINAL-4
       issue: 406
       branch: test/bn-final-4-piloto-integral

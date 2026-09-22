@@ -16,15 +16,17 @@ const connections: ReturnType<typeof postgres>[] = [];
 let source: ReturnType<typeof postgres>;
 let restored: ReturnType<typeof postgres>;
 let restoreRoleInheritance = false;
-const uid = '10000000-0000-4000-8000-000000000001';
+// Valid persisted PostgreSQL UUID, deliberately not an RFC-versioned generated UUID.
+const uid = '00000000-0000-0000-0000-000000000abc';
 const migration = () => readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8');
-const adapter = (connection: ReturnType<typeof postgres>) => ({
+const adapter = (connection: Pick<ReturnType<typeof postgres>, 'unsafe'>) => ({
   unsafe: (text: string, parameters: readonly unknown[] = []) =>
     connection.unsafe(text, [...parameters] as never[], { prepare: false }),
 });
 const exec = (connection: ReturnType<typeof postgres>, text: string) =>
   connection.unsafe(text, [], { prepare: false });
 
+/** Creates an isolated native database from the exact pre-identity migration sequence. */
 async function createTarget() {
   const name = 'portal1114_identity_' + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
   await cluster.unsafe('CREATE DATABASE ' + name);
@@ -35,7 +37,8 @@ async function createTarget() {
   await applyCurrentGradebookSchemaV1(adapter(connection), process.cwd());
   await assertCurrentGradebookSchemaV1(adapter(connection));
   const baseline = readdirSync('migrations/student-portal')
-    .filter(file => /^\d{4}_.+\.sql$/u.test(file) && Number(file.slice(0, 4)) <= 17).sort();
+    .filter(file => /^\d{4}_.+\.sql$/u.test(file) && Number(file.slice(0, 4)) <= 17)
+    .sort((left, right) => left.localeCompare(right));
   if (baseline.length !== 17) throw new Error('student-identity-portal-baseline-incomplete');
   for (const file of baseline) await exec(connection, readFileSync('migrations/student-portal/' + file, 'utf8'));
   await exec(connection, `CREATE TABLE student_portal.profile_photo (
@@ -45,6 +48,7 @@ async function createTarget() {
   return connection;
 }
 
+/** Captures only synthetic, pre-existing fields to detect accidental backfill changes. */
 async function preservedState(connection: ReturnType<typeof postgres>) {
   const rows = await connection.unsafe(`SELECT jsonb_build_object(
     'students',(SELECT jsonb_agg(to_jsonb(s)-'student_uid' ORDER BY id) FROM gradebook.aluno s),
@@ -103,20 +107,20 @@ it('upgrades the complete hardened Gradebook foundation without renumbering or c
   expect(rows[0]).toEqual({ student_uid: uid, account_uid: uid });
 });
 
-it('resolves both source references with native driver JSON parameter inference enabled', async () => {
+it('resolves canonical non-RFC UUIDs through both references with native driver JSON inference', async () => {
   const query = async (text: string, parameters: readonly (string | number)[]) =>
     Array.from(await source.unsafe(text, [...parameters]));
   const academic = await resolveStudentIdentitiesV1(query, {
     source: 'gradebook', academicYear: 2026, studentIds: [101, 101, 999],
   });
   const portal = await resolveStudentIdentitiesV1(query, {
-    source: 'portal', academicYear: 2026, accountIds: [uid, uid],
+    source: 'portal', academicYear: 2026, accountIds: [uid.toUpperCase(), uid],
   });
   expect(academic.map(item => item.studentUid)).toEqual([uid]);
   expect(portal.map(item => item.studentUid)).toEqual([uid]);
 });
 
-it('restores the identity registry before academic/account/photo references without generating new identities', async () => {
+it('restores the identity registry before academic/account/photo references as the table owner', async () => {
   // Only synthetic identity-related data: this is not an institutional backup or RPO/RTO claim.
   for (const table of ['gradebook.student_identity','gradebook.ano_letivo','gradebook.aluno',
     'student_portal.account','student_portal.profile_photo','student_portal.qr_credential','student_portal.session']) {
@@ -160,5 +164,72 @@ it('rejects reassignment across people and direct runtime access to registry wri
     await tx.unsafe('SET LOCAL ROLE gradebook_app');
     await tx.unsafe('DELETE FROM gradebook.student_identity WHERE id=$1', [uid]);
   })).rejects.toThrow('permission denied');
+  await assertStudentIdentitySchemaV1(adapter(source));
+});
+
+it('blocks supplied UID reuse by the effective runtime role but permits exact replay without allocation', async () => {
+  await source.unsafe('INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2027,60000,3)');
+  const before = Array.from(await source.unsafe('SELECT id::text FROM gradebook.student_identity ORDER BY id'));
+  await expect(source.begin(async tx => {
+    await tx.unsafe('SET LOCAL ROLE gradebook_app');
+    await tx.unsafe("INSERT INTO gradebook.aluno (id,ano,nome,student_uid) VALUES (201,2027,'SYNTHETIC UNAPPROVED REUSE',$1)", [uid]);
+  })).rejects.toThrow('student-identity-reuse-requires-owner-restore');
+  await source.begin(async tx => {
+    await tx.unsafe('SET LOCAL ROLE gradebook_app');
+    await tx.unsafe(`INSERT INTO gradebook.aluno (id,ano,nome,student_uid)
+      VALUES (101,2026,'SYNTHETIC NATIVE IDENTITY',$1)
+      ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome`, [uid]);
+  });
+  expect(Array.from(await source.unsafe('SELECT id::text FROM gradebook.student_identity ORDER BY id'))).toEqual(before);
+  expect(Array.from(await source.unsafe('SELECT id FROM gradebook.aluno WHERE id=201'))).toEqual([]);
+  await assertStudentIdentitySchemaV1(adapter(source));
+});
+
+it('cannot claim an existing person through a newly created closed account or its account primary key', async () => {
+  await source.unsafe("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (104,2026,'SYNTHETIC WITHOUT PORTAL ACCOUNT')");
+  const students = await source.unsafe('SELECT student_uid::text AS uid FROM gradebook.aluno WHERE id=104');
+  const personUid = students[0]!.uid as string;
+  await expect(source.begin(async tx => {
+    await tx.unsafe('SET LOCAL ROLE student_portal_app');
+    await tx.unsafe(`INSERT INTO student_portal.account
+      (id,academic_year,auth_state,eligibility,closed_at,student_uid)
+      VALUES ('50000000-0000-4000-8000-000000000001',2026,'active','unlinked',now(),$1)`, [personUid]);
+  })).rejects.toThrow('student-identity-closed-account-reuse-forbidden');
+  await source.begin(async tx => {
+    await tx.unsafe('SET LOCAL ROLE student_portal_app');
+    await tx.unsafe(`INSERT INTO student_portal.account (id,academic_year,auth_state,eligibility,closed_at)
+      VALUES ($1,2026,'active','unlinked',now())`, [personUid]);
+  });
+  const accounts = await source.unsafe('SELECT student_uid::text AS uid FROM student_portal.account WHERE id=$1', [personUid]);
+  expect(accounts[0]!.uid).not.toBe(personUid);
+  await assertStudentIdentitySchemaV1(adapter(source));
+});
+
+it('fails postflight for a missing, unvalidated or incorrectly targeted composite FK', async () => {
+  const name = 'account_academic_identity_fk_v1';
+  for (const replacement of [
+    null,
+    `ALTER TABLE student_portal.account ADD CONSTRAINT ${name}
+      FOREIGN KEY (gradebook_student_id,academic_year,student_uid)
+      REFERENCES gradebook.aluno(id,ano,student_uid) ON UPDATE RESTRICT ON DELETE RESTRICT NOT VALID`,
+    `ALTER TABLE student_portal.account ADD CONSTRAINT ${name}
+      FOREIGN KEY (student_uid) REFERENCES gradebook.student_identity(id) ON UPDATE RESTRICT ON DELETE RESTRICT`,
+  ]) {
+    await expect(source.begin(async tx => {
+      await tx.unsafe(`ALTER TABLE student_portal.account DROP CONSTRAINT ${name}`);
+      if (replacement !== null) await tx.unsafe(replacement);
+      await expect(assertStudentIdentitySchemaV1(adapter(tx))).rejects.toThrow('student-identity-postflight-invariant-failed');
+      throw new Error('synthetic-postflight-probe-rollback');
+    })).rejects.toThrow('synthetic-postflight-probe-rollback');
+    await assertStudentIdentitySchemaV1(adapter(source));
+  }
+});
+
+it('fails postflight when the input guard no longer runs as the effective caller', async () => {
+  await expect(source.begin(async tx => {
+    await tx.unsafe('ALTER FUNCTION gradebook.guard_student_uid_input_v1() SECURITY DEFINER');
+    await expect(assertStudentIdentitySchemaV1(adapter(tx))).rejects.toThrow('student-identity-postflight-invariant-failed');
+    throw new Error('synthetic-guard-probe-rollback');
+  })).rejects.toThrow('synthetic-guard-probe-rollback');
   await assertStudentIdentitySchemaV1(adapter(source));
 });

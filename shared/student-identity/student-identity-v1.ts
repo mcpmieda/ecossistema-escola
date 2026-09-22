@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-/** Person identity, not an academic row number, class number or login credential. */
-export const studentUidV1 = z.uuid().transform((value) => value.toLowerCase());
+/** Persisted PostgreSQL UUID in canonical shape, without assuming RFC version/variant bits. */
+export const studentUidV1 = z.guid().transform((value) => value.toLowerCase());
 const academicYear = z.number().int().min(1900).max(9999);
 const academicStudentId = z.number().int().positive().max(2_147_483_647);
 export const STUDENT_IDENTITY_BATCH_LIMIT_V1 = 500;
