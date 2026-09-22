@@ -54,5 +54,7 @@ describe('student portal grade workspace', () => {
       within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'),
     ).toBe('true');
     expect(screen.getByRole('heading', { name: first.label })).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByText('Abaixo do mínimo')).toBeTruthy();
   });
 });
