@@ -116,6 +116,8 @@ A superfície ativa reutiliza `import-diagnostics-v1` somente para listar a foto
 
 Achado corrente e trilha humana não são equivalentes. O snapshot corrente é substituído pelo fluxo de nova observação da fonte, inclusive vazio. O contrato #674 acrescenta somente `RECONHECIDO` e `ANOTAÇÃO` append-only; não existe resolução manual. A trilha não é apagada quando o achado desaparece e não muda fatos ou autoridade. A autorização explícita da BN-DEC-027 permitiu aplicar a migration aditiva; integração e publicação do código seguem a PR #675. Detalhes em [Auditoria atual V2](RELATIONAL_CURRENT_AUDIT_V2.md) e [trilha humana V1](RELATIONAL_AUDIT_TREATMENT_V1.md).
 
+A política de retenção corrente é server-side: somente diagnósticos `blocking-error` e o warning `above-maximum` são materializados em `gradebook.importacao_diagnostico`. O contrato de transporte continua aceitando os demais códigos para compatibilidade e preflight; eles não ganham autoridade nem persistência apenas por serem enviados pelo cliente.
+
 ## Relatórios institucionais V2 — contrato #656
 
 `contractVersion: 2` oferece catálogo, desempenho, Conselho, Auditoria atual e histórico/reimpressão de Boletins para o ano global explícito. É uma composição limitada de serviços relacionais vigentes: Resultado/Quantitativo/Qualitativo e comparação trimestral descritiva vêm de Desempenho; decisões e votos vêm do Conselho V3; achados atuais vêm de `importacao_diagnostico`; documentos históricos vêm exclusivamente de snapshots imutáveis V2.
