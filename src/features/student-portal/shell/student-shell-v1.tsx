@@ -5,7 +5,6 @@ import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
 import { GraduationCap, LogOut, School } from 'lucide-react';
-import { BrandMark } from '../../../lib/brand-mark';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
@@ -21,17 +20,9 @@ const outcome = {
   'in-progress': { label: 'Em curso', color: 'default' },
   approved: { label: 'Aprovado', color: 'success' },
   failed: { label: 'Reprovado', color: 'danger' },
-  'failed-attendance': { label: 'Reprovado por frequência', color: 'danger' },
+  'failed-attendance': { label: 'Reprovado por falta', color: 'danger' },
   'not-applicable': { label: 'Não se aplica', color: 'default' },
 } as const;
-
-function studentInitials(name: string) {
-  const words = name.trim().split(/\s+/u);
-  return [words[0], words.length > 1 ? words.at(-1) : undefined]
-    .map((word) => Array.from(word ?? '')[0] ?? '')
-    .join('')
-    .toLocaleUpperCase('pt-BR');
-}
 
 export interface StudentShellPropsV1 {
   children: ReactNode;
@@ -56,7 +47,7 @@ export function StudentPortalShellV1({
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
   return (
-    <div className="pa-shell">
+    <div className={hero ? 'pa-shell pa-shell--with-hero' : 'pa-shell'}>
       <a
         className="pa-skip-link"
         href={'#' + contentId}
@@ -72,7 +63,7 @@ export function StudentPortalShellV1({
         <header className="pa-shell-header">
           <div className="pa-header-inner">
             <div className="pa-school-mark" role="img" aria-label={schoolName}>
-              {logo ?? <BrandMark compact />}
+              {logo ?? <span className="pa-school-logo-image" aria-hidden="true" />}
             </div>
             <div className="pa-header-title">
               <h1>PORTAL DO ALUNO</h1>
@@ -131,10 +122,12 @@ export function StudentProfileV1({
       ? { label: 'ASSISTIDO', color: 'accent' as const }
       : outcome[profile.result];
   const date = updatedAt ? new Date(updatedAt) : null;
-  const initials = studentInitials(profile.name);
 
   return (
-    <header className="pa-student-hero" aria-labelledby={heading}>
+    <header
+      className={portraitSrc ? 'pa-student-hero' : 'pa-student-hero pa-student-hero--no-portrait'}
+      aria-labelledby={heading}
+    >
       <h2 id={heading} className="pa-visually-hidden">
         Perfil do aluno
       </h2>
@@ -142,7 +135,7 @@ export function StudentProfileV1({
         <div className="pa-hero-topbar">
           <div className="pa-hero-brand">
             <div className="pa-hero-brand-mark" role="img" aria-label={schoolName}>
-              {logo ?? <BrandMark compact />}
+              {logo ?? <span className="pa-school-logo-image" aria-hidden="true" />}
             </div>
             <div className="pa-hero-brand-copy">
               <h1>Portal do Aluno</h1>
@@ -197,16 +190,13 @@ export function StudentProfileV1({
             </div>
           </div>
 
-          <div className="pa-hero-portrait" role="img" aria-label={'Avatar de ' + profile.name}>
-            <div className="pa-hero-portrait-backdrop" aria-hidden="true" />
-            {portraitSrc ? (
+          {/* Only an approved background-free portrait is shown. Without one there is no
+              placeholder: the copy takes the space and the cover artwork stays visible. */}
+          {portraitSrc ? (
+            <div className="pa-hero-portrait">
               <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
-            ) : (
-              <div className="pa-hero-avatar" aria-hidden="true">
-                <span>{initials}</span>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </header>
@@ -308,7 +298,6 @@ export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'm
 export interface StudentPagePropsV1
   extends Omit<StudentShellPropsV1, 'children' | 'busy' | 'hero'> {
   load: StudentPageStateV1;
-  grades: (data: SelfResponseV1) => ReactNode;
   status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
@@ -319,7 +308,6 @@ export interface StudentPagePropsV1
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
 export function StudentPortalPageV1({
   load,
-  grades,
   status,
   onRetry,
   onLogin,
@@ -358,7 +346,6 @@ export function StudentPortalPageV1({
           <StudentPortalWorkspaceV1
             data={load.data}
             profile={null}
-            grades={grades}
           />
         )}
       </>

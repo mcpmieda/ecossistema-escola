@@ -160,12 +160,18 @@ function orderedSubjectsV2(
       (a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
     )
     .map((subject, order) => {
-      const outcome = finalSubjects.find(
-        (item) => item.subjectId === subject.subjectId,
-      )?.officialOutcome;
+      const official = finalSubjects.find((item) => item.subjectId === subject.subjectId);
+      const outcome = official?.officialOutcome;
       const hasAuthority = finalSource
         ? finalSource.finalAuthority.subjectIds.includes(subject.subjectId)
         : usedLegacy;
+      // Final classifications need the same authority as officialOutcome. `recovery-pending`
+      // exists precisely before the annual closure, so it is relayed from the accepted edition
+      // and gated later by T3 disclosure (applyPublishedVisibilityV1).
+      const situation = official?.annualSituation;
+      const relaySituation =
+        situation !== undefined &&
+        ((finalAuthority && hasAuthority) || situation === 'recovery-pending');
       return {
         ...subject,
         order,
@@ -175,6 +181,7 @@ function orderedSubjectsV2(
         ...(finalAuthority && hasAuthority && outcome !== undefined
           ? { officialOutcome: outcome }
           : {}),
+        ...(relaySituation ? { annualSituation: situation } : {}),
       };
     });
 }
@@ -187,6 +194,23 @@ function profileResultV2(
 ) {
   if (!finalAuthority) return context.profile.result;
   return finalSource?.student.profile.result ?? previous!.profile.result;
+}
+
+function profileSituationV2(
+  context: ContextV2,
+  previous: SelfResponseV1 | null,
+  finalSource: SourceV2 | undefined,
+  finalAuthority: boolean,
+) {
+  const sameState = finalSource
+    ? finalSource.student.profile.academicState === context.profile.academicState
+    : previous?.profile.academicState === context.profile.academicState;
+  if (!sameState) return undefined;
+  const situation = finalSource
+    ? finalSource.student.profile.annualSituation
+    : previous?.profile.annualSituation;
+  // Same authority as `result`, except EM RECUPERAÇÃO, which precedes the annual closure.
+  return finalAuthority || situation === 'in-recovery' ? situation : undefined;
 }
 
 /** Auth/session/current-link validation is owned by the caller. Only this student's prepared rows are loaded. */
@@ -249,6 +273,7 @@ export async function scopedSelfV2(
     finalAuthority,
     usedLegacy,
   );
+  const annualSituation = profileSituationV2(context, previous, finalSource, finalAuthority);
   const projection = selfResponseV1.parse({
     contractVersion: 1,
     requestId,
@@ -256,6 +281,7 @@ export async function scopedSelfV2(
     profile: {
       ...context.profile,
       result: profileResultV2(context, previous, finalSource, finalAuthority),
+      ...(annualSituation === undefined ? {} : { annualSituation }),
     },
     subjects: ordered,
     generatedAt: context.now.toISOString(),

@@ -190,6 +190,49 @@ describe('calendar and session policy', () => {
     expect(noAccess).toMatchObject({ state: 'no-publication', subjects: [] });
   });
 
+  it('releases EM RECUPERAÇÃO with T3 and every other official situation only with the final disclosure', () => {
+    const subject = SYNTHETIC_SELF_V1.subjects[0]!;
+    const projection = (situation: 'in-recovery' | 'approved-after-recovery'): SelfResponseV1 => ({
+      ...SYNTHETIC_SELF_V1,
+      profile: { ...SYNTHETIC_SELF_V1.profile, annualSituation: situation },
+      subjects: [
+        {
+          ...subject,
+          annualSituation: situation === 'in-recovery' ? 'recovery-pending' : 'approved-after-recovery',
+          periods: [...subject.periods, { period: 'T3', final: { kind: 'score', value: 10, maximum: 40, meetsMinimum: false } }],
+        },
+      ],
+    });
+    const beforeT3 = new Date('2026-08-01T00:00:00Z');
+    const afterT3 = new Date('2026-12-10T00:00:00Z');
+    const afterFinal = new Date('2026-12-21T00:00:00Z');
+    const withFinal = { ...value(), showFinalResult: true };
+
+    // T3 not yet disclosed: nothing about recovery leaks.
+    const early = applyPublishedVisibilityV1(projection('in-recovery'), value(), beforeT3, false);
+    expect(early.profile).not.toHaveProperty('annualSituation');
+    expect(early.subjects[0]).not.toHaveProperty('annualSituation');
+    // T3 disclosed, final not: EM RECUPERAÇÃO and the pending subject, without final authority.
+    const inRecovery = applyPublishedVisibilityV1(projection('in-recovery'), value(), afterT3, false);
+    expect(inRecovery.profile.annualSituation).toBe('in-recovery');
+    expect(inRecovery.subjects[0]!.annualSituation).toBe('recovery-pending');
+    // A final situation stays hidden until the final disclosure, then appears with authority.
+    const pending = applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterT3, true);
+    expect(pending.profile).not.toHaveProperty('annualSituation');
+    expect(pending.subjects[0]).not.toHaveProperty('annualSituation');
+    const released = applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterFinal, true);
+    expect(released.profile.annualSituation).toBe('approved-after-recovery');
+    expect(released.subjects[0]!.annualSituation).toBe('approved-after-recovery');
+    expect(
+      applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterFinal, false).profile,
+    ).not.toHaveProperty('annualSituation');
+    // Portal closed: no situation at all.
+    expect(
+      applyPublishedVisibilityV1(projection('in-recovery'), { ...value(), accessEnabled: false }, afterT3, false)
+        .profile,
+    ).not.toHaveProperty('annualSituation');
+  });
+
   it('keeps ASSISTIDO without an invented global outcome', () => {
     const projection = {
       ...SYNTHETIC_SELF_V1,

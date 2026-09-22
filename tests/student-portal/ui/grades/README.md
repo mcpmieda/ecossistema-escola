@@ -11,7 +11,8 @@ Nenhum fetch, armazenamento, cálculo acadêmico, turma ou dado de terceiros.
   entregues pelo BN. I/II e até dez atividades permanecem dentro da célula do trimestre.
   Finais e recuperações não ganham denominador inventado. Parciais mostram máximo
   somente se recebido; zero explícito não é ausência.
-- `meetsMinimum` é mapeado diretamente para azul/vermelho/neutro e texto acessível.
+- `meetsMinimum` é mapeado diretamente para azul/âmbar/neutro e texto acessível.
+  Vermelho fica reservado ao resultado oficial de reprovação.
   Não há percentual fixo, média, inferência de resultado ou arredondamento de nota.
   Intl apenas apresenta o número do DTO em pt-BR, preservando casas decimais.
 - Resultado oficial por disciplina só aparece quando recebido; regular permanece

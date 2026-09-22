@@ -60,6 +60,17 @@ export const academicSubjectSchemaV1 = z
     // U is an official fact; never use a computed replacement if missing.
     officialAnnual: academicMarkSchemaV1,
     officialOutcome: z.enum(['approved', 'failed', 'failed-attendance']).optional(),
+    // Official per-component classification from the BN engine; absent while in progress.
+    annualSituation: z
+      .enum([
+        'recovery-pending',
+        'approved-direct',
+        'approved-after-recovery',
+        'not-approved',
+        'failed-no-show',
+        'failed-repeat',
+      ])
+      .optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -105,6 +116,23 @@ export const academicStudentSchemaV1 = z
           'failed-attendance',
           'not-applicable',
         ]),
+        // Official annual situation (BN visible result or formal Council decision). `result`
+        // stays the coarse summary for existing consumers; this carries the exact wording.
+        annualSituation: z
+          .enum([
+            'in-recovery',
+            'awaiting-council',
+            'approved-direct',
+            'approved-after-recovery',
+            'approved-special',
+            'approved-by-council',
+            'failed-after-recovery',
+            'failed-no-show',
+            'failed-repeat',
+            'failed-by-council',
+            'failed-by-absence',
+          ])
+          .optional(),
       })
       .strict(),
     subjects: z.array(academicSubjectSchemaV1).max(100),
@@ -116,6 +144,12 @@ export const academicStudentSchemaV1 = z
         code: 'custom',
         message: 'Assisted student has no global result',
         path: ['profile', 'result'],
+      });
+    if (value.profile.academicState === 'assisted' && value.profile.annualSituation !== undefined)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Assisted student has no annual situation',
+        path: ['profile', 'annualSituation'],
       });
     if (value.profile.academicState !== 'assisted' && value.profile.result === 'not-applicable')
       ctx.addIssue({

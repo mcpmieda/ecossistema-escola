@@ -50,6 +50,18 @@ export const subjectV1 = z
       .max(6)
       .refine((v) => new Set(v.map((p) => p.period)).size === v.length, 'Duplicate period'),
     officialOutcome: z.enum(['approved', 'failed', 'failed-attendance']).optional(),
+    // Official per-subject classification. Before the final disclosure only
+    // `recovery-pending` may be present (released together with T3).
+    annualSituation: z
+      .enum([
+        'recovery-pending',
+        'approved-direct',
+        'approved-after-recovery',
+        'not-approved',
+        'failed-no-show',
+        'failed-repeat',
+      ])
+      .optional(),
   })
   .strict();
 export const selfResponseV1 = z
@@ -71,6 +83,23 @@ export const selfResponseV1 = z
           'failed-attendance',
           'not-applicable',
         ]),
+        // Official annual situation with its exact institutional wording. Optional so legacy
+        // projections stay valid; before the final disclosure only `in-recovery` may appear.
+        annualSituation: z
+          .enum([
+            'in-recovery',
+            'awaiting-council',
+            'approved-direct',
+            'approved-after-recovery',
+            'approved-special',
+            'approved-by-council',
+            'failed-after-recovery',
+            'failed-no-show',
+            'failed-repeat',
+            'failed-by-council',
+            'failed-by-absence',
+          ])
+          .optional(),
       })
       .strict(),
     revisions: revisionsV1,
@@ -86,6 +115,12 @@ export const selfResponseV1 = z
         code: 'custom',
         path: ['profile', 'result'],
         message: 'No global outcome for assisted student',
+      });
+    if (v.profile.academicState === 'assisted' && v.profile.annualSituation !== undefined)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['profile', 'annualSituation'],
+        message: 'No annual situation for assisted student',
       });
   });
 export type SelfResponseV1 = z.infer<typeof selfResponseV1>;

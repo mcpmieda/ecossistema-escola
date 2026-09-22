@@ -64,7 +64,8 @@
 }
 
 .pa-mark[data-minimum='below'] .pa-mark-value {
-  color: var(--danger-soft-foreground);
+  /* Amber, not red: below-minimum is a warning; red is reserved for official failure. */
+  color: #b45309;
 }
 
 .pa-mark[data-minimum='unknown'] .pa-mark-value {

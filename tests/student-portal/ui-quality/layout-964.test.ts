@@ -17,7 +17,5 @@ it('contains nested HeroUI subject and period tabs on mobile instead of widening
     />\s*\.tabs__tab\s*\{[^}]*width:\s*auto;[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap/s,
   );
   expect(css).toMatch(/\.pa-workspace-view\s*>\s*\*\s*\{[^}]*max-width:\s*100%/s);
-  expect(css).toMatch(
-    /@media\s*\(max-width:\s*759px\)[\s\S]*\.pa-workspace-grid\s*>\s*\*[\s\S]*max-width:\s*100%/,
-  );
+  expect(css).toMatch(/\.pa-score-card\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0/s);
 });

@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StudentGradesV1 } from '../../../../src/features/student-portal/grades/student-grades-v1';
 import { StudentPortalWorkspaceV1 } from '../../../../src/features/student-portal/workspace/student-workspace-v1';
 import { gradesFixtureV1 } from '../grades/fixtures-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
 
 beforeEach(() => {
   setupOperationsDomV1();
+  window.history.replaceState(null, '', window.location.href);
 });
 
 afterEach(() => {
@@ -23,62 +23,185 @@ function renderWorkspace() {
     <StudentPortalWorkspaceV1
       data={data}
       profile={<div data-testid="synthetic-profile">Perfil sintético</div>}
-      grades={(value) => <StudentGradesV1 data={value} />}
     />,
   );
   return data;
 }
 
 describe('student portal grade workspace', () => {
-  it('uses the four HeroUI navigation tabs and opens a discipline from the summary ListBox', async () => {
-    const data = renderWorkspace();
-    const user = userEvent.setup();
+  it('keeps only Boletim and Disciplina in the main navigation', () => {
+    renderWorkspace();
     const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
 
     expect(within(navigation).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Resumo',
       'Boletim',
       'Disciplina',
-      'Evolução',
     ]);
-    expect(screen.getByTestId('synthetic-profile')).toBeTruthy();
+    expect(within(navigation).queryByRole('tab', { name: 'Resumo' })).toBeNull();
+    expect(within(navigation).queryByRole('tab', { name: 'Evolução' })).toBeNull();
+  });
 
+  it('opens a discipline from Boletim without repeating the trimester after its title', async () => {
+    const data = renderWorkspace();
+    const user = userEvent.setup();
+    const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
     const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
-    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const option = screen.getByRole('option', { name: new RegExp(first.label, 'u') });
+
+    expect(within(option).queryByText('1º Tri')).toBeNull();
+    await user.click(option);
 
     expect(
       within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'),
     ).toBe('true');
     expect(screen.getByRole('heading', { name: first.label })).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    // The trimester mark is shown once, heading the partials card.
+    expect(screen.getAllByText('Nota do trimestre')).toHaveLength(1);
+    expect(screen.getByText('Abaixo do esperado')).toBeTruthy();
+    expect(screen.getByText('Resultado oficial:', { exact: false })).toBeTruthy();
   });
 
-  it('filters the HeroUI annual table with the native SearchField', async () => {
-    renderWorkspace();
+  it('labels discipline partials with the granular Não fez / Tirou zero rule', async () => {
+    const data = gradesFixtureV1(true);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    first.periods.find((p) => p.period === 'T1')!.partials![1] = {
+      assessmentId: 900002,
+      label: 'AV2 SYNTHETIC',
+      notDone: true,
+      mark: { kind: 'absent' },
+    };
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+
+    const partials = screen.getByRole('listbox', { name: 'Avaliações publicadas' });
+    expect(within(partials).getAllByText('Não fez')).toHaveLength(1);
+    expect(within(partials).getAllByText('Tirou zero')).toHaveLength(1);
+    // Missing evidence stays neutral; it is never promoted to Não fez.
+    expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
+  });
+
+  it('shows the trimester trend by percentage, never on T1 or against a non-numeric mark', async () => {
+    const data = gradesFixtureV1(false);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    const scoreOf = (value: number, maximum: number) =>
+      ({ kind: 'score', value, maximum, meetsMinimum: true }) as const;
+    first.periods = [
+      { period: 'T1', final: scoreOf(18, 30) },
+      { period: 'T2', final: scoreOf(21, 30) },
+      // 26 > 21 in raw points, but 65% < 70%: the trend must be "down".
+      { period: 'T3', final: scoreOf(26, 40) },
+      { period: 'REC1', final: { kind: 'recovery-pending' } },
+    ];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('tab', { name: 'Boletim' }));
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const periods = screen.getByRole('tablist', { name: 'Períodos de ' + first.label });
 
-    const search = screen.getByRole('searchbox', { name: 'Buscar disciplina' });
-    await user.type(search, 'Disciplina sintética 2');
-
-    expect(screen.getAllByRole('rowheader')).toHaveLength(1);
-    expect(screen.getByRole('rowheader').textContent).toBe('Disciplina sintética 2');
+    expect(screen.queryByRole('img', { name: /em relação ao/u })).toBeNull();
+    await user.click(within(periods).getAllByRole('tab')[1]!);
+    expect(screen.getByRole('img', { name: 'Subiu em relação ao 1º Tri' })).toBeTruthy();
+    await user.click(within(periods).getAllByRole('tab')[2]!);
+    expect(screen.getByRole('img', { name: 'Caiu em relação ao 2º Tri' })).toBeTruthy();
+    await user.click(within(periods).getAllByRole('tab')[3]!);
+    expect(screen.queryByRole('img', { name: /em relação ao/u })).toBeNull();
   });
 
-  it('shows published evolution only with native HeroUI ProgressBar values', async () => {
+  it('omits the breakdown when the admin withholds partials, but says so when none exist', async () => {
+    const data = gradesFixtureV1(false); // no `partials` key: showPartials off
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    expect(screen.queryByText('Detalhamento')).toBeNull();
+    expect(screen.queryByText('Nenhuma avaliação parcial publicada.')).toBeNull();
+    unmount();
+    window.history.replaceState(null, '', window.location.href);
+
+    first.periods.find((p) => p.period === 'T1')!.partials = [];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    expect(screen.getByText('Nenhuma avaliação parcial publicada.')).toBeTruthy();
+  });
+
+  it('shows a Recuperação tab only for released recoveries and opens the discipline on it', async () => {
+    const data = renderWorkspace();
+    const user = userEvent.setup();
+    const periods = screen.getByRole('tablist', { name: 'Período das notas' });
+    await user.click(within(periods).getByRole('tab', { name: 'Recuperação' }));
+
+    const withRecovery = data.subjects.filter((subject) =>
+      subject.periods.some((period) => period.period.startsWith('REC')),
+    );
+    const list = screen.getByRole('listbox', { name: 'Disciplinas publicadas' });
+    expect(within(list).getAllByRole('option')).toHaveLength(withRecovery.length);
+
+    const pending = withRecovery.find((subject) =>
+      subject.periods.some((period) => period.final.kind === 'recovery-pending'),
+    )!;
+    await user.click(within(list).getByRole('option', { name: new RegExp(pending.label, 'u') }));
+    expect(screen.getByText('Recuperação do 1º trimestre')).toBeTruthy();
+    expect(screen.getByText('Aguardando nota')).toBeTruthy();
+    cleanup();
+
+    const withoutRecovery = gradesFixtureV1(false);
+    for (const subject of withoutRecovery.subjects)
+      subject.periods = subject.periods.filter((period) => !period.period.startsWith('REC'));
+    render(<StudentPortalWorkspaceV1 data={withoutRecovery} profile={null} />);
+    expect(screen.queryByRole('tab', { name: 'Recuperação' })).toBeNull();
+  });
+
+  it('shows the final result only when the server sends a released outcome', () => {
+    const data = gradesFixtureV1(false);
+    const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.queryByText(/Resultado final/u)).toBeNull();
+    unmount();
+
+    data.profile.result = 'failed-attendance';
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.getByText('Resultado final 2026')).toBeTruthy();
+    expect(screen.getByText('Reprovado por falta')).toBeTruthy();
+  });
+
+  it('shows EM RECUPERAÇÃO with its subjects and the official wording of final situations', () => {
+    const data = gradesFixtureV1(false);
+    const [first, second] = [...data.subjects].sort((a, b) => a.order - b.order);
+    data.profile.annualSituation = 'in-recovery';
+    first!.annualSituation = 'recovery-pending';
+    second!.annualSituation = 'recovery-pending';
+    const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.getByText('Situação 2026')).toBeTruthy();
+    expect(screen.getByText(`Recuperação em ${first!.label}, ${second!.label}`)).toBeTruthy();
+    expect(screen.getAllByText('Em recuperação').length).toBeGreaterThanOrEqual(3);
+    unmount();
+
+    data.profile.result = 'approved';
+    data.profile.annualSituation = 'approved-after-recovery';
+    first!.annualSituation = 'approved-after-recovery';
+    delete second!.annualSituation;
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.getByText('Resultado final 2026')).toBeTruthy();
+    expect(screen.getAllByText('Aprovado pela recuperação')).toHaveLength(2);
+  });
+
+  it('restores Boletim with browser back after opening a discipline', async () => {
     const data = renderWorkspace();
     const user = userEvent.setup();
     const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
-    const numericTerms = first.periods.filter(
-      (period) =>
-        ['T1', 'T2', 'T3'].includes(period.period) && period.final.kind === 'score',
-    ).length;
+    const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
 
-    await user.click(screen.getByRole('tab', { name: 'Evolução' }));
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    expect(within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'))
+      .toBe('true');
 
-    expect(screen.getByRole('heading', { name: 'Evolução' })).toBeTruthy();
-    expect(screen.getAllByRole('progressbar')).toHaveLength(numericTerms);
-    expect(screen.queryByText(/ranking/iu)).toBeNull();
-    expect(screen.queryByText(/média da turma/iu)).toBeNull();
-    expect(screen.queryByText(/peso/iu)).toBeNull();
+    const state = {
+      ...(window.history.state ?? {}),
+      __studentPortalWorkspaceV1: { area: 'summary', subjectId: first.subjectId },
+    };
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent('popstate', { state }));
+    });
+
+    expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'))
+      .toBe('true');
   });
 });

@@ -17,7 +17,7 @@ const periodLabel = (period: PeriodIdV1) =>
 const resultLabels = {
   approved: 'Aprovado',
   failed: 'Reprovado',
-  'failed-attendance': 'Reprovado por frequência',
+  'failed-attendance': 'Reprovado por falta',
 } as const;
 const COMPACT_QUERY = '(max-width: 640px), (pointer: coarse)';
 function subscribeCompact(callback: () => void) {

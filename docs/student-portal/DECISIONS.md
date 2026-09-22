@@ -95,3 +95,11 @@ Pedido do responsável: título explicita SEQUENCIAL/PARALELO e CODEX/CHAT ONLIN
 | T-09 | Legado D1 fora Portal | não remover em P1 |
 
 Nenhum item técnico é pergunta institucional automaticamente reaberta. G-C não pode ser PASS sem #703; G-B não é alegado por schemas/fixtures. Todas decisões D-001…097 estão rastreadas no MASTER_SPEC, inclusive visuais mantidas para futuro.
+
+## Situação anual oficial no Portal (22/09/2026)
+
+O DTO estudantil passa a repassar, sem regra nova, a situação anual que o BN já calcula (`resolveSimplifiedAnnualOutcomeV1`) ou a decisão formal do Conselho, com a redação institucional: EM RECUPERAÇÃO, APROVADO DIRETO, APROVADO PELA RECUPERAÇÃO, APROVADO (especial), APROVADO/REPROVADO PELO CONSELHO, REPROVADO APÓS RECUPERAÇÃO, REPROVADO POR NÃO COMPARECIMENTO, REPROVADO (R/R), REPROVADO POR FALTA e aguardando Conselho. Por componente, repassa a classificação oficial (inclusive recuperação pendente). Os campos `profile.annualSituation` e `subjects[].annualSituation` são opcionais; `result`/`officialOutcome` continuam como resumo para consumidores existentes. ASSISTIDO nunca recebe situação.
+
+Divulgação: EM RECUPERAÇÃO e as disciplinas em recuperação acompanham a divulgação do T3, para o aluno saber antes da semana de recuperação; as demais situações exigem a divulgação do resultado final e a mesma autoridade de `officialOutcome`. Pendência: substituir o acoplamento ao T3 por um controle próprio no ADM após o merge desta branch.
+
+A redação "Reprovado por frequência" foi alinhada ao termo oficial do Conselho: "Reprovado por falta".
