@@ -4,7 +4,7 @@ import { StudentPortalPageV1 } from '../features/student-portal/shell/student-sh
 import { selfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
-const previewPortrait = new URL('./assets/demo-student-cutout.svg', import.meta.url).href;
+const previewPortrait = new URL('./assets/demo-student.webp', import.meta.url).href;
 
 const previewData = selfResponseV1.parse({
   contractVersion: 1,
