@@ -624,7 +624,7 @@ describe('native diagnostic scope race', () => {
     const concurrent=asRole('gradebook_app');
     const other=createGradebookPostgresDatabaseFromSqlV1(concurrent as unknown as GradebookPostgresSqlV1);
     const observation=(year:number)=>({version:1 as const,academicYear:year,fileName:'synthetic-scope-race.xlsx',sha256:'9'.repeat(64),
-      diagnostics:[{key:'synthetic-scope',severity:'warning' as const,code:'source-unavailable' as const,message:'Synthetic',recommendedAction:'Synthetic',fieldKind:'recovery' as const}]});
+      diagnostics:[{key:'synthetic-scope',severity:'blocking-error' as const,code:'invalid-text' as const,message:'Synthetic',recommendedAction:'Synthetic',fieldKind:'assessment' as const}]});
     let injected=false;
     let attempts=0;
     const database=createGradebookPostgresDatabaseFromSqlV1({
