@@ -78,7 +78,7 @@ describe('student shell and canonical profile', () => {
     expect(screen.getByRole('alert').textContent).toContain('Portal temporariamente indisponível');
     expect(screen.queryByText('Estudante de exemplo')).toBeNull();
   });
-  it('uses initials, preserves long names and suppresses a global result for ASSISTIDO', () => {
+  it('shows no portrait placeholder without a photo, preserves long names and suppresses a global result for ASSISTIDO', () => {
     const profile = {
       ...SYNTHETIC_SELF_V1.profile,
       name: 'Élisa de Exemplo Sintético',
@@ -87,7 +87,10 @@ describe('student shell and canonical profile', () => {
     };
     render(createElement(StudentProfileV1, { profile, updatedAt: 'not-a-date' }));
     expect(screen.getByText(profile.name)).toBeTruthy();
-    expect(screen.getByText('ÉS')).toBeTruthy();
+    // No approved background-free photo: neither an image nor an initials stand-in.
+    expect(screen.queryByText('ÉS')).toBeNull();
+    expect(document.querySelector('.pa-hero-portrait')).toBeNull();
+    expect(document.querySelector('.pa-student-hero--no-portrait')).not.toBeNull();
     expect(screen.getByText('ASSISTIDO')).toBeTruthy();
     expect(screen.queryByText('Não se aplica')).toBeNull();
     expect(document.querySelector('img')).toBeNull();

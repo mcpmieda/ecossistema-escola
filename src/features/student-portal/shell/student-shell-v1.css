@@ -330,43 +330,6 @@
   box-shadow: none;
   filter: drop-shadow(0 18px 24px rgb(1 26 69 / 0.26));
 }
-.pa-hero-avatar {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  width: clamp(10rem, 18vw, 15rem);
-  height: clamp(11.5rem, 20vw, 17rem);
-  place-items: center;
-  margin-right: 4%;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.28);
-  border-bottom: 0;
-  border-radius: 48% 48% 1.8rem 1.8rem;
-  background:
-    radial-gradient(circle at 50% 27%, #dbeafe 0 14%, transparent 14.5%),
-    radial-gradient(ellipse at 50% 108%, #eff6ff 0 46%, transparent 46.5%),
-    linear-gradient(165deg, rgb(96 165 250 / 0.92), rgb(30 64 175 / 0.94));
-  box-shadow:
-    0 24px 40px rgb(1 26 69 / 0.22),
-    inset 0 1px 0 rgb(255 255 255 / 0.3);
-}
-.pa-hero-avatar::after {
-  content: '';
-  position: absolute;
-  inset: 46% 9% -18%;
-  border-radius: 50% 50% 0 0;
-  background: linear-gradient(180deg, #f8fbff 0 24%, #2563eb 24.5% 35%, #f8fbff 35.5%);
-  opacity: 0.98;
-}
-.pa-hero-avatar span {
-  position: relative;
-  z-index: 2;
-  margin-top: -26%;
-  color: #0b3f9c;
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  font-weight: 800;
-  letter-spacing: -0.05em;
-}
 .pa-shell-content {
   max-width: 80rem;
   margin-inline: auto;
@@ -587,12 +550,6 @@
     transform: none;
     transform-origin: center bottom;
   }
-  .pa-hero-avatar {
-    width: 9rem;
-    height: 10.75rem;
-    margin-right: 0;
-    border-radius: 44% 44% 1rem 1rem;
-  }
   .pa-shell--with-hero .pa-shell-content {
     width: calc(100% - 0.45rem);
     margin-top: -2.15rem;
@@ -669,10 +626,6 @@
   .pa-hero-photo {
     width: 100%;
     max-height: none;
-  }
-  .pa-hero-avatar {
-    width: 12rem;
-    height: 13.5rem;
   }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 1rem), 68rem);
@@ -751,10 +704,6 @@
     width: 100%;
     max-height: none;
   }
-  .pa-hero-avatar {
-    width: 15rem;
-    height: 17rem;
-  }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 2rem), 72rem);
     margin-top: -2.85rem;
@@ -766,8 +715,7 @@
 .pa-hero-copy {
   animation: pa-hero-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.pa-hero-photo,
-.pa-hero-avatar {
+.pa-hero-photo {
   animation: pa-hero-portrait-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) 90ms both;
 }
 @keyframes pa-hero-rise {
@@ -794,8 +742,7 @@
   .pa-page-skeleton .skeleton,
   .pa-page-skeleton .skeleton::after,
   .pa-hero-copy,
-  .pa-hero-photo,
-  .pa-hero-avatar {
+  .pa-hero-photo {
     animation: none;
   }
 }

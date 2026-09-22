@@ -24,14 +24,6 @@ const outcome = {
   'not-applicable': { label: 'Não se aplica', color: 'default' },
 } as const;
 
-function studentInitials(name: string) {
-  const words = name.trim().split(/\s+/u);
-  return [words[0], words.length > 1 ? words.at(-1) : undefined]
-    .map((word) => Array.from(word ?? '')[0] ?? '')
-    .join('')
-    .toLocaleUpperCase('pt-BR');
-}
-
 export interface StudentShellPropsV1 {
   children: ReactNode;
   schoolName?: string;
@@ -130,10 +122,12 @@ export function StudentProfileV1({
       ? { label: 'ASSISTIDO', color: 'accent' as const }
       : outcome[profile.result];
   const date = updatedAt ? new Date(updatedAt) : null;
-  const initials = studentInitials(profile.name);
 
   return (
-    <header className="pa-student-hero" aria-labelledby={heading}>
+    <header
+      className={portraitSrc ? 'pa-student-hero' : 'pa-student-hero pa-student-hero--no-portrait'}
+      aria-labelledby={heading}
+    >
       <h2 id={heading} className="pa-visually-hidden">
         Perfil do aluno
       </h2>
@@ -196,15 +190,13 @@ export function StudentProfileV1({
             </div>
           </div>
 
-          <div className="pa-hero-portrait" role="img" aria-label={'Avatar de ' + profile.name}>
-            {portraitSrc ? (
+          {/* Only an approved background-free portrait is shown. Without one there is no
+              placeholder: the copy takes the space and the cover artwork stays visible. */}
+          {portraitSrc ? (
+            <div className="pa-hero-portrait">
               <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
-            ) : (
-              <div className="pa-hero-avatar" aria-hidden="true">
-                <span>{initials}</span>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

@@ -233,6 +233,8 @@ interface AdminSimulationV1 {
   showPartials: boolean;
   periods: readonly PeriodIdV1[];
   finalDisclosed: boolean;
+  /** Approved background-free portrait exists (none in production yet). */
+  hasPortrait: boolean;
   situation: AnnualSituationV1 | 'none';
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
@@ -354,7 +356,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'finalDisclosed') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'finalDisclosed' | 'hasPortrait') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -363,6 +365,7 @@ function AdminSimulatorPanelV1({
       <div style={rowStyle}>
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
+        <label>{toggle('hasPortrait')} Foto sem fundo aprovada</label>
       </div>
       <div style={rowStyle}>
         <span style={{ opacity: 0.7 }}>Períodos liberados:</span>
@@ -413,6 +416,7 @@ function PreviewAppV1() {
     showPartials: true,
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
+    hasPortrait: false,
     situation: 'none',
   });
   const data = useMemo(() => simulateAdminV1(previewData, admin), [admin]);
@@ -422,7 +426,7 @@ function PreviewAppV1() {
       <StudentPortalPageV1
         load={{ state: 'ready', data }}
         onLogout={() => undefined}
-        portraitSrc={previewPortrait}
+        portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
       />
     </>
   );
