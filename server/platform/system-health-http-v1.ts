@@ -7,12 +7,14 @@ import type { TrustedAdminContextV1 } from '../../shared/student-portal-contract
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
 import { emptyPortalHistoryV1, isHistoryRequestV1, isPortalHistoryV1 } from '../../shared/system-health-history-v1';
 import { emptyPortalSignalsV1, isPortalSignalsPageV1 } from '../../shared/portal-signals-v1';
+import { CAPACITY_ROUTE_V1, emptyPortalCapacityV1, isPortalCapacitySampleV1 } from '../../shared/portal-capacity-v1';
 import { collectSystemHealthV1, createSystemHealthCacheV1 } from './system-health-source-v1';
 
 type MonitorBindingV1 = {
   monitoring(context: TrustedAdminContextV1): Promise<unknown>;
   monitoringHistory?(context: TrustedAdminContextV1, before: string | null): Promise<unknown>;
   monitoringSignals?(context: TrustedAdminContextV1, before: string | null): Promise<unknown>;
+  monitoringCapacity?(context: TrustedAdminContextV1): Promise<unknown>;
 };
 const caches = new WeakMap<object, Map<string, ReturnType<typeof createSystemHealthCacheV1>>>();
 const absentBindingCacheKey = {};
@@ -62,10 +64,17 @@ async function signalsReplyV1(body: unknown, binding: MonitorBindingV1 | undefin
   if (!isPortalSignalsPageV1(snapshot)) throw new Error('health-signals-unavailable');
   return reply(snapshot);
 }
+async function capacityReplyV1(binding: MonitorBindingV1 | undefined, context: TrustedAdminContextV1): Promise<Response> {
+  if (typeof binding?.monitoringCapacity !== 'function') return reply(emptyPortalCapacityV1('unconfigured'));
+  const snapshot = await healthDeadlineV1(() => binding.monitoringCapacity!(context), 3000);
+  if (!isPortalCapacitySampleV1(snapshot)) throw new Error('health-capacity-unavailable');
+  return reply(snapshot);
+}
 export async function handleSystemHealthRequestV1(request: Request, env: RuntimeEnv): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   const history = path === '/api/platform/system-health/history', signals = path === '/api/platform/system-health/signals';
-  if (!history && !signals && path !== '/api/platform/system-health') return null;
+  const capacity = path === CAPACITY_ROUTE_V1;
+  if (!history && !signals && !capacity && path !== '/api/platform/system-health') return null;
   try {
     guardedRequestV1(request, env);
     const session = await requireAuth(request, env);
@@ -79,6 +88,7 @@ export async function handleSystemHealthRequestV1(request: Request, env: Runtime
     if (history) return await historyReplyV1(body, binding, context);
     if (signals) return await signalsReplyV1(body, binding, context);
     if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0) throw new HttpError(400, 'health-invalid-body');
+    if (capacity) return await capacityReplyV1(binding, context);
     // Auth is checked on EVERY call, including cache hits. Only anonymous aggregates are cached.
     const cache = snapshotCacheV1(binding ?? absentBindingCacheKey, env);
     const snapshot = await cache(() => collectSystemHealthV1({

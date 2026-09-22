@@ -5,6 +5,7 @@ import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-
 import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
 import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
 import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/student-portal/composition/signals-v1';
+import { portalCapacityRpcV1 } from '../../server/student-portal/composition/capacity-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
@@ -44,6 +45,7 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
   async monitoring(context: unknown) { return portalMonitoringRpcV1(this.env, context); }
   async monitoringHistory(context: unknown, before: unknown) { return portalHistoryRpcV1(this.env, context, before); }
   async monitoringSignals(context: unknown, before: unknown) { return portalSignalsRpcV1(this.env, context, before); }
+  async monitoringCapacity(context: unknown) { return portalCapacityRpcV1(this.env, context); }
   async query(context: unknown, request: unknown) { return portalAdminRpcV1(this.env, 'query', context, request); }
   async command(context: unknown, request: unknown) {
     const result = await portalAdminRpcV1(this.env, 'command', context, request);
