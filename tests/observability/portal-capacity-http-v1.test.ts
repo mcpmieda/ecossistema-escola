@@ -36,8 +36,9 @@ it.each(['null', '[]', '{"before":null}', '{"role":"admin"}', ' '.repeat(65)])('
   expect((await handleSystemHealthRequestV1(request(body), env))?.status).toBe(400);
   expect(monitoringCapacity).not.toHaveBeenCalled();
 });
-it.each([{ Origin: 'https://untrusted.invalid' }, { 'Sec-Fetch-Site': 'cross-site' }, { 'x-forwarded-host': 'untrusted.invalid' },
-  { Cookie: '' }, { Cookie: `${SESSION_COOKIE}=one; ${SESSION_COOKIE}=two` }])('rejects untrusted origins and ambiguous cookies', async (headers) => {
+const untrustedHeaders: Record<string, string>[] = [{ Origin: 'https://untrusted.invalid' }, { 'Sec-Fetch-Site': 'cross-site' },
+  { 'x-forwarded-host': 'untrusted.invalid' }, { Cookie: '' }, { Cookie: `${SESSION_COOKIE}=one; ${SESSION_COOKIE}=two` }];
+it.each(untrustedHeaders)('rejects untrusted origins and ambiguous cookies', async (headers) => {
   const { env, monitoringCapacity } = fixture();
   expect([401, 403]).toContain((await handleSystemHealthRequestV1(request('{}', headers), env))?.status);
   expect(monitoringCapacity).not.toHaveBeenCalled();
