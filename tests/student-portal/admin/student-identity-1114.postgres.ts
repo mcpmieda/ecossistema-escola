@@ -14,6 +14,7 @@ const databases: string[] = [];
 const connections: ReturnType<typeof postgres>[] = [];
 let source: ReturnType<typeof postgres>;
 let restored: ReturnType<typeof postgres>;
+let restoreRoleInheritance = false;
 const uid = '10000000-0000-4000-8000-000000000001';
 const migration = () => readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8');
 const adapter = (connection: ReturnType<typeof postgres>) => ({
@@ -56,6 +57,14 @@ async function preservedState(connection: ReturnType<typeof postgres>) {
 let originalState: unknown;
 
 beforeAll(async () => {
+  // The native suite shares cluster roles across isolated databases and runs serially.
+  // Match the real Gradebook baseline without weakening its assertion or leaking settings.
+  const roles = await cluster.unsafe('SELECT rolsuper,rolbypassrls,rolinherit FROM pg_roles WHERE rolname=\'gradebook_app\'');
+  if (roles[0]?.rolsuper === true || roles[0]?.rolbypassrls === true) {
+    throw new Error('student-identity-test-role-unsafe');
+  }
+  restoreRoleInheritance = roles[0]?.rolinherit === true;
+  if (restoreRoleInheritance) await cluster.unsafe('ALTER ROLE gradebook_app NOINHERIT');
   source = await createTarget();
   await exec(source, `
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,3);
@@ -75,9 +84,14 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
-  for (const connection of connections) await connection.end({ timeout: 2 });
-  for (const name of databases) await cluster.unsafe('DROP DATABASE ' + name);
-  await cluster.end({ timeout: 2 });
+  try {
+    for (const connection of connections) await connection.end({ timeout: 2 });
+    for (const name of databases) await cluster.unsafe('DROP DATABASE ' + name);
+  } finally {
+    try {
+      if (restoreRoleInheritance) await cluster.unsafe('ALTER ROLE gradebook_app INHERIT');
+    } finally { await cluster.end({ timeout: 2 }); }
+  }
 });
 
 it('upgrades the complete hardened Gradebook foundation without renumbering or changing protected state', async () => {
