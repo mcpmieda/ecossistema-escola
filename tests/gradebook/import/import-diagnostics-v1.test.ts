@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
 import {
+  actionableGradebookImportDiagnosticsV1,
   blockingGradebookImportDiagnosticsV1,
   collectGradebookImportDiagnosticsV1,
   gradebookImportDiagnosticsAuditRequestV1,
@@ -237,6 +238,43 @@ describe('import diagnostics v1', () => {
       cause: 'Erro salvo pela planilha: #VALUE!',
     });
     expect(JSON.stringify(unavailable)).not.toContain('semanticValue');
+  });
+
+  it('shows operators only blocking errors and above-maximum warnings', () => {
+    const diagnostics = collectGradebookImportDiagnosticsV1(syntheticResult());
+    const technicalMaximum = {
+      key: 'invalid-maximum|7D|CIÊNCIAS|2º trimestre||configuration|15|7D2º|AE3',
+      severity: 'warning' as const,
+      code: 'invalid-maximum' as const,
+      message: 'O máximo de uma atividade está ausente ou inválido.',
+      recommendedAction: 'Confira a origem.',
+      classCode: '7D',
+      subject: 'CIÊNCIAS',
+      period: '2º trimestre',
+      fieldKind: 'configuration' as const,
+      slot: 15,
+      fieldLabel: 'Máximo de Atividade 5',
+      foundValue: '*',
+      sheetName: '7D2º',
+      cellAddress: 'AE3',
+    };
+    const visible = actionableGradebookImportDiagnosticsV1([
+      ...diagnostics,
+      technicalMaximum,
+    ]);
+
+    expect(visible.some((value) => value.code === 'source-unavailable')).toBe(false);
+    expect(
+      visible.some(
+        (value) => value.code === 'invalid-maximum' && value.severity === 'warning',
+      ),
+    ).toBe(false);
+    expect(visible).toContainEqual(
+      expect.objectContaining({ code: 'above-maximum', severity: 'warning' }),
+    );
+    expect(visible).toContainEqual(
+      expect.objectContaining({ code: 'invalid-text', severity: 'blocking-error' }),
+    );
   });
 
   it('keeps above-maximum as a warning with functional location', () => {

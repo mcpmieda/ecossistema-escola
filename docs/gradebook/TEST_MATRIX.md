@@ -100,6 +100,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `IMP-012`: definição indisponível preserva somente os campos não lidos e gera diagnóstico com guia/célula/causa; não é confundida com exclusão.
 - `IMP-013`: vazio de aluno em instrumento ativo continua “Não fez”; vazio de coluna removida não produz `nota(NULL)`.
 - `IMP-014`: importações novas não escrevem `nota_historico` nem `instrumento_historico`.
+- `IMP-015`: o preflight visível mostra apenas `blocking-error` e `above-maximum`; warnings técnicos continuam disponíveis internamente para preservação fail-safe sem inflar contadores/avisos da UI.
 
 ## ID — Identidade, matrícula e transferências
 
