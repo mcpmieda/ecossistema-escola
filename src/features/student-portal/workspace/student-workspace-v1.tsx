@@ -5,13 +5,11 @@ import {
   Description,
   Label,
   ListBox,
-  ProgressBar,
   ProgressCircle,
-  SearchField,
   Surface,
   Tabs,
 } from '@heroui/react';
-import { BarChart3, BookOpenCheck, GraduationCap, LayoutDashboard } from 'lucide-react';
+import { BookOpenCheck, LayoutDashboard } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
 import './student-workspace-v1.css';
@@ -20,7 +18,7 @@ type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
 type PeriodIdV1 = PeriodV1['period'];
 type ScoreMarkV1 = Extract<PeriodV1['final'], { kind: 'score' }>;
-type WorkspaceAreaV1 = 'summary' | 'report' | 'subject' | 'evolution';
+type WorkspaceAreaV1 = 'summary' | 'subject';
 
 const MAIN_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3'];
 const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
@@ -140,7 +138,6 @@ function SummaryV1({
                 <BookOpenCheck size={18} aria-hidden="true" />
                 <div className="pa-workspace-list-copy">
                   <Label>{subject.label}</Label>
-                  <Description>{PERIOD_LABELS_V1[active]}</Description>
                 </div>
                 <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
               </ListBox.Item>
@@ -148,51 +145,6 @@ function SummaryV1({
           })}
         </ListBox>
       </section>
-    </div>
-  );
-}
-
-function ReportV1({
-  data,
-  grades,
-}: {
-  data: SelfResponseV1;
-  grades: (data: SelfResponseV1) => ReactNode;
-}) {
-  const [query, setQuery] = useState('');
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
-  const visible = useMemo(() => {
-    if (!normalizedQuery) return data.subjects;
-    return data.subjects.filter((subject) =>
-      subject.label.toLocaleLowerCase('pt-BR').includes(normalizedQuery),
-    );
-  }, [data.subjects, normalizedQuery]);
-  const filtered = useMemo(
-    () => (normalizedQuery ? { ...data, subjects: visible } : data),
-    [data, normalizedQuery, visible],
-  );
-
-  return (
-    <div className="pa-workspace-view">
-      <PageIntroV1
-        icon={<GraduationCap size={22} />}
-        eyebrow={'Ano letivo ' + data.profile.link.academicYear}
-        title="Boletim"
-      />
-      <SearchField fullWidth value={query} onChange={setQuery} aria-label="Buscar disciplina">
-        <SearchField.Group>
-          <SearchField.SearchIcon />
-          <SearchField.Input placeholder="Buscar disciplina..." />
-          <SearchField.ClearButton />
-        </SearchField.Group>
-      </SearchField>
-      {visible.length ? (
-        grades(filtered)
-      ) : (
-        <Card>
-          <Card.Content>Nenhuma disciplina corresponde à busca.</Card.Content>
-        </Card>
-      )}
     </div>
   );
 }
@@ -328,84 +280,12 @@ function SubjectV1View({
   );
 }
 
-function EvolutionV1({
-  subjects,
-  selectedSubjectId,
-  onSubjectChange,
-}: {
-  subjects: readonly SubjectV1[];
-  selectedSubjectId: number;
-  onSubjectChange: (id: number) => void;
-}) {
-  const subject = subjects.find((item) => item.subjectId === selectedSubjectId) ?? subjects[0];
-  if (!subject) return null;
-  const points = MAIN_PERIODS_V1.flatMap((period) => {
-    const source = subjectPeriodV1(subject, period);
-    const mark = scoreOfV1(source);
-    return mark ? [{ period, mark }] : [];
-  });
-
-  return (
-    <div className="pa-workspace-view">
-      <PageIntroV1 icon={<BarChart3 size={22} />} eyebrow="Histórico publicado" title="Evolução" />
-
-      <Tabs
-        selectedKey={String(subject.subjectId)}
-        onSelectionChange={(key) => onSubjectChange(Number(key))}
-      >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label="Disciplina da evolução">
-            {subjects.map((item) => (
-              <Tabs.Tab id={String(item.subjectId)} key={item.subjectId}>
-                {item.label}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-      </Tabs>
-
-      <Card>
-        <Card.Header>
-          <Card.Title>{subject.label}</Card.Title>
-          <Card.Description>Notas numéricas publicadas por trimestre</Card.Description>
-        </Card.Header>
-        <Card.Content className="pa-evolution-bars">
-          {points.length ? (
-            points.map(({ period, mark }) => (
-              <ProgressBar
-                key={period}
-                aria-label={PERIOD_LABELS_V1[period] + ': ' + number.format(mark.value)}
-                value={mark.value}
-                maxValue={progressMaxV1(mark)}
-                color={progressColorV1(mark)}
-              >
-                <div className="pa-progress-label-row">
-                  <Label>{PERIOD_LABELS_V1[period]}</Label>
-                  <ProgressBar.Output />
-                </div>
-                <ProgressBar.Track>
-                  <ProgressBar.Fill />
-                </ProgressBar.Track>
-              </ProgressBar>
-            ))
-          ) : (
-            <Description>Não há notas numéricas publicadas para esta disciplina.</Description>
-          )}
-        </Card.Content>
-      </Card>
-    </div>
-  );
-}
-
 export function StudentPortalWorkspaceV1({
   data,
   profile,
-  grades,
 }: {
   data: SelfResponseV1;
   profile: ReactNode;
-  grades: (data: SelfResponseV1) => ReactNode;
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
   const [area, setArea] = useState<WorkspaceAreaV1>('summary');
@@ -429,22 +309,12 @@ export function StudentPortalWorkspaceV1({
           <Tabs.List aria-label="Áreas do Portal do Aluno">
             <Tabs.Tab id="summary">
               <LayoutDashboard size={17} aria-hidden="true" />
-              Resumo
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="report">
-              <GraduationCap size={17} aria-hidden="true" />
               Boletim
               <Tabs.Indicator />
             </Tabs.Tab>
             <Tabs.Tab id="subject" isDisabled={!selectedSubject}>
               <BookOpenCheck size={17} aria-hidden="true" />
               Disciplina
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="evolution" isDisabled={!selectedSubject}>
-              <BarChart3 size={17} aria-hidden="true" />
-              Evolução
               <Tabs.Indicator />
             </Tabs.Tab>
           </Tabs.List>
@@ -454,9 +324,6 @@ export function StudentPortalWorkspaceV1({
       <Tabs.Panel id="summary">
         <SummaryV1 data={data} profile={profile} onOpenSubject={openSubject} />
       </Tabs.Panel>
-      <Tabs.Panel id="report">
-        <ReportV1 data={data} grades={grades} />
-      </Tabs.Panel>
       <Tabs.Panel id="subject">
         {selectedSubject ? (
           <SubjectV1View
@@ -465,13 +332,6 @@ export function StudentPortalWorkspaceV1({
             onSubjectChange={setSelectedSubjectId}
           />
         ) : null}
-      </Tabs.Panel>
-      <Tabs.Panel id="evolution">
-        <EvolutionV1
-          subjects={subjects}
-          selectedSubjectId={selectedSubjectId}
-          onSubjectChange={setSelectedSubjectId}
-        />
       </Tabs.Panel>
     </Tabs>
   );
