@@ -15,6 +15,10 @@
 
 G-B é aceito com essas limitações. G-P aprova a release técnica fechada por política, sem abrir a escola. Uma futura abertura deve executar apenas as provas dependentes do novo escopo e da configuração institucional então autorizada.
 
+## Publicação e autoUpdate — #1112
+
+`admin/import-auto-update.postgres.ts` prova em PostgreSQL nativo: primeira publicação explícita; revisão nova vira `update-pending` com autoUpdate desligado; ligar autoUpdate serve a revisão mais nova imediatamente; desligar congela a última revisão; update manual só é aceito quando a pendência existe; retirada explícita não é ressuscitada por importação. `ui/publication/student-publication-v1.test.ts` prova que a UI não oferece atualização manual com autoUpdate ligado nem republicação sem revisão nova e usa os rótulos `Publicar notas` / `Atualizar notas publicadas`.
+
 ## Contenção de autenticação — #782
 
 `runtime/migrations.postgres.ts` acrescenta sobreposição real: login pausado após lock de conta permite login/sessão/Self/logout de outra conta; snapshot de reconciliação não serializa login; job de publicação pausado permite transação de outra conta. `load/paused-query-v1.ts` apenas pausa depois da query real, sem substituir SQL/resultados. Testes existentes preservam ativação única, falhas concorrentes sem perda de contador, reset/bloqueio/rotação, revogação, leases/CAS/publicação e barreiras de reset/timeout. `persistence/postgres-persistence-v1.test.ts` recusa promoção de lock e escrita de vínculo/revisão compartilhada. PGlite verifica a guarda; somente PostgreSQL nativo prova contenção. Gates/ambiente/SHA/limites efetivos na #782, sem presumir ausência universal de indisponibilidade.
