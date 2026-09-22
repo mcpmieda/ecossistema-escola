@@ -37,10 +37,11 @@ export async function savePortalSignalsV1(sql: StudentPortalPostgresSqlV1, input
     const clock = await tx.unsafe(`SELECT abs(extract(epoch FROM (statement_timestamp() - $1::timestamptz))) < 60 AS fresh`, [batch.generatedAt]);
     if (clock[0]?.fresh !== true) throw new Error('signal-stale-batch');
     if (!batch.points.length) return;
+    // Text on the wire prevents the driver's JSONB serializer from encoding JSON twice.
     await tx.unsafe(`INSERT INTO system_health.portal_signal_v1 AS old
       (bucket_at,source,outcome,samples,total_ms,max_ms,slow,capped)
       SELECT p."bucketAt"::timestamptz,p.source,p.outcome,p.samples,p."totalMs",p."maxMs",p.slow,p.capped
-      FROM jsonb_to_recordset($1::jsonb) AS p("bucketAt" text,source text,outcome text,samples integer,"totalMs" integer,"maxMs" integer,slow integer,capped boolean)
+      FROM jsonb_to_recordset($1::text::jsonb) AS p("bucketAt" text,source text,outcome text,samples integer,"totalMs" integer,"maxMs" integer,slow integer,capped boolean)
       WHERE p."bucketAt"::timestamptz <= statement_timestamp()
         AND p."bucketAt"::timestamptz > statement_timestamp() - interval '20 minutes'
       ON CONFLICT (bucket_at,source,outcome) DO UPDATE SET samples=excluded.samples,

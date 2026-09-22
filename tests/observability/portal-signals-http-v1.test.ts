@@ -33,12 +33,11 @@ it.each(['{}', 'null', JSON.stringify({ ...input, name: 'private' }), JSON.strin
   expect((await serveStudentDiagnosticV1(diagnostic(body), env)).status).toBe(400);
   expect(recordOperationalSignal).not.toHaveBeenCalled();
 });
-it.each([{ Origin: '' }, { Origin: 'https://untrusted.invalid' }, { 'x-forwarded-host': 'untrusted.invalid' }, { 'Sec-Fetch-Site': 'cross-site' }] as Record<string, string>[])
-  ('rejects untrusted origin before the limiter', async (headers) => {
-    const { env, limit } = fixture();
-    expect((await serveStudentDiagnosticV1(diagnostic(undefined, headers), env)).status).toBe(403);
-    expect(limit).not.toHaveBeenCalled();
-  });
+it.each([{ Origin: '' }, { Origin: 'https://untrusted.invalid' }, { 'x-forwarded-host': 'untrusted.invalid' }, { 'Sec-Fetch-Site': 'cross-site' }] as Record<string, string>[])('rejects untrusted origin before the limiter', async (headers) => {
+  const { env, limit } = fixture();
+  expect((await serveStudentDiagnosticV1(diagnostic(undefined, headers), env)).status).toBe(403);
+  expect(limit).not.toHaveBeenCalled();
+});
 it('honors the independent limiter and never returns private failures', async () => {
   const { env, limit, recordOperationalSignal } = fixture(); limit.mockResolvedValue({ success: false });
   expect((await serveStudentDiagnosticV1(diagnostic(), env)).status).toBe(429);
@@ -47,17 +46,16 @@ it('honors the independent limiter and never returns private failures', async ()
   const response = await serveStudentDiagnosticV1(diagnostic(), env);
   expect(response.status).toBe(503); expect(await response.text()).toBe('');
 });
-it.each([[200, 'ok'], [401, 'refused'], [429, 'limited'], [503, 'failed']] as const)
-  ('preserves the exact response and observes status %i without reading private bodies', async (status, outcome) => {
-    const { env, recordOperationalSignal } = fixture(); const promises: Promise<unknown>[] = [];
-    const response = new Response('SYNTHETIC-PRIVATE-BODY', { status, headers: { 'Set-Cookie': 'private' } });
-    const serve = vi.fn(async () => response);
-    const result = await serveObservedPortalSelfV1(new Request(origin + '/api/student/auth/login', { method: 'POST' }), env, (p) => promises.push(p), serve);
-    expect(result).toBe(response); expect(response.bodyUsed).toBe(false);
-    await Promise.all(promises);
-    expect(recordOperationalSignal).toHaveBeenCalledWith({ source: 'login', outcome, elapsedMs: expect.any(Number) });
-    expect(JSON.stringify(recordOperationalSignal.mock.calls)).not.toContain('private');
-  });
+it.each([[200, 'ok'], [401, 'refused'], [429, 'limited'], [503, 'failed']] as const)('preserves the exact response and observes status %i without reading private bodies', async (status, outcome) => {
+  const { env, recordOperationalSignal } = fixture(); const promises: Promise<unknown>[] = [];
+  const response = new Response('SYNTHETIC-PRIVATE-BODY', { status, headers: { 'Set-Cookie': 'private' } });
+  const serve = vi.fn(async () => response);
+  const result = await serveObservedPortalSelfV1(new Request(origin + '/api/student/auth/login', { method: 'POST' }), env, (p) => promises.push(p), serve);
+  expect(result).toBe(response); expect(response.bodyUsed).toBe(false);
+  await Promise.all(promises);
+  expect(recordOperationalSignal).toHaveBeenCalledWith({ source: 'login', outcome, elapsedMs: expect.any(Number) });
+  expect(JSON.stringify(recordOperationalSignal.mock.calls)).not.toContain('private');
+});
 it('does not turn telemetry failure or waitUntil failure into a login failure', async () => {
   const { env, recordOperationalSignal } = fixture(); recordOperationalSignal.mockRejectedValue(Error('private'));
   const response = new Response('ok'); const promises: Promise<unknown>[] = [];
