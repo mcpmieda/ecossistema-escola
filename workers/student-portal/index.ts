@@ -6,17 +6,16 @@ import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/m
 import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
 import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/student-portal/composition/signals-v1';
 import { portalCapacityRpcV1 } from '../../server/student-portal/composition/capacity-v1';
+import { portalHealthReviewRpcV1 } from '../../server/student-portal/composition/health-review-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
 import { PortalLiveUpdatesV1 } from '../../server/student-portal/live/live-updates-v1';
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
-
 export { PortalLiveUpdatesV1 };
 const selfMayEnqueueLiveV1 = (request: Request) => request.method !== 'GET'
   && ['/api/student/auth/activate', '/api/student/auth/logout'].includes(new URL(request.url).pathname);
-
 export class PortalSelfEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & PortalCompositionEnvV1> {
   override async fetch(request: Request): Promise<Response> {
     const response = await serveObservedPortalSelfV1(request, this.env, (promise) => this.ctx.waitUntil(promise));
@@ -28,16 +27,13 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const parsed = liveAdminContextV1.safeParse({
-      actorId: request.headers.get('x-admin-actor-id'),
-      tenantId: request.headers.get('x-admin-tenant-id'),
-      capability: request.headers.get('x-admin-capability'),
-      expiresAt: request.headers.get('x-admin-expires-at'),
+      actorId: request.headers.get('x-admin-actor-id'), tenantId: request.headers.get('x-admin-tenant-id'),
+      capability: request.headers.get('x-admin-capability'), expiresAt: request.headers.get('x-admin-expires-at'),
     });
     if (url.origin !== 'https://portal-admin.internal' || url.pathname !== '/live'
       || request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket'
       || !parsed.success || parsed.data.tenantId !== this.env.PORTAL_ADMIN_TENANT_ID
-      || Date.parse(parsed.data.expiresAt) <= Date.now())
-      return portalJsonV1(portalFailureV1('forbidden'), 403);
+      || Date.parse(parsed.data.expiresAt) <= Date.now()) return portalJsonV1(portalFailureV1('forbidden'), 403);
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return connectPortalLiveV1(this.env, request, { audience: 'admin', expiresAt: parsed.data.expiresAt,
       accountId: null, studentId: null, classId: null });
@@ -46,6 +42,7 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
   async monitoringHistory(context: unknown, before: unknown) { return portalHistoryRpcV1(this.env, context, before); }
   async monitoringSignals(context: unknown, before: unknown) { return portalSignalsRpcV1(this.env, context, before); }
   async monitoringCapacity(context: unknown) { return portalCapacityRpcV1(this.env, context); }
+  async monitoringReview(context: unknown) { return portalHealthReviewRpcV1(this.env, context); }
   async query(context: unknown, request: unknown) { return portalAdminRpcV1(this.env, 'query', context, request); }
   async command(context: unknown, request: unknown) {
     const result = await portalAdminRpcV1(this.env, 'command', context, request);
