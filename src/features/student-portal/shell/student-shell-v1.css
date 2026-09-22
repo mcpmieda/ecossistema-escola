@@ -95,8 +95,8 @@
   border: 1px solid rgb(219 234 254 / 0.18);
   border-radius: 26px;
   background-color: #012d7c;
-  background-image: url('../../../student-portal/assets/hero-bg-mobile.svg');
-  background-position: center;
+  background-image: url('../../../student-portal/assets/hero-cover.webp');
+  background-position: 58% center;
   background-size: cover;
   background-repeat: no-repeat;
   box-shadow:
@@ -302,9 +302,6 @@
   align-self: stretch;
   place-items: end center;
 }
-.pa-hero-portrait-backdrop {
-  display: none;
-}
 .pa-hero-photo {
   position: relative;
   z-index: 2;
@@ -476,6 +473,7 @@
     min-height: 208px;
     margin-top: 0.5rem;
     border-radius: 26px;
+    background-position: 58% center;
   }
   .pa-hero-inner {
     padding: 0.7rem 0.85rem 0;
@@ -564,7 +562,7 @@
     min-height: 260px;
     margin-top: 1rem;
     border-radius: 30px;
-    background-image: url('../../../student-portal/assets/hero-bg-tablet.svg');
+    background-position: 55% center;
   }
   .pa-hero-inner {
     padding: 1rem 1.25rem 0;
@@ -611,7 +609,7 @@
     min-height: 320px;
     margin-top: 1rem;
     border-radius: 34px;
-    background-image: url('../../../student-portal/assets/hero-bg-desktop.svg');
+    background-position: center 48%;
   }
   .pa-hero-inner {
     padding: 1.25rem 2.25rem 0;
