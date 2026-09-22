@@ -8,7 +8,7 @@
 
 A primeira liberação de um período continua explícita: `autoUpdate` nunca publica um período que ainda não possui decisão de publicação. Depois da primeira liberação, `autoUpdate=true` seleciona imediatamente a revisão acadêmica mais recente preparada para aquele aluno/período, sem comando adicional, job ou polling da página. Ao desligar, a última revisão já aprovada fica congelada; uma revisão posterior aparece como `update-pending` e exige `publish-update`.
 
-A UI espelha essa autoridade: `Publicar notas` existe apenas para a primeira publicação; `Atualizar notas publicadas` aparece somente quando `autoUpdate=false` e o servidor devolve `update-pending`; período já atual não oferece republicação redundante. O backend recusa `publish-update` sem pendência e `publish` redundante quando todos os alvos já estão publicados, protegendo contra aba obsoleta e corrida de política.
+A UI espelha essa autoridade: `Publicar notas` existe apenas para a primeira publicação; `Atualizar notas publicadas` aparece somente quando `autoUpdate=false` e o servidor devolve `update-pending`; período já atual não oferece republicação redundante. O backend recusa `publish-update` sem pendência, protegendo contra aba obsoleta e corrida de política. O comando `publish` continua disponível para decisões explícitas de escopo/personalização, mas a UI comum não o oferece como republicação redundante.
 
 ## Composição corrente — #757
 
