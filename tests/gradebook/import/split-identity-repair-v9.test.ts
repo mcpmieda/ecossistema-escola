@@ -223,21 +223,18 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
     await expect(service.execute(corrected)).resolves.toMatchObject({ state: 'no-changes' });
   });
 
-  it('falha fechado e reverte tudo se os ids tiverem a mesma chave academica corrente', async () => {
+  it('falha fechado e reverte tudo se os ids tiverem estado corrente de Conselho concorrente', async () => {
     const service = createGradebookRelationalImportServiceV11(database);
     await expect(service.execute(relation('R1106', 'c', false))).resolves.toMatchObject({
       state: 'applied',
     });
     const before = await pair('R1106');
-    const fact = await addCurrentFact(
-      'R1106',
-      before.origin.turma_id,
-      before.origin.aluno_id,
-      13000,
-    );
+    const actor = '11111111-1111-4111-8111-111111111111';
     await pg.query(
-      'INSERT INTO gradebook.nota (instrumento_id,aluno_id,valor) VALUES ($1,$2,$3)',
-      [fact.instrumentoId, before.destination.aluno_id, 14000],
+      `INSERT INTO gradebook.conselho_decisao
+        (aluno_id,decisao,justificativa,registrado_por)
+       VALUES ($1,1,'DECISAO SINTETICA A',$3),($2,2,'DECISAO SINTETICA B',$3)`,
+      [before.origin.aluno_id, before.destination.aluno_id, actor],
     );
 
     await expect(service.execute(relation('R1106', 'd', true))).resolves.toMatchObject({
@@ -248,16 +245,14 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
     const after = await pair('R1106');
     expect(after.origin.aluno_id).toBe(before.origin.aluno_id);
     expect(after.destination.aluno_id).toBe(before.destination.aluno_id);
-    expect(
-      (
-        await pg.query<{ aluno_id: number; valor: number }>(
-          'SELECT aluno_id,valor FROM gradebook.nota WHERE instrumento_id=$1 ORDER BY aluno_id',
-          [fact.instrumentoId],
-        )
-      ).rows,
-    ).toEqual([
-      { aluno_id: before.origin.aluno_id, valor: 13000 },
-      { aluno_id: before.destination.aluno_id, valor: 14000 },
-    ]);
+    const ids = (
+      await pg.query<{ aluno_id: number }>(
+        'SELECT aluno_id FROM gradebook.conselho_decisao WHERE aluno_id IN ($1,$2) ORDER BY aluno_id',
+        [before.origin.aluno_id, before.destination.aluno_id],
+      )
+    ).rows.map((row) => row.aluno_id);
+    expect(ids).toEqual(
+      [before.origin.aluno_id, before.destination.aluno_id].sort((a, b) => a - b),
+    );
   });
 });
