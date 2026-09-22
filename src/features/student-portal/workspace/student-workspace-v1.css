@@ -2,7 +2,7 @@
   display: grid;
   min-width: 0;
   gap: 1rem;
-  padding-bottom: 5.75rem;
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .pa-student-workspace > [role='tabpanel'] {
@@ -471,7 +471,9 @@
 .pa-workspace-nav-surface {
   position: fixed;
   left: 50%;
-  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  /* Keep the 0.75rem gap *above* any system bar/gesture pill when the page is drawn edge to
+     edge (installed app, viewport-fit=cover); in a normal browser tab the inset is 0. */
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   width: min(calc(100% - 1rem), 22rem);
   transform: translateX(-50%);
@@ -525,7 +527,7 @@
 
 @media (min-width: 760px) {
   .pa-student-workspace {
-    padding-bottom: 5.75rem;
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
   }
 
   .pa-workspace-nav-surface {
