@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { applyCurrentGradebookSchemaV1, assertCurrentGradebookSchemaV1 } from '../../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
 import { assertStudentIdentitySchemaV1 } from '../../../server/student-identity/schema-state-v1.ts';
+import { resolveStudentIdentitiesV1 } from '../../../server/student-identity/resolve-student-identity-v1.ts';
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1'
@@ -102,12 +103,26 @@ it('upgrades the complete hardened Gradebook foundation without renumbering or c
   expect(rows[0]).toEqual({ student_uid: uid, account_uid: uid });
 });
 
+it('resolves both source references with native driver JSON parameter inference enabled', async () => {
+  const query = async (text: string, parameters: readonly (string | number)[]) =>
+    Array.from(await source.unsafe(text, [...parameters]));
+  const academic = await resolveStudentIdentitiesV1(query, {
+    source: 'gradebook', academicYear: 2026, studentIds: [101, 101, 999],
+  });
+  const portal = await resolveStudentIdentitiesV1(query, {
+    source: 'portal', academicYear: 2026, accountIds: [uid, uid],
+  });
+  expect(academic.map(item => item.studentUid)).toEqual([uid]);
+  expect(portal.map(item => item.studentUid)).toEqual([uid]);
+});
+
 it('restores the identity registry before academic/account/photo references without generating new identities', async () => {
   // Only synthetic identity-related data: this is not an institutional backup or RPO/RTO claim.
   for (const table of ['gradebook.student_identity','gradebook.ano_letivo','gradebook.aluno',
     'student_portal.account','student_portal.profile_photo','student_portal.qr_credential','student_portal.session']) {
     const rows = await source.unsafe(`SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) AS data FROM ${table} t`);
-    await restored.unsafe(`INSERT INTO ${table} SELECT * FROM jsonb_populate_recordset(NULL::${table},$1::jsonb)`,
+    expect(Array.isArray(rows[0]!.data)).toBe(true);
+    await restored.unsafe(`INSERT INTO ${table} SELECT * FROM jsonb_populate_recordset(NULL::${table},$1::text::jsonb)`,
       [JSON.stringify(rows[0]!.data)]);
   }
   await assertStudentIdentitySchemaV1(adapter(restored));

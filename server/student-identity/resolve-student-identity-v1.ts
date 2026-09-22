@@ -22,17 +22,18 @@ export async function resolveStudentIdentitiesV1(
   const references = request.source === 'gradebook'
     ? [...new Set(request.studentIds)]
     : [...new Set(request.accountIds)];
+  // Text parameter avoids automatic JSON serialization of already serialized strings.
   const rows = await query(
     request.source === 'gradebook'
       ? `SELECT id AS gradebook_student_id, ano AS academic_year, student_uid::text
          FROM gradebook.aluno
          WHERE ano=$1 AND id IN (
-           SELECT value::integer FROM jsonb_array_elements_text($2::jsonb)
+           SELECT value::integer FROM jsonb_array_elements_text($2::text::jsonb)
          ) ORDER BY id`
       : `SELECT id::text AS account_id, academic_year, gradebook_student_id, student_uid::text
          FROM student_portal.account
          WHERE academic_year=$1 AND id IN (
-           SELECT value::uuid FROM jsonb_array_elements_text($2::jsonb)
+           SELECT value::uuid FROM jsonb_array_elements_text($2::text::jsonb)
          ) ORDER BY id`,
     [request.academicYear, JSON.stringify(references)],
   );
