@@ -22,7 +22,7 @@ A unidade acadêmica de escrita e idempotência foi homologada na #613. Atualiza
 
 `GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629/#862; diagnósticos resolvidos e seus tratamentos humanos não permanecem como registros órfãos. A #658 monta somente a leitura desse estado corrente. A #664 retirou a página e o endpoint dedicados do Audit Workspace V1 após provar ausência de consumidor; o núcleo V1 ainda usado por Relatórios V1 permanece e não é fallback nem histórico humano durável.
 
-A fotografia persistida é propositalmente mais restrita que o preflight da importação: retém apenas `blocking-error` e o warning `above-maximum`. Avisos técnicos/esperados como recuperação sem resultado calculado salvo e máximo qualitativo `*` não entram na Auditoria corrente; continuam podendo existir na leitura/preflight sem alterar fatos acadêmicos.
+A fotografia persistida e a apresentação operacional do preflight retêm apenas achados acionáveis para o usuário: `blocking-error` e o warning `above-maximum`. Avisos técnicos/esperados como recuperação sem resultado calculado salvo e máximo qualitativo `*` continuam existindo internamente para preservação/normalização fail-safe, mas não poluem a Auditoria nem a lista de avisos para revisar; nenhum deles altera fatos acadêmicos por si só.
 
 ## Provedor não é modelo de dados
 
