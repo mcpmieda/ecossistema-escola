@@ -116,7 +116,11 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         </Card.Content>
       </Card>
       <AccountsResultsV1
-        key={JSON.stringify([query, [...states].sort(), [...blocks].sort()])}
+        key={JSON.stringify([
+          query,
+          [...states].sort((left, right) => left.localeCompare(right)),
+          [...blocks].sort((left, right) => left.localeCompare(right)),
+        ])}
         {...props}
         query={query}
         states={states}

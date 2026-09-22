@@ -20,16 +20,18 @@ describe('security query allowlist #1102', () => {
       `/api/student/live?purpose=security&purpose=security&accountId=${account}`,
       '/api/student/live?purpose=security',
       '/api/student/session?accountId=invalid',
-    ]) expect(allowed(path)).toBe(false);
+    ])
+      expect(allowed(path)).toBe(false);
   });
 
   it('preserves origin, host and fetch-site defenses for allowed security queries', () => {
     const path = `/api/student/live?purpose=security&accountId=${account}`;
-    for (const headers of [
+    const rejectedHeaders: HeadersInit[] = [
       { origin: 'https://attacker.invalid' },
       { host: 'attacker.invalid' },
       { 'x-forwarded-host': 'attacker.invalid' },
       { 'sec-fetch-site': 'cross-site' },
-    ]) expect(allowed(path, headers)).toBe(false);
+    ];
+    for (const headers of rejectedHeaders) expect(allowed(path, headers)).toBe(false);
   });
 });

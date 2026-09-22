@@ -29,7 +29,7 @@ function transport(initiallyAuthenticated = false) {
       expiresAt: new Date(Date.now() + 3600_000).toISOString(),
       persistent: true,
     };
-    if (path === '/api/student/session')
+    if (new URL(path, 'https://synthetic.invalid').pathname === '/api/student/session')
       return json(
         authenticated ? session : { ...meta, state: 'unauthenticated' },
         authenticated ? 200 : 401,
@@ -151,9 +151,13 @@ it('removes protected DOM before history restoration and requires a fresh sessio
   void act(() => window.dispatchEvent(new Event('pagehide')));
   expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
   api.expire();
+  const readsBeforeRestore = api.calls.length;
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
+  expect(api.calls).toHaveLength(readsBeforeRestore);
+  expect(screen.queryByText('Disciplina de exemplo')).toBeNull();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
   expect(await screen.findByRole('heading', { name: 'Acessar minhas notas' })).toBeTruthy();
   expect(screen.queryByText('Sessão expirada')).toBeNull();
   expect(screen.queryByText('Disciplina de exemplo')).toBeNull();

@@ -182,7 +182,7 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   expect(await bound.json()).toMatchObject({ state: 'authenticated' });
   const foreign = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + crypto.randomUUID(), cookie });
   expect(foreign.status).toBe(401);
-  const security = await harness.fetch({ surface: 'student', path: '/api/student/live?purpose=security&accountId=' + account.accountId, cookie, upgrade: true });
+  const security = await harness.connectStudentSecurity(account.accountId, cookie!);
   expect(security.status).toBe(101);
   const socket = security.webSocket!;
   const connected = new Promise<string>((resolve) => socket.addEventListener('message', event => resolve(String(event.data)), { once: true }));

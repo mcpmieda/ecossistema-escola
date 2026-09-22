@@ -125,7 +125,8 @@ beforeAll(async () => {
   peer = client('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
   disabledAtInstall = !await scopedPublicationEnabledV2(portal);
 }, 30_000);
-beforeEach(async () => {
+let cohortReady = false;
+async function resetPublicationFixture() {
   failReceipt = false;
   await owner.unsafe(`UPDATE student_portal.publication_control_v2 SET enabled=false;
     DELETE FROM student_portal.publication_release_v2;
@@ -145,7 +146,8 @@ beforeEach(async () => {
   await policy({ accessEnabled: true, showPartials: true, allowedPeriods: ['T1', 'T2'], autoUpdate: false, calendar });
   await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
   queries.length = 0;
-});
+}
+beforeEach(async () => { if (!cohortReady) await resetPublicationFixture(); });
 afterAll(async () => {
   for (const sql of clients) await sql.end({ timeout: 2 });
   if (created) await cluster.unsafe('DROP DATABASE ' + databaseName);
@@ -372,7 +374,9 @@ it('fences obsolete writers in SQL while preserving lifecycle deletion and moder
 
 // This last scenario uses a separate synthetic cohort; no real database or student is involved.
 describe('synthetic cohort load', () => {
+  let preparationMs = 0;
   beforeAll(async () => {
+  await resetPublicationFixture();
   await owner.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
       SELECT 804000+n,2026,'SYNTHETIC LOAD STUDENT '||n FROM generate_series(1,400) n;
     INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id)
@@ -398,11 +402,12 @@ describe('synthetic cohort load', () => {
   await owner.unsafe(`INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte)
     SELECT 804000+o,804000+n,8000 FROM generate_series(1,10) o CROSS JOIN generate_series(1,400) n`);
   await owner.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
-  }, 90_000);
-  it('releases 400 students with 10 subjects and 156000 marks without per-account publication work', async () => {
   const preparing = performance.now();
   await owner.unsafe('UPDATE student_portal.academic_revision SET academic_counter=academic_counter+1 WHERE academic_year=2026');
-  const preparationMs = performance.now() - preparing;
+  preparationMs = performance.now() - preparing;
+  cohortReady = true;
+  }, 90_000);
+  it('releases 400 students with 10 subjects and 156000 marks without per-account publication work', async () => {
   const scope = { kind: 'class', academicYear: 2026, classId: 746010 } as const;
   const service = new ScopedPublicationServiceV2(portal);
   expect((await service.read(scope)).count).toBe(400);
