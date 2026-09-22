@@ -543,7 +543,6 @@ function PublicationReadyV1({
 
 function PublicationLoadV1({
   view,
-  scope,
   canWrite,
   busy,
   review,
@@ -554,7 +553,6 @@ function PublicationLoadV1({
   prepare,
 }: Readonly<{
   view: PublicationViewV1;
-  scope: ScopeV1;
   canWrite: boolean;
   busy: boolean;
   review: PublicationCommandV1 | null;
@@ -691,7 +689,6 @@ function PublicationScopeV1({
       />
       <PublicationLoadV1
         view={view}
-        scope={fixedScope}
         canWrite={canWrite}
         busy={busy}
         review={review}
