@@ -3,6 +3,7 @@ import {
   portalJsonV1,
   portalRequestOriginAllowedV1,
 } from '../../../server/student-portal/runtime/http-v1';
+import { FRONTEND_DIAGNOSTIC_ROUTE_V1 } from '../../../shared/frontend-diagnostic-v1';
 
 interface PortalEdgeEnv {
   PORTAL_ENVIRONMENT: string;
@@ -37,13 +38,11 @@ export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) 
       return response;
     } catch { return portalJsonV1(portalFailureV1('unavailable'), 503); }
   }
-  if (url.pathname !== '/healthz' && !url.pathname.startsWith('/api/student/'))
+  if (url.pathname !== '/healthz' && url.pathname !== FRONTEND_DIAGNOSTIC_ROUTE_V1 && !url.pathname.startsWith('/api/student/'))
     return portalJsonV1(portalFailureV1('unavailable'), 404);
   if (!env.PORTAL_SELF) return portalJsonV1(portalFailureV1('unavailable'), 503);
   try {
     // Forward the original URL, headers, cookies and stream; never rewrite to the official host.
     return await env.PORTAL_SELF.fetch(request);
-  } catch {
-    return portalJsonV1(portalFailureV1('unavailable'), 503);
-  }
+  } catch { return portalJsonV1(portalFailureV1('unavailable'), 503); }
 };

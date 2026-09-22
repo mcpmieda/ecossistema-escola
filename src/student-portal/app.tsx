@@ -9,13 +9,14 @@ import {
   createPortalSelfClientV1,
   type PortalSelfClientV1,
 } from '../features/student-portal/shared/self-client-v1';
+import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
 
 const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
   (module) => ({ default: module.StudentAuthenticationV1 }),
-));
+).catch(markStudentModuleFailureV1));
 const StudentGradesV1 = lazy(() => import('../features/student-portal/grades/student-grades-v1').then(
   (module) => ({ default: module.StudentGradesV1 }),
-));
+).catch(markStudentModuleFailureV1));
 
 export interface StudentEntryV1 {
   qr: string | null;
@@ -23,7 +24,7 @@ export interface StudentEntryV1 {
   route: 'root' | 'access' | 'unknown';
 }
 const PUBLIC_SITEKEY = '0x4AAAAAAExp0Fw2x5lR3luX';
-const defaultClient = createPortalSelfClientV1({ respectRetryAfter: true });
+const defaultClient = createPortalSelfClientV1({ respectRetryAfter: true, fetch: diagnosticStudentFetchV1 });
 const defaultEntry: StudentEntryV1 = { qr: null, invalidQr: false, route: 'root' };
 
 /** Entry is a private, disposable holder. It never becomes a URL, DOM attribute or storage item. */
@@ -38,6 +39,10 @@ export function StudentPortalApp({
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');
   const session = useStudentSessionV1(client);
+  useEffect(() => {
+    if (session.load.state === 'error' && ['unavailable', 'invalid-response', 'network-error'].includes(session.load.error.state))
+      reportStudentDiagnosticV1('read');
+  }, [session.load]);
   const discardQr = () => {
     entry.qr = null;
     entry.invalidQr = false;
@@ -73,20 +78,13 @@ export function StudentPortalApp({
             </Alert.Title>
             <Alert.Description>Seus dados foram retirados desta tela.</Alert.Description>
             {session.logoutState === 'failed' && (
-              <Button
-                onPress={() => {
-                  void session.logout();
-                }}
-              >
-                Tentar sair novamente
-              </Button>
+              <Button onPress={() => { void session.logout(); }}>Tentar sair novamente</Button>
             )}
           </Alert.Content>
         </Alert>
       </StudentPortalShellV1>
     );
-  const anonymous =
-    session.load.state === 'error' && session.load.error.state === 'unauthenticated';
+  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
   if (access || session.logoutState === 'done' || anonymous)
     return (
       <StudentPortalShellV1>
@@ -99,15 +97,10 @@ export function StudentPortalApp({
           </Alert>
         )}
         <Suspense fallback={<output>Preparando entrada segura…</output>}>
-          <StudentAuthenticationV1
-            client={client}
-            initialQr={initialQr}
-            sitekey={PUBLIC_SITEKEY}
+          <StudentAuthenticationV1 client={client} initialQr={initialQr} sitekey={PUBLIC_SITEKEY}
             onQrDiscarded={discardQr}
             onAuthenticated={() => {
-              discardQr();
-              setAccess(false);
-              window.history.replaceState(null, '', '/');
+              discardQr(); setAccess(false); window.history.replaceState(null, '', '/');
               void session.authenticated();
             }}
           />
@@ -117,29 +110,15 @@ export function StudentPortalApp({
   if (session.load.state === 'idle' || session.load.state === 'loading')
     return (
       <main className="pa-access-check" aria-busy="true" aria-label="Verificando acesso ao Portal">
-        <Spinner size="sm" aria-label="Aguarde" />
-        <p role="status">Verificando acesso…</p>
+        <Spinner size="sm" aria-label="Aguarde" /><p role="status">Verificando acesso…</p>
       </main>
     );
   return (
-    <StudentPortalPageV1
-      load={session.load}
+    <StudentPortalPageV1 load={session.load}
       grades={(data) => <Suspense fallback={<output>Carregando notas…</output>}><StudentGradesV1 data={data} /></Suspense>}
-      onRetry={() => {
-        void session.refresh();
-      }}
-      onLogin={() => {
-        discardQr();
-        setAccess(true);
-      }}
-      onLogout={
-        session.load.state === 'ready'
-          ? () => {
-              discardQr();
-              void session.logout();
-            }
-          : undefined
-      }
+      onRetry={() => { void session.refresh(); }}
+      onLogin={() => { discardQr(); setAccess(true); }}
+      onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}
     />
   );
 }
