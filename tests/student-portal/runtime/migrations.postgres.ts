@@ -1051,6 +1051,7 @@ describe('native publication targets and competing job leases', () => {
   const other = new PublicationJobsV1(secondary);
   const reader = new SelfProjectionReaderV1(primary);
   const policy = new PolicyServiceV1(secondary);
+  const reconciler = new PublicationReconcilerV1(primary);
   let accountId: string;
   const scope = () => ({ kind: 'account', academicYear: 2026, accountId } as const);
   async function command(operation = 'publish', period = 'T1') {
@@ -1060,6 +1061,31 @@ describe('native publication targets and competing job leases', () => {
   }
   const self = () => reader.read(accountId, crypto.randomUUID());
   const t1 = async () => (await self())?.subjects.flatMap((subject) => subject.periods).filter((period) => period.period === 'T1');
+  async function makeT1Pending() {
+    await gradebook`UPDATE gradebook.fechamento
+      SET am1_fonte=COALESCE(am1_fonte,0)+1
+      WHERE oferta_id=910001 AND aluno_id=910001`;
+    await gradebook.unsafe(
+      `SELECT * FROM student_portal.record_gradebook_change_v1(
+        $1::uuid,2026::smallint,'marks'::text,true,ARRAY[910001]::integer[],statement_timestamp()
+      )`,
+      [crypto.randomUUID()],
+    );
+    expect((await reconciler.run()).failed).toBe(0);
+    expect((await publications.read(scope())).items.find((item) => item.period === 'T1'))
+      .toMatchObject({ state: 'update-pending' });
+  }
+  async function claimOwn(jobber: PublicationJobsV1) {
+    // This suite shares one database across many synthetic accounts. Keep the
+    // concurrency assertion scoped to the account whose publication we just changed.
+    await admin`UPDATE student_portal.publication_job
+      SET state='failed',lease_until=NULL,updated_at=statement_timestamp()
+      WHERE account_id<>${accountId}::uuid AND state IN ('queued','running')`;
+    const claimed = await jobber.claim();
+    expect(claimed).not.toBeNull();
+    expect(claimed!.accountId).toBe(accountId);
+    return claimed!;
+  }
 
   it('claims once across real connections and commits only the exact approved target', async () => {
     await openSyntheticSchoolV1(primary);
@@ -1098,11 +1124,11 @@ describe('native publication targets and competing job leases', () => {
   });
 
   it('unpublish wins over an already claimed job on another Portal connection', async () => {
+    await makeT1Pending();
     await publications.command(actor, await command('publish-update'));
-    const claimed = await other.claim();
-    expect(claimed).not.toBeNull();
+    const claimed = await claimOwn(other);
     await publications.command(actor, await command('unpublish'));
-    expect(await other.perform(claimed!)).toBe('stale');
+    expect(await other.perform(claimed)).toBe('stale');
     expect(await t1()).toHaveLength(0);
     await publications.command(actor, await command());
     expect(await t1()).toHaveLength(0);
@@ -1111,13 +1137,14 @@ describe('native publication targets and competing job leases', () => {
   });
 
   it('a changed policy fences pending work and filters the committed copy immediately', async () => {
+    await makeT1Pending();
     await publications.command(actor, await command('publish-update'));
-    const claimed = await jobs.claim();
+    const claimed = await claimOwn(jobs);
     const before = await self();
     const current = await policy.read(scope());
     await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
       idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { allowedPeriods: [] } });
-    expect(await other.perform(claimed!)).toBe('stale');
+    expect(await other.perform(claimed)).toBe('stale');
     expect(await t1()).toHaveLength(0);
     expect(await reader.readAuthorized(accountId, before!.revisions)).toBeNull();
   });
