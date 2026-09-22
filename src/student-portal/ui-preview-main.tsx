@@ -4,7 +4,7 @@ import { StudentPortalPageV1 } from '../features/student-portal/shell/student-sh
 import { selfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
-const previewPortrait = new URL('./assets/demo-student.webp', import.meta.url).href;
+const previewPortrait = new URL('./assets/demo-student-boy.webp', import.meta.url).href;
 
 const previewData = selfResponseV1.parse({
   contractVersion: 1,
@@ -13,8 +13,8 @@ const previewData = selfResponseV1.parse({
   profile: {
     accountId: '11111111-1111-4111-8111-111111111111',
     link: { academicYear: 2026, studentId: 900001 },
-    name: 'Estudante de demonstração',
-    classLabel: '9º Ano A · Demonstração',
+    name: 'Pedro Henrique Almeida',
+    classLabel: '1ª Série do Ensino Médio',
     academicState: 'regular',
     result: 'in-progress',
   },
