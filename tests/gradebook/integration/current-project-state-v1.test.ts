@@ -26,9 +26,13 @@ describe('current canonical project state', () => {
     const portalState = source('docs/student-portal/PROJECT_STATE.yaml');
     const latest = latestMigration('migrations/student-portal');
 
-    expect(latest).toBe('0015_student_portal_rls_v1.sql');
-    expect(gradebookState).toContain(`schema_migration_file: ${latest}`);
-    expect(portalState).toContain(`student_portal_schema_latest_migration: ${latest}`);
+    expect(latest).toBe('0017_security_event_priority_v1.sql');
+    expect(gradebookState).toContain(`student_portal_latest_migration_in_tree: ${latest}`);
+    expect(portalState).toContain(`student_portal_latest_migration_in_tree: ${latest}`);
+    // A migration in the candidate tree is not evidence of a production DDL deployment.
+    expect(gradebookState).toContain('schema_migration_file: 0015_student_portal_rls_v1.sql');
+    expect(portalState).toContain('student_portal_schema_latest_migration: 0015_student_portal_rls_v1.sql');
+    expect(portalState).toContain('production_migrations_applied: false');
     expect(portalState).toContain('student_portal_schema_table_count: 27');
   });
 
