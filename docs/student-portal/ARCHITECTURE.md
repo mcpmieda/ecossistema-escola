@@ -4,6 +4,12 @@
 
 `accountTransactionV1` usa global compartilhado(613,0) → ano compartilhado(613,2026) → revisão `FOR SHARE`; contas continuam `FOR UPDATE` antes de credenciais/sessões/jobs. Auth individual, sessão própria/Self (inclusive leitura aninhada), cron/reconciliação e execução/claim de jobs usam esse modo. `authTransactionV1` conserva o padrão exclusivo para demais operações. Escritores BN, políticas, reset e comandos administrativos continuam excluindo os consumidores. O adapter impede upgrade e escritas acadêmicas/de vínculo no modo compartilhado. Ver PA-DEC-008 e o delta em `docs/gradebook/YEAR_RESET_SETTINGS.md`; essa exceção substitui somente a exclusividade dos consumidores rotineiros no inventário histórico abaixo. Sem DDL, cache, retry cego ou mudança de autorização.
 
+## Publicação manual e atualização automática — #1112
+
+A primeira liberação de um período continua explícita: `autoUpdate` nunca publica um período que ainda não possui decisão de publicação. Depois da primeira liberação, `autoUpdate=true` seleciona imediatamente a revisão acadêmica mais recente preparada para aquele aluno/período, sem comando adicional, job ou polling da página. Ao desligar, a última revisão já aprovada fica congelada; uma revisão posterior aparece como `update-pending` e exige `publish-update`.
+
+A UI espelha essa autoridade: `Publicar notas` existe apenas para a primeira publicação; `Atualizar notas publicadas` aparece somente quando `autoUpdate=false` e o servidor devolve `update-pending`; período já atual não oferece republicação redundante. O backend recusa `publish-update` sem pendência e `publish` redundante quando todos os alvos já estão publicados, protegendo contra aba obsoleta e corrida de política.
+
 ## Composição corrente — #757
 
 Aluno: entrada própria consome e remove o fragmento de /access antes do React/widget; QR e senha ficam em memória transitória. StudentPortalShellV1 recebe children/onLogout; StudentPortalPageV1 recebe o estado Self e o slot grades, ambos da mesma resposta. Session precede me; expiração, saída e retorno do histórico limpam dados. Saída com falha mantém a tela protegida vazia e permite tentar a saída novamente. Cancelar/ocultar autenticação também descarta o QR na composição.
