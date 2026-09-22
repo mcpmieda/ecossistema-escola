@@ -135,7 +135,9 @@ export function StudentProfileV1({
 
   return (
     <header className="pa-student-hero" aria-labelledby={heading}>
-      <h2 id={heading} className="pa-visually-hidden">Perfil do aluno</h2>
+      <h2 id={heading} className="pa-visually-hidden">
+        Perfil do aluno
+      </h2>
       <div className="pa-hero-inner">
         <div className="pa-hero-topbar">
           <div className="pa-hero-brand">
