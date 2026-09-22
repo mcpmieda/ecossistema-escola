@@ -307,7 +307,6 @@ export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'm
 export interface StudentPagePropsV1
   extends Omit<StudentShellPropsV1, 'children' | 'busy' | 'hero'> {
   load: StudentPageStateV1;
-  grades: (data: SelfResponseV1) => ReactNode;
   status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
@@ -318,7 +317,6 @@ export interface StudentPagePropsV1
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
 export function StudentPortalPageV1({
   load,
-  grades,
   status,
   onRetry,
   onLogin,
@@ -357,7 +355,6 @@ export function StudentPortalPageV1({
           <StudentPortalWorkspaceV1
             data={load.data}
             profile={null}
-            grades={grades}
           />
         )}
       </>
