@@ -17,7 +17,7 @@ G-B é aceito com essas limitações. G-P aprova a release técnica fechada por 
 
 ## Publicação e autoUpdate — #1112
 
-`admin/import-auto-update.postgres.ts` prova em PostgreSQL nativo: primeira publicação explícita; revisão nova vira `update-pending` com autoUpdate desligado; ligar autoUpdate serve a revisão mais nova imediatamente; desligar congela a última revisão; update manual só é aceito quando a pendência existe; retirada explícita não é ressuscitada por importação. `ui/publication/student-publication-v1.test.ts` prova que a UI não oferece atualização manual com autoUpdate ligado nem republicação sem revisão nova e usa os rótulos `Publicar notas` / `Atualizar notas publicadas`.
+`admin/import-auto-update.postgres.ts` prova em PostgreSQL nativo: primeira publicação explícita; revisão nova vira `update-pending` com autoUpdate desligado; ligar autoUpdate serve a revisão mais nova imediatamente; desligar congela a última revisão; update manual só é aceito quando a pendência existe; retirada explícita não é ressuscitada por importação. `publication/publication-v1.test.ts` aplica a mesma restrição ao caminho legado de compatibilidade e mantém concorrência/retirada sobre uma revisão realmente pendente. `ui/publication/student-publication-v1.test.ts` prova que a UI não oferece atualização manual com autoUpdate ligado nem republicação sem revisão nova e usa os rótulos `Publicar notas` / `Atualizar notas publicadas`.
 
 ## Contenção de autenticação — #782
 
