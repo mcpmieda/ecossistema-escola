@@ -51,10 +51,10 @@ export class ScopedPublicationServiceV2 {
           if (!summary.allPublished.has(command.period))
             throw new Error('student-portal-publication-not-published');
           if (periodState.state !== 'update-pending')
-            throw new Error('student-portal-publication-no-update-pending');
+            throw new Error('student-portal-publication-no-update-conflict');
         }
         if (command.operation === 'publish' && summary.allPublished.has(command.period))
-          throw new Error('student-portal-publication-already-published');
+          throw new Error('student-portal-publication-already-published-conflict');
         const version = versionV1.parse(current + 1);
         await tx.unsafe(`INSERT INTO student_portal.publication_release_v2
           (scope_key,scope_kind,academic_year,class_id,account_id,bound_class_id,period,target_revision,version,released_at)
