@@ -1,0 +1,195 @@
+name: SharePoint - Create FOTOS_ALUNOS_3X4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/sharepoint-create-fotos-alunos-3x4.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sharepoint-create-fotos-alunos-3x4
+  cancel-in-progress: false
+
+jobs:
+  create-library:
+    name: Create bounded SharePoint photo library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Enforce trusted main and fixed target
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          for value in "$ENTRA_TENANT_ID" "$ENTRA_OPERATIONS_CLIENT_ID" "$ENTRA_MAINTENANCE_CLIENT_ID"; do
+            [[ "$value" =~ $uuid ]] || {
+              echo "::error::Required Entra repository variable is missing or invalid."
+              exit 1
+            }
+          done
+
+      - name: Exchange OIDC assertions for short-lived Graph tokens
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          exchange() {
+            local client_id="$1"
+            local output="$2"
+            local oidc_response oidc_token entra_response graph_token
+            oidc_response="$(curl --silent --show-error --fail \
+              -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange")"
+            oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+            test -n "$oidc_token"
+            echo "::add-mask::$oidc_token"
+            entra_response="$(curl --silent --show-error --fail \
+              -X POST \
+              -H 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode "client_id=${client_id}" \
+              --data-urlencode 'scope=https://graph.microsoft.com/.default' \
+              --data-urlencode 'grant_type=client_credentials' \
+              --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer' \
+              --data-urlencode "client_assertion=${oidc_token}" \
+              "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token")"
+            graph_token="$(jq -r '.access_token // empty' <<<"$entra_response")"
+            test -n "$graph_token"
+            echo "::add-mask::$graph_token"
+            printf '%s' "$graph_token" > "$output"
+            chmod 600 "$output"
+          }
+          exchange "$ENTRA_OPERATIONS_CLIENT_ID" "$RUNNER_TEMP/sharepoint-operations-token"
+          exchange "$ENTRA_MAINTENANCE_CLIENT_ID" "$RUNNER_TEMP/sharepoint-maintenance-token"
+
+      - name: Verify absence with read-only Operations identity
+        id: preflight
+        shell: bash
+        env:
+          SITE_ID: 'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56'
+          LIBRARY_NAME: 'FOTOS_ALUNOS_3X4'
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/sharepoint-operations-token")"
+          echo "::add-mask::$token"
+          response="$RUNNER_TEMP/sharepoint-preflight.json"
+          status="$(curl --silent --show-error \
+            -o "$response" -w '%{http_code}' --get \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/json' \
+            --data-urlencode '$select=id,displayName,list' \
+            --data-urlencode "$filter=displayName eq '${LIBRARY_NAME}'" \
+            "https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists")"
+          if [ "$status" != "200" ]; then
+            code="$(jq -r '.error.code // "unknown"' "$response" 2>/dev/null || printf unknown)"
+            echo "::error::SharePoint preflight failed with HTTP $status ($code)."
+            exit 1
+          fi
+          count="$(jq -r '.value | length' "$response")"
+          if [ "$count" -gt 1 ]; then
+            echo "::error::More than one SharePoint list has the fixed display name."
+            exit 1
+          fi
+          if [ "$count" -eq 1 ]; then
+            template="$(jq -r '.value[0].list.template // empty' "$response")"
+            test "$template" = "documentLibrary" || {
+              echo "::error::FOTOS_ALUNOS_3X4 exists but is not a document library."
+              exit 1
+            }
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Library already exists; no mutation is needed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create FOTOS_ALUNOS_3X4 with Maintenance identity
+        if: steps.preflight.outputs.exists == 'false'
+        shell: bash
+        env:
+          SITE_ID: 'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56'
+          LIBRARY_NAME: 'FOTOS_ALUNOS_3X4'
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/sharepoint-maintenance-token")"
+          echo "::add-mask::$token"
+          response="$RUNNER_TEMP/sharepoint-create.json"
+          body="$(jq -cn --arg name "$LIBRARY_NAME" '{displayName:$name,list:{template:"documentLibrary"}}')"
+          status="$(curl --silent --show-error \
+            -o "$response" -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $token" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data "$body" \
+            "https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists")"
+          if [ "$status" != "201" ]; then
+            code="$(jq -r '.error.code // "unknown"' "$response" 2>/dev/null || printf unknown)"
+            echo "::error::SharePoint library creation failed with HTTP $status ($code)."
+            exit 1
+          fi
+          created_name="$(jq -r '.displayName // empty' "$response")"
+          created_template="$(jq -r '.list.template // empty' "$response")"
+          test "$created_name" = "$LIBRARY_NAME"
+          if [ -n "$created_template" ]; then test "$created_template" = "documentLibrary"; fi
+          echo "Created SharePoint document library: $LIBRARY_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify library with read-only Operations identity
+        if: always() && steps.preflight.outcome == 'success'
+        shell: bash
+        env:
+          SITE_ID: 'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56'
+          LIBRARY_NAME: 'FOTOS_ALUNOS_3X4'
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/sharepoint-operations-token")"
+          echo "::add-mask::$token"
+          response="$RUNNER_TEMP/sharepoint-verify.json"
+          verified=false
+          for attempt in 1 2 3 4 5; do
+            status="$(curl --silent --show-error \
+              -o "$response" -w '%{http_code}' --get \
+              -H "Authorization: Bearer $token" \
+              -H 'Accept: application/json' \
+              --data-urlencode '$select=id,displayName,list' \
+              --data-urlencode "$filter=displayName eq '${LIBRARY_NAME}'" \
+              "https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists")"
+            if [ "$status" = "200" ] && jq -e --arg name "$LIBRARY_NAME" \
+              '.value | length == 1 and .[0].displayName == $name and .[0].list.template == "documentLibrary"' \
+              "$response" >/dev/null; then
+              verified=true
+              break
+            fi
+            sleep 2
+          done
+          test "$verified" = "true" || {
+            echo "::error::FOTOS_ALUNOS_3X4 could not be verified after the create attempt."
+            exit 1
+          }
+          id="$(jq -r '.value[0].id' "$response")"
+          echo "Verified FOTOS_ALUNOS_3X4 (list id: $id)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary tokens and responses
+        if: always()
+        shell: bash
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/sharepoint-operations-token" \
+            "$RUNNER_TEMP/sharepoint-maintenance-token" \
+            "$RUNNER_TEMP/sharepoint-preflight.json" \
+            "$RUNNER_TEMP/sharepoint-create.json" \
+            "$RUNNER_TEMP/sharepoint-verify.json"
