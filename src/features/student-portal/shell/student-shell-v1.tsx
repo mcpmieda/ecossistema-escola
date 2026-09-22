@@ -5,7 +5,6 @@ import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
 import { GraduationCap, LogOut, School } from 'lucide-react';
-import { BrandMark } from '../../../lib/brand-mark';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
@@ -72,7 +71,7 @@ export function StudentPortalShellV1({
         <header className="pa-shell-header">
           <div className="pa-header-inner">
             <div className="pa-school-mark" role="img" aria-label={schoolName}>
-              {logo ?? <BrandMark compact />}
+              {logo ?? <span className="pa-school-logo-image" aria-hidden="true" />}
             </div>
             <div className="pa-header-title">
               <h1>PORTAL DO ALUNO</h1>
@@ -142,7 +141,7 @@ export function StudentProfileV1({
         <div className="pa-hero-topbar">
           <div className="pa-hero-brand">
             <div className="pa-hero-brand-mark" role="img" aria-label={schoolName}>
-              {logo ?? <BrandMark compact />}
+              {logo ?? <span className="pa-school-logo-image" aria-hidden="true" />}
             </div>
             <div className="pa-hero-brand-copy">
               <h1>Portal do Aluno</h1>
