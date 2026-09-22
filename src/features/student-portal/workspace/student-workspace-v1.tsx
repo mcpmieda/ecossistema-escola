@@ -53,6 +53,7 @@ const resultLabels = {
   'failed-attendance': 'Reprovado por frequência',
 } as const;
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
+const WORKSPACE_HISTORY_KEY_V1 = '__studentPortalWorkspaceV1';
 
 function subjectPeriodV1(subject: SubjectV1, period: PeriodIdV1) {
   return subject.periods.find((item) => item.period === period);
@@ -324,7 +325,6 @@ export function StudentPortalWorkspaceV1({
   profile: ReactNode;
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
-  const historyKey = '__studentPortalWorkspaceV1';
   const firstSubjectId = subjects[0]?.subjectId ?? 0;
   const [area, setArea] = useState<WorkspaceAreaV1>('summary');
   const [selectedSubjectId, setSelectedSubjectId] = useState(firstSubjectId);
@@ -357,7 +357,7 @@ export function StudentPortalWorkspaceV1({
       window.history.pushState(
         {
           ...current,
-          [historyKey]: { area: nextArea, subjectId },
+          [WORKSPACE_HISTORY_KEY_V1]: { area: nextArea, subjectId },
         },
         '',
       );
@@ -370,11 +370,21 @@ export function StudentPortalWorkspaceV1({
     const current = window.history.state && typeof window.history.state === 'object'
       ? window.history.state
       : {};
-    if (!current[historyKey]) {
+    const initial = current[WORKSPACE_HISTORY_KEY_V1];
+
+    if (initial && (initial.area === 'summary' || initial.area === 'subject')) {
+      const initialSubjectId = Number(initial.subjectId);
+      const validSubjectId = subjects.some((subject) => subject.subjectId === initialSubjectId)
+        ? initialSubjectId
+        : firstSubjectId;
+      previousArea.current = initial.area;
+      setSelectedSubjectId(validSubjectId);
+      setArea(initial.area);
+    } else {
       window.history.replaceState(
         {
           ...current,
-          [historyKey]: { area: 'summary', subjectId: firstSubjectId },
+          [WORKSPACE_HISTORY_KEY_V1]: { area: 'summary', subjectId: firstSubjectId },
         },
         '',
       );
@@ -383,20 +393,22 @@ export function StudentPortalWorkspaceV1({
     const restore = (event: PopStateEvent) => {
       const state =
         event.state && typeof event.state === 'object'
-          ? event.state[historyKey]
+          ? event.state[WORKSPACE_HISTORY_KEY_V1]
           : undefined;
       if (!state || (state.area !== 'summary' && state.area !== 'subject')) return;
-      const subjectId = Number(state.subjectId);
-      applyWorkspaceState(
-        state.area,
-        Number.isFinite(subjectId) ? subjectId : firstSubjectId,
-        state.area === 'summary' ? 'back' : 'forward',
-      );
+      const requestedSubjectId = Number(state.subjectId);
+      const nextSubjectId = subjects.some((subject) => subject.subjectId === requestedSubjectId)
+        ? requestedSubjectId
+        : firstSubjectId;
+      previousArea.current = state.area;
+      setMotionDirection(state.area === 'summary' ? 'back' : 'forward');
+      setSelectedSubjectId(nextSubjectId);
+      setArea(state.area);
     };
 
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
-  }, [firstSubjectId]);
+  }, [firstSubjectId, subjects]);
 
   const openSubject = (subjectId: number) => {
     pushWorkspaceState('subject', subjectId);
