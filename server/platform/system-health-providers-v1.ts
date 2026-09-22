@@ -39,7 +39,7 @@ export async function collectPublicProviderHealthV1(fetcher: typeof fetch = fetc
 /** Public aggregate only. Failure is cached briefly too, so clicks never become a retry storm. */
 export function createPublicProviderCacheV1(now = Date.now) {
   let value: PublicProviderHealthV1 | null = null, until = 0, pending: Promise<PublicProviderHealthV1> | null = null;
-  return async (load = collectPublicProviderHealthV1): Promise<PublicProviderHealthV1> => {
+  return async (load: () => Promise<PublicProviderHealthV1> = () => collectPublicProviderHealthV1()): Promise<PublicProviderHealthV1> => {
     if (value && now() >= Date.parse(value.generatedAt) && now() < until) return value;
     if (pending) return pending;
     value = null;
