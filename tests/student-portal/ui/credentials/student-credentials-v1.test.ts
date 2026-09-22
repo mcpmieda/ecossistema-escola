@@ -195,7 +195,9 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
           scope: { kind: 'account', academicYear: 2026, accountId: qrPrintIdV1(1) },
         }),
       );
-    await screen.findByRole('img', { name: 'QR atual de acesso' });
+    const image = await screen.findByRole('img', { name: 'QR atual de acesso' });
+    // Admin CSP only allows data: images; a blob: preview would render broken.
+    expect(image.getAttribute('src')).toMatch(/^data:image\/png;base64,/u);
     expect(mock.writes).toHaveLength(1);
     expect(mock.writes[0]).toMatchObject({
       operation: 'qr-reprint',
@@ -207,7 +209,7 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     fireEvent.click(screen.getByRole('button', { name: 'Copiar imagem' }));
     await screen.findByText(/Cópia indisponível/);
     view.unmount();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic-private-qr');
+    expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();
   });
   it('does not issue or regenerate a missing QR just by opening the individual view', async () => {
     const mock = qrMockV1();
@@ -237,7 +239,6 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       }),
     );
     expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic-private-qr');
     await screen.findByText('Somente operadores autorizados podem consultar o QR.');
     expect(mock.writes).toHaveLength(1);
   });

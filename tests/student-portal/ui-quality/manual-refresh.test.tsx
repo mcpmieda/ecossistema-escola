@@ -16,7 +16,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('renders the actual student application without a live connection or background notices', async () => {
+it('renders the actual student application with only the security channel and no background notices', async () => {
   const socket = vi.fn(function () {
     return { addEventListener: vi.fn(), close: vi.fn(), send: vi.fn() };
   });
@@ -37,7 +37,11 @@ it('renders the actual student application without a live connection or backgrou
     window.dispatchEvent(new Event('online'));
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  expect(socket).not.toHaveBeenCalled();
+  // Only the security-only channel (revocation/presence) may connect; grades stay manual.
+  expect(socket).toHaveBeenCalledTimes(1);
+  const url = new URL(String((socket.mock.calls[0] as unknown[])[0]));
+  expect(url.pathname).toBe('/api/student/live');
+  expect(url.searchParams.get('purpose')).toBe('security');
   expect(fetcher).not.toHaveBeenCalled();
   expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).toHaveBeenCalledTimes(1);

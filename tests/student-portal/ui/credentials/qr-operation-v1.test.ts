@@ -176,13 +176,10 @@ describe('private credential operation lifecycle', () => {
   });
 });
 
-it('keeps an explicitly retained current QR until disposal and revokes its private image URL', async () => {
+it('keeps an explicitly retained current QR until disposal as a CSP-compatible data URL', async () => {
   vi.useFakeTimers();
-  Object.defineProperty(URL, 'createObjectURL', {
-    configurable: true,
-    value: vi.fn(() => 'blob:synthetic-retained'),
-  });
-  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  const createObjectURL = vi.fn(() => 'blob:synthetic-retained');
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
   const mock = qrMockV1(),
     states: QrOperationStateV1[] = [];
   const op = createQrOperationV1({
@@ -202,12 +199,13 @@ it('keeps an explicitly retained current QR until disposal and revokes its priva
     },
     'png',
   );
-  expect(op.imageUrl()).toBe('blob:synthetic-retained');
+  const retained = op.imageUrl();
+  expect(retained).toMatch(/^data:image\/png;base64,/u);
   await vi.advanceTimersByTimeAsync(6 * 60_000);
   expect(states.at(-1)).toMatchObject({ state: 'ready' });
-  expect(op.imageUrl()).toBe('blob:synthetic-retained');
+  expect(op.imageUrl()).toBe(retained);
+  expect(createObjectURL).not.toHaveBeenCalled();
   expect(mock.writes).toHaveLength(1);
   op.clear();
   expect(op.imageUrl()).toBeNull();
-  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic-retained');
 });

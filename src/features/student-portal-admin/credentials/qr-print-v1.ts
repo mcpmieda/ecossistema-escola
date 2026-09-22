@@ -1,4 +1,5 @@
-const stylesheet = new URL('./qr-print-v1.css', import.meta.url).href;
+// The print iframe inherits style-src 'self'; a small inlined data: asset would be blocked.
+const stylesheet = new URL('./qr-print-v1.css?no-inline', import.meta.url).href;
 /** DOM nodes only: neither operator labels nor credential strings are interpolated as HTML. */
 export function createQrPrintV1() {
   const active = new Set<() => void>();

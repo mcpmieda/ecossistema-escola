@@ -69,6 +69,15 @@ function artifactValidV1(artifact: QrArtifactV1, format: 'pdf' | 'png', expected
   );
 }
 
+/** The admin CSP allows `img-src 'self' data:` only, so the on-screen/print preview cannot use blob: URLs. */
+async function pngDataUrlV1(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return 'data:' + blob.type + ';base64,' + btoa(binary);
+}
+
 /** Credentials/blobs never enter React state, errors, URLs or persistent storage. */
 export function createQrOperationV1({
   client,
@@ -111,7 +120,6 @@ export function createQrOperationV1({
     active = undefined;
     clearTimeout(expires);
     expires = undefined;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = undefined;
     prepared = command = cards = artifact = undefined;
     downloads.clear();
@@ -149,8 +157,11 @@ export function createQrOperationV1({
     if (current !== generation || controller.signal.aborted) return;
     if (!artifactValidV1(result, format, currentCards.length))
       throw new Error('artifact-unavailable');
+    const preview = format === 'png' ? await pngDataUrlV1(result.blob) : undefined;
+    if (current !== generation || controller.signal.aborted) return;
 
     artifact = result;
+    previewUrl = preview;
     cards = undefined;
     emit({
       state: 'ready',
@@ -244,8 +255,7 @@ export function createQrOperationV1({
     },
     imageUrl() {
       if (!artifact || state.state !== 'ready' || artifact.format !== 'png') return null;
-      previewUrl ??= URL.createObjectURL(artifact.blob);
-      return previewUrl;
+      return previewUrl ?? null;
     },
     download(filename?: string) {
       if (!artifact || state.state !== 'ready') return;
