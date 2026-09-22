@@ -504,6 +504,16 @@ describe('private administrative API with real persistence', () => {
         'committed',
       );
       await new PublicationJobsV1(sql).run();
+      if (operation === 'publish') {
+        await pg.query('UPDATE gradebook.fechamento SET am1_fonte=COALESCE(am1_fonte,0)+1 WHERE oferta_id=910001 AND aluno_id=910001');
+        await pg.query(
+          "SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'marks'::text,true,ARRAY[910001]::integer[],statement_timestamp())",
+          [crypto.randomUUID()],
+        );
+        expect((await new PublicationReconcilerV1(sql).run()).failed).toBe(0);
+        expect((await query('publication', { scope: accountScope() })).items[0])
+          .toMatchObject({ state: 'update-pending' });
+      }
     }
   });
 
