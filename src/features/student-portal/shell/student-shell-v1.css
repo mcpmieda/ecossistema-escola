@@ -83,8 +83,283 @@
   min-width: 3.5rem;
   min-height: 2.5rem;
 }
+
+.pa-student-hero {
+  --pa-hero-fade-height: 2.75rem;
+  position: relative;
+  width: min(calc(100% - 1rem), 90rem);
+  min-height: 208px;
+  margin: 0.5rem auto 0;
+  overflow: hidden;
+  color: white;
+  border: 1px solid rgb(219 234 254 / 0.18);
+  border-radius: 26px;
+  background-color: #012d7c;
+  background-image: url('../../../student-portal/assets/hero-bg-mobile.svg');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 20px 50px -20px rgb(10 50 160 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+  isolation: isolate;
+}
+.pa-student-hero::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  height: var(--pa-hero-fade-height);
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(246 250 255 / 0) 0%,
+    rgb(246 250 255 / 0.05) 34%,
+    rgb(246 250 255 / 0.16) 68%,
+    rgb(246 250 255 / 0.34) 100%
+  );
+}
+.pa-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.pa-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: inherit;
+  flex-direction: column;
+  padding: 1.35rem 1.5rem 0;
+}
+.pa-hero-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pa-hero-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.75rem;
+}
+.pa-hero-brand-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  box-shadow:
+    0 10px 24px rgb(2 32 79 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+.pa-hero-brand-mark > div {
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgb(255 255 255 / 0.26);
+  border-radius: inherit;
+  background: linear-gradient(145deg, rgb(59 130 246 / 0.95), rgb(14 165 233 / 0.9));
+  color: white;
+  box-shadow: none;
+}
+.pa-hero-brand-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.55rem;
+}
+.pa-hero-brand-copy h1 {
+  margin: 0;
+  color: white;
+  font-size: 1rem;
+  font-weight: 740;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.pa-hero-brand-copy span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.35rem;
+  padding-inline: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 999px;
+  background: rgb(56 189 248 / 0.35);
+  color: #eff9ff;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1;
+}
+.pa-hero-action {
+  flex: 0 0 auto;
+  color: white;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.11);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
+  backdrop-filter: blur(8px);
+}
+.pa-hero-action:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+.pa-hero-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.15fr) minmax(15rem, 0.85fr);
+  align-items: end;
+  gap: 2rem;
+  min-height: 15rem;
+}
+.pa-hero-copy {
+  position: relative;
+  z-index: 3;
+  align-self: center;
+  max-width: 48rem;
+  padding: 2rem 0 2.1rem;
+}
+.pa-hero-greeting {
+  margin: 0 0 0.2rem;
+  color: rgb(239 246 255 / 0.92);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+.pa-student-name {
+  margin: 0;
+  max-width: 14ch;
+  color: white;
+  font-size: clamp(2.3rem, 5vw, 4rem);
+  font-weight: 790;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  text-shadow: 0 3px 18px rgb(2 30 74 / 0.22);
+}
+.pa-hero-details {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+.pa-hero-details p {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0;
+  color: rgb(247 250 255 / 0.96);
+  font-size: 0.9rem;
+  font-weight: 520;
+  line-height: 1.35;
+}
+.pa-hero-details svg {
+  flex: 0 0 auto;
+  color: #dbeafe;
+  filter: drop-shadow(0 2px 6px rgb(2 30 74 / 0.2));
+}
+.pa-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.8rem;
+  margin-top: 1rem;
+}
+.pa-profile-meta [data-slot='base'] {
+  border-color: rgb(255 255 255 / 0.12);
+}
+.pa-hero-year {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding-inline: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 999px;
+  background: rgb(3 37 92 / 0.18);
+  color: rgb(239 246 255 / 0.94);
+  font-size: 0.72rem;
+  font-weight: 650;
+  backdrop-filter: blur(6px);
+}
+.pa-profile-time {
+  color: rgb(219 234 254 / 0.8);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.pa-hero-portrait {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-height: 15.8rem;
+  align-self: stretch;
+  place-items: end center;
+}
+.pa-hero-portrait-backdrop {
+  display: none;
+}
+.pa-hero-photo {
+  position: relative;
+  z-index: 2;
+  width: clamp(10rem, 18vw, 15rem);
+  height: clamp(11.5rem, 20vw, 17rem);
+  margin-right: 4%;
+  object-fit: cover;
+  object-position: center 18%;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-bottom: 0;
+  border-radius: 48% 48% 1.8rem 1.8rem;
+  background: #0b3f9c;
+  box-shadow:
+    0 24px 40px rgb(1 26 69 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+.pa-hero-avatar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: clamp(10rem, 18vw, 15rem);
+  height: clamp(11.5rem, 20vw, 17rem);
+  place-items: center;
+  margin-right: 4%;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-bottom: 0;
+  border-radius: 48% 48% 1.8rem 1.8rem;
+  background:
+    radial-gradient(circle at 50% 27%, #dbeafe 0 14%, transparent 14.5%),
+    radial-gradient(ellipse at 50% 108%, #eff6ff 0 46%, transparent 46.5%),
+    linear-gradient(165deg, rgb(96 165 250 / 0.92), rgb(30 64 175 / 0.94));
+  box-shadow:
+    0 24px 40px rgb(1 26 69 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+.pa-hero-avatar::after {
+  content: '';
+  position: absolute;
+  inset: 46% 9% -18%;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(180deg, #f8fbff 0 24%, #2563eb 24.5% 35%, #f8fbff 35.5%);
+  opacity: 0.98;
+}
+.pa-hero-avatar span {
+  position: relative;
+  z-index: 2;
+  margin-top: -26%;
+  color: #0b3f9c;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
 .pa-shell-content {
-  max-width: 64rem;
+  max-width: 80rem;
   margin-inline: auto;
   padding: 1.4rem 1rem 3rem;
   min-width: 0;
@@ -96,66 +371,6 @@
   margin: 0 0 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
-  line-height: 1.5;
-}
-.pa-profile-section > .pa-section-title {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-.pa-profile-card {
-  padding: 0;
-  gap: 0;
-}
-.pa-profile-content {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.1rem;
-}
-.pa-student-avatar,
-.pa-skeleton-avatar {
-  flex-shrink: 0;
-  width: 3.6rem;
-  height: 3.6rem;
-}
-.pa-profile-identity {
-  min-width: 0;
-  flex: 1;
-}
-.pa-student-name {
-  margin: 0;
-  color: #0f2a5f;
-  font-size: 1.42rem;
-  line-height: 1.25;
-  font-weight: 760;
-  letter-spacing: -0.035em;
-  overflow-wrap: anywhere;
-}
-.pa-student-class {
-  margin: 0.3rem 0 0;
-  color: #64748b;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.pa-profile-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
-  margin-top: 0.65rem;
-}
-.pa-profile-time {
-  color: var(--muted);
-  font-size: 0.75rem;
   line-height: 1.5;
 }
 .pa-grades-section,
@@ -182,6 +397,26 @@
 }
 .pa-state-action {
   margin-top: 0.75rem;
+}
+.pa-page-skeleton .pa-profile-card {
+  padding: 0;
+  gap: 0;
+}
+.pa-page-skeleton .pa-profile-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+.pa-page-skeleton .pa-profile-identity {
+  min-width: 0;
+  flex: 1;
+}
+.pa-skeleton-avatar {
+  flex: 0 0 auto;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1rem;
 }
 .pa-skeleton-lines {
   display: grid;
@@ -228,7 +463,7 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-@media (max-width: 420px) {
+@media (max-width: 767px) {
   .pa-header-title h1 {
     font-size: 0.8125rem;
     letter-spacing: 0;
@@ -236,24 +471,176 @@
   .pa-header-title p {
     font-size: 0.6875rem;
   }
-  .pa-shell-content {
-    padding-top: 1.25rem;
+  .pa-student-hero {
+    width: calc(100% - 1rem);
+    min-height: 208px;
+    margin-top: 0.5rem;
+    border-radius: 26px;
   }
-  .pa-profile-content {
-    gap: 0.75rem;
-    padding: 1rem;
+  .pa-hero-inner {
+    padding: 0.7rem 0.85rem 0;
   }
-  .pa-student-avatar,
-  .pa-skeleton-avatar {
-    width: 3rem;
-    height: 3rem;
-    border-radius: 0.875rem;
+  .pa-hero-brand {
+    gap: 0.5rem;
+  }
+  .pa-hero-brand-mark {
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 0.78rem;
+  }
+  .pa-hero-brand-copy {
+    gap: 0.38rem;
+  }
+  .pa-hero-brand-copy h1 {
+    font-size: 0.76rem;
+  }
+  .pa-hero-brand-copy span {
+    min-width: 1.55rem;
+    height: 1.05rem;
+    padding-inline: 0.32rem;
+    font-size: 0.56rem;
+  }
+  .pa-hero-action {
+    min-width: 2.1rem;
+    min-height: 2.1rem;
+  }
+  .pa-hero-body {
+    position: relative;
+    display: block;
+    min-height: 0;
+  }
+  .pa-hero-copy {
+    width: min(66%, 17rem);
+    padding: 0.85rem 0 0.45rem;
+  }
+  .pa-hero-greeting {
+    margin-bottom: 0.08rem;
+    font-size: 0.68rem;
   }
   .pa-student-name {
-    font-size: 1.125rem;
+    max-width: 10ch;
+    font-size: clamp(1.55rem, 7.4vw, 2rem);
+    line-height: 0.96;
+  }
+  .pa-hero-details {
+    gap: 0.26rem;
+    margin-top: 0.55rem;
+  }
+  .pa-hero-details p {
+    gap: 0.36rem;
+    font-size: 0.59rem;
+    line-height: 1.18;
+  }
+  .pa-hero-details svg {
+    width: 14px;
+    height: 14px;
   }
   .pa-profile-meta {
-    align-items: flex-start;
+    display: none;
+  }
+  .pa-hero-portrait {
+    position: absolute;
+    right: -0.45rem;
+    bottom: 0;
+    width: 42%;
+    min-height: 8.8rem;
+  }
+  .pa-hero-photo,
+  .pa-hero-avatar {
+    width: clamp(6.4rem, 28vw, 7.8rem);
+    height: clamp(7.6rem, 33vw, 9.2rem);
+    margin-right: 0;
+    border-radius: 44% 44% 1rem 1rem;
+  }
+  .pa-shell-content {
+    padding-top: 0.65rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .pa-student-hero {
+    --pa-hero-fade-height: 3rem;
+    width: min(calc(100% - 2rem), 90rem);
+    min-height: 260px;
+    margin-top: 1rem;
+    border-radius: 30px;
+    background-image: url('../../../student-portal/assets/hero-bg-tablet.svg');
+  }
+  .pa-hero-inner {
+    padding: 1rem 1.25rem 0;
+  }
+  .pa-hero-body {
+    grid-template-columns: minmax(0, 1.05fr) minmax(15rem, 0.95fr);
+    gap: 1rem;
+    min-height: 11.6rem;
+  }
+  .pa-hero-copy {
+    padding-block: 1.1rem 1.25rem;
+  }
+  .pa-hero-greeting {
+    font-size: 0.84rem;
+  }
+  .pa-student-name {
+    max-width: 11ch;
+    font-size: clamp(2.2rem, 4.9vw, 2.9rem);
+  }
+  .pa-hero-details {
+    gap: 0.4rem;
+    margin-top: 0.82rem;
+  }
+  .pa-hero-details p {
+    font-size: 0.76rem;
+  }
+  .pa-profile-meta {
+    margin-top: 0.62rem;
+  }
+  .pa-hero-portrait {
+    min-height: 12.2rem;
+  }
+  .pa-hero-photo,
+  .pa-hero-avatar {
+    width: clamp(9rem, 19vw, 11.25rem);
+    height: clamp(10.5rem, 22vw, 12.8rem);
+  }
+}
+
+@media (min-width: 1200px) {
+  .pa-student-hero {
+    --pa-hero-fade-height: 3.4rem;
+    width: min(calc(100% - 2rem), 90rem);
+    min-height: 320px;
+    margin-top: 1rem;
+    border-radius: 34px;
+    background-image: url('../../../student-portal/assets/hero-bg-desktop.svg');
+  }
+  .pa-hero-inner {
+    padding: 1.25rem 2.25rem 0;
+  }
+  .pa-hero-topbar {
+    padding-top: 0.1rem;
+  }
+  .pa-hero-body {
+    grid-template-columns: minmax(0, 1.2fr) minmax(24rem, 0.8fr);
+    gap: 3rem;
+    min-height: 14.9rem;
+  }
+  .pa-hero-copy {
+    padding: 1.5rem 0 1.6rem 6%;
+  }
+  .pa-student-name {
+    max-width: 16ch;
+    font-size: clamp(3rem, 4vw, 4rem);
+  }
+  .pa-hero-details p {
+    font-size: 0.96rem;
+  }
+  .pa-hero-portrait {
+    min-height: 15.4rem;
+  }
+  .pa-hero-photo,
+  .pa-hero-avatar {
+    width: clamp(12rem, 16vw, 15rem);
+    height: clamp(14rem, 18vw, 17rem);
   }
 }
 @media (prefers-reduced-motion: reduce) {

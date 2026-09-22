@@ -1,10 +1,10 @@
 import { useId, useRef, type ReactNode } from 'react';
 import { Alert } from '@heroui/react/alert';
-import { Avatar } from '@heroui/react/avatar';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
+import { GraduationCap, LogOut, School } from 'lucide-react';
 import { BrandMark } from '../../../lib/brand-mark';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
@@ -40,6 +40,7 @@ export interface StudentShellPropsV1 {
   onLogout?: () => void;
   loggingOut?: boolean;
   busy?: boolean;
+  hero?: ReactNode;
 }
 
 /** Presentational shell: no routing, identity provider, requests or persistent student data. */
@@ -50,6 +51,7 @@ export function StudentPortalShellV1({
   onLogout,
   loggingOut = false,
   busy = false,
+  hero,
 }: StudentShellPropsV1) {
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
@@ -66,30 +68,32 @@ export function StudentPortalShellV1({
       >
         Ir para o conteúdo
       </a>
-      <header className="pa-shell-header">
-        <div className="pa-header-inner">
-          <div className="pa-school-mark" role="img" aria-label={schoolName}>
-            {logo ?? <BrandMark compact />}
+      {hero ?? (
+        <header className="pa-shell-header">
+          <div className="pa-header-inner">
+            <div className="pa-school-mark" role="img" aria-label={schoolName}>
+              {logo ?? <BrandMark compact />}
+            </div>
+            <div className="pa-header-title">
+              <h1>PORTAL DO ALUNO</h1>
+              <p>{schoolName}</p>
+            </div>
+            <div className="pa-header-action">
+              {onLogout ? (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  onPress={onLogout}
+                  isDisabled={loggingOut}
+                  aria-busy={loggingOut}
+                >
+                  Sair
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <div className="pa-header-title">
-            <h1>PORTAL DO ALUNO</h1>
-            <p>{schoolName}</p>
-          </div>
-          <div className="pa-header-action">
-            {onLogout ? (
-              <Button
-                size="sm"
-                variant="tertiary"
-                onPress={onLogout}
-                isDisabled={loggingOut}
-                aria-busy={loggingOut}
-              >
-                Sair
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
       <main
         ref={content}
         id={contentId}
@@ -106,10 +110,20 @@ export function StudentPortalShellV1({
 export function StudentProfileV1({
   profile,
   updatedAt,
+  schoolName = STUDENT_SCHOOL_NAME_V1,
+  logo,
+  onLogout,
+  loggingOut = false,
+  portraitSrc,
 }: {
   profile: SelfResponseV1['profile'];
   /** Optional projection timestamp; never an invented date or the last BN import. */
   updatedAt?: string;
+  schoolName?: string;
+  logo?: ReactNode;
+  onLogout?: () => void;
+  loggingOut?: boolean;
+  portraitSrc?: string;
 }) {
   const heading = useId();
   const status =
@@ -117,33 +131,64 @@ export function StudentProfileV1({
       ? { label: 'ASSISTIDO', color: 'accent' as const }
       : outcome[profile.result];
   const date = updatedAt ? new Date(updatedAt) : null;
+  const initials = studentInitials(profile.name);
+
   return (
-    <section className="pa-profile-section" aria-labelledby={heading}>
-      <h2 id={heading} className="pa-section-title">
+    <header className="pa-student-hero" aria-labelledby={heading}>
+      <h2 id={heading} className="pa-visually-hidden">
         Perfil do aluno
       </h2>
-      <Card variant="secondary" className="pa-profile-card">
-        <Card.Content className="pa-profile-content">
-          <Avatar
-            className="pa-student-avatar"
-            color="accent"
-            variant="soft"
-            size="lg"
-            aria-hidden="true"
-          >
-            <Avatar.Fallback color="accent">{studentInitials(profile.name)}</Avatar.Fallback>
-          </Avatar>
-          <div className="pa-profile-identity">
-            <h3 className="pa-student-name">{profile.name}</h3>
-            <p className="pa-student-class">
-              {profile.classLabel}
-              <span aria-hidden="true"> · </span>
-              {profile.link.academicYear}
-            </p>
+      <div className="pa-hero-inner">
+        <div className="pa-hero-topbar">
+          <div className="pa-hero-brand">
+            <div className="pa-hero-brand-mark" role="img" aria-label={schoolName}>
+              {logo ?? <BrandMark compact />}
+            </div>
+            <div className="pa-hero-brand-copy">
+              <h1>Portal do Aluno</h1>
+              <span aria-label="versão 2">v2</span>
+            </div>
+          </div>
+
+          {onLogout ? (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              className="pa-hero-action"
+              aria-label="Sair"
+              onPress={onLogout}
+              isDisabled={loggingOut}
+              aria-busy={loggingOut}
+            >
+              <LogOut size={18} aria-hidden="true" />
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="pa-hero-body">
+          <div className="pa-hero-copy">
+            <p className="pa-hero-greeting">Olá,</p>
+            <h3 className="pa-student-name">
+              {profile.name}
+            </h3>
+
+            <div className="pa-hero-details">
+              <p>
+                <GraduationCap size={21} aria-hidden="true" />
+                <span>{profile.classLabel}</span>
+              </p>
+              <p>
+                <School size={21} aria-hidden="true" />
+                <span>{schoolName}</span>
+              </p>
+            </div>
+
             <div className="pa-profile-meta">
               <Chip size="sm" variant="soft" color={status.color}>
                 {status.label}
               </Chip>
+              <span className="pa-hero-year">{profile.link.academicYear}</span>
               {date && Number.isFinite(date.getTime()) ? (
                 <time className="pa-profile-time" dateTime={date.toISOString()}>
                   Atualizado em {dateFormatter.format(date)}
@@ -151,9 +196,20 @@ export function StudentProfileV1({
               ) : null}
             </div>
           </div>
-        </Card.Content>
-      </Card>
-    </section>
+
+          <div className="pa-hero-portrait" role="img" aria-label={'Avatar de ' + profile.name}>
+            <div className="pa-hero-portrait-backdrop" aria-hidden="true" />
+            {portraitSrc ? (
+              <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
+            ) : (
+              <div className="pa-hero-avatar" aria-hidden="true">
+                <span>{initials}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -249,13 +305,15 @@ function StudentPageSkeletonV1() {
 }
 
 export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'maintenance' };
-export interface StudentPagePropsV1 extends Omit<StudentShellPropsV1, 'children' | 'busy'> {
+export interface StudentPagePropsV1
+  extends Omit<StudentShellPropsV1, 'children' | 'busy' | 'hero'> {
   load: StudentPageStateV1;
   grades: (data: SelfResponseV1) => ReactNode;
   status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
   showUpdatedAt?: boolean;
+  portraitSrc?: string;
 }
 
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
@@ -266,6 +324,7 @@ export function StudentPortalPageV1({
   onRetry,
   onLogin,
   showUpdatedAt = false,
+  portraitSrc,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
@@ -288,10 +347,6 @@ export function StudentPortalPageV1({
         {status}
         {load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
           <>
-            <StudentProfileV1
-              profile={load.data.profile}
-              updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
-            />
             <section className="pa-grades-section" aria-labelledby={gradesHeading}>
               <h2 id={gradesHeading} className="pa-section-title">
                 Minhas notas
@@ -302,19 +357,31 @@ export function StudentPortalPageV1({
         ) : (
           <StudentPortalWorkspaceV1
             data={load.data}
-            profile={
-              <StudentProfileV1
-                profile={load.data.profile}
-                updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
-              />
-            }
+            profile={null}
             grades={grades}
           />
         )}
       </>
     );
+  const hero =
+    load.state === 'ready' ? (
+      <StudentProfileV1
+        profile={load.data.profile}
+        updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
+        schoolName={shell.schoolName}
+        logo={shell.logo}
+        onLogout={shell.onLogout}
+        loggingOut={shell.loggingOut}
+        portraitSrc={portraitSrc}
+      />
+    ) : undefined;
+
   return (
-    <StudentPortalShellV1 {...shell} busy={load.state === 'idle' || load.state === 'loading'}>
+    <StudentPortalShellV1
+      {...shell}
+      hero={hero}
+      busy={load.state === 'idle' || load.state === 'loading'}
+    >
       {content}
     </StudentPortalShellV1>
   );

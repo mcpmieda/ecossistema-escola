@@ -5,6 +5,8 @@ import { StudentPortalPageV1 } from '../features/student-portal/shell/student-sh
 import { selfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
+const previewPortrait = new URL('./assets/demo-student.webp', import.meta.url).href;
+
 const previewData = selfResponseV1.parse({
   contractVersion: 1,
   requestId: '11111111-1111-4111-8111-111111111111',
@@ -112,6 +114,7 @@ createRoot(root).render(
       load={{ state: 'ready', data: previewData }}
       grades={(data) => <StudentGradesV1 data={data} />}
       onLogout={() => undefined}
+      portraitSrc={previewPortrait}
     />
   </StrictMode>,
 );
