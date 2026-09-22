@@ -58,7 +58,7 @@ async function policy(autoUpdate: boolean) {
     expectedVersion: current.version, idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true,
     value: { autoUpdate, accessEnabled: true, showPartials: true, allowedPeriods: ['T1', 'T2'], calendar } });
 }
-async function release(operation: 'publish' | 'unpublish' = 'publish') {
+async function release(operation: 'publish' | 'publish-update' | 'unpublish' = 'publish') {
   const service = new ScopedPublicationServiceV2(portal);
   const current = await service.read(READ_SCHOOL_V2);
   return service.command(READ_ACTOR_V2, { contractVersion: 1, operation, scope: READ_SCHOOL_V2, period: 'T1',
@@ -144,6 +144,60 @@ it('serves imported zero and changed closing immediately with auto-update ON, wi
   expect(Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.publication_job'))[0]!.n)).toBe(0);
   expect(Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.publication_release_v2'))[0]!.n)).toBe(1);
 });
+it('allows a manual refresh only while a published period is actually pending', async () => {
+  const service = new ScopedPublicationServiceV2(portal);
+  await release();
+  await importer().execute(notes(3000, 9000));
+
+  let snapshot = await service.read(READ_SCHOOL_V2);
+  expect(snapshot.items.find((item) => item.period === 'T1')).toMatchObject({
+    state: 'update-pending',
+    publishedRevision: expect.any(String),
+    availableRevision: snapshot.dataVersion,
+  });
+
+  await policy(true);
+  snapshot = await service.read(READ_SCHOOL_V2);
+  expect(snapshot.items.find((item) => item.period === 'T1')).toMatchObject({
+    state: 'published',
+    publishedRevision: snapshot.dataVersion,
+    availableRevision: snapshot.dataVersion,
+  });
+  await expect(
+    service.command(READ_ACTOR_V2, {
+      contractVersion: 1,
+      operation: 'publish-update',
+      scope: READ_SCHOOL_V2,
+      period: 'T1',
+      expectedVersion: snapshot.version,
+      targetDataVersion: snapshot.dataVersion,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  ).rejects.toThrow('student-portal-publication-no-update-pending');
+  await expect(
+    service.command(READ_ACTOR_V2, {
+      contractVersion: 1,
+      operation: 'publish',
+      scope: READ_SCHOOL_V2,
+      period: 'T1',
+      expectedVersion: snapshot.version,
+      targetDataVersion: snapshot.dataVersion,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  ).rejects.toThrow('student-portal-publication-already-published');
+
+  await policy(false);
+  await importer().execute(notes(4000, 10000));
+  snapshot = await service.read(READ_SCHOOL_V2);
+  expect(snapshot.items.find((item) => item.period === 'T1')?.state).toBe('update-pending');
+  await expect(release('publish-update')).resolves.toMatchObject({ version: expect.any(Number) });
+  snapshot = await service.read(READ_SCHOOL_V2);
+  expect(snapshot.items.find((item) => item.period === 'T1')).toMatchObject({
+    state: 'published',
+    publishedRevision: snapshot.dataVersion,
+  });
+});
+
 it('freezes OFF, catches up on ON, never rewinds on OFF and preserves withdrawal after another import', async () => {
   await release();
   expect(await importer().execute(notes(3000, 9000))).toMatchObject({ state: 'applied' });
