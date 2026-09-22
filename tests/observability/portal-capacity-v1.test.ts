@@ -61,7 +61,7 @@ describe('capacity cache', () => {
 });
 describe('capacity SQL', () => {
   const row = { observed_at: new Date(instant).toISOString(), database_bytes: '123450000', portal_connections: 3,
-    portal_active: 1, portal_waiting: 0, portal_connection_limit: 10, server_max_connections: 60, server_reserved_connections: 3 };
+    portal_active: 1, portal_waiting: 0, portal_connection_limit: 10, server_max_connections: 60, server_reserved_connections: 3, activity_visible: true };
   function sql(input: unknown = row) {
     const unsafe = vi.fn(async (query: string) => query.startsWith('WITH connections') ? [input] : []);
     return { unsafe, client: { unsafe, begin: async (run: (tx: { unsafe: typeof unsafe }) => Promise<unknown>) => run({ unsafe }) } as unknown as StudentPortalPostgresSqlV1 };
@@ -76,8 +76,13 @@ describe('capacity SQL', () => {
     expect(unsafe).toHaveBeenCalledTimes(4);
     const query = unsafe.mock.calls[3]![0];
     expect(query).toContain('pg_database_size(current_database())'); expect(query).toContain('usename=current_user');
+    expect(query).toContain("backend_type='client backend'");
+    expect(query).toContain("state IS NULL OR state='disabled'");
     expect(query).not.toMatch(/FROM\s+(?:gradebook|student_portal)\./iu);
     expect(query).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|GRANT|REVOKE)\b/u);
+  });
+  it.each([false, null, undefined])('refuses missing activity visibility %s rather than reporting zero activity', async (activity_visible) => {
+    await expect(readPortalCapacityV1(sql({ ...row, activity_visible }).client)).rejects.toThrow('capacity-invalid-sample');
   });
   it.each(['', '-1', 'Infinity', '1e3', '9007199254740992', 'private'])('rejects malformed size %s instead of converting it to zero', async (database_bytes) => {
     await expect(readPortalCapacityV1(sql({ ...row, database_bytes }).client)).rejects.toThrow('capacity-invalid-sample');
