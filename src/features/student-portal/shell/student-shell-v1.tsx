@@ -134,7 +134,8 @@ export function StudentProfileV1({
   const initials = studentInitials(profile.name);
 
   return (
-    <section className="pa-student-hero" aria-labelledby={heading}>
+    <header className="pa-student-hero" aria-labelledby={heading}>
+      <h2 id={heading} className="pa-visually-hidden">Perfil do aluno</h2>
       <div className="pa-hero-inner">
         <div className="pa-hero-topbar">
           <div className="pa-hero-brand">
@@ -166,9 +167,9 @@ export function StudentProfileV1({
         <div className="pa-hero-body">
           <div className="pa-hero-copy">
             <p className="pa-hero-greeting">Olá,</p>
-            <h2 id={heading} className="pa-student-name">
+            <h3 className="pa-student-name">
               {profile.name}
-            </h2>
+            </h3>
 
             <div className="pa-hero-details">
               <p>
@@ -206,7 +207,7 @@ export function StudentProfileV1({
           </div>
         </div>
       </div>
-    </section>
+    </header>
   );
 }
 
