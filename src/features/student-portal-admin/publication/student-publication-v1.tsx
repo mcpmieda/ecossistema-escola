@@ -46,8 +46,8 @@ const termLabel = (period: string) =>
   period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
 function operationLabel(command: PublicationCommandV1) {
   if (command.operation === 'unpublish') return 'Retirar publicação';
-  if (command.operation === 'publish-update') return 'Publicar atualização';
-  return 'Publicar período';
+  if (command.operation === 'publish-update') return 'Atualizar notas publicadas';
+  return 'Publicar notas';
 }
 
 function publicationColorV1(item: PublicationItemV1) {
@@ -57,40 +57,42 @@ function publicationColorV1(item: PublicationItemV1) {
 }
 function PublicationActionsV1({
   item,
-  scope,
+  autoUpdate,
   disabled,
   review,
 }: Readonly<{
   item: PublicationItemV1;
-  scope: ScopeV1;
+  autoUpdate: boolean;
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
 }>) {
   const hasData = item.state !== 'no-data' && item.availableRevision !== null;
   const published = item.publishedRevision !== null;
-  const canPublish = hasData && (!published || scope.kind !== 'account');
-  const canPublishUpdate = hasData && published && item.state === 'update-pending';
+  // First publication is always explicit. After that, auto-update owns newer revisions.
+  const canPublishFirst = hasData && !published;
+  const canPublishManualUpdate =
+    hasData && published && !autoUpdate && item.state === 'update-pending';
   return (
     <Card.Footer className="pa-publication-actions">
-      {canPublish ? (
+      {canPublishFirst ? (
         <Button
           size="sm"
-          variant={published ? 'secondary' : 'primary'}
+          variant="primary"
           isDisabled={disabled}
-          aria-label={`Publicar ${item.period}`}
+          aria-label={`Publicar notas de ${item.period}`}
           onPress={() => review(item, 'publish')}
         >
-          {published ? 'Publicar para todos' : 'Publicar'}
+          Publicar notas
         </Button>
       ) : null}
-      {canPublishUpdate ? (
+      {canPublishManualUpdate ? (
         <Button
           size="sm"
           isDisabled={disabled}
-          aria-label={`Publicar atualização de ${item.period}`}
+          aria-label={`Atualizar notas publicadas de ${item.period}`}
           onPress={() => review(item, 'publish-update')}
         >
-          Publicar atualização
+          Atualizar notas publicadas
         </Button>
       ) : null}
       {published ? (
@@ -161,7 +163,12 @@ function PublicationPeriodV1({
         </Tooltip>
       </Card.Content>
       {canWrite ? (
-        <PublicationActionsV1 item={item} scope={scope} disabled={disabled} review={review} />
+        <PublicationActionsV1
+          item={item}
+          autoUpdate={data.settings.value.autoUpdate}
+          disabled={disabled}
+          review={review}
+        />
       ) : null}
     </Card>
   );
@@ -385,7 +392,11 @@ function PublicationReviewV1({
               </p>
             ) : (
               <>
-                <p>Será publicada a versão atual das notas.</p>
+                <p>
+                  {command.operation === 'publish-update'
+                    ? 'A versão mais recente das notas substituirá a versão atualmente exibida aos alunos.'
+                    : 'Será publicada a versão atual das notas.'}
+                </p>
                 {command.operation === 'publish' && command.scope.kind !== 'account' ? (
                   <p>
                     Esta publicação vale para os alunos elegíveis deste grupo e substitui as
@@ -409,7 +420,11 @@ function PublicationReviewV1({
               isDisabled={busy}
               onPress={onConfirm}
             >
-              {command.operation === 'unpublish' ? 'Confirmar retirada' : 'Confirmar publicação'}
+              {command.operation === 'unpublish'
+                ? 'Confirmar retirada'
+                : command.operation === 'publish-update'
+                  ? 'Confirmar atualização'
+                  : 'Confirmar publicação'}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>
