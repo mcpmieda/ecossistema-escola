@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { StudentGradesV1 } from '../features/student-portal/grades/student-grades-v1';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
 import { selfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
@@ -112,7 +111,6 @@ createRoot(root).render(
   <StrictMode>
     <StudentPortalPageV1
       load={{ state: 'ready', data: previewData }}
-      grades={(data) => <StudentGradesV1 data={data} />}
       onLogout={() => undefined}
       portraitSrc={previewPortrait}
     />
