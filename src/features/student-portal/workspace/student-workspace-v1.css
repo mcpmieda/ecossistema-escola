@@ -144,18 +144,6 @@
   gap: 1rem;
 }
 
-.pa-evolution-bars {
-  display: grid;
-  gap: 1rem;
-}
-
-.pa-progress-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
 .pa-workspace-nav-surface {
   position: fixed;
   left: 50%;
@@ -197,7 +185,6 @@
   }
 
   .pa-workspace-grid > *,
-  .pa-evolution-bars,
   .pa-progress-card-content {
     min-width: 0;
     max-width: 100%;
