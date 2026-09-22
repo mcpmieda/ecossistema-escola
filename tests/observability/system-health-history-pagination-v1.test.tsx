@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SystemHealthHistoryPanelV1 } from '../../src/platform/system-health-history-panel-v1';
 import { setupOperationsDomV1 } from '../student-portal/ui/overview/dom-v1';
@@ -19,7 +19,7 @@ async function openFirstPage() {
   render(<SystemHealthHistoryPanelV1 onDenied={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: 'Ver histórico' }));
   const older = await screen.findByRole('button', { name: 'Mais antigos' }, { timeout: 10_000 });
-  expect(screen.getAllByRole('rowheader')).toHaveLength(48);
+  await waitFor(() => expect(screen.getAllByRole('rowheader')).toHaveLength(48), { timeout: 10_000 });
   return older;
 }
 it.each([
@@ -41,7 +41,7 @@ it.each([
   expect(fetcher.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({ before: historyPointV1(47).bucketAt }));
   fireEvent.click(screen.getByRole('button', { name: 'Atualizar histórico' }));
   expect(await screen.findByText('Última amostra sem ocorrência nos sinais verificados.')).toBeTruthy();
-  expect(screen.getAllByRole('rowheader')).toHaveLength(1);
+  await waitFor(() => expect(screen.getAllByRole('rowheader')).toHaveLength(1));
   expect(screen.queryByText(expected)).toBeNull();
   expect(fetcher).toHaveBeenCalledTimes(3);
 });
