@@ -170,6 +170,10 @@
   max-width: 100%;
 }
 
+.pa-workspace-nav-surface .tabs__tab {
+  gap: 0.42rem;
+}
+
 @media (min-width: 760px) {
   .pa-student-workspace {
     padding-bottom: 1rem;
