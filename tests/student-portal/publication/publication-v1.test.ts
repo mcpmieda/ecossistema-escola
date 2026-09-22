@@ -46,6 +46,18 @@ async function publish(period = 'T1', operation = 'publish') {
 }
 const self = () => reader.read(accountId, crypto.randomUUID());
 const valueOf = (response: Awaited<ReturnType<typeof self>>, period = 'T1') => response?.subjects.find((subject) => subject.label === 'MATEMATICA')?.periods.find((item) => item.period === period)?.final;
+async function claimOwnJob() {
+  await pg.query(
+    `UPDATE student_portal.publication_job
+      SET state='failed',lease_until=NULL,updated_at=statement_timestamp()
+      WHERE account_id<>$1::uuid AND state IN ('queued','running')`,
+    [accountId],
+  );
+  const claimed = await jobs.claim();
+  expect(claimed).not.toBeNull();
+  expect(claimed!.accountId).toBe(accountId);
+  return claimed!;
+}
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -172,9 +184,9 @@ describe('durable publication and authorized self snapshots', () => {
     await reconcile.run();
     expect((await service.read(scope())).items[0]).toMatchObject({ state: 'update-pending' });
     await service.command(ACTOR, await input('publish-update', 'T1'));
-    const old = await jobs.claim();
+    const old = await claimOwnJob();
     await service.command(ACTOR, await input('unpublish', 'T1'));
-    expect(await jobs.perform(old!)).toBe('stale');
+    expect(await jobs.perform(old)).toBe('stale');
     expect(valueOf(await self())).toBeUndefined();
     expect(valueOf(await self(), 'T2')).toMatchObject({ value: 20 });
     const stored = JSON.stringify((await pg.query('SELECT payload_json FROM student_portal.published_projection WHERE account_id=$1', [accountId])).rows);
