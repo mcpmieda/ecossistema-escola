@@ -208,7 +208,7 @@ describe('shared identity migration on the actual private schema', () => {
     };
     await pg.exec('UPDATE student_portal.lifecycle_control SET population_enabled=true');
     expect(await service.execute(request)).toMatchObject({ state: 'applied' });
-    const first = await pg.query(`SELECT s.student_uid::text AS student_uid,a.student_uid::text AS account_uid
+    const first = await pg.query<{ student_uid: string; account_uid: string }>(`SELECT s.student_uid::text AS student_uid,a.student_uid::text AS account_uid
       FROM gradebook.aluno s JOIN student_portal.account a ON a.gradebook_student_id=s.id AND a.academic_year=s.ano
       WHERE s.nome='SYNTHETIC IMPORT IDENTITY'`);
     expect(first.rows).toHaveLength(1);
