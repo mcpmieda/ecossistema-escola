@@ -20,9 +20,13 @@ describe('persisted PostgreSQL UUID compatibility', () => {
     }]);
   });
 
-  it.each(['7', '00000000000000000000000000000001', '{00000000-0000-0000-0000-000000000001}',
-    '00000000-0000-0000-0000-00000000000G', ' 00000000-0000-0000-0000-000000000001'])
-  ('rejects non-canonical transport value %s', value => {
+  it.each([
+    '7',
+    '00000000000000000000000000000001',
+    '{00000000-0000-0000-0000-000000000001}',
+    '00000000-0000-0000-0000-00000000000G',
+    ' 00000000-0000-0000-0000-000000000001',
+  ])('rejects non-canonical transport value %s', value => {
     expect(studentUidV1.safeParse(value).success).toBe(false);
   });
 });
