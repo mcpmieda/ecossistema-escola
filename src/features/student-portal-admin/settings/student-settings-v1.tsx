@@ -35,6 +35,7 @@ type ReviewIntentV1 =
   | { field: SettingsFieldV1; inherit: false; value: ReturnType<typeof parseSettingsDraftV1> };
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
 export interface StudentSettingsPropsV1 {
+  readonly area?: 'all' | 'policies' | 'general';
   readonly client: PortalAdminClientV1;
   readonly reader?: PortalAdminReadClientV2;
   readonly scope: ScopeV1;
@@ -66,12 +67,13 @@ function sourceBadgeV1(
   sourceLabel: string,
 ) {
   if (owns) return settings.scope.kind === 'school' ? 'Padrão da escola' : 'Definido aqui';
-  return settings.sources[field].kind === 'school' ? 'Padrão da escola' : 'Padrão de ' + sourceLabel;
+  return settings.sources[field].kind === 'school'
+    ? 'Padrão da escola'
+    : 'Padrão de ' + sourceLabel;
 }
 
 function calendarChangeLabelV1(key: string) {
-  if (key in CALENDAR_LABELS_V1)
-    return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
+  if (key in CALENDAR_LABELS_V1) return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
   if (key === 'disclosure') return 'Data única de divulgação';
   return `Divulgação de ${key.slice('disclosure.'.length)}`;
 }
@@ -258,9 +260,7 @@ function ReviewDialogV1({
                 <p>Há mudança ou remoção de datas que já chegaram:</p>
                 <ul>
                   {past.map((key) => (
-                    <li key={key}>
-                      {calendarChangeLabelV1(key)}
-                    </li>
+                    <li key={key}>{calendarChangeLabelV1(key)}</li>
                   ))}
                 </ul>
               </div>
@@ -300,12 +300,7 @@ function SettingsMutationFeedbackV1({
     <div className="pa-settings-error" role="alert">
       <p>{mutationErrorLabelV1(mutation.error)}</p>
       {mutation.retryable && canWrite ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          isDisabled={clock < mutation.retryAt}
-          onPress={retry}
-        >
+        <Button size="sm" variant="secondary" isDisabled={clock < mutation.retryAt} onPress={retry}>
           Tentar novamente
         </Button>
       ) : null}
@@ -317,6 +312,7 @@ function SettingsMutationFeedbackV1({
 }
 
 function SettingsReadyV1({
+  area,
   data,
   mutation,
   client,
@@ -339,6 +335,7 @@ function SettingsReadyV1({
   onReviewClose,
   onReviewConfirm,
 }: Readonly<{
+  area: 'all' | 'policies' | 'general';
   data: EffectiveSettingsV1;
   mutation: SettingsMutationStateV1;
   client: PortalAdminClientV1;
@@ -372,20 +369,22 @@ function SettingsReadyV1({
         reload={onReload}
       />
       <div className="pa-settings-fields">
-        {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
-          <FieldCardV1
-            key={`${discardVersion}:${field}`}
-            field={field}
-            settings={data}
-            canWrite={canWrite}
-            disabled={fieldDisabled}
-            sourceLabel={sourceLabel(data.sources[field])}
-            review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
-            onDirtyChange={onDirtyChange}
-          />
-        ))}
+        {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[])
+          .filter(() => area !== 'general')
+          .map((field) => (
+            <FieldCardV1
+              key={`${discardVersion}:${field}`}
+              field={field}
+              settings={data}
+              canWrite={canWrite}
+              disabled={fieldDisabled}
+              sourceLabel={sourceLabel(data.sources[field])}
+              review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+              onDirtyChange={onDirtyChange}
+            />
+          ))}
       </div>
-      {reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
+      {area !== 'general' && reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
         <CustomizedSettingsV1
           key={settingsScopeKeyV1(fixedScope)}
           reader={reader}
@@ -395,7 +394,7 @@ function SettingsReadyV1({
           onOpen={onOpenCustomization}
         />
       ) : null}
-      {fixedScope.kind === 'school' && canWrite ? (
+      {area !== 'policies' && fixedScope.kind === 'school' && canWrite ? (
         <LinkClosureV1
           key={data.version}
           client={client}
@@ -447,6 +446,7 @@ function SettingsLoadV1({
 }
 
 function SettingsScopeV1({
+  area = 'all',
   client,
   reader,
   scope,
@@ -580,13 +580,12 @@ function SettingsScopeV1({
       setNotice('Não foi possível preparar a alteração. Recarregue e revise os valores.');
     }
   }
-  const sourceLabel = (source: ScopeV1) =>
-    sourceLabelV1(source, fixedScope, label, describeScope);
+  const sourceLabel = (source: ScopeV1) => sourceLabelV1(source, fixedScope, label, describeScope);
   return (
     <section className="pa-settings" aria-label="Configurações do Aluno">
       <header className="pa-settings-heading">
         <div>
-          <h2>Configurações</h2>
+          <h2>{area === 'policies' ? 'Acesso e divulgação' : 'Configurações'}</h2>
           <p>{label}</p>
         </div>
         <LiveReadNoticeV1 failed={load.state === 'ready' && Boolean(load.refreshError)} />
@@ -600,6 +599,7 @@ function SettingsScopeV1({
       <SettingsLoadV1 load={load} reload={() => void reload(false)}>
         {load.state === 'ready' ? (
           <SettingsReadyV1
+            area={area}
             data={load.data}
             mutation={mutation}
             client={client}

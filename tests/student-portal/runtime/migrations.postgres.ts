@@ -1,3 +1,4 @@
+import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
 import { proveWorkerLockTimeoutV1 } from '../load/lock-timeout-harness-v1';
 import { pausedPortalQueryV1 } from '../load/paused-query-v1';
 import { accountTransactionV1 } from '../../../server/student-portal/auth/transaction-v1';
@@ -896,6 +897,7 @@ describe('native authentication locks with real scrypt and separate connections'
   const births = new BirthYearServiceV1(secondary, cryptography, 1);
   let number = 0;
   async function fixture() {
+    await openSyntheticSchoolV1(primary);
     const studentId = 920001 + number++;
     await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (${studentId},2026,'SYNTHETIC NATIVE AUTH')`;
     await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900011,${30 + number},${studentId})`;
@@ -1060,6 +1062,7 @@ describe('native publication targets and competing job leases', () => {
   const t1 = async () => (await self())?.subjects.flatMap((subject) => subject.periods).filter((period) => period.period === 'T1');
 
   it('claims once across real connections and commits only the exact approved target', async () => {
+    await openSyntheticSchoolV1(primary);
     await admin`UPDATE gradebook.vinculo SET situacao=NULL,turma_id=910001 WHERE aluno_id=910001`;
     await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
     accountId = String((await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=910001`)[0]!.id);

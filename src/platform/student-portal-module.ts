@@ -12,20 +12,11 @@ export const studentPortalSections = [
     label: 'Alunos',
     description: 'Pesquisar alunos, abrir fichas e gerenciar acesso.',
   },
+  { id: 'credentials', label: 'QR code', description: 'Nascimento, QR de acesso e PDF por turma.' },
   {
-    id: 'birth',
-    label: 'Nascimento',
-    description: 'Cadastrar o ano de nascimento por turma.',
-  },
-  {
-    id: 'credentials',
-    label: 'QR e cartões',
-    description: 'Emitir, copiar, reimprimir e preparar PDF.',
-  },
-  {
-    id: 'publication',
-    label: 'Notas publicadas',
-    description: 'Publicar, atualizar ou retirar períodos.',
+    id: 'policies',
+    label: 'Políticas',
+    description: 'Acesso, períodos, divulgação e políticas personalizadas.',
   },
   {
     id: 'sessions',
@@ -36,16 +27,20 @@ export const studentPortalSections = [
   {
     id: 'settings',
     label: 'Configurações',
-    description: 'Acesso, datas e turmas.',
+    description: 'Operações gerais da escola.',
   },
 ] as const;
-export type StudentPortalSection = (typeof studentPortalSections)[number]['id'];
+export type StudentPortalSection =
+  (typeof studentPortalSections)[number]['id'] | 'birth' | 'publication';
 export function portalSectionFromHash(hash: string): StudentPortalSection {
   const selected = new URLSearchParams(hash.split('?')[1] ?? '').get('area');
+  if (selected === 'birth') return 'credentials';
+  if (selected === 'publication') return 'audit';
   return studentPortalSections.find((section) => section.id === selected)?.id ?? 'overview';
 }
 export const studentPortalHref = (section: StudentPortalSection) =>
-  '#/painel-do-aluno?area=' + section;
+  '#/painel-do-aluno?area=' +
+  (section === 'birth' ? 'credentials' : section === 'publication' ? 'audit' : section);
 export function withStudentPortalModule(
   modules: CoreModuleContract[],
   capabilities: readonly PlatformCapability[],

@@ -5,7 +5,12 @@ import {
   type AdminCommandV1,
 } from '../../../shared/student-portal-contracts/admin-v1';
 import { qrUrlV1 } from '../../../shared/student-portal-contracts/auth-v1';
-import { PORTAL_ORIGIN_V1 } from '../../../shared/student-portal-contracts/core-v1';
+import {
+  PORTAL_ORIGIN_V1,
+  scopeV1,
+  instantV1,
+  type ScopeV1,
+} from '../../../shared/student-portal-contracts/core-v1';
 import type {
   AccountRecordV1,
   CredentialRecordV1,
@@ -34,6 +39,15 @@ const operations = [
 ] as const;
 type Operation = (typeof operations)[number];
 type QrCommandV1 = Extract<AdminCommandV1, { operation: Operation }>;
+export type BulkGuardV1 = { expectedScope: ScopeV1; proofExpiresAt: string; proofDigest: string };
+const bulkGuardV1 = z
+  .object({
+    expectedScope: scopeV1,
+    proofExpiresAt: instantV1,
+    proofDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  })
+  .strict();
+
 type QrResultV1 = { operationId: string; version: number; qr?: string };
 
 const kinds = {
@@ -92,8 +106,7 @@ function assertCredentialOperationV1(
   credential: CredentialRecordV1 | null,
   active: CredentialRecordV1 | null,
 ) {
-  if (operation === 'qr-reprint' && !active)
-    throw new Error('student-portal-qr-unavailable');
+  if (operation === 'qr-reprint' && !active) throw new Error('student-portal-qr-unavailable');
   if (operation === 'qr-issue' && credential && !active)
     throw new Error('student-portal-qr-regeneration-required');
 }
@@ -124,6 +137,7 @@ async function replayReceiptV1(
   digest: string,
   now: Date,
   url: (credentialId: string, keyVersion: number) => Promise<string>,
+  receiptOnly = false,
 ): Promise<QrResultV1 | null> {
   const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
   if (!receipt) return null;
@@ -134,14 +148,12 @@ async function replayReceiptV1(
     );
     return null;
   }
-  if (receipt.requestDigest !== digest)
-    throw new Error('student-portal-qr-idempotency-conflict');
-  if (!operation.startsWith('qr-'))
+  if (receipt.requestDigest !== digest) throw new Error('student-portal-qr-idempotency-conflict');
+  if (receiptOnly || !operation.startsWith('qr-'))
     return { operationId: receipt.operationId, version: receipt.version };
 
   // Never replay a card after a later rotation/reset/closure changed its account.
-  if (account.version !== receipt.version)
-    throw new Error('student-portal-qr-version-conflict');
+  if (account.version !== receipt.version) throw new Error('student-portal-qr-version-conflict');
   const credential = await store.readCredentials(account.id);
   if (credential?.state !== 'active') throw new Error('student-portal-qr-unavailable');
   return {
@@ -177,8 +189,7 @@ async function qrForOperationV1(
     );
     return qr;
   }
-  if (operation.startsWith('qr-') && active)
-    return url(active.credentialId, active.keyVersion);
+  if (operation.startsWith('qr-') && active) return url(active.credentialId, active.keyVersion);
   return undefined;
 }
 
@@ -273,19 +284,22 @@ export class QrServiceV1 {
     );
   }
 
-  async command(actorId: string, input: unknown) {
+  async command(actorId: string, input: unknown, inputGuard?: BulkGuardV1) {
     const actor = z.uuid().parse(actorId).toLowerCase();
     const command = qrCommandV1(input);
     const operation = command.operation;
     const accountId = command.accountId.toLowerCase();
-    const digest = commandDigestV1(command, accountId);
+    const guard = inputGuard === undefined ? undefined : bulkGuardV1.parse(inputGuard);
+    const digest = guard
+      ? createHash('sha256').update(JSON.stringify({ command, accountId, guard })).digest('hex')
+      : commandDigestV1(command, accountId);
     const receiptActor = `${operation}:${actor}`;
 
     return authTransactionV1(this.sql, async (tx, store) => {
       await store.lockAccounts([accountId]);
       const now = await authNowV1(tx);
       const account = await store.findAccount(accountId);
-      if (!account?.link || account.closedAt !== null)
+      if (!account || (!guard && (!account.link || account.closedAt !== null)))
         throw new Error('student-portal-qr-forbidden');
 
       const replay = await replayReceiptV1(
@@ -298,8 +312,28 @@ export class QrServiceV1 {
         digest,
         now,
         (credentialId, version) => this.url(credentialId, version),
+        guard !== undefined,
       );
       if (replay) return replay;
+      if (!account.link || account.closedAt !== null)
+        throw new Error('student-portal-qr-forbidden');
+      if (guard) {
+        if (Date.parse(guard.proofExpiresAt) <= now.getTime())
+          throw new Error('student-portal-bulk-preview-conflict');
+        const scope = guard.expectedScope;
+        if (scope.kind === 'account' && scope.accountId.toLowerCase() !== accountId)
+          throw new Error('student-portal-bulk-scope-forbidden');
+        const rows = await tx.unsafe(
+          `SELECT class_id FROM student_portal.academic_binding_v1
+          WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6 ORDER BY class_id LIMIT 2`,
+          [account.link.studentId],
+        );
+        if (
+          rows.length !== 1 ||
+          (scope.kind === 'class' && Number(rows[0]!.class_id) !== scope.classId)
+        )
+          throw new Error('student-portal-bulk-scope-conflict');
+      }
 
       if (account.version !== command.expectedVersion)
         throw new Error('student-portal-qr-version-conflict');
@@ -308,11 +342,7 @@ export class QrServiceV1 {
       await assertRecoveryReadyV1(tx, store, account, operation);
       assertCredentialOperationV1(operation, credential, active);
 
-      const { newQr, resetPassword, securityChanged } = operationFlagsV1(
-        command,
-        account,
-        active,
-      );
+      const { newQr, resetPassword, securityChanged } = operationFlagsV1(command, account, active);
       const qr = await qrForOperationV1(
         tx,
         this.cryptoPort,
@@ -329,14 +359,7 @@ export class QrServiceV1 {
       const changed = newQr || securityChanged;
       const next = nextAccountV1(command, account, changed, securityChanged);
       await applySecurityChangeV1(tx, store, account, next, changed, securityChanged, now);
-      await authAuditV1(
-        store,
-        next,
-        auditKindV1(command),
-        now,
-        command.idempotencyKey,
-        actor,
-      );
+      await authAuditV1(store, next, auditKindV1(command), now, command.idempotencyKey, actor);
       const operationId = await saveReceiptV1(
         store,
         command,
@@ -350,7 +373,7 @@ export class QrServiceV1 {
       return {
         operationId,
         version: next.version,
-        ...(operation.startsWith('qr-') ? { qr } : {}),
+        ...(!guard && operation.startsWith('qr-') ? { qr } : {}),
       };
     });
   }

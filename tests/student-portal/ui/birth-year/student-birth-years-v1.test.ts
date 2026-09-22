@@ -45,7 +45,7 @@ describe('birth access data UI', () => {
     expect(screen.getByText('SYNTHETIC BIRTH 001')).toBeTruthy();
     fireEvent.change(field, { target: { value: '20' } });
     fireEvent.keyDown(field, { key: 'Enter' });
-    expect(screen.getByText('Incompleto')).toBeTruthy();
+    expect(screen.getByText('Ano inválido ou incompleto')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
     enter(field, '2001');
     await screen.findByText('Salvo');
@@ -58,7 +58,7 @@ describe('birth access data UI', () => {
     const mock = birthMockV1();
     render(createElement(StudentBirthYearsV1, mock.props));
     const field = await input();
-    expect(screen.getByText('Confira o ano')).toBeTruthy();
+    expect(screen.getByText('Confirme o ano')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
     fireEvent.keyDown(field, { key: 'Enter' });
     await screen.findByText('Salvo');

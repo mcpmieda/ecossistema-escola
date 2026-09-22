@@ -15,6 +15,7 @@ export interface IntegrationRequestV1 {
   role?: 'ADMINISTRADOR' | 'PROFESSOR';
   origin?: string;
   hostname?: string;
+  upgrade?: boolean;
 }
 export async function createIntegrationHarnessV1(databaseUrl: string) {
   const portalDatabase = localPortalDatabaseV1(databaseUrl);
@@ -44,12 +45,26 @@ export async function createIntegrationHarnessV1(databaseUrl: string) {
     convertV4MiniflareOptions({
       workers: [
         {
+          name: 'security-test-entry', modules: true,
+          routes: ['security-integration.invalid/*'],
+          compatibilityDate: config.compatibility_date,
+          script: `export default { fetch(request, env) {
+            const url = new URL(request.url);
+            const headers = new Headers(request.headers);
+            headers.set('host', 'aluno.escolaieda.com');
+            headers.set('origin', 'https://aluno.escolaieda.com');
+            return env.EDGE.fetch(new Request('https://aluno.escolaieda.com' + url.pathname + url.search, { headers }));
+          } };`,
+          serviceBindings: { EDGE: 'edge' },
+        },
+        {
           name: 'portal',
           modules: true,
           scriptPath: 'node_modules/.cache/student-portal/index.js',
           compatibilityDate: config.compatibility_date,
           compatibilityFlags: config.compatibility_flags,
           hyperdrives: { PORTAL_DB: portalDatabase },
+          durableObjects: { PORTAL_LIVE: { className: 'PortalLiveUpdatesV1', useSQLite: true } },
           bindings: {
             ...config.env.production.vars,
             PORTAL_SERVING_ENABLED: 'true',
@@ -111,6 +126,7 @@ export async function createIntegrationHarnessV1(databaseUrl: string) {
           method: 'POST',
           body: JSON.stringify(input),
         }),
+      connectStudentSecurity: (accountId: string, cookie: string) => runtime.dispatchFetch('http://security-integration.invalid/api/student/live?purpose=security&accountId=' + accountId, { headers: { Upgrade: 'websocket', origin: 'https://aluno.escolaieda.com', cookie } }),
       scheduled: async () => (await runtime.getWorker('portal')).scheduled({ cron: '* * * * *' }),
       dispose: () => runtime.dispose(),
     };

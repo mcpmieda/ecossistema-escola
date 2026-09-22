@@ -1,6 +1,7 @@
 import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import type {
   AdminCommandV1,
+  AdminQueryV1,
   AdminResponseV1,
 } from '../../../../shared/student-portal-contracts/admin-v1';
 import type {
@@ -38,7 +39,10 @@ export function qrMockV1(
   options: {
     count?: number;
     write?: (command: AdminCommandV1, signal?: AbortSignal | null) => Promise<Response> | undefined;
-    query?: (query: AdminReadQueryV2, signal?: AbortSignal | null) => Promise<Response> | undefined;
+    query?: (
+      query: AdminReadQueryV2 | AdminQueryV1,
+      signal?: AbortSignal | null,
+    ) => Promise<Response> | undefined;
   } = {},
 ) {
   const accounts: AdminAccountReadV2[] = Array.from({ length: options.count ?? 3 }, (_, index) => ({
@@ -65,18 +69,18 @@ export function qrMockV1(
   }));
   const writes: AdminCommandV1[] = [],
     bodies: string[] = [],
-    queries: AdminReadQueryV2[] = [];
+    queries: (AdminReadQueryV2 | AdminQueryV1)[] = [];
   const receipts = new Map<string, { body: string; response: AdminResponseV1 }>();
   let scopeVersion = 755;
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = String(init?.body),
       value = JSON.parse(body);
     if (String(input).endsWith('/query')) {
-      const query = value as AdminReadQueryV2;
+      const query = value as AdminReadQueryV2 | AdminQueryV1;
       queries.push(query);
       const custom = options.query?.(query, init?.signal);
       if (custom) return custom;
-      if (query.operation !== 'accounts-read')
+      if (query.operation !== 'accounts-read' && query.operation !== 'birth-years')
         return qrJsonV1({ ...QR_META_V1, state: 'invalid-request' }, 400);
       const filtered = accounts.filter((account) =>
         query.scope.kind === 'account'
@@ -86,6 +90,22 @@ export function qrMockV1(
             : true,
       );
       const offset = query.page.cursor ? Number(query.page.cursor.slice(32)) : 0;
+      if (query.operation === 'birth-years')
+        return qrJsonV1({
+          ...QR_META_V1,
+          state: 'birth-years',
+          scopeVersion: 47,
+          items: filtered
+            .slice(offset, offset + 100)
+            .map((a) => ({
+              accountId: a.accountId,
+              accountVersion: a.version,
+              version: 1,
+              year: '2005',
+              confirmation: 'confirmed',
+            })),
+          nextCursor: offset + 100 < filtered.length ? 'b'.repeat(32) + (offset + 100) : null,
+        });
       return qrJsonV1({
         ...QR_META_V1,
         contractVersion: 2,

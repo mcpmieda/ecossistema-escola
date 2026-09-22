@@ -104,7 +104,7 @@ async function queryBindingV1(
   const parsed = adminQueryRequestV2.safeParse(body);
   if (!parsed.success) return 'invalid-request';
   const query = parsed.data;
-  const elevated = ['audit-detail', 'links-preview'].includes(query.operation);
+  const elevated = ['audit-detail', 'links-preview', 'bulk-preview'].includes(query.operation);
   const context = await verifiedPagesContextV1(request, env, elevated, requestId);
   if (typeof context === 'string') return context;
   return {

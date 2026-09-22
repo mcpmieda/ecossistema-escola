@@ -54,7 +54,11 @@ export async function servePortalAuthV1(request: Request, environment: string, o
   if (request.method !== (route === 'session' ? 'GET' : 'POST')) return fail('invalid-request');
   try {
     if (route === 'session') {
-      const result = await sessions.read(sessionCookieTokenV1(request), requestId);
+      const search = new URL(request.url).searchParams;
+      if (search.getAll('accountId').length > 1) return fail('invalid-request');
+      const expected = search.get('accountId');
+      if (expected !== null && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(expected)) return fail('invalid-request');
+      const result = await sessions.read(sessionCookieTokenV1(request), requestId, expected ?? undefined);
       return result ? portalJsonV1(result, 200) : fail('unauthenticated');
     }
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return fail('invalid-request');

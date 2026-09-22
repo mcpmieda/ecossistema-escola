@@ -44,7 +44,7 @@ export function createAuditDetailV1(
     try {
       const [detail, clock] = await Promise.all([
         props.client.query(
-          { contractVersion: 1, operation: 'audit-detail', scope, eventId, page: { limit: 1 } },
+          { contractVersion: 1, operation: 'audit-detail', includeEntities: true, scope, eventId, page: { limit: 1 } },
           controller.signal,
         ),
         props.reader.query(

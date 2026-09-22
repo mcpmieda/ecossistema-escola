@@ -59,7 +59,13 @@ export function createPortalSelfClientV1(options: PortalTransportOptionsV1 = {})
     }
   };
   return {
-    session: (signal?: AbortSignal) => send('/api/student/session', sessionResponseV1, signal),
+    session: (signal?: AbortSignal, expectedAccountId?: string) =>
+      send(
+        '/api/student/session' +
+          (expectedAccountId ? '?accountId=' + encodeURIComponent(expectedAccountId) : ''),
+        sessionResponseV1,
+        signal,
+      ),
     me: (signal?: AbortSignal) => send('/api/student/me', selfResponseV1, signal),
     challenge,
     activate: (input: z.input<typeof activateRequestV1>, signal?: AbortSignal) =>

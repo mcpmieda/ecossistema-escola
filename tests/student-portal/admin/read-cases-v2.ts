@@ -181,6 +181,7 @@ export function adminReadCasesV2(
       expect((await read({ nameSearch: 'student 001' })).items[0]!.lastAuthenticationAt).toBeNull();
     });
     it('uses inherited policy and counts only currently authorized sessions', async () => {
+      await get().admin.unsafe("UPDATE student_portal.setting SET value_json='true'::jsonb WHERE scope_key='school:2026' AND field_key='accessEnabled'");
       const defaults = await new PolicyServiceV1(get().admin).read(READ_SCHOOL_V2);
       const calendar = {
         ...defaults.value.calendar,

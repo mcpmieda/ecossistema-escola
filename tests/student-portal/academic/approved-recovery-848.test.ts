@@ -98,7 +98,7 @@ it('keeps the selected older edition and published REC through scopedSelfV2 with
   // This unit starts after authentication; authorization and SQL selection have separate integration gates.
   const context = {
     account: { id: PARALLEL_ACCOUNT_848, link },
-    policy: { classId: 848001, policyVersion: SYNTHETIC_SELF_V1.revisions.policyVersion, settings: { value } },
+    policy: { enforcedValue: value, classId: 848001, policyVersion: SYNTHETIC_SELF_V1.revisions.policyVersion, settings: { value } },
     profile: { ...SYNTHETIC_SELF_V1.profile, accountId: PARALLEL_ACCOUNT_848, link,
       name: 'ESTUDANTE SINTETICO', classLabel: 'TURMA SINTETICA', academicState: 'regular', result: 'in-progress' },
     now: new Date('2026-09-18T00:00:00Z'),

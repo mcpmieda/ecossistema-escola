@@ -39,6 +39,7 @@ export interface BirthEditorStateV1 {
   state: 'idle' | 'loading' | 'ready' | 'error';
   rows: BirthDraftRowV1[];
   scopeVersion: number;
+  accountsScopeVersion?: number;
   next: BirthCursorsV1 | null;
   mode: 'single' | 'batch';
   review: BirthReviewV1 | null;
@@ -169,6 +170,7 @@ export function createBirthEditorV1(options: {
         state: 'ready',
         rows: result.rows.map(birthDraftRowV1),
         scopeVersion: result.scopeVersion,
+        accountsScopeVersion: result.accountsScopeVersion,
         next: result.next,
       });
     } catch (error) {
@@ -471,6 +473,7 @@ export function createBirthEditorV1(options: {
                   rows: state.rows.map((row) => row.record),
                   next: state.next,
                   scopeVersion: state.scopeVersion,
+                  accountsScopeVersion: state.accountsScopeVersion,
                 }
               : undefined,
           )
@@ -498,6 +501,7 @@ export function createBirthEditorV1(options: {
           };
         }),
         scopeVersion: page.scopeVersion,
+        accountsScopeVersion: page.accountsScopeVersion,
         next: page.next,
         refreshError: undefined,
         retryAt: 0,

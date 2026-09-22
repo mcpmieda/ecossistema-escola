@@ -75,3 +75,63 @@
 .pa-continuous-end:not(:empty) {
   padding: 0.75rem;
 }
+
+/* #1101: keep the existing table models; sticky cells stay in their own scroll region. */
+.pa-admin-page .table__scroll-container {
+  position: relative;
+}
+.pa-admin-page .table__column {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-secondary);
+}
+.pa-admin-page .table__scroll-container {
+  scroll-padding-top: 3rem;
+}
+.pa-admin-page .pa-policies {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+.pa-policy-scope {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  padding: 0.85rem 1rem;
+}
+.pa-policy-scope > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.pa-policy-scope span {
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.065em;
+}
+.pa-policy-scope strong {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.pa-policy-scope--class,
+.pa-policy-scope--account {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+.pa-account-filter-tags {
+  min-width: 0;
+}
+.pa-account-filter-tags .tag-group__list {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.pa-account-filter-tags .tag {
+  gap: 0.3rem;
+}
+.pa-student-drawer .pa-policies {
+  min-width: 0;
+}

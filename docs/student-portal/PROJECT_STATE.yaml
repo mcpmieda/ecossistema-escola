@@ -16,11 +16,21 @@ gates:
   G-B: accepted_real_flow_with_explicit_physical_device_deferrals
   G-P: passed_technical_release_general_opening_closed_by_policy
 runtime: production_composed_and_verified
-student_portal_schema: migrations_0001_through_0015_applied
+student_portal_schema: migrations_0001_through_0017_applied
 student_portal_schema_table_count: 27
-student_portal_schema_latest_migration: 0015_student_portal_rls_v1.sql
-student_portal_schema_production_version: 20260920004859
-student_portal_schema_production_evidence: issue_859_pr_963_postflight
+student_portal_schema_latest_migration: 0017_security_event_priority_v1.sql
+student_portal_latest_migration_in_tree: 0017_security_event_priority_v1.sql
+recovery_1101:
+  contract_issue: 1102
+  pull_request: 1103
+  status: gates-passed-migrations-applied-partial-delivery
+  migrations: [0016_audit_entities_v1.sql, 0017_security_event_priority_v1.sql]
+  production_migrations_applied: true
+  production_migration_versions: [20260922150000, 20260922150001]
+  initiative_complete: false
+  evidence: docs/student-portal/RECOVERY_1101.md
+student_portal_schema_production_version: 20260922150001
+student_portal_schema_production_evidence: issue_1102_pr_1103_postflight
 population_enabled: false
 general_school_opening: false
 accounts_last_observed: 3

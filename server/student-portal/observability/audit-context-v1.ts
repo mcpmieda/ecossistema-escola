@@ -15,12 +15,14 @@ export function cloudflareClientIpV1(request: Request): string | null {
 }
 
 /** SET LOCAL uses the same physical transaction and cannot leak through a pooled connection. */
-export function withAuditSqlV1(sql: StudentPortalPostgresSqlV1, clientIp: string | null): StudentPortalPostgresSqlV1 {
+export function withAuditSqlV1(sql: StudentPortalPostgresSqlV1, clientIp: string | null, actor?: { actorId: string; actorName?: string }): StudentPortalPostgresSqlV1 {
   const ip = ipV1.nullable().parse(clientIp);
+  const actorId = actor ? z.uuid().parse(actor.actorId).toLowerCase() : '';
+  const actorName = actor?.actorName === undefined ? '' : z.string().min(1).max(200).parse(actor.actorName);
   return {
     unsafe: (query, parameters) => sql.unsafe(query, parameters),
     begin: (operation) => sql.begin(async (tx) => {
-      await tx.unsafe("SELECT set_config('student_portal.audit_client_ip',$1,true)", [ip ?? '']);
+      await tx.unsafe("SELECT set_config('student_portal.audit_client_ip',$1,true), set_config('student_portal.audit_actor_id',$2,true), set_config('student_portal.audit_actor_name',$3,true)", [ip ?? '', actorId, actorName]);
       return operation(tx);
     }),
   };

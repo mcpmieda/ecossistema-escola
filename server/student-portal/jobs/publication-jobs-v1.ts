@@ -5,7 +5,11 @@ import {
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../academic/academic-reader-v1';
 import { accountScopeV1, authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
-import { applyPublishedVisibilityV1, type PolicyValueV1 } from '../policies/calendar-v1';
+import {
+  applyPublishedVisibilityV1,
+  publicationWindowV1,
+  type PolicyValueV1,
+} from '../policies/calendar-v1';
 import { publicationContextV1, storedProjectionV1 } from '../publication/self-projection-reader-v1';
 import {
   currentRevisionV1,
@@ -27,33 +31,8 @@ import type { PortalTransactionV1 } from '../../../shared/student-portal-contrac
 
 const SYSTEM_ACTOR = '00000000-0000-4000-8000-000000000712';
 
-function periodStartV1(policy: PolicyValueV1, period: PeriodV1) {
-  const calendar = policy.calendar;
-  if (period === 'T1') return calendar.yearStartsAt;
-  if (period === 'T2') return calendar.t2StartsAt ?? calendar.t1EndsAt;
-  if (period === 'T3') return calendar.t3StartsAt ?? calendar.t2EndsAt;
-  return calendar.recoveriesStartAt;
-}
-
-function periodDisclosureV1(policy: PolicyValueV1, period: PeriodV1) {
-  const disclosure = policy.calendar.disclosure;
-  if (disclosure.mode === 'single')
-    return disclosure.periods.includes(period) ? disclosure.at : undefined;
-  return disclosure.at[period];
-}
-
 export function disclosureDueV1(policy: PolicyValueV1, periods: readonly PeriodV1[]): Date | null {
-  const calendar = policy.calendar;
-  if (!policy.accessEnabled || !calendar.yearStartsAt || !calendar.yearEndsAt) return null;
-  let due = Date.parse(calendar.yearStartsAt);
-  for (const period of periods) {
-    if (!policy.allowedPeriods.includes(period)) return null;
-    const start = periodStartV1(policy, period);
-    const disclosure = periodDisclosureV1(policy, period);
-    if (!start || disclosure === undefined) return null;
-    due = Math.max(due, Date.parse(start), disclosure ? Date.parse(disclosure) : Date.parse(start));
-  }
-  return due < Date.parse(calendar.yearEndsAt) ? new Date(due) : null;
+  return publicationWindowV1(policy, periods)?.start ?? null;
 }
 function hasFacts(period: SelfResponseV1['subjects'][number]['periods'][number]): boolean {
   return (
@@ -137,7 +116,7 @@ async function performPolicyOnlyV1(
         )}`,
       },
     }),
-    context.policy.settings.value,
+    context.policy.enforcedValue,
     context.now,
     sameState && vector.some((revision) => revision !== null),
   );
@@ -154,7 +133,8 @@ function authorizedFreshV1(
   const fresh = academicToSelfV1(source.student, accountId);
   fresh.subjects = fresh.subjects.map(({ officialOutcome, ...subject }) => ({
     ...subject,
-    ...(source.finalAuthority.subjectIds.includes(subject.subjectId) && officialOutcome !== undefined
+    ...(source.finalAuthority.subjectIds.includes(subject.subjectId) &&
+    officialOutcome !== undefined
       ? { officialOutcome }
       : {}),
   }));
@@ -187,8 +167,7 @@ function mergedSubjectsV1(
   for (const subject of previous?.subjects ?? []) {
     const periods = subject.periods.filter(
       (period) =>
-        !selected.includes(period.period) &&
-        nextVector[PERIODS_V1.indexOf(period.period)] !== null,
+        !selected.includes(period.period) && nextVector[PERIODS_V1.indexOf(period.period)] !== null,
     );
     if (periods.length) subjects.set(subject.subjectId, { ...subject, periods });
   }
@@ -205,8 +184,7 @@ function mergedSubjectsV1(
   }
   return [...subjects.values()]
     .sort(
-      (a, b) =>
-        compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
+      (a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
     )
     .map((subject, order) => ({ ...subject, order }));
 }
@@ -259,18 +237,14 @@ async function buildAcademicProjectionV1(
         )}`,
       },
     }),
-    context.policy.settings.value,
+    context.policy.enforcedValue,
     now,
     source.finalAuthority.global,
   );
   return { projection: filterVisibleFactsV1(projection), now };
 }
 
-async function deferJobV1(
-  tx: Parameters<typeof finishJobV1>[0],
-  job: ClaimedJobV1,
-  due: Date,
-) {
+async function deferJobV1(tx: Parameters<typeof finishJobV1>[0], job: ClaimedJobV1, due: Date) {
   await tx.unsafe(
     `UPDATE student_portal.publication_job SET state='queued',lease_until=NULL,next_attempt_at=$2::timestamptz,
     updated_at=statement_timestamp() WHERE id=$1::uuid`,
@@ -287,12 +261,15 @@ async function commitAcademicJobV1(
   context: PublicationContextJobV1,
   selected: readonly PeriodV1[],
 ) {
-  const due = disclosureDueV1(context.policy.settings.value, selected);
-  if (!due || Date.parse(context.policy.settings.value.calendar.yearEndsAt!) <= context.now.getTime())
+  const window = publicationWindowV1(context.policy.enforcedValue, selected);
+  if (!window || context.now.getTime() >= window.end.getTime())
     throw new Error('student-portal-publication-policy-unavailable');
-  if (due.getTime() > context.now.getTime()) return deferJobV1(tx, job, due);
+  if (window.start.getTime() > context.now.getTime()) return deferJobV1(tx, job, window.start);
 
   const { projection, now } = await buildAcademicProjectionV1(tx, job, rows, context, selected);
+  // A slow source read must not promote a revision after the authorized window closes.
+  if (now.getTime() >= window.end.getTime() || now.getTime() < window.start.getTime())
+    throw new Error('student-portal-publication-policy-unavailable');
   // Both current source and authorization fencing are checked in the same physical transaction as the swap.
   if ((await currentRevisionV1(tx)) !== job.dataVersion)
     throw new Error('student-portal-publication-stale');
@@ -329,10 +306,9 @@ async function failPublicationJobV1(
 ) {
   const terminal =
     error instanceof Error &&
-    [
-      'student-portal-publication-stale',
-      'student-portal-publication-policy-unavailable',
-    ].includes(error.message);
+    ['student-portal-publication-stale', 'student-portal-publication-policy-unavailable'].includes(
+      error.message,
+    );
   await accountTransactionV1(sql, async (tx, store) => {
     await store.lockAccounts([job.accountId]);
     await failJobV1(tx, job, await authNowV1(tx), terminal);
@@ -365,9 +341,7 @@ export class PublicationJobsV1 {
         if (!context) throw new Error('student-portal-publication-stale');
         if (mask === 0) return performPolicyOnlyV1(tx, store, job, rows, context);
 
-        const selected = PERIODS_V1.filter(
-          (period) => (mask & publicationMaskV1(period)) !== 0,
-        );
+        const selected = PERIODS_V1.filter((period) => (mask & publicationMaskV1(period)) !== 0);
         return commitAcademicJobV1(tx, store, job, rows, context, selected);
       });
     } catch (error) {

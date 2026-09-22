@@ -13,7 +13,7 @@ import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1,
 /** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
 export async function createSessionV1(store: PortalTransactionV1, context: AccessContextV1,
   cryptoPort: CryptoPortV1, persistent: boolean, requestId: string) {
-  const expiresAt = sessionExpiryV1(context.policy.settings.value, context.now, persistent);
+  const expiresAt = sessionExpiryV1(context.policy.enforcedValue, context.now, persistent);
   if (!expiresAt) throw new Error('student-portal-session-unavailable');
   const token = cryptoPort.randomToken(32);
   await store.saveSession({ id: crypto.randomUUID(), accountId: context.account.id,
@@ -109,16 +109,16 @@ export class SessionServiceV1 {
       const row = rows[0];
       if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
       const persistent = z.boolean().parse(row.persistent);
-      const ttl = persistent ? context.policy.settings.value.risk.persistentSeconds : context.policy.settings.value.risk.shortSeconds;
+      const ttl = persistent ? context.policy.enforcedValue.risk.persistentSeconds : context.policy.enforcedValue.risk.shortSeconds;
       const end = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000,
-        Date.parse(context.policy.settings.value.calendar.yearEndsAt!));
+        Date.parse((context.policy.enforcedValue.calendar.accessEndsAt ?? context.policy.enforcedValue.calendar.yearEndsAt)!));
       if (end <= context.now.getTime()) return null;
       return operation(context, tx, { id: z.uuid().parse(row.id), expiresAt: new Date(end).toISOString(), persistent });
     });
   }
 
-  async read(token: string, requestId: string) {
-    return this.withAuthorized(token, async (_context, _tx, session) => sessionResponseV1.parse({
+  async read(token: string, requestId: string, expectedAccountId?: string) {
+    return this.withAuthorized(token, async (context, _tx, session) => expectedAccountId !== undefined && context.account.id !== expectedAccountId.toLowerCase() ? null : sessionResponseV1.parse({
       contractVersion: 1, requestId, state: 'authenticated', expiresAt: session.expiresAt, persistent: session.persistent,
     }));
   }

@@ -4,6 +4,7 @@ import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts
 import { createLatestPortalRequestV1, type PortalLoadStateV1 } from '../shared/latest-request-v1';
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import { PortalClientErrorV1 } from '../shared/transport-v1';
+import { createStudentSecurityV1 } from './student-security-v1';
 
 export type LogoutStateV1 = 'idle' | 'pending' | 'failed' | 'done';
 export function createStudentSessionV1(
@@ -20,6 +21,7 @@ export function createStudentSessionV1(
   let lastLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
   let preserve = false;
   let pending: Promise<void> | undefined;
+  let securityGeneration = 0;
   const checkExpiry = () => {
     if (disposed) return;
     if (expiresAt > now()) {
@@ -31,7 +33,8 @@ export function createStudentSessionV1(
   };
   const latest = createLatestPortalRequestV1<SelfResponseV1>((load) => {
     if (disposed) return;
-    if (preserve && (load.state === 'loading' || (load.state === 'ready' && load.refreshing))) return;
+    if (preserve && (load.state === 'loading' || (load.state === 'ready' && load.refreshing)))
+      return;
     lastLoad = load;
     clearTimeout(timer);
     publish(load);
@@ -39,9 +42,41 @@ export function createStudentSessionV1(
       timer = setTimeout(checkExpiry, Math.min(2147483647, Math.max(0, expiresAt - now())));
   });
   const clear = () => {
+    securityGeneration += 1;
     pending = undefined;
     clearTimeout(timer);
     latest.clear();
+  };
+  const securityUnavailable = () => {
+    clear();
+    publish({ state: 'error', error: new PortalClientErrorV1('network-error') });
+  };
+  const authorizeSecurity = async (signal: AbortSignal) => {
+    if (blocked || disposed || lastLoad.state !== 'ready') return;
+    const generation = securityGeneration;
+    const accountId = lastLoad.data.profile.accountId;
+    try {
+      const result = await client.session(signal, accountId);
+      signal.throwIfAborted();
+      if (disposed || generation !== securityGeneration) return;
+      expiresAt = Date.parse(result.expiresAt);
+      if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
+      clearTimeout(timer);
+      timer = setTimeout(checkExpiry, Math.min(2147483647, expiresAt - now()));
+    } catch (error) {
+      if (signal.aborted || disposed || generation !== securityGeneration) return;
+      if (
+        error instanceof PortalClientErrorV1 &&
+        (error.state === 'unauthenticated' ||
+          error.state === 'forbidden' ||
+          error.status === 401 ||
+          error.status === 403)
+      ) {
+        clear();
+        publish({ state: 'error', error: new PortalClientErrorV1('unauthenticated', 401) });
+      }
+      throw error;
+    }
   };
   const refresh = async (background = false) => {
     if (blocked || disposed) return;
@@ -49,17 +84,20 @@ export function createStudentSessionV1(
     preserve = background && lastLoad.state === 'ready' && expiresAt > now();
     const previousAccount = lastLoad.state === 'ready' ? lastLoad.data.profile.accountId : null;
     if (!preserve) clearTimeout(timer);
-    const request = latest.run(async (signal) => {
-      const session = await client.session(signal);
-      signal.throwIfAborted();
-      const data = await client.me(signal);
-      signal.throwIfAborted();
-      if (previousAccount !== null && previousAccount !== data.profile.accountId)
-        throw new PortalClientErrorV1('unauthenticated', 401);
-      expiresAt = Date.parse(session.expiresAt);
-      if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
-      return data;
-    }, { background: preserve });
+    const request = latest.run(
+      async (signal) => {
+        const session = await client.session(signal);
+        signal.throwIfAborted();
+        const data = await client.me(signal);
+        signal.throwIfAborted();
+        if (previousAccount !== null && previousAccount !== data.profile.accountId)
+          throw new PortalClientErrorV1('unauthenticated', 401);
+        expiresAt = Date.parse(session.expiresAt);
+        if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
+        return data;
+      },
+      { background: preserve },
+    );
     pending = request;
     try {
       await request;
@@ -69,6 +107,8 @@ export function createStudentSessionV1(
   };
   return {
     clear,
+    authorizeSecurity,
+    securityUnavailable,
     refresh,
     async authenticated() {
       blocked = false;
@@ -125,7 +165,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       // The ordinary initial pageshow must not duplicate the entry request.
       if (!hiddenByNavigation && !event.persisted) return;
       hiddenByNavigation = false;
-      void current.refresh();
+      current.securityUnavailable();
     };
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', show);
@@ -137,6 +177,23 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       window.removeEventListener('pageshow', show);
     };
   }, [client]);
+  const securityAccountId = load.state === 'ready' ? load.data.profile.accountId : null;
+  useEffect(() => {
+    if (!securityAccountId || !session.current) return;
+    const current = session.current;
+    const security = createStudentSecurityV1({
+      connect: () => {
+        const url = new URL('/api/student/live', window.location.href);
+        url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        url.searchParams.set('purpose', 'security');
+        url.searchParams.set('accountId', securityAccountId);
+        return new window.WebSocket(url);
+      },
+      authorize: current.authorizeSecurity,
+      unavailable: current.securityUnavailable,
+    });
+    return () => security.dispose();
+  }, [securityAccountId, client]);
   return {
     load,
     logoutState,

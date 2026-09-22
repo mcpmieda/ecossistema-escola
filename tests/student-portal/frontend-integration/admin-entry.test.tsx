@@ -229,7 +229,7 @@ it('registers one permission-filtered module and searches its sections without c
   } as unknown as PlatformSnapshotContract;
   expect(
     buildSearchItems(snapshot).filter((item) => item.id.startsWith('student-portal:')),
-  ).toHaveLength(8);
+  ).toHaveLength(7);
   expect(
     buildSearchItems({ ...snapshot, coreModules: [] }).some((item) =>
       item.id.startsWith('student-portal:'),

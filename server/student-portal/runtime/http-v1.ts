@@ -26,6 +26,16 @@ export function portalJsonV1(value: unknown, status: number): Response {
 function failure(state: FailureV1['state']): Response {
   return portalJsonV1(portalFailureV1(state), ERROR_HTTP_V1[state]);
 }
+function securityQueryAllowedV1(url: URL): boolean {
+  if (!url.search) return true;
+  const account = url.searchParams.get('accountId');
+  if (!account || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(account)
+    || url.searchParams.getAll('accountId').length !== 1) return false;
+  const keys = [...url.searchParams.keys()];
+  if (url.pathname === '/api/student/session') return keys.length === 1;
+  return url.pathname === '/api/student/live' && keys.length === 2
+    && url.searchParams.getAll('purpose').length === 1 && url.searchParams.get('purpose') === 'security';
+}
 export function portalRequestOriginAllowedV1(
   request: Request,
   environment: string,
@@ -37,7 +47,7 @@ export function portalRequestOriginAllowedV1(
   if (environment !== 'local' && environment !== 'production') return false;
   if (environment === 'local' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
     return false;
-  if (url.origin !== origin || url.username || url.password || url.search || url.hash) return false;
+  if (url.origin !== origin || url.username || url.password || !securityQueryAllowedV1(url) || url.hash) return false;
   const host = request.headers.get('host');
   if (host !== null && host.toLowerCase() !== url.host.toLowerCase()) return false;
   if (request.headers.has('x-forwarded-host') || request.headers.has('x-original-url'))

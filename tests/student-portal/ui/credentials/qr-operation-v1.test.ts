@@ -175,3 +175,37 @@ describe('private credential operation lifecycle', () => {
     readonly.clear();
   });
 });
+
+it('keeps an explicitly retained current QR until disposal as a CSP-compatible data URL', async () => {
+  vi.useFakeTimers();
+  const createObjectURL = vi.fn(() => 'blob:synthetic-retained');
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+  const mock = qrMockV1(),
+    states: QrOperationStateV1[] = [];
+  const op = createQrOperationV1({
+    client: mock.client,
+    canWrite: true,
+    publish: (s) => states.push(s),
+    render: syntheticQrRendererV1,
+    retainUntilClear: true,
+  });
+  await op.submit(
+    {
+      contractVersion: 1,
+      operation: 'qr-reprint',
+      accountId: qrPrintIdV1(1),
+      expectedVersion: 7,
+      idempotencyKey: qrPrintIdV1(9988),
+    },
+    'png',
+  );
+  const retained = op.imageUrl();
+  expect(retained).toMatch(/^data:image\/png;base64,/u);
+  await vi.advanceTimersByTimeAsync(6 * 60_000);
+  expect(states.at(-1)).toMatchObject({ state: 'ready' });
+  expect(op.imageUrl()).toBe(retained);
+  expect(createObjectURL).not.toHaveBeenCalled();
+  expect(mock.writes).toHaveLength(1);
+  op.clear();
+  expect(op.imageUrl()).toBeNull();
+});

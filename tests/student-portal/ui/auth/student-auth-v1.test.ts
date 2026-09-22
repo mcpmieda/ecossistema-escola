@@ -148,10 +148,12 @@ describe('student authentication forms', () => {
     component.unmount();
     expect(dispose).toHaveBeenCalledTimes(2);
   });
-  it('clears the DOM synchronously on pagehide and revalidates on pageshow', async () => {
+  it('clears the DOM on pagehide and requires explicit reload after pageshow', async () => {
     const client = clientFixtureV1();
+    let reload!: () => Promise<void> | undefined;
     function SessionView() {
-      const { load } = useStudentSessionV1(client);
+      const { load, refresh } = useStudentSessionV1(client);
+      reload = refresh;
       return createElement(
         'div',
         null,
@@ -168,6 +170,9 @@ describe('student authentication forms', () => {
       window.dispatchEvent(new Event('pageshow'));
     });
     expect(screen.queryByText('Estudante de exemplo')).toBeNull();
+    expect(client.session).toHaveBeenCalledTimes(1);
+    expect(client.me).toHaveBeenCalledTimes(1);
+    await act(async () => { await reload(); });
     await screen.findByText('Estudante de exemplo');
     expect(client.session).toHaveBeenCalledTimes(2);
   });

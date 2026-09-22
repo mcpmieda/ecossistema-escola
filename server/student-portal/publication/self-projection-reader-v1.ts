@@ -61,7 +61,7 @@ export async function publicationContextV1(
     accountScopeV1(accountId),
   );
   const now = await authNowV1(tx);
-  if (requireAccess && sessionExpiryV1(policy.settings.value, now, false) === null) return null;
+  if (requireAccess && sessionExpiryV1(policy.enforcedValue, now, false) === null) return null;
   const context = { account, eligibility, policy, now };
   const rows = await tx.unsafe(
     `SELECT s.name,b.class_name,b.status,l.class_id AS observed_class,
@@ -223,7 +223,7 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
     return labelPublishedAssessmentsV1(
       applyPublishedVisibilityV1(
         projection,
-        context.policy.settings.value,
+        context.policy.enforcedValue,
         context.now,
         sameState && accepted.some((revision) => revision !== null),
       ),

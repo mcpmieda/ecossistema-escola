@@ -1,3 +1,4 @@
+import { AccountOpenContextV1 } from '../../../../src/features/student-portal-admin/shared/account-open-v1';
 import { enterDateV1 } from '../settings/date-input-v1';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -120,4 +121,20 @@ describe('audit filters and restricted detail interface', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.body.textContent).not.toContain('192.0.2.');
   });
+});
+
+it('shows historical entities and opens the authorized account by its id, never by matching its name', async () => {
+  const source = operationsMockV1({ count: 1 });
+  const open = vi.fn();
+  const mock = operationsMockV1({ query: query => query.contractVersion === 1 && query.operation === 'audit'
+    ? source.client.query(query).then(response => {
+      if (response.state !== 'audit') throw new Error('synthetic-audit-response');
+      return opJsonV1({ ...response, items: response.items.map(item => ({ ...item, entities: { actorName: 'SYNTHETIC OPERATOR', subjectName: 'SYNTHETIC HISTORICAL NAME', classId: 756001, classLabel: 'SYNTHETIC HISTORICAL CLASS' } })) });
+    }) : undefined });
+  render(createElement(AccountOpenContextV1.Provider, { value: open }, createElement(StudentAuditV1, mock.props)));
+  fireEvent.click(await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC HISTORICAL NAME' }));
+  expect(open).toHaveBeenCalledWith('75600000-0000-4000-8000-000000000001', mock.props.scope);
+  expect(screen.getByText('SYNTHETIC OPERATOR')).toBeTruthy();
+  expect(screen.getByText('SYNTHETIC HISTORICAL CLASS')).toBeTruthy();
+  expect(mock.queries.find(query => query.operation === 'audit')).toMatchObject({ includeEntities: true });
 });

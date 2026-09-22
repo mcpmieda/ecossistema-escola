@@ -24,6 +24,7 @@ export default {
       role?: 'ADMINISTRADOR' | 'PROFESSOR';
       origin?: string;
       hostname?: string;
+  upgrade?: boolean;
     };
     if (!input.path.startsWith('/') || input.path.startsWith('//'))
       return new Response(null, { status: 400 });
@@ -49,6 +50,7 @@ export default {
         host: input.hostname ?? new URL(origin).host,
         origin: input.origin ?? origin,
         'Content-Type': 'application/json',
+        ...(input.upgrade ? { Upgrade: 'websocket' } : {}),
         ...(cookie ? { cookie } : {}),
       },
       ...(input.body === undefined ? {} : { body: input.body }),
@@ -76,7 +78,7 @@ export default {
       PROD_DB: bindings.PROD_DB,
     } as unknown as RuntimeEnv; // Generated production literal types; validateEnv still validates this synthetic runtime.
     if (
-      input.path === '/api/platform/snapshot' &&
+      ['/api/platform/snapshot', '/api/platform/bootstrap', '/api/platform/snapshot-v2'].includes(input.path) &&
       !input.anonymous &&
       (input.role ?? 'ADMINISTRADOR') === 'ADMINISTRADOR'
     ) {

@@ -1,15 +1,27 @@
+import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
+import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { readFileSync } from 'node:fs';
 import type postgres from 'postgres';
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 
 /** New synthetic namespace on each run; lives only in the disposable cluster. */
 export async function installIntegrationFixtureV1(sql: ReturnType<typeof postgres>) {
+  await openSyntheticSchoolV1(sql as unknown as StudentPortalPostgresSqlV1);
   // The runtime now declares V2 capability, but legacy composition tests deliberately
   // retain enabled=false. The separate atomic suite proves the activated HTTP path.
   const migration = await sql.unsafe("SELECT to_regclass('student_portal.publication_control_v2') IS NOT NULL AS installed");
   if (migration[0]!.installed !== true) {
     for (const file of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
       await sql.unsafe(readFileSync('migrations/student-portal/' + file, 'utf8'), [], { prepare: false });
+  }
+  const live = await sql.unsafe("SELECT to_regclass('student_portal.live_event_outbox_v1') IS NOT NULL AS installed");
+  if (!live[0]!.installed) await sql.unsafe(readFileSync('migrations/student-portal/0011_live_event_outbox_v1.sql', 'utf8'), [], { prepare: false });
+  for (const [table, column, file] of [
+    ['audit_event', 'actor_name', '0016_audit_entities_v1.sql'],
+    ['live_event_outbox_v1', 'security_relevant', '0017_security_event_priority_v1.sql'],
+  ]) {
+    const found = await sql.unsafe("SELECT 1 FROM information_schema.columns WHERE table_schema='student_portal' AND table_name=$1 AND column_name=$2", [table!, column!]);
+    if (!found.length) await sql.unsafe(readFileSync('migrations/student-portal/' + file, 'utf8'), [], { prepare: false });
   }
   // A deterministic free range avoids colliding with runtime fixtures or a prior local QA run.
   const rows = await sql.unsafe(`SELECT GREATEST(

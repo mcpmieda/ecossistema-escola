@@ -1,15 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Card,
-  Tooltip,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  Table,
-  TextField,
-} from '@heroui/react';
+import { Button, Card, Tooltip, Input, Label, Table, TextField } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -17,6 +7,8 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from './accounts-client-v2';
 import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1';
+import { StudentBulkV1 } from './student-bulk-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
@@ -26,6 +18,13 @@ import {
   accountPageMatchesV1,
   lastAuthenticationLabelV1,
 } from './accounts-values-v1';
+import {
+  AccountFilterTagsV1,
+  ACCOUNT_STATE_OPTIONS_V1,
+  ACCOUNT_BLOCK_OPTIONS_V1,
+  matchesAccountFiltersV1,
+  type AccountStateFilterV1,
+} from './account-filters-v1';
 import './student-accounts-v1.css';
 
 export interface StudentAccountsPropsV1 extends Pick<
@@ -40,8 +39,6 @@ export interface StudentAccountsPropsV1 extends Pick<
   identityKey: string;
   scopeLabel?: string;
 }
-type StateFilterV1 = 'all' | 'pending-activation' | 'active' | 'reset-required';
-type BlockFilterV1 = 'all' | 'blocked' | 'unblocked';
 export function StudentAccountsV1(props: StudentAccountsPropsV1) {
   return (
     <AccountsBodyV1
@@ -50,47 +47,10 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
     />
   );
 }
-function FilterV1({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select
-      className="min-w-36 max-w-52"
-      selectedKey={value}
-      onSelectionChange={(key) => {
-        if (key !== null && String(key) in options) onChange(String(key));
-      }}
-    >
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {Object.entries(options).map(([id, text]) => (
-            <ListBox.Item key={id} id={id} textValue={text}>
-              {text}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
-  );
-}
 function AccountsBodyV1(props: StudentAccountsPropsV1) {
   const [name, setName] = useState('');
-  const [state, setState] = useState<StateFilterV1>('all');
-  const [blocked, setBlocked] = useState<BlockFilterV1>('all');
+  const [states, setStates] = useState<Set<string>>(() => new Set());
+  const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
   const scope = useMemo<ScopeV1>(
     () =>
@@ -106,10 +66,10 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
       scope,
       page: { limit: 100 },
       ...(name.trim() ? { nameSearch: name.trim() } : {}),
-      ...(state === 'all' ? {} : { accountState: state }),
-      ...(blocked === 'all' ? {} : { blocked: blocked === 'blocked' }),
+      ...(states.size === 1 ? { accountState: [...states][0] as AccountStateFilterV1 } : {}),
+      ...(blocks.size === 1 ? { blocked: blocks.has('blocked') } : {}),
     }),
-    [scope, name, state, blocked],
+    [scope, name, states, blocks],
   );
   return (
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
@@ -122,41 +82,64 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
             <ClassFilterV1
               catalog={props.catalog}
               selected={selectedClass}
-              onChange={setSelectedClass}
+              onChange={(value) => {
+                if (allowDraftNavigationV1()) setSelectedClass(value);
+              }}
             />
           )}
-          <TextField className="min-w-48 max-w-72" value={name} onChange={setName}>
+          <TextField
+            className="min-w-48 max-w-72"
+            value={name}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setName(value);
+            }}
+          >
             <Label>Buscar aluno</Label>
             <Input maxLength={200} />
           </TextField>
-          <FilterV1
+          <AccountFilterTagsV1
             label="Situação"
-            value={state}
-            onChange={(value) => setState(value as StateFilterV1)}
-            options={{
-              all: 'Todas',
-              'pending-activation': 'Primeiro acesso',
-              active: 'Ativa',
-              'reset-required': 'Redefinição pendente',
+            selected={states}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setStates(value);
             }}
+            options={ACCOUNT_STATE_OPTIONS_V1}
           />
-          <FilterV1
+          <AccountFilterTagsV1
             label="Bloqueio"
-            value={blocked}
-            onChange={(value) => setBlocked(value as BlockFilterV1)}
-            options={{
-              all: 'Todos',
-              blocked: 'Bloqueadas',
-              unblocked: 'Sem bloqueio',
+            selected={blocks}
+            onChange={(value) => {
+              if (allowDraftNavigationV1()) setBlocks(value);
             }}
+            options={ACCOUNT_BLOCK_OPTIONS_V1}
           />
         </Card.Content>
       </Card>
-      <AccountsResultsV1 key={JSON.stringify(query)} {...props} query={query} />
+      <AccountsResultsV1
+        key={JSON.stringify([
+          query,
+          [...states].sort((left, right) => left.localeCompare(right)),
+          [...blocks].sort((left, right) => left.localeCompare(right)),
+        ])}
+        {...props}
+        query={query}
+        states={states}
+        blocks={blocks}
+        bulkScopeLabel={
+          selectedClass?.label ?? props.scopeLabel ?? (scope.kind === 'school' ? 'Escola' : 'Turma')
+        }
+      />
     </section>
   );
 }
-function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQueryV2 }) {
+function AccountsResultsV1(
+  props: StudentAccountsPropsV1 & {
+    query: AdminReadQueryV2;
+    states: Set<string>;
+    blocks: Set<string>;
+    bulkScopeLabel: string;
+  },
+) {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedTrigger = useRef<HTMLElement | null>(null);
@@ -175,6 +158,9 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
   );
   const read = useContinuousReadV1(load, 'accountId');
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
+  const visibleItems =
+    current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
+    [];
   const protectedFailure =
     read.state.state === 'error' &&
     ['unauthenticated', 'forbidden'].includes(read.state.error.state);
@@ -191,10 +177,25 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
   };
   return (
     <>
+      {props.canWrite &&
+        !authorizationError &&
+        !protectedFailure &&
+        props.query.scope.kind !== 'account' && (
+          <StudentBulkV1
+            client={props.client}
+            scope={props.query.scope}
+            scopeLabel={props.bulkScopeLabel}
+            onAuthorizationLost={onAuthorizationLost}
+          />
+        )}
       <Card>
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
-            <p role="status">{current ? `${current.items.length} alunos` : 'Alunos'}</p>
+            <p role="status">
+              {current
+                ? `${visibleItems.length} alunos${current.nextCursor ? ' · lista em carregamento' : ''}`
+                : 'Alunos'}
+            </p>
             <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
           </div>
 
@@ -213,10 +214,10 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
               onReload={reload}
             />
           )}
-          {current && current.items.length === 0 && !current.nextCursor && (
+          {current && visibleItems.length === 0 && !current.nextCursor && (
             <p role="status">Nenhuma conta encontrada neste filtro.</p>
           )}
-          {current && current.items.length > 0 && (
+          {current && visibleItems.length > 0 && (
             <Table className="pa-account-table">
               <Table.ScrollContainer
                 className="pa-account-scroll"
@@ -240,7 +241,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                     </Table.Column>
                     <Table.Column>Sessões ativas</Table.Column>
                   </Table.Header>
-                  <Table.Body items={current.items}>
+                  <Table.Body items={visibleItems}>
                     {(account) => (
                       <Table.Row
                         id={account.accountId}
@@ -296,7 +297,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
               </Table.ScrollContainer>
             </Table>
           )}
-          {current && !current.items.length ? (
+          {current && !visibleItems.length ? (
             <ContinuousEndV1
               more={read.more}
               busy={read.refreshing}

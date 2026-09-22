@@ -6,6 +6,13 @@ import { createLocalPortalHarnessV1 } from './local-harness-v1';
 
 export async function proveWorkerLockTimeoutV1(connectionString: string, owner: StudentPortalPostgresSqlV1, observer: StudentPortalPostgresSqlV1, token: string) {
   const harness = await createLocalPortalHarnessV1(connectionString);
+  // Start workerd before acquiring the diagnostic lock; startup is not lock-wait latency.
+  const warm = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/harness/admin/query', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contractVersion: 1, operation: 'health', scope: { kind: 'school', academicYear: 2026 }, page: {} }),
+  });
+  expect(warm.status).toBe(200);
+  let request: ReturnType<typeof harness.runtime.dispatchFetch> | undefined;
   let unlock!: () => void;
   let ready!: () => void;
   let rejectReady!: (error: unknown) => void;
@@ -19,8 +26,9 @@ export async function proveWorkerLockTimeoutV1(connectionString: string, owner: 
   void holder.catch(rejectReady);
   try {
     await acquired;
-    const request = harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/session', {
-      headers: { cookie: `__Host-student_portal_session=${token}`, origin: 'https://aluno.escolaieda.com' },
+    request = harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/logout', {
+      method: 'POST', body: JSON.stringify({ contractVersion: 1 }),
+      headers: { 'content-type': 'application/json', cookie: `__Host-student_portal_session=${token}`, origin: 'https://aluno.escolaieda.com' },
     });
     let observed = false;
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -40,5 +48,5 @@ export async function proveWorkerLockTimeoutV1(connectionString: string, owner: 
     expect(failed.status).toBe(503);
     expect(Number(failed.headers.get('x-harness-lock-timeouts'))).toBe(1);
     expect((await failed.json() as { state: string }).state).toBe('unavailable');
-  } finally { unlock(); try { await holder; } finally { await harness.close(); } }
+  } finally { unlock(); try { await holder; } finally { await request?.catch(() => undefined); await harness.close(); } }
 }

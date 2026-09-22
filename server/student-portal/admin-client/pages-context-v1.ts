@@ -13,5 +13,5 @@ export async function verifiedPagesContextV1(request: Request, env: RuntimeEnv, 
   const capability = write ? 'platform.settings.write' : 'platform.settings.read';
   if (!capabilitiesForRoles(session.roles).includes(capability)) return 'forbidden';
   // Timestamp of this verification, not the first Entra sign-in: a valid twelve-hour session remains usable.
-  return { actorId: session.oid, tenantId: env.TENANT_ID, requestId, capability, authenticatedAt: new Date().toISOString(), clientIp: cloudflareClientIpV1(request) };
+  return { actorId: session.oid, actorName: session.name, tenantId: env.TENANT_ID, requestId, capability, authenticatedAt: new Date().toISOString(), clientIp: cloudflareClientIpV1(request) };
 }

@@ -274,6 +274,10 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       state: 'authenticated',
       persistent: false,
     });
+    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({ state: 'authenticated' });
+    expect(await sessions.read(result.token, id(), id())).toBeNull();
+    // A security revalidation must never authorize the old page after a cookie switches accounts.
+    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({ state: 'authenticated' });
     const stored = JSON.stringify((await pg.query('SELECT * FROM student_portal.session')).rows);
     expect(stored).not.toContain(result.token);
     expect(
@@ -642,6 +646,17 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       sessions,
     );
     expect(duplicated.status).toBe(401);
+    for (const [query, status] of [
+      [`accountId=${accountId}`, 200],
+      [`accountId=${id()}`, 401],
+      ['accountId=invalid', 403],
+      [`accountId=${accountId}&accountId=${id()}`, 403],
+    ] as const) {
+      const bound = await servePortalAuthV1(new Request(`${ORIGIN}/api/student/session?${query}`, {
+        headers: { cookie: cookie.split(';')[0]! },
+      }), 'production', ORIGIN, auth, sessions);
+      expect(bound.status).toBe(status);
+    }
     expect(
       (await call('/api/student/auth/login', {}, { origin: 'https://attacker.invalid' })).status,
     ).toBe(403);

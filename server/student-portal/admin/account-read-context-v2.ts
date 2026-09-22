@@ -80,10 +80,10 @@ export async function accountReadContextV2(row: Record<string, unknown>, now: Da
       eligibility === 'eligible' &&
       row.eligibility === 'eligible' &&
       row.blocked === false &&
-      sessionExpiryV1(policy.settings.value, now, false) !== null;
+      sessionExpiryV1(policy.enforcedValue, now, false) !== null;
     access = {
       state: 'resolved',
-      enabled: policy.settings.value.accessEnabled,
+      enabled: policy.enforcedValue.accessEnabled,
       source: policy.settings.sources.accessEnabled,
       settingsVersion: policy.settings.version,
       accessPermitted,

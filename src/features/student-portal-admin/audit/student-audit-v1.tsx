@@ -1,3 +1,5 @@
+import { StudentNameV1 } from '../shared/account-open-v1';
+import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Tooltip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
 import {
@@ -77,6 +79,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
         {
           contractVersion: 1,
           operation: 'audit',
+          includeEntities: true,
           scope: props.scope,
           page: { limit: 100, ...(cursor ? { cursor } : {}) },
           ...filters,
@@ -257,6 +260,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
             ) : (
               <AuditEventsV1
                 items={data.items}
+                scope={props.scope}
                 canWrite={props.canWrite}
                 onOpen={openDetail}
                 end={
@@ -330,7 +334,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
                       </div>
                       <div>
                         <dt>Responsável</dt>
-                        <dd>{detail.detail.event.actorId}</dd>
+                        <dd>{detail.detail.event.entities?.actorName ?? 'Não registrado'} · {detail.detail.event.actorId}</dd>
                       </div>
                     </dl>
                   )}
@@ -352,11 +356,13 @@ function AuditBodyV1(props: OperationsPropsV1) {
 // Editing draft filters or expiring an IP must not rebuild 100 event rows.
 const AuditEventsV1 = memo(function AuditEventsV1({
   items,
+  scope,
   canWrite,
   onOpen,
   end,
 }: {
   items: Extract<AdminResponseV1, { state: 'audit' }>['items'];
+  scope: ScopeV1;
   canWrite: boolean;
   onOpen: (id: string) => void;
   end: ReactNode;
@@ -375,6 +381,9 @@ const AuditEventsV1 = memo(function AuditEventsV1({
               Data e hora
             </Table.Column>
             <Table.Column id="event">Evento</Table.Column>
+            <Table.Column id="subject">Estudante</Table.Column>
+            <Table.Column id="class">Turma</Table.Column>
+            <Table.Column id="actor">Operador</Table.Column>
             <Table.Column id="result">Resultado</Table.Column>
             <Table.Column id="detail">Detalhe</Table.Column>
           </Table.Header>
@@ -388,6 +397,9 @@ const AuditEventsV1 = memo(function AuditEventsV1({
                     <Tooltip.Content>{settingsScopeLabelV1(item.scope)}</Tooltip.Content>
                   </Tooltip>
                 </Table.Cell>
+                <Table.Cell>{item.accountId && item.entities?.subjectName ? <StudentNameV1 accountId={item.accountId} name={item.entities.subjectName} parentScope={scope} /> : (item.entities?.subjectName ?? 'Não registrado')}</Table.Cell>
+                <Table.Cell>{item.entities?.classLabel ?? 'Não registrada'}</Table.Cell>
+                <Table.Cell>{item.entities?.actorName ?? 'Não registrado'}</Table.Cell>
                 <Table.Cell>
                   <Chip
                     size="sm"

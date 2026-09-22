@@ -27,7 +27,7 @@ export function createQrDownloadsV1() {
     URL.revokeObjectURL(url);
   }
   return {
-    download(artifact: QrArtifactV1) {
+    download(artifact: QrArtifactV1, filename?: string) {
       const url = URL.createObjectURL(artifact.blob),
         anchor = document.createElement('a');
       urls.set(
@@ -36,7 +36,8 @@ export function createQrDownloadsV1() {
       );
       try {
         anchor.href = url;
-        anchor.download = artifact.format === 'png' ? 'portal-qr.png' : 'portal-cartoes.pdf';
+        anchor.download =
+          filename ?? (artifact.format === 'png' ? 'portal-qr.png' : 'portal-cartoes.pdf');
         document.body.appendChild(anchor);
         anchor.click();
       } catch (error) {

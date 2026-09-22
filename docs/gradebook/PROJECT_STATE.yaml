@@ -72,10 +72,10 @@ student_portal_integration:
   gate_g_b: accepted-with-explicit-physical-device-deferrals
   gate_g_p: passed-technical-release-general-opening-not-authorized
   schema_table_count: 27
-  schema: student_portal_migrations_0001_through_0015_applied
-  schema_migration_file: 0015_student_portal_rls_v1.sql
-  schema_migration_production_version: 20260920004859
-  schema_migration_production_evidence: issue-859-pr-963-postflight
+  schema: student_portal_migrations_0001_through_0017_applied
+  schema_migration_file: 0017_security_event_priority_v1.sql
+  schema_migration_production_version: 20260922150001
+  schema_migration_production_evidence: issue-1102-pr-1103-postflight
   academic_authority: unchanged-official-imported-source
   reset_guard: integrated-706-before-population
   transactional_producers: integrated-707
@@ -86,7 +86,8 @@ student_portal_integration:
   integrated_academic_presentation: 747
 repository_snapshot:
   gradebook_latest_migration_in_tree: 0012_current_state_cleanup_v1.sql
-  student_portal_latest_migration_in_tree: 0015_student_portal_rls_v1.sql
+  student_portal_latest_migration_in_tree: 0017_security_event_priority_v1.sql
+  student_portal_candidate_migrations_status: applied-and-postflight-verified-issue-1102
   git_presence_alone_is_production_proof: false
   current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
   historical_checkpoint_668_is_runtime_authority: false

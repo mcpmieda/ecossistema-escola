@@ -14,55 +14,103 @@ import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1'
 import { SETTINGS_LABELS_V1, settingsScopeKeyV1, type SettingsFieldV1 } from './settings-values-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { CustomizationResetV1 } from './customization-reset-v1';
-import { customizationPeriodV1, customizationResetChoicesV1, publicationDifferenceV1,
-  type OpenCustomizationV1 } from './customization-values-v1';
+import {
+  customizationPeriodV1,
+  customizationResetChoicesV1,
+  publicationDifferenceV1,
+  type OpenCustomizationV1,
+} from './customization-values-v1';
 
-type Props = { reader: PortalAdminReadClientV2; client: PortalAdminClientV1; canWrite: boolean;
-  scope: ScopeV1; onOpen: OpenCustomizationV1 };
-const valueLabel = (value: unknown) => typeof value === 'boolean' ? value ? 'Ativado' : 'Desativado'
-  : Array.isArray(value) ? value.map((period) => customizationPeriodV1(String(period))).join(', ') || 'Nenhum período'
-    : 'Personalizado';
+type Props = {
+  reader: PortalAdminReadClientV2;
+  client: PortalAdminClientV1;
+  canWrite: boolean;
+  scope: ScopeV1;
+  onOpen: OpenCustomizationV1;
+};
+const valueLabel = (value: unknown) =>
+  typeof value === 'boolean'
+    ? value
+      ? 'Ativado'
+      : 'Desativado'
+    : Array.isArray(value)
+      ? value.map((period) => customizationPeriodV1(String(period))).join(', ') || 'Nenhum período'
+      : 'Personalizado';
 function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: Props) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');
   const nameSearch = search.trim();
-  const load = useCallback(async (cursor: string | undefined, signal: AbortSignal) => {
-    const result = await reader.query({ contractVersion: 2, operation: 'customizations-read', scope,
-      ...(nameSearch ? { nameSearch } : {}), page: { limit: 100, ...(cursor ? { cursor } : {}) } }, signal);
-    if (result.state !== 'customizations-read' || settingsScopeKeyV1(result.scope) !== key)
-      throw new PortalClientErrorV1('invalid-response');
-    return result;
-  }, [reader, key, nameSearch]);
+  const load = useCallback(
+    async (cursor: string | undefined, signal: AbortSignal) => {
+      const result = await reader.query(
+        {
+          contractVersion: 2,
+          operation: 'customizations-read',
+          scope,
+          ...(nameSearch ? { nameSearch } : {}),
+          page: { limit: 100, ...(cursor ? { cursor } : {}) },
+        },
+        signal,
+      );
+      if (result.state !== 'customizations-read' || settingsScopeKeyV1(result.scope) !== key)
+        throw new PortalClientErrorV1('invalid-response');
+      return result;
+    },
+    [reader, key, nameSearch],
+  );
   const read = useContinuousReadV1(load, 'id');
   const [reset, setReset] = useState<CustomizationRowV1 | null>(null);
   const data = read.state.state === 'ready' ? read.state.data : null;
   const open = (row: CustomizationRowV1) => {
     if (allowDraftNavigationV1()) onOpen(row, row.publications.length ? 'publication' : 'settings');
   };
-  const endReset = () => { setReset(null); read.reload(); };
+  const endReset = () => {
+    setReset(null);
+    read.reload();
+  };
   return (
     <Card className="pa-custom-settings">
       <Card.Header className="flex-row items-center justify-between">
-        <h3>Configurações personalizadas</h3>
-        <InfoV1 label="Sobre as configurações personalizadas">
-          Somente diferenças atuais definidas para alunos ou turmas. Quem apenas segue o padrão não aparece.
-          A lixeira desfaz a opção escolhida e volta ao padrão aplicável; não apaga pessoas, notas ou auditoria.
+        <h3>Políticas personalizadas</h3>
+        <InfoV1 label="Sobre as políticas personalizadas">
+          Somente diferenças atuais definidas para alunos ou turmas. Quem apenas segue o padrão não
+          aparece. A lixeira desfaz a opção escolhida e volta ao padrão aplicável; não apaga
+          pessoas, notas ou auditoria.
         </InfoV1>
       </Card.Header>
       <Card.Content>
-        <Input aria-label="Buscar personalizações por aluno ou turma" placeholder="Buscar aluno ou turma"
-          className="max-w-md" maxLength={200} value={search}
-          onChange={(event) => { if (allowDraftNavigationV1()) setSearch(event.target.value); }} />
-        {read.state.state === 'loading' || read.state.state === 'idle' ? <p role="status">Consultando personalizações…</p> : null}
-        {read.state.state === 'error' ? <AccountsErrorV1 error={read.state.error} canReload={read.canReload} onReload={read.reload} /> : null}
+        <Input
+          aria-label="Buscar personalizações por aluno ou turma"
+          placeholder="Buscar aluno ou turma"
+          className="max-w-md"
+          maxLength={200}
+          value={search}
+          onChange={(event) => {
+            if (allowDraftNavigationV1()) setSearch(event.target.value);
+          }}
+        />
+        {read.state.state === 'loading' || read.state.state === 'idle' ? (
+          <p role="status">Consultando personalizações…</p>
+        ) : null}
+        {read.state.state === 'error' ? (
+          <AccountsErrorV1
+            error={read.state.error}
+            canReload={read.canReload}
+            onReload={read.reload}
+          />
+        ) : null}
         <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         {data && data.items.length === 0 && !data.nextCursor ? (
-          <p className="text-sm text-muted">{nameSearch ? 'Nenhuma personalização corresponde à busca.' : 'Nenhuma personalização atual. Alunos e turmas seguem o padrão.'}</p>
+          <p className="text-sm text-muted">
+            {nameSearch
+              ? 'Nenhuma personalização corresponde à busca.'
+              : 'Nenhuma personalização atual. Alunos e turmas seguem o padrão.'}
+          </p>
         ) : null}
         {data && data.items.length > 0 ? (
           <Table>
             <Table.ScrollContainer>
-              <Table.Content aria-label="Configurações personalizadas">
+              <Table.Content aria-label="Políticas personalizadas">
                 <Table.Header>
                   <Table.Column isRowHeader>Aluno ou turma</Table.Column>
                   <Table.Column>Situação</Table.Column>
@@ -73,38 +121,102 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
                   {(row) => (
                     <Table.Row id={row.id} key={row.id}>
                       <Table.Cell>
-                        <Button variant="ghost" size="sm" className="pa-student-name h-auto text-left"
-                          aria-label={`Abrir personalizações de ${row.label}`} onPress={() => open(row)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="pa-student-name h-auto text-left"
+                          aria-label={`Abrir personalizações de ${row.label}`}
+                          onPress={() => open(row)}
+                        >
                           <StudentAvatarV1 id={row.id} />
-                          <span className="pa-custom-owner"><strong>{row.label}</strong>
-                            <small>{row.scope.kind === 'class' ? 'Turma' : row.classLabel}</small></span>
+                          <span className="pa-custom-owner">
+                            <strong>{row.label}</strong>
+                            <small>{row.scope.kind === 'class' ? 'Turma' : row.classLabel}</small>
+                          </span>
                         </Button>
                       </Table.Cell>
                       <Table.Cell>
-                        <Chip size="sm" variant="soft" color={row.blocked ? 'danger' : row.accountState === 'active' ? 'success' : 'accent'}>
-                          <Chip.Label>{row.blocked ? 'Bloqueado' : row.scope.kind === 'class' ? 'Turma'
-                            : row.accountState === 'active' ? 'Ativa' : row.accountState === 'reset-required' ? 'Redefinição pendente' : 'Primeiro acesso'}</Chip.Label>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={
+                            row.blocked
+                              ? 'danger'
+                              : row.accountState === 'active'
+                                ? 'success'
+                                : 'accent'
+                          }
+                        >
+                          <Chip.Label>
+                            {row.blocked
+                              ? 'Bloqueado'
+                              : row.scope.kind === 'class'
+                                ? 'Turma'
+                                : row.accountState === 'active'
+                                  ? 'Ativa'
+                                  : row.accountState === 'reset-required'
+                                    ? 'Redefinição pendente'
+                                    : 'Primeiro acesso'}
+                          </Chip.Label>
                         </Chip>
                       </Table.Cell>
                       <Table.Cell>
                         <div className="grid min-w-60 max-w-xl gap-1 text-xs">
-                          {row.publications.map((item) => <p key={item.period}>{publicationDifferenceV1(item, row.scope)}</p>)}
-                          {(Object.keys(row.value ?? {}) as SettingsFieldV1[]).map((field) => (
-                            <p key={field}><strong>{SETTINGS_LABELS_V1[field]}:</strong> {valueLabel(row.value![field])}
-                              {' · Padrão aplicável: '}{valueLabel(row.inheritedValue![field])}</p>
+                          {row.publications.map((item) => (
+                            <p key={item.period}>{publicationDifferenceV1(item, row.scope)}</p>
                           ))}
-                          {row.blocked ? <p><strong>Bloqueio manual de acesso.</strong> Definido individualmente.</p> : null}
+                          {(Object.keys(row.value ?? {}) as SettingsFieldV1[]).map((field) => (
+                            <p key={field}>
+                              <strong>{SETTINGS_LABELS_V1[field]}:</strong>{' '}
+                              {valueLabel(row.value![field])}
+                              {' · Padrão aplicável: '}
+                              {valueLabel(row.inheritedValue![field])}
+                            </p>
+                          ))}
+                          {row.blocked ? (
+                            <p>
+                              <strong>Bloqueio manual de acesso.</strong> Definido individualmente.
+                            </p>
+                          ) : null}
                         </div>
                       </Table.Cell>
                       <Table.Cell>
                         <div className="flex items-center gap-1">
-                          <Tooltip><Tooltip.Trigger><Button isIconOnly size="sm" variant="ghost"
-                            aria-label={`Editar personalizações de ${row.label}`} onPress={() => open(row)}><Pencil size={16} /></Button></Tooltip.Trigger>
-                            <Tooltip.Content>Abrir a ficha na configuração correspondente</Tooltip.Content></Tooltip>
-                          <Tooltip><Tooltip.Trigger><Button isIconOnly size="sm" variant="danger-soft"
-                            aria-label={`Voltar ao padrão de ${row.label}`} isDisabled={!canWrite || read.refreshing}
-                            onPress={() => { if (allowDraftNavigationV1()) setReset(row); }}><Trash2 size={16} /></Button></Tooltip.Trigger>
-                            <Tooltip.Content>Desfazer uma personalização e voltar ao padrão</Tooltip.Content></Tooltip>
+                          <Tooltip>
+                            <Tooltip.Trigger>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`Editar personalizações de ${row.label}`}
+                                onPress={() => open(row)}
+                              >
+                                <Pencil size={16} />
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              Abrir a ficha na configuração correspondente
+                            </Tooltip.Content>
+                          </Tooltip>
+                          <Tooltip>
+                            <Tooltip.Trigger>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="danger-soft"
+                                aria-label={`Voltar ao padrão de ${row.label}`}
+                                isDisabled={!canWrite || read.refreshing}
+                                onPress={() => {
+                                  if (allowDraftNavigationV1()) setReset(row);
+                                }}
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              Desfazer uma personalização e voltar ao padrão
+                            </Tooltip.Content>
+                          </Tooltip>
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -114,14 +226,34 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
             </Table.ScrollContainer>
           </Table>
         ) : null}
-        {data ? <ContinuousEndV1 more={read.more} busy={read.refreshing} failed={Boolean(read.refreshError)}
-          loadMore={read.loadMore} retry={read.reload} /> : null}
+        {data ? (
+          <ContinuousEndV1
+            more={read.more}
+            busy={read.refreshing}
+            failed={Boolean(read.refreshError)}
+            loadMore={read.loadMore}
+            retry={read.reload}
+          />
+        ) : null}
       </Card.Content>
-      {reset && data && canWrite ? <CustomizationResetV1 client={client} label={reset.label}
-        choices={customizationResetChoicesV1(reset)} canWrite={canWrite} onClose={endReset} onCommitted={endReset} /> : null}
+      {reset && data && canWrite ? (
+        <CustomizationResetV1
+          client={client}
+          label={reset.label}
+          choices={customizationResetChoicesV1(reset)}
+          canWrite={canWrite}
+          onClose={endReset}
+          onCommitted={endReset}
+        />
+      ) : null}
     </Card>
   );
 }
 export function CustomizedSettingsV1(props: Props) {
-  return <CustomizedSettingsScopeV1 key={settingsScopeKeyV1(props.scope) + ':' + props.canWrite} {...props} />;
+  return (
+    <CustomizedSettingsScopeV1
+      key={settingsScopeKeyV1(props.scope) + ':' + props.canWrite}
+      {...props}
+    />
+  );
 }

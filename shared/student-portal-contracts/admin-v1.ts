@@ -3,10 +3,11 @@ import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, inst
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
+import { bulkActionV1, bulkCursorV1, bulkExecuteCommandV1, bulkPreviewQueryV1, bulkPreviewResponseV1 } from './bulk-v1';
 
 // Private binding metadata only. Valid shape does not authenticate the caller.
 export const trustedAdminContextV1 = z.object({
-  actorId: portalIdV1, tenantId: portalIdV1, requestId: portalIdV1,
+  actorId: portalIdV1, actorName: z.string().min(1).max(200).optional(), tenantId: portalIdV1, requestId: portalIdV1,
   authenticatedAt: instantV1, capability: z.enum(['platform.settings.read', 'platform.settings.write']),
   clientIp: z.union([z.ipv4(), z.ipv6()]).nullable().optional(),
 }).strict();
@@ -19,6 +20,7 @@ export const birthWriteV1 = z.discriminatedUnion('action', [
 const account = { ...commandMetaV1, accountId: portalIdV1 };
 export const printModeV1 = z.enum(['qr-only', 'qr-name', 'qr-name-class']);
 export const adminCommandV1 = z.discriminatedUnion('operation', [
+  bulkExecuteCommandV1,
   publicationInheritCommandV1,
   z.object({ ...account, operation: z.literal('qr-issue') }).strict(),
   z.object({ ...account, operation: z.literal('qr-reprint') }).strict(),
@@ -44,11 +46,13 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
 });
 export const auditKindV1 = z.enum(['login', 'login-failed', 'activated', 'password-reset', 'account-reset', 'qr-issued', 'qr-reprinted', 'qr-regenerated', 'blocked', 'unblocked', 'session-revoked', 'birth-changed', 'settings-changed', 'published', 'unpublished', 'projection-updated', 'links-closed']);
 export const adminQueryV1 = z.object({
-  contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'health', 'links-preview', 'population']),
-  scope: scopeV1, page: pageRequestV1, from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
-  eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
+  contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'presence', 'health', 'links-preview', 'population', 'bulk-preview']),
+  scope: scopeV1, page: pageRequestV1.extend({ cursor: bulkCursorV1.optional() }), action: bulkActionV1.optional(), from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
+  includeEntities: z.literal(true).optional(), eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
 }).strict().refine((v) => !v.from || !v.until || Date.parse(v.from) <= Date.parse(v.until), 'Invalid interval')
-  .refine((v) => v.operation !== 'audit-detail' || v.eventId !== undefined, 'Audit detail requires eventId');
+  .refine((v) => v.operation !== 'audit-detail' || v.eventId !== undefined, 'Audit detail requires eventId')
+  .refine((v) => !v.includeEntities || v.operation === 'audit' || v.operation === 'audit-detail', 'Entities require audit')
+  .refine((v) => v.operation === 'bulk-preview' ? bulkPreviewQueryV1.safeParse(v).success : v.action === undefined && pageRequestV1.safeParse(v.page).success, 'Invalid bulk preview');
 export const accountSummaryV1 = z.object({ accountId: portalIdV1, link: academicLinkV1.nullable(), name: z.string().max(200), classLabel: z.string().max(80), state: accountStateV1, eligibility: eligibilityStateV1, blocked: z.boolean(), version: versionV1 }).strict();
 const card = { accountId: portalIdV1, qr: qrUrlV1 };
 export const printCardV1 = z.discriminatedUnion('mode', [
@@ -56,7 +60,7 @@ export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-name'), name: z.string().min(1).max(200) }).strict(),
   z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(200), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
-export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: scopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable() }).strict();
+export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: scopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
 /** Opt-in acknowledgement read inside the write transaction; no credential material.
  * A replay after a later account change omits this snapshot and retains the original receipt.
  */
@@ -69,6 +73,7 @@ export type SavedBirthV1 = z.infer<typeof savedBirthV1>;
 const base = { contractVersion: z.literal(1), requestId: portalIdV1 };
 const paging = { nextCursor: opaqueV1.nullable() };
 export const adminResponseV1 = z.discriminatedUnion('state', [
+  bulkPreviewResponseV1,
   z.object({ ...base, state: z.literal('accounts'), scopeVersion: versionV1, items: z.array(accountSummaryV1).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('sessions'), version: versionV1, items: z.array(z.object({ sessionId: portalIdV1, accountId: portalIdV1, expiresAt: instantV1, revokedAt: instantV1.nullable() }).strict()).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('birth-years'), scopeVersion: versionV1, items: z.array(z.object({ accountId: portalIdV1, accountVersion: versionV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
@@ -76,6 +81,7 @@ export const adminResponseV1 = z.discriminatedUnion('state', [
   z.object({ ...base, state: z.literal('publication'), items: z.array(z.object({ period: periodV1, state: publicationStateV1, availableRevision: revisionV1.nullable(), publishedRevision: revisionV1.nullable(), version: versionV1 }).strict()).max(6) }).strict(),
   z.object({ ...base, state: z.literal('audit'), items: z.array(auditEventV1).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('audit-detail'), event: auditEventV1, ip: z.union([z.ipv4(), z.ipv6()]).nullable(), ipExpiresAt: instantV1.nullable() }).strict(),
+  z.object({ ...base, state: z.literal('presence'), connectedStudents: z.number().int().nonnegative().safe(), observedAt: instantV1, windowSeconds: z.literal(60) }).strict(),
   z.object({ ...base, state: z.literal('health'), status: z.enum(['normal', 'attention', 'intervention']) }).strict(),
   z.object({ ...base, state: z.literal('links-preview'), count: z.number().int().nonnegative(), previewToken: opaqueV1, expiresAt: instantV1, version: versionV1 }).strict(),
   z.object({ ...base, state: z.literal('population'), enabled: z.boolean(), version: versionV1, sourceProfiles: z.number().int().nonnegative().safe(), eligibleSourceProfiles: z.number().int().nonnegative().safe(), exitSourceProfiles: z.number().int().nonnegative().safe(), classes: z.number().int().nonnegative().safe(), accounts: z.number().int().nonnegative().safe(), eligibleAccounts: z.number().int().nonnegative().safe(), deniedAccounts: z.number().int().nonnegative().safe(), missingProfiles: z.number().int().nonnegative().safe(), overrideRows: z.number().int().nonnegative().safe() }).strict(),

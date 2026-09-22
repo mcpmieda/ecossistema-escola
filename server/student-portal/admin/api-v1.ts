@@ -20,6 +20,7 @@ import { adminFailureStateV1, boundSqlV1 } from './common-v1';
 import { readAccountListV1, readAdminHealthV1, readAuditV1 } from './queries-v1';
 import { closeLinksIdempotentlyV1, qrBatchV1 } from './batches-v1';
 import { readPopulationV1, startPopulationV1 } from './population-v1';
+import { BulkAdminV1 } from './bulk-v1';
 
 export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number;
@@ -64,11 +65,14 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     const parsed = adminQueryV1.safeParse(input);
     if (!parsed.success) return this.failure(context.requestId, 'invalid-request');
     const query = parsed.data;
-    if (['audit-detail', 'links-preview'].includes(query.operation) && context.capability !== 'platform.settings.write')
+    if (['audit-detail', 'links-preview', 'bulk-preview'].includes(query.operation) && context.capability !== 'platform.settings.write')
       return this.failure(context.requestId, 'forbidden');
     if (!this.queryFieldsAllowed(query)) return this.failure(context.requestId, 'invalid-request');
     try {
       const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
+      if (query.operation === 'bulk-preview')
+        return await new BulkAdminV1(this.sql, this.options.cursorSecret,
+          new QrServiceV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion)).preview(context, query);
       if (this.options.scopedPublication && query.operation === 'publication')
         return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(query.scope)).items });
       if (this.options.scopedPublication && query.operation === 'settings')
@@ -77,7 +81,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         ...base, ...await readAdminHealthV1(tx, query),
       }));
       const yearMode = query.operation === 'publication' || query.operation === 'settings' ? 'shared' : 'exclusive';
-      return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null), async (tx) => {
+      return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null, context), async (tx) => {
         const sql = boundSqlV1(tx);
         const now = await authNowV1(tx);
         switch (query.operation) {
@@ -102,6 +106,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }
   private queryFieldsAllowed(query: AdminQueryV1) {
+    if (query.operation === 'bulk-preview') return true;
     const accountList = ['accounts', 'birth-years', 'sessions'].includes(query.operation);
     const audit = ['audit', 'audit-detail'].includes(query.operation);
     if (!accountList && [query.accountState, query.blocked, query.nameSearch].some((value) => value !== undefined)) return false;
@@ -117,9 +122,12 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     const command = parsed.data;
     const base = { contractVersion: 1, requestId: context.requestId };
     const committed = (result: { operationId: string; version: number }) => adminResponseV1.parse({ ...base, state: 'committed', ...result });
-    const sql = withAuditSqlV1(this.sql, context.clientIp ?? null);
+    const sql = withAuditSqlV1(this.sql, context.clientIp ?? null, context);
     try {
       switch (command.operation) {
+        case 'bulk-execute':
+          return await new BulkAdminV1(sql, this.options.cursorSecret,
+            new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion)).execute(context, command);
         case 'publication-inherit':
           if (!this.options.scopedPublication) throw new Error('student-portal-scoped-publication-unavailable');
           return committed(await inheritPublicationV1(sql, context.actorId, command));

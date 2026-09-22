@@ -322,3 +322,22 @@
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
 }
+
+.pa-settings-fields {
+  align-items: stretch;
+}
+.pa-settings-card {
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  height: 100%;
+}
+.pa-settings-card > .card__header {
+  min-height: 3.3rem;
+}
+.pa-settings-card > .card__footer {
+  margin-top: auto;
+}
+.pa-settings-card--allowedPeriods {
+  display: flex;
+  flex-direction: column;
+}

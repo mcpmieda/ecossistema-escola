@@ -74,9 +74,9 @@ describe('ADM Pages to private Portal binding', () => {
 
   it('verifies the existing sealed session and produces fresh context rather than accepting browser identity', async () => {
     const { rpc, seen } = binding();
-    const response = await servePortalAdminV1(await request(query, { headers: { 'x-portal-actor': TENANT, 'x-portal-capability': 'platform.settings.write' } }), env, rpc);
+    const response = await servePortalAdminV1(await request(query, { headers: { 'x-portal-actor': TENANT, 'x-portal-actor-name': 'SYNTHETIC SPOOFED', 'x-portal-capability': 'platform.settings.write' } }), env, rpc);
     expect(response.status).toBe(200);
-    expect(seen[0]).toMatchObject({ actorId: ACTOR, tenantId: TENANT, capability: 'platform.settings.read' });
+    expect(seen[0]).toMatchObject({ actorId: ACTOR, actorName: 'SYNTHETIC ADMIN', tenantId: TENANT, capability: 'platform.settings.read' });
     expect(Date.now() - Date.parse(seen[0]!.authenticatedAt)).toBeLessThan(5000);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
@@ -86,6 +86,20 @@ describe('ADM Pages to private Portal binding', () => {
     expect(seen[1]!.capability).toBe('platform.settings.write');
     expect((await servePortalAdminV1(await request({ ...command, actorId: TENANT }, {}, 'command'), env, rpc)).status).toBe(400);
     expect(seen).toHaveLength(2);
+  });
+
+  it('elevates the destructive bulk preview to the write capability it is authorized under', async () => {
+    const preview = { contractVersion: 1, operation: 'bulk-preview', scope: { kind: 'school', academicYear: 2026 }, page: { limit: 100 }, action: 'qr-regenerate' };
+    const seen: TrustedAdminContextV1[] = [];
+    const rpc: PortalAdminEntrypointV1 = {
+      ...binding().rpc,
+      async query(context) { seen.push(context); return { contractVersion: 1, requestId: context.requestId, state: 'forbidden' } as never; },
+    };
+    await servePortalAdminV1(await request(preview), env, rpc);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.capability).toBe('platform.settings.write');
+    expect((await servePortalAdminV1(await request(preview, { headers: { cookie: await cookie(['PROFESSOR']) } }), env, rpc)).status).toBe(403);
+    expect(seen).toHaveLength(1);
   });
 
   it('rejects absent, invalid, expired or duplicated session cookies and roles without the capability', async () => {

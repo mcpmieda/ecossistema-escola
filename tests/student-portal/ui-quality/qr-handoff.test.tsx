@@ -92,7 +92,7 @@ it('discards a late bitmap after navigation clears the owner instead of reopenin
   expect(rejected).toMatchObject({ name: 'AbortError' });
   expect(screen.queryByRole('dialog')).toBeNull();
 });
-it('expires the private artifact after five minutes and refuses a cancelled renderer', async () => {
+it('retains the private artifact until close and refuses a cancelled renderer', async () => {
   render(<Mounted />);
   vi.useFakeTimers();
   await act(() => handoff.accept(result, new AbortController().signal));
@@ -100,6 +100,8 @@ it('expires the private artifact after five minutes and refuses a cancelled rend
   await act(async () => {
     vi.advanceTimersByTime(300_000);
   });
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  await act(() => handoff.clear());
   expect(screen.queryByRole('dialog')).toBeNull();
   vi.useRealTimers();
   const controller = new AbortController();
