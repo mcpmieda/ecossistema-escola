@@ -135,6 +135,63 @@ function mark(
       };
 }
 
+type AnnualSituationV1 = NonNullable<AcademicStudentV1['profile']['annualSituation']>;
+type SubjectSituationV1 = NonNullable<AcademicStudentV1['subjects'][number]['annualSituation']>;
+type AnnualOutcomeV1 = ReturnType<typeof resolveSimplifiedAnnualOutcomeV1>;
+
+const VISIBLE_ANNUAL_SITUATION_V1: Partial<
+  Record<NonNullable<AnnualOutcomeV1['visibleResult']>, AnnualSituationV1>
+> = {
+  'EM RECUPERAÇÃO': 'in-recovery',
+  'APROVADO DIRETO': 'approved-direct',
+  'APROVADO PELA RECUPERAÇÃO': 'approved-after-recovery',
+  APROVADO: 'approved-special',
+  'REPROVADO APÓS RECUPERAÇÃO': 'failed-after-recovery',
+  'REPROVADO POR NÃO COMPARECIMENTO': 'failed-no-show',
+  REPROVADO: 'failed-repeat',
+};
+const COUNCIL_SITUATION_V1: Record<1 | 2 | 3, AnnualSituationV1> = {
+  1: 'approved-by-council',
+  2: 'failed-by-council',
+  3: 'failed-by-absence',
+};
+
+/**
+ * Relays the BN's own annual verdict with its exact wording; no new rule. A formal Council
+ * decision prevails (same precedence as `result`); EM CURSO and terminal enrollment statuses
+ * (desistente/transferido/falecido) carry no situation, and ASSISTIDO never has one.
+ */
+export function annualSituationV1(input: {
+  status: number | null;
+  formalDecision: number | null;
+  annual: AnnualOutcomeV1;
+}): AnnualSituationV1 | undefined {
+  if (input.status === 2) return undefined;
+  if (input.formalDecision === 1 || input.formalDecision === 2 || input.formalDecision === 3)
+    return COUNCIL_SITUATION_V1[input.formalDecision];
+  if (input.annual.state === 'council-eligible') return 'awaiting-council';
+  return input.annual.visibleResult === null
+    ? undefined
+    : VISIBLE_ANNUAL_SITUATION_V1[input.annual.visibleResult];
+}
+
+export function subjectSituationV1(
+  status: number | null,
+  classification: string,
+): SubjectSituationV1 | undefined {
+  if (status === 2) return undefined;
+  return (
+    [
+      'recovery-pending',
+      'approved-direct',
+      'approved-after-recovery',
+      'not-approved',
+      'failed-no-show',
+      'failed-repeat',
+    ] as const
+  ).find((item) => item === classification);
+}
+
 /** Explicit projection: internal annual facts, class id and source metadata never spread to self. */
 export function academicToSelfV1(
   student: AcademicStudentV1,
@@ -157,6 +214,9 @@ export function academicToSelfV1(
     classLabel: source.profile.classLabel,
     academicState: source.profile.academicState,
     result: source.profile.result,
+    ...(source.profile.annualSituation === undefined
+      ? {}
+      : { annualSituation: source.profile.annualSituation }),
   });
   const subjects = selfResponseV1.shape.subjects.parse(
     source.subjects.map((subject) => ({
@@ -166,6 +226,9 @@ export function academicToSelfV1(
       ...(subject.officialOutcome === undefined
         ? {}
         : { officialOutcome: subject.officialOutcome }),
+      ...(subject.annualSituation === undefined
+        ? {}
+        : { annualSituation: subject.annualSituation }),
       periods: subject.periods.map((period) => ({
         period: period.period,
         final: convert(period.final),
@@ -357,6 +420,7 @@ export class AcademicStudentReaderPostgresV1
             : ['not-approved', 'failed-no-show', 'failed-repeat'].includes(classification)
               ? ('failed' as const)
               : undefined;
+      const situation = subjectSituationV1(status, classification);
       const sourceComplete =
         offer.closure?.annual !== null &&
         offer.closure?.annual !== undefined &&
@@ -383,6 +447,7 @@ export class AcademicStudentReaderPostgresV1
           periods,
           officialAnnual: mark(offer.closure?.annual ?? null, null, minimum),
           ...(officialOutcome === undefined ? {} : { officialOutcome }),
+          ...(situation === undefined ? {} : { annualSituation: situation }),
         },
       };
     });
@@ -407,6 +472,7 @@ export class AcademicStudentReaderPostgresV1
                 : annual.visibleResult?.startsWith('REPROVADO')
                   ? 'failed'
                   : 'in-progress';
+    const annualSituation = annualSituationV1({ status, formalDecision: formal, annual });
     const student = academicStudentSchemaV1.parse({
       contractVersion: 1,
       link,
@@ -417,6 +483,7 @@ export class AcademicStudentReaderPostgresV1
         classLabel: bindings[0]!.classLabel,
         academicState: status === 2 ? 'assisted' : status === 1 ? 'special' : 'regular',
         result,
+        ...(annualSituation === undefined ? {} : { annualSituation }),
       },
       subjects: projections.map((item) => item.subject),
     });

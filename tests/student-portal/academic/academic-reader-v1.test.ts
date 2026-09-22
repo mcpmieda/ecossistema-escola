@@ -91,17 +91,22 @@ describe('official academic snapshot and self allowlist', () => {
       { kind: 'nc' }, { kind: 'rr' }, { kind: 'score', valueMilli: 0, maximumMilli: 40000, meetsMinimum: false },
     ]);
     expect(result!.profile.result).toBe('failed');
+    // R/R is exactly REPROVADO and overrides the Council approval.
+    expect(result!.profile.annualSituation).toBe('failed-repeat');
   });
 
   it('applies formal attendance decision only to regular/7 and keeps assisted without global outcome', async () => {
     await pg.exec("INSERT INTO gradebook.conselho_decisao(aluno_id,decisao,justificativa,registrado_por) VALUES (910001,3,'SYNTHETIC ONLY','11111111-1111-4111-8111-111111111111')");
-    expect((await reader.readOfficial(link, revision))?.profile.result).toBe('failed-attendance');
+    expect((await reader.readOfficial(link, revision))?.profile).toMatchObject({ result: 'failed-attendance', annualSituation: 'failed-by-absence' });
     await pg.exec('UPDATE gradebook.vinculo SET situacao=7,turma_relacionada_id=910002 WHERE aluno_id=910001');
     expect((await reader.readOfficial(link, revision))?.profile.result).toBe('failed-attendance');
     await pg.exec('UPDATE gradebook.vinculo SET situacao=2,turma_relacionada_id=NULL WHERE aluno_id=910001');
-    expect((await reader.readOfficial(link, revision))?.profile).toMatchObject({ result: 'not-applicable', academicState: 'assisted' });
+    const assisted = await reader.readOfficial(link, revision);
+    expect(assisted?.profile).toMatchObject({ result: 'not-applicable', academicState: 'assisted' });
+    expect(assisted?.profile).not.toHaveProperty('annualSituation');
+    expect(assisted?.subjects.some((subject) => subject.annualSituation !== undefined)).toBe(false);
     await pg.exec('UPDATE gradebook.vinculo SET situacao=1 WHERE aluno_id=910001');
-    expect((await reader.readOfficial(link, revision))?.profile).toMatchObject({ result: 'approved', academicState: 'special' });
+    expect((await reader.readOfficial(link, revision))?.profile).toMatchObject({ result: 'approved', academicState: 'special', annualSituation: 'approved-special' });
   });
 
   it('uses instrument-wide activity evidence without returning another student mark or inventing a maximum', async () => {

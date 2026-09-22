@@ -2,7 +2,7 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { browserBoundaryV1 } from './build/browser-boundary-v1';
+import { browserBoundaryV1 } from './build/browser-boundary-v1.ts';
 
 export default defineConfig({
   root: path.resolve(import.meta.dirname, 'src/student-portal'),

@@ -14,10 +14,6 @@ import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiag
 const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
   (module) => ({ default: module.StudentAuthenticationV1 }),
 ).catch(markStudentModuleFailureV1));
-const StudentGradesV1 = lazy(() => import('../features/student-portal/grades/student-grades-v1').then(
-  (module) => ({ default: module.StudentGradesV1 }),
-).catch(markStudentModuleFailureV1));
-
 export interface StudentEntryV1 {
   qr: string | null;
   invalidQr: boolean;
@@ -115,7 +111,6 @@ export function StudentPortalApp({
     );
   return (
     <StudentPortalPageV1 load={session.load}
-      grades={(data) => <Suspense fallback={<output>Carregando notas…</output>}><StudentGradesV1 data={data} /></Suspense>}
       onRetry={() => { void session.refresh(); }}
       onLogin={() => { discardQr(); setAccess(true); }}
       onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}
