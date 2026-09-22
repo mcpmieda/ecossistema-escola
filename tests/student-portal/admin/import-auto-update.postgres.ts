@@ -173,7 +173,7 @@ it('allows a manual refresh only while a published period is actually pending', 
       targetDataVersion: snapshot.dataVersion,
       idempotencyKey: crypto.randomUUID(),
     }),
-  ).rejects.toThrow('student-portal-publication-no-update-pending');
+  ).rejects.toThrow('student-portal-publication-no-update-conflict');
   await expect(
     service.command(READ_ACTOR_V2, {
       contractVersion: 1,
@@ -184,7 +184,7 @@ it('allows a manual refresh only while a published period is actually pending', 
       targetDataVersion: snapshot.dataVersion,
       idempotencyKey: crypto.randomUUID(),
     }),
-  ).rejects.toThrow('student-portal-publication-already-published');
+  ).rejects.toThrow('student-portal-publication-already-published-conflict');
 
   await policy(false);
   await importer().execute(notes(4000, 10000));
