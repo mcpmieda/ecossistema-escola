@@ -151,14 +151,13 @@ it('removes protected DOM before history restoration and requires a fresh sessio
   void act(() => window.dispatchEvent(new Event('pagehide')));
   expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
   api.expire();
-  const readsBeforeRestore = api.calls.length;
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
-  expect(api.calls).toHaveLength(readsBeforeRestore);
   expect(screen.queryByText('Disciplina de exemplo')).toBeNull();
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+  // Stable login re-verifies on return by itself; the revoked session lands on login directly.
   expect(await screen.findByRole('heading', { name: 'Acessar minhas notas' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
   expect(screen.queryByText('Sessão expirada')).toBeNull();
   expect(screen.queryByText('Disciplina de exemplo')).toBeNull();
   expect(api.calls.filter((call) => call.path === '/api/student/me')).toHaveLength(1);

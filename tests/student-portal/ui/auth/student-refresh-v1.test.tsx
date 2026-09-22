@@ -166,7 +166,7 @@ it('still removes protected data at the server expiry without a network request'
   expect(client.me).toHaveBeenCalledTimes(1);
 });
 
-it('clears history and fetches grades again only after an explicit refresh', async () => {
+it('clears history on pagehide and reloads once on return (stable login)', async () => {
   const client = clientFixtureV1();
   const { result } = renderHook(() => useStudentSessionV1(client));
   await settle();
@@ -177,16 +177,12 @@ it('clears history and fetches grades again only after an explicit refresh', asy
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
-  expect(result.current.load.state).toBe('error');
+  await settle();
+  expect(result.current.load).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
+  // A second pageshow without a pagehide is the ordinary one and never reloads again.
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
-  expect(client.session).toHaveBeenCalledTimes(1);
-  expect(client.me).toHaveBeenCalledTimes(1);
-  await act(async () => {
-    await result.current.refresh();
-  });
-  expect(result.current.load.state).toBe('ready');
   expect(client.session).toHaveBeenCalledTimes(2);
   expect(client.me).toHaveBeenCalledTimes(2);
 });
@@ -209,17 +205,14 @@ it('discards a read that completes after the page has been hidden by navigation'
     finish(SYNTHETIC_SELF_V1);
   });
   expect(result.current.load.state).toBe('idle');
+  // The stale read was discarded; the return performs its own fresh, verified read.
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
-  expect(result.current.load.state).toBe('error');
-  expect(client.session).toHaveBeenCalledTimes(1);
-  expect(client.me).toHaveBeenCalledTimes(1);
-  await act(async () => {
-    await result.current.refresh();
-  });
+  await settle();
   expect(result.current.load.state).toBe('ready');
   expect(client.session).toHaveBeenCalledTimes(2);
+  expect(client.me).toHaveBeenCalledTimes(2);
 });
 
 it('never brings protected data back after logout and still supports explicit authentication', async () => {

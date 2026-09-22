@@ -103,3 +103,10 @@ O DTO estudantil passa a repassar, sem regra nova, a situação anual que o BN j
 Divulgação: EM RECUPERAÇÃO e as disciplinas em recuperação acompanham a divulgação do T3, para o aluno saber antes da semana de recuperação; as demais situações exigem a divulgação do resultado final e a mesma autoridade de `officialOutcome`. Pendência: substituir o acoplamento ao T3 por um controle próprio no ADM após o merge desta branch.
 
 A redação "Reprovado por frequência" foi alinhada ao termo oficial do Conselho: "Reprovado por falta".
+## Login estável no Portal (22/09/2026, pedido do responsável)
+
+Sintoma em produção: o aluno entrava e, cerca de um minuto depois ou ao voltar ao aplicativo, via "Não foi possível carregar seus dados", registrado como "Navegador: falha de leitura". Causa: a licença de segurança de 60 segundos vencia sem renovação quando o canal WebSocket não conectava ou quando o sistema suspendia a aba, e o cliente apagava a tela.
+
+Regra vigente: no vencimento da licença, o cliente verifica apenas `/session` (nunca `/me`). Incerteza de rede mantém o conteúdo e repete a verificação a cada 15 segundos. Somente revogação confirmada pelo servidor (401/403) ou vencimento da sessão retira o conteúdo, e o aluno volta direto ao login, sem mensagem de erro. Ao retornar do histórico, o conteúdo continua descartado no `pagehide` e é recarregado após nova verificação, sem botão manual. Notas novas durante o uso continuam exigindo atualização manual.
+
+Também nesta entrega: o edge do Portal passa a servir `.webp` (logo e arte da capa retornavam 404) e a barra de disciplinas rola até a disciplina escolhida.
