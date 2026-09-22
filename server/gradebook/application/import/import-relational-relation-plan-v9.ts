@@ -24,10 +24,16 @@ export interface RelationSourceBindingV9 {
   readonly relatedTurmaId: number | null;
 }
 
+export interface RelationIdentityRepairV9 {
+  readonly canonicalAlunoId: number;
+  readonly duplicateAlunoId: number;
+}
+
 export interface RelationComponentV9 {
   readonly items: readonly RelationSourceBindingV9[];
   readonly seedAlunoId: number | null;
   readonly preferred: RelationSourceBindingV9;
+  readonly identityRepair?: RelationIdentityRepairV9;
 }
 
 export interface RelationPlanV9 {
@@ -68,7 +74,7 @@ class UnionFindV9 {
   }
 }
 
-function normalizeNameV9(value: string): string {
+export function normalizeRelationNameV9(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/gu, '')
@@ -86,7 +92,7 @@ export function relationBindingKeyV9(turmaId: number, numero: number): string {
 }
 
 function nameClassKeyV9(turmaId: number, name: string): string {
-  return `${turmaId}:${normalizeNameV9(name)}`;
+  return `${turmaId}:${normalizeRelationNameV9(name)}`;
 }
 
 function indexExistingBindingsV9(existing: readonly ExistingRelationBindingV9[]): {
@@ -198,6 +204,43 @@ function groupComponentsV9(
   return components;
 }
 
+function explicitReciprocalRepairV9(
+  items: readonly RelationSourceBindingV9[],
+  existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
+): RelationIdentityRepairV9 | null {
+  if (items.length !== 2) return null;
+  const origin = items.find((item) => item.situacao === 6);
+  const destination = items.find((item) => item.situacao === 7);
+  if (
+    !origin ||
+    !destination ||
+    origin.relatedTurmaId !== destination.turmaId ||
+    destination.relatedTurmaId !== origin.turmaId ||
+    normalizeRelationNameV9(origin.nome) !== normalizeRelationNameV9(destination.nome)
+  )
+    return null;
+
+  const originBinding = existingByBinding.get(
+    relationBindingKeyV9(origin.turmaId, origin.numero),
+  );
+  const destinationBinding = existingByBinding.get(
+    relationBindingKeyV9(destination.turmaId, destination.numero),
+  );
+  if (
+    !originBinding ||
+    !destinationBinding ||
+    originBinding.alunoId === destinationBinding.alunoId ||
+    normalizeRelationNameV9(originBinding.nome) !== normalizeRelationNameV9(origin.nome) ||
+    normalizeRelationNameV9(destinationBinding.nome) !== normalizeRelationNameV9(destination.nome)
+  )
+    return null;
+
+  return {
+    canonicalAlunoId: originBinding.alunoId,
+    duplicateAlunoId: destinationBinding.alunoId,
+  };
+}
+
 function buildComponentV9(
   items: readonly RelationSourceBindingV9[],
   existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
@@ -210,16 +253,26 @@ function buildComponentV9(
     const external = externalSeed.get(item.index);
     if (external !== undefined) seeds.add(external);
   }
+  const preferred = items.find((item) => item.situacao !== 6) ?? items[0]!;
   if (seeds.size > 1) {
-    throw new RelationPlanErrorV9(
-      'conflict',
-      `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`,
-    );
+    const identityRepair = explicitReciprocalRepairV9(items, existingByBinding);
+    if (!identityRepair) {
+      throw new RelationPlanErrorV9(
+        'conflict',
+        `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`,
+      );
+    }
+    return {
+      items,
+      seedAlunoId: identityRepair.canonicalAlunoId,
+      preferred,
+      identityRepair,
+    };
   }
   return {
     items,
     seedAlunoId: [...seeds][0] ?? null,
-    preferred: items.find((item) => item.situacao !== 6) ?? items[0]!,
+    preferred,
   };
 }
 
