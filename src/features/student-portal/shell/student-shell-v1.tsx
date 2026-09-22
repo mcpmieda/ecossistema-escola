@@ -56,7 +56,7 @@ export function StudentPortalShellV1({
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
   return (
-    <div className="pa-shell">
+    <div className={hero ? 'pa-shell pa-shell--with-hero' : 'pa-shell'}>
       <a
         className="pa-skip-link"
         href={'#' + contentId}
