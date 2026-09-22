@@ -130,6 +130,42 @@ describe('relation movement planner V9', () => {
     );
   });
 
+  it('repairs only a reciprocal movement when the two positions already have different ids', () => {
+    const existing: ExistingRelationBindingV9[] = [
+      {
+        turmaId: 10,
+        numero: 1,
+        alunoId: 100,
+        situacao: null,
+        turmaRelacionadaId: null,
+        nome: 'ALUNO TESTE',
+      },
+      {
+        turmaId: 20,
+        numero: 3,
+        alunoId: 200,
+        situacao: null,
+        turmaRelacionadaId: null,
+        nome: 'ALUNO TÉSTE',
+      },
+    ];
+    const plan = buildRelationPlanV9(
+      request(
+        [[1, 'ALUNO TESTE', 6, '6B']],
+        [[3, 'ALUNO TESTE', 7, '6A']],
+      ),
+      classes,
+      existing,
+    );
+
+    expect(plan.components).toHaveLength(1);
+    expect(plan.components[0]).toMatchObject({
+      seedAlunoId: 100,
+      preferred: { turmaId: 20, numero: 3, situacao: 7 },
+      identityRepair: { canonicalAlunoId: 100, duplicateAlunoId: 200 },
+    });
+  });
+
   it('reports conflict when one component is already linked to different students', () => {
     const existing: ExistingRelationBindingV9[] = [
       {
