@@ -5,11 +5,24 @@ import {
   Description,
   Label,
   ListBox,
-  ProgressCircle,
   Surface,
   Tabs,
 } from '@heroui/react';
-import { BookOpenCheck, LayoutDashboard } from 'lucide-react';
+import {
+  Atom,
+  BookOpenCheck,
+  BookOpenText,
+  Calculator,
+  Dumbbell,
+  FlaskConical,
+  Globe2,
+  Landmark,
+  Languages,
+  LayoutDashboard,
+  Monitor,
+  Music2,
+  Palette,
+} from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
 import './student-workspace-v1.css';
@@ -52,14 +65,40 @@ function visibleMainPeriodsV1(subjects: readonly SubjectV1[]) {
     subjects.some((subject) => subject.periods.some((item) => item.period === period)),
   );
 }
-function progressColorV1(mark: ScoreMarkV1 | null) {
-  if (!mark || mark.meetsMinimum === null) return 'default' as const;
-  return mark.meetsMinimum ? ('success' as const) : ('danger' as const);
+function scoreToneV1(mark: ScoreMarkV1 | null) {
+  if (mark?.meetsMinimum === true) return 'positive' as const;
+  if (mark?.meetsMinimum === false) return 'negative' as const;
+  return 'neutral' as const;
 }
-function progressMaxV1(mark: ScoreMarkV1 | null) {
-  if (!mark) return 100;
-  if (mark.maximum !== null && mark.maximum > 0) return mark.maximum;
-  return Math.max(mark.value, 1);
+
+function SubjectIconV1({ label, size = 18 }: { label: string; size?: number }) {
+  const normalized = label
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .toLocaleLowerCase('pt-BR');
+
+  let Icon = BookOpenCheck;
+  if (normalized.includes('matematica')) Icon = Calculator;
+  else if (normalized.includes('portugues')) Icon = BookOpenText;
+  else if (normalized.includes('historia')) Icon = Landmark;
+  else if (normalized.includes('geografia')) Icon = Globe2;
+  else if (normalized.includes('ingles')) Icon = Languages;
+  else if (normalized.includes('educacao fisica')) Icon = Dumbbell;
+  else if (normalized.includes('arte')) Icon = Palette;
+  else if (normalized.includes('musica')) Icon = Music2;
+  else if (normalized.includes('informatica') || normalized.includes('tecnologia')) Icon = Monitor;
+  else if (normalized === 'fisica' || normalized.includes('fisica ')) Icon = Atom;
+  else if (
+    normalized.includes('ciencia') ||
+    normalized.includes('quimica') ||
+    normalized.includes('biologia')
+  ) Icon = FlaskConical;
+
+  return (
+    <span className="pa-subject-icon" aria-hidden="true">
+      <Icon size={size} strokeWidth={1.8} />
+    </span>
+  );
 }
 
 function PageIntroV1({
@@ -111,8 +150,7 @@ function SummaryV1({
               <Tabs.List aria-label="Período das notas">
                 {available.map((period) => (
                   <Tabs.Tab id={period} key={period}>
-                    <span className="pa-period-radio" aria-hidden="true" />
-                    <span>{BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}</span>
+                    {BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}
                     <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
@@ -145,7 +183,7 @@ function SummaryV1({
                 key={subject.subjectId}
                 textValue={subject.label}
               >
-                <BookOpenCheck size={18} aria-hidden="true" />
+                <SubjectIconV1 label={subject.label} />
                 <div className="pa-workspace-list-copy">
                   <Label>{subject.label}</Label>
                 </div>
@@ -177,7 +215,11 @@ function SubjectV1View({
 
   return (
     <div className="pa-workspace-view">
-      <PageIntroV1 icon={<BookOpenCheck size={22} />} eyebrow="Disciplina" title={subject.label} />
+      <PageIntroV1
+        icon={<SubjectIconV1 label={subject.label} size={20} />}
+        eyebrow="Disciplina"
+        title={subject.label}
+      />
 
       <Tabs
         selectedKey={String(subject.subjectId)}
@@ -208,38 +250,24 @@ function SubjectV1View({
         </Tabs.ListContainer>
         <Tabs.Panel id={active}>
           <div className="pa-workspace-grid">
-            <Card variant="secondary">
-              <Card.Header>
-                <Card.Title>Nota do período</Card.Title>
-                <Card.Description>{PERIOD_LABELS_V1[active]}</Card.Description>
-              </Card.Header>
-              <Card.Content className="pa-progress-card-content">
-                <ProgressCircle
-                  aria-label="Progresso da nota do período"
-                  value={mark?.value ?? 0}
-                  maxValue={progressMaxV1(mark)}
-                  size="lg"
-                  color={progressColorV1(mark)}
-                >
-                  <ProgressCircle.Track>
-                    <ProgressCircle.TrackCircle />
-                    <ProgressCircle.FillCircle />
-                  </ProgressCircle.Track>
-                </ProgressCircle>
-                <div>
-                  <strong className="pa-published-score">
-                    {mark ? number.format(mark.value) : '—'}
-                  </strong>
-                  {mark?.maximum !== null && mark?.maximum !== undefined ? (
-                    <Description>de {number.format(mark.maximum)}</Description>
-                  ) : null}
-                  <Chip size="sm" variant="soft" color={progressColorV1(mark)}>
+            <Card className={'pa-score-card pa-score-card--' + scoreToneV1(mark)}>
+              <Card.Content className="pa-score-card-content">
+                <div className="pa-score-card-copy">
+                  <span className="pa-score-card-label">Nota do período</span>
+                  <span className="pa-score-card-period">{PERIOD_LABELS_V1[active]}</span>
+                  <span className="pa-score-card-status">
                     {mark?.meetsMinimum === true
                       ? 'Atinge o mínimo'
                       : mark?.meetsMinimum === false
                         ? 'Abaixo do mínimo'
                         : 'Classificação indisponível'}
-                  </Chip>
+                  </span>
+                </div>
+                <div className="pa-score-card-value" aria-label="Nota do período">
+                  <strong>{mark ? number.format(mark.value) : '—'}</strong>
+                  {mark?.maximum !== null && mark?.maximum !== undefined ? (
+                    <span>/ {number.format(mark.maximum)}</span>
+                  ) : null}
                 </div>
               </Card.Content>
             </Card>
