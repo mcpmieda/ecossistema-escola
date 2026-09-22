@@ -238,6 +238,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-658-006`: HeroUI cobre cabeçalho compacto, KPIs identificados como itens carregados, filtros por gravidade, paginação, timeline, detalhes recolhidos e estados loading/vazio/erro/autorização.
 - `F1-658-007`: não há select HTML, storage acadêmico no browser, criação/comparação de anos, DML acadêmico, mudança de regra ou autoridade.
 - `F1-658-008`: testes direcionados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; validação visual conjunta continua separada.
+- `F1-658-009`: a Auditoria persistida retém somente `blocking-error` e `above-maximum`; warnings técnicos/esperados permanecem fora do snapshot corrente sem enfraquecer a validação/preflight da importação.
 
 ## F14-662 — Recuperação lógica e contenção PostgreSQL
 
