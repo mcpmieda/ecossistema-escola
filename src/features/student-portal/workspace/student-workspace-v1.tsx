@@ -29,6 +29,11 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC2: 'REC 2º',
   REC3: 'REC 3º',
 };
+const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
+  T1: 'I Trimestre',
+  T2: 'II Trimestre',
+  T3: 'III Trimestre',
+};
 const resultLabels = {
   approved: 'Aprovado',
   failed: 'Reprovado',
@@ -95,7 +100,26 @@ function SummaryV1({
   return (
     <div className="pa-workspace-view">
       {profile}
-      <section aria-labelledby="pa-summary-title">
+      <section className="pa-boletim-section" aria-labelledby="pa-summary-title">
+        {available.length ? (
+          <Tabs
+            className="pa-boletim-period-tabs"
+            selectedKey={active}
+            onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}
+          >
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Período das notas">
+                {available.map((period) => (
+                  <Tabs.Tab id={period} key={period}>
+                    {BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </Tabs>
+        ) : null}
+
         <div className="pa-workspace-heading-row">
           <div>
             <p className="pa-workspace-eyebrow">Notas publicadas</p>
@@ -105,21 +129,6 @@ function SummaryV1({
             {published.length} {published.length === 1 ? 'disciplina' : 'disciplinas'}
           </Chip>
         </div>
-
-        {available.length ? (
-          <Tabs selectedKey={active} onSelectionChange={(key) => setSelected(String(key) as PeriodIdV1)}>
-            <Tabs.ListContainer>
-              <Tabs.List aria-label="Período das notas">
-                {available.map((period) => (
-                  <Tabs.Tab id={period} key={period}>
-                    {PERIOD_LABELS_V1[period]}
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
-        ) : null}
 
         <ListBox
           aria-label="Disciplinas publicadas"
