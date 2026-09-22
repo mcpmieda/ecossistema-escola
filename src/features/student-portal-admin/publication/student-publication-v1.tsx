@@ -49,6 +49,11 @@ function operationLabel(command: PublicationCommandV1) {
   if (command.operation === 'publish-update') return 'Atualizar notas publicadas';
   return 'Publicar notas';
 }
+function confirmationLabel(command: PublicationCommandV1) {
+  if (command.operation === 'unpublish') return 'Confirmar retirada';
+  if (command.operation === 'publish-update') return 'Confirmar atualização';
+  return 'Confirmar publicação';
+}
 
 function publicationColorV1(item: PublicationItemV1) {
   if (item.state === 'update-pending') return 'warning' as const;
@@ -418,11 +423,7 @@ function PublicationReviewV1({
               isDisabled={busy}
               onPress={onConfirm}
             >
-              {command.operation === 'unpublish'
-                ? 'Confirmar retirada'
-                : command.operation === 'publish-update'
-                  ? 'Confirmar atualização'
-                  : 'Confirmar publicação'}
+              {confirmationLabel(command)}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>
