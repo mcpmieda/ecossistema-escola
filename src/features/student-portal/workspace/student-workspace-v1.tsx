@@ -111,7 +111,8 @@ function SummaryV1({
               <Tabs.List aria-label="Período das notas">
                 {available.map((period) => (
                   <Tabs.Tab id={period} key={period}>
-                    {BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}
+                    <span className="pa-period-radio" aria-hidden="true" />
+                    <span>{BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period]}</span>
                     <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
