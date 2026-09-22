@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentPortalWorkspaceV1 } from '../../../../src/features/student-portal/workspace/student-workspace-v1';
@@ -8,6 +8,7 @@ import { setupOperationsDomV1 } from '../overview/dom-v1';
 
 beforeEach(() => {
   setupOperationsDomV1();
+  window.history.replaceState(null, '', window.location.href);
 });
 
 afterEach(() => {
@@ -55,6 +56,31 @@ describe('student portal grade workspace', () => {
     ).toBe('true');
     expect(screen.getByRole('heading', { name: first.label })).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
-    expect(screen.getByText('Abaixo do mínimo')).toBeTruthy();
+    expect(screen.getByText('Sua nota')).toBeTruthy();
+    expect(screen.getByText('Abaixo do esperado')).toBeTruthy();
+    expect(screen.getByText('Detalhe do trimestre')).toBeTruthy();
+    expect(screen.getByText('Nota do trimestre')).toBeTruthy();
+  });
+
+  it('restores Boletim with browser back after opening a discipline', async () => {
+    const data = renderWorkspace();
+    const user = userEvent.setup();
+    const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
+    const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
+
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    expect(within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'))
+      .toBe('true');
+
+    const state = {
+      ...(window.history.state ?? {}),
+      __studentPortalWorkspaceV1: { area: 'summary', subjectId: first.subjectId },
+    };
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent('popstate', { state }));
+    });
+
+    expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'))
+      .toBe('true');
   });
 });
