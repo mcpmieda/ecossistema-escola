@@ -114,6 +114,7 @@ export function StudentProfileV1({
   logo,
   onLogout,
   loggingOut = false,
+  portraitSrc,
 }: {
   profile: SelfResponseV1['profile'];
   /** Optional projection timestamp; never an invented date or the last BN import. */
@@ -122,6 +123,7 @@ export function StudentProfileV1({
   logo?: ReactNode;
   onLogout?: () => void;
   loggingOut?: boolean;
+  portraitSrc?: string;
 }) {
   const heading = useId();
   const status =
@@ -200,9 +202,13 @@ export function StudentProfileV1({
 
           <div className="pa-hero-portrait" role="img" aria-label={'Avatar de ' + profile.name}>
             <div className="pa-hero-portrait-backdrop" aria-hidden="true" />
-            <div className="pa-hero-avatar" aria-hidden="true">
-              <span>{initials}</span>
-            </div>
+            {portraitSrc ? (
+              <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
+            ) : (
+              <div className="pa-hero-avatar" aria-hidden="true">
+                <span>{initials}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -310,6 +316,7 @@ export interface StudentPagePropsV1
   onRetry?: () => void;
   onLogin?: () => void;
   showUpdatedAt?: boolean;
+  portraitSrc?: string;
 }
 
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
@@ -320,6 +327,7 @@ export function StudentPortalPageV1({
   onRetry,
   onLogin,
   showUpdatedAt = false,
+  portraitSrc,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
@@ -367,6 +375,7 @@ export function StudentPortalPageV1({
         logo={shell.logo}
         onLogout={shell.onLogout}
         loggingOut={shell.loggingOut}
+        portraitSrc={portraitSrc}
       />
     ) : undefined;
 
