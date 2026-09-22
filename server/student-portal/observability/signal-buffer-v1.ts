@@ -6,6 +6,7 @@ export interface SignalCheckpointStoreV1 { read(): unknown; write(value: unknown
 export class PortalSignalBufferV1 {
   private readonly points = new Map<string, PortalSignalPointV1>();
   private savedAt = -Infinity;
+  private attemptedAt = -Infinity;
   private dirty = false;
   constructor(private readonly store: SignalCheckpointStoreV1) {
     const saved = signalCheckpointV1.safeParse(store.read());
@@ -22,9 +23,13 @@ export class PortalSignalBufferV1 {
     }
   }
   private checkpoint(now: number): void {
-    if (!this.dirty || (now >= this.savedAt && now - this.savedAt < 30_000)) return;
-    this.store.write({ version: 1, savedAt: now, points: Array.from(this.points.values()) });
-    this.savedAt = now; this.dirty = false;
+    const last = Math.max(this.savedAt, this.attemptedAt);
+    if (!this.dirty || (now >= last && now - last < 30_000)) return;
+    this.attemptedAt = now;
+    try {
+      this.store.write({ version: 1, savedAt: now, points: Array.from(this.points.values()) });
+      this.savedAt = now; this.dirty = false;
+    } catch { /* Keep a bounded in-memory sample; no write retry storm on storage failure. */ }
   }
   record(input: unknown, now = Date.now()): boolean {
     const parsed = portalSignalInputV1.safeParse(input);

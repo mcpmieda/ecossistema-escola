@@ -1,7 +1,7 @@
 import { FRONTEND_DIAGNOSTIC_ROUTE_V1, inspectFrontendDiagnosticSubmissionV1 } from '../../../shared/frontend-diagnostic-v1';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../../shared/health-io-v1';
 import type { PortalSignalInputV1 } from '../../../shared/portal-signals-v1';
-import { portalJsonV1, portalRequestOriginAllowedV1 } from '../runtime/http-v1';
+import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalSignalStubV1 } from './signals-v1';
 import { servePortalSelfV1 } from './self-v1';
