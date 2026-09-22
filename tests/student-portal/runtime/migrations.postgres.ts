@@ -489,8 +489,8 @@ describe('native auxiliary reset revisions', () => {
     const database = createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1);
     const observation = (year:number) => ({ version: 1 as const, academicYear: year,
       fileName: 'synthetic-reset-diagnostics.xlsx', sha256: 'e'.repeat(64),
-      diagnostics: [{ key: 'synthetic-finding', severity: 'warning' as const,
-        code: 'source-unavailable' as const, message: 'Synthetic finding', recommendedAction: 'Check synthetic fixture', fieldKind: 'recovery' as const }] });
+      diagnostics: [{ key: 'synthetic-finding', severity: 'blocking-error' as const,
+        code: 'invalid-text' as const, message: 'Synthetic finding', recommendedAction: 'Check synthetic fixture', fieldKind: 'assessment' as const }] });
     expect(await replaceGradebookImportDiagnosticsSnapshotV1(database, observation(2021))).toBe(1);
     const before = await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2021`;
     expect(await replaceGradebookImportDiagnosticsSnapshotV1(database, observation(2021))).toBe(0);
@@ -624,7 +624,7 @@ describe('native diagnostic scope race', () => {
     const concurrent=asRole('gradebook_app');
     const other=createGradebookPostgresDatabaseFromSqlV1(concurrent as unknown as GradebookPostgresSqlV1);
     const observation=(year:number)=>({version:1 as const,academicYear:year,fileName:'synthetic-scope-race.xlsx',sha256:'9'.repeat(64),
-      diagnostics:[{key:'synthetic-scope',severity:'warning' as const,code:'source-unavailable' as const,message:'Synthetic',recommendedAction:'Synthetic',fieldKind:'recovery' as const}]});
+      diagnostics:[{key:'synthetic-scope',severity:'blocking-error' as const,code:'invalid-text' as const,message:'Synthetic',recommendedAction:'Synthetic',fieldKind:'assessment' as const}]});
     let injected=false;
     let attempts=0;
     const database=createGradebookPostgresDatabaseFromSqlV1({
