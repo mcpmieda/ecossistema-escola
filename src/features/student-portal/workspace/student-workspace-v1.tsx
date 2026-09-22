@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Card,
   Chip,
@@ -111,13 +111,13 @@ function PageIntroV1({
   title: string;
 }) {
   return (
-    <Surface variant="secondary" className="pa-workspace-intro">
+    <div className="pa-workspace-intro">
       <span aria-hidden="true">{icon}</span>
       <div>
         <p className="pa-workspace-eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
-    </Surface>
+    </div>
   );
 }
 
@@ -248,19 +248,18 @@ function SubjectV1View({
             ))}
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel id={active}>
-          <div className="pa-workspace-grid">
+        <Tabs.Panel id={active} key={active}>
+          <div className="pa-workspace-grid pa-tab-motion pa-tab-motion--forward">
             <Card className={'pa-score-card pa-score-card--' + scoreToneV1(mark)}>
               <Card.Content className="pa-score-card-content">
                 <div className="pa-score-card-copy">
-                  <span className="pa-score-card-label">Nota do período</span>
-                  <span className="pa-score-card-period">{PERIOD_LABELS_V1[active]}</span>
+                  <span className="pa-score-card-label">Sua nota</span>
                   <span className="pa-score-card-status">
                     {mark?.meetsMinimum === true
-                      ? 'Atinge o mínimo'
+                      ? 'Parabéns'
                       : mark?.meetsMinimum === false
-                        ? 'Abaixo do mínimo'
-                        : 'Classificação indisponível'}
+                        ? 'Abaixo do esperado'
+                        : 'Nota em análise'}
                   </span>
                 </div>
                 <div className="pa-score-card-value" aria-label="Nota do período">
@@ -274,7 +273,7 @@ function SubjectV1View({
 
             <Card>
               <Card.Header>
-                <Card.Title>Avaliações publicadas</Card.Title>
+                <Card.Title>Detalhe do trimestre</Card.Title>
               </Card.Header>
               <Card.Content>
                 {period?.partials?.length ? (
@@ -287,7 +286,6 @@ function SubjectV1View({
                       >
                         <div className="pa-workspace-list-copy">
                           <Label>{partial.label}</Label>
-                          <Description>{partial.notDone ? 'Não fez' : 'Nota publicada'}</Description>
                         </div>
                         <strong>
                           {partial.notDone ? '—' : <StudentMarkV1 mark={partial.mark} showMaximum />}
@@ -300,7 +298,7 @@ function SubjectV1View({
                 )}
               </Card.Content>
               <Card.Footer className="pa-card-footer-between">
-                <span>Nota do período</span>
+                <span>Nota do trimestre</span>
                 <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
               </Card.Footer>
             </Card>
@@ -326,21 +324,96 @@ export function StudentPortalWorkspaceV1({
   profile: ReactNode;
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
+  const historyKey = '__studentPortalWorkspaceV1';
+  const firstSubjectId = subjects[0]?.subjectId ?? 0;
   const [area, setArea] = useState<WorkspaceAreaV1>('summary');
-  const [selectedSubjectId, setSelectedSubjectId] = useState(subjects[0]?.subjectId ?? 0);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(firstSubjectId);
+  const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
+  const previousArea = useRef<WorkspaceAreaV1>('summary');
   const selectedSubject =
     subjects.find((subject) => subject.subjectId === selectedSubjectId) ?? subjects[0];
 
+  const applyWorkspaceState = (
+    nextArea: WorkspaceAreaV1,
+    subjectId = selectedSubjectId,
+    direction?: 'forward' | 'back',
+  ) => {
+    const nextSubjectId = subjects.some((subject) => subject.subjectId === subjectId)
+      ? subjectId
+      : firstSubjectId;
+    const resolvedDirection =
+      direction ?? (previousArea.current === 'subject' && nextArea === 'summary' ? 'back' : 'forward');
+    previousArea.current = nextArea;
+    setMotionDirection(resolvedDirection);
+    setSelectedSubjectId(nextSubjectId);
+    setArea(nextArea);
+  };
+
+  const pushWorkspaceState = (nextArea: WorkspaceAreaV1, subjectId = selectedSubjectId) => {
+    if (typeof window !== 'undefined') {
+      const current = window.history.state && typeof window.history.state === 'object'
+        ? window.history.state
+        : {};
+      window.history.pushState(
+        {
+          ...current,
+          [historyKey]: { area: nextArea, subjectId },
+        },
+        '',
+      );
+    }
+    applyWorkspaceState(nextArea, subjectId);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const current = window.history.state && typeof window.history.state === 'object'
+      ? window.history.state
+      : {};
+    if (!current[historyKey]) {
+      window.history.replaceState(
+        {
+          ...current,
+          [historyKey]: { area: 'summary', subjectId: firstSubjectId },
+        },
+        '',
+      );
+    }
+
+    const restore = (event: PopStateEvent) => {
+      const state =
+        event.state && typeof event.state === 'object'
+          ? event.state[historyKey]
+          : undefined;
+      if (!state || (state.area !== 'summary' && state.area !== 'subject')) return;
+      const subjectId = Number(state.subjectId);
+      applyWorkspaceState(
+        state.area,
+        Number.isFinite(subjectId) ? subjectId : firstSubjectId,
+        state.area === 'summary' ? 'back' : 'forward',
+      );
+    };
+
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [firstSubjectId]);
+
   const openSubject = (subjectId: number) => {
-    setSelectedSubjectId(subjectId);
-    setArea('subject');
+    pushWorkspaceState('subject', subjectId);
+  };
+
+  const selectSubject = (subjectId: number) => {
+    pushWorkspaceState('subject', subjectId);
   };
 
   return (
     <Tabs
       className="pa-student-workspace"
       selectedKey={area}
-      onSelectionChange={(key) => setArea(String(key) as WorkspaceAreaV1)}
+      onSelectionChange={(key) => {
+        const nextArea = String(key) as WorkspaceAreaV1;
+        if (nextArea !== area) pushWorkspaceState(nextArea, selectedSubject?.subjectId ?? firstSubjectId);
+      }}
     >
       <Surface variant="default" className="pa-workspace-nav-surface">
         <Tabs.ListContainer>
@@ -360,15 +433,25 @@ export function StudentPortalWorkspaceV1({
       </Surface>
 
       <Tabs.Panel id="summary">
-        <SummaryV1 data={data} profile={profile} onOpenSubject={openSubject} />
+        <div
+          key={'summary-' + area}
+          className={'pa-tab-motion pa-tab-motion--' + motionDirection}
+        >
+          <SummaryV1 data={data} profile={profile} onOpenSubject={openSubject} />
+        </div>
       </Tabs.Panel>
       <Tabs.Panel id="subject">
         {selectedSubject ? (
-          <SubjectV1View
-            subject={selectedSubject}
-            subjects={subjects}
-            onSubjectChange={setSelectedSubjectId}
-          />
+          <div
+            key={'subject-' + selectedSubject.subjectId}
+            className={'pa-tab-motion pa-tab-motion--' + motionDirection}
+          >
+            <SubjectV1View
+              subject={selectedSubject}
+              subjects={subjects}
+              onSubjectChange={selectSubject}
+            />
+          </div>
         ) : null}
       </Tabs.Panel>
     </Tabs>
