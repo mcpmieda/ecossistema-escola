@@ -10,16 +10,11 @@ import {
 import { SYNTHETIC_SELF_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
-import {
-  selfResponseV1,
-  type SelfResponseV1,
-} from '../../../../shared/student-portal-contracts/self-v1';
+import { selfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 
 const ready = { state: 'ready', data: SYNTHETIC_SELF_V1 } as const;
-const grades = (_data: SelfResponseV1) =>
-  createElement('div', { role: 'table', 'aria-label': 'Notas sintéticas' }, 'Tabela sintética');
 const page = (props: Partial<StudentPagePropsV1> = {}) =>
-  createElement(StudentPortalPageV1, { load: ready, grades, ...props });
+  createElement(StudentPortalPageV1, { load: ready, ...props });
 beforeEach(() => {
   setupOperationsDomV1();
 });
@@ -29,10 +24,8 @@ afterEach(() => {
 });
 
 describe('student shell and canonical profile', () => {
-  it('renders profile before grades from the same self object and retains the existing brand', async () => {
-    const slot = vi.fn(grades);
-    const user = userEvent.setup();
-    render(page({ grades: slot }));
+  it('renders the profile and simplified bulletin navigation from the same self object', () => {
+    render(page());
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Portal do Aluno');
     expect(
       screen.getByRole('img', { name: 'Escola Iêda Alves de Oliveira MCPM' }).textContent,
@@ -45,9 +38,9 @@ describe('student shell and canonical profile', () => {
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
     expect(screen.getByText('2026')).toBeTruthy();
     expect(screen.getByText('Em curso')).toBeTruthy();
-    expect(slot).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('tab', { name: 'Boletim' }));
-    expect(slot.mock.calls[0]?.[0]).toBe(SYNTHETIC_SELF_V1);
+    expect(screen.getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Evolução' })).toBeNull();
     expect(document.querySelector('aside')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
   });
@@ -70,16 +63,14 @@ describe('student shell and canonical profile', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
   it('keeps no publication, maintenance and generic unavailability distinct', () => {
-    const slot = vi.fn(grades);
     const empty = selfResponseV1.parse({
       ...SYNTHETIC_SELF_V1,
       state: 'no-publication',
       subjects: [],
     });
-    const view = render(page({ load: { state: 'ready', data: empty }, grades: slot }));
+    const view = render(page({ load: { state: 'ready', data: empty } }));
     expect(screen.getByRole('status').textContent).toBe('Notas ainda não publicadas');
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
-    expect(slot).not.toHaveBeenCalled();
     view.rerender(page({ load: { state: 'maintenance' } }));
     expect(screen.getByRole('alert').textContent).toContain('Portal em manutenção');
     view.rerender(
