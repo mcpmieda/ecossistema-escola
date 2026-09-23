@@ -234,28 +234,58 @@
 
 /* Compact rows with hairline dividers; the maximum is secondary to the mark. */
 .pa-partials-list {
-  gap: 0;
+  display: grid;
+  margin: 0;
   padding: 0;
+  list-style: none;
 }
 
-.pa-partials-list > [role='option'] {
-  min-height: 0;
+.pa-partials-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
   padding: 0.6rem 0.1rem;
-  border-radius: 0;
   border-bottom: 1px solid #edf1f7;
 }
 
-.pa-partials-list > [role='option']:last-child {
+.pa-partials-list > li:last-child {
   border-bottom: 0;
 }
 
-.pa-partials-list > [role='option']:hover {
-  background: transparent;
-}
-
-.pa-partials-list label {
+/* Two lines by default; "Ver tudo" reveals the rest (see PartialLabelV1). */
+.pa-partial-label {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--foreground);
   font-size: 0.84rem;
   line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pa-partial-label.is-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.pa-partial-more {
+  margin-top: 0.15rem;
+  padding: 0.1rem 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pa-partial-more:focus-visible {
+  border-radius: 0.3rem;
+  outline: 2px solid var(--focus, #2563eb);
+  outline-offset: 2px;
 }
 
 .pa-partials-list strong {
@@ -266,7 +296,6 @@
   font-size: 0.72rem;
   font-weight: 500;
 }
-
 .pa-score-card-empty {
   margin: 0;
   color: #94a3b8;

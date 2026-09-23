@@ -89,7 +89,8 @@ const previewData = selfResponseV1.parse({
           partial('Atividade de resolução de problemas', 1.8, 2),
           partial('Lista de exercícios: funções do 1º grau', 1, 1),
           partial(
-            'Trabalho em grupo com apresentação oral sobre estatística aplicada ao cotidiano',
+            // Near the contract maximum (120 characters): exercises long activity descriptions.
+            'Projeto interdisciplinar: levantamento de dados sobre o consumo de água na escola, análise estatística e apresentação',
             2.5,
             3,
           ),

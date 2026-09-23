@@ -74,11 +74,34 @@ describe('student portal grade workspace', () => {
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
-    const partials = screen.getByRole('listbox', { name: 'Avaliações publicadas' });
+    const partials = screen.getByRole('list', { name: 'Avaliações publicadas' });
     expect(within(partials).getAllByText('Não fez')).toHaveLength(1);
     expect(within(partials).getAllByText('Tirou zero')).toHaveLength(1);
     // Missing evidence stays neutral; it is never promoted to Não fez.
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
+  });
+
+  it('clamps an overflowing activity description to two lines and reveals it on demand', async () => {
+    // jsdom has no layout: report every clamped description as overflowing.
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('pa-partial-label') && !this.classList.contains('is-expanded') ? 80 : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 40);
+    const data = gradesFixtureV1(true);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+
+    const long = screen.getByText(/Atividade com descrição oficial extensa/u);
+    expect(long.classList.contains('is-expanded')).toBe(false);
+    const toggle = within(long.parentElement!).getByRole('button', { name: 'Ver tudo' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(toggle);
+    expect(long.classList.contains('is-expanded')).toBe(true);
+    // The full text was always in the DOM; the toggle only changes how much is visible.
+    expect(long.textContent).toContain('situação de aprendizagem');
+    expect(within(long.parentElement!).getByRole('button', { name: 'Ver menos' }).getAttribute('aria-expanded')).toBe('true');
   });
 
   it('shows the trimester trend by percentage, never on T1 or against a non-numeric mark', async () => {

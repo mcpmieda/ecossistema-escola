@@ -363,6 +363,44 @@ function SummaryV1({
   );
 }
 
+/**
+ * Activity descriptions reach 120 characters. Show two lines and offer "Ver tudo" only when the
+ * text really overflows at the current width (measured, not guessed from its length), so a wide
+ * screen that fits the whole description shows no toggle. Nothing is ever permanently hidden.
+ */
+function PartialLabelV1({ label }: { label: string }) {
+  const text = useRef<HTMLSpanElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const element = text.current;
+    if (!element || expanded) return;
+    const measure = () => setOverflowing(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [label, expanded]);
+  return (
+    <div className="pa-workspace-list-copy">
+      <span ref={text} className={'pa-partial-label' + (expanded ? ' is-expanded' : '')}>
+        {label}
+      </span>
+      {overflowing || expanded ? (
+        <button
+          type="button"
+          className="pa-partial-more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'Ver menos' : 'Ver tudo'}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /** Status copy only restates the server's mark kind/classification; it never infers a result. */
 function periodStatusV1(period: PeriodV1 | undefined, recovery: boolean) {
   const final = period?.final;
@@ -519,23 +557,14 @@ function SubjectV1View({
               {period.partials.length ? (
                 <>
                   <p className="pa-score-card-partials-title">Detalhamento</p>
-                  <ListBox
-                    aria-label="Avaliações publicadas"
-                    selectionMode="none"
-                    className="pa-partials-list"
-                  >
+                  {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
+                  <ul aria-label="Avaliações publicadas" className="pa-partials-list">
                     {period.partials.map((partial) => {
                       // Same rule as the bulletin table: observed blank → Não fez, numeric 0 → Tirou zero.
                       const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
                       return (
-                        <ListBox.Item
-                          id={String(partial.assessmentId)}
-                          key={partial.assessmentId}
-                          textValue={partial.label}
-                        >
-                          <div className="pa-workspace-list-copy">
-                            <Label>{partial.label}</Label>
-                          </div>
+                        <li key={partial.assessmentId}>
+                          <PartialLabelV1 label={partial.label} />
                           <strong>
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
@@ -543,10 +572,10 @@ function SubjectV1View({
                               <StudentMarkV1 mark={partial.mark} showMaximum />
                             )}
                           </strong>
-                        </ListBox.Item>
+                        </li>
                       );
                     })}
-                  </ListBox>
+                  </ul>
                 </>
               ) : (
                 <Description className="pa-score-card-empty">
