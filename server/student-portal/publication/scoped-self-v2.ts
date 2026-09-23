@@ -10,7 +10,9 @@ import { applyPublishedVisibilityV1 } from '../policies/calendar-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import type { publicationContextV1 } from './self-projection-reader-v1';
 import { dataVectorV1, PERIODS_V1, publicationDigestV1 } from './state-v1';
-import { readScopedSourcesV2 } from './scoped-source-v2';
+import { readLatestSourceV2, readScopedSourcesV2, readStudentKeyV2 } from './scoped-source-v2';
+import { attachTermClosingsV1, buildTermClosingsV1, termClosingTargetsV1 } from './term-closing-self-v1';
+import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 
 type ContextV2 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
 type SubjectV2 = SelfResponseV1['subjects'][number];
@@ -201,10 +203,79 @@ export async function scopedSelfV2(
       publicationVersion: `pub:${publicationDigestV1(rows.map((row) => [row.period, row.target_revision, String(row.decision_version)]))}`,
     },
   });
-  return applyPublishedVisibilityV1(
+  const visible = applyPublishedVisibilityV1(
     projection,
     context.policy.enforcedValue,
     context.now,
     finalAuthority,
   );
+  return termClosingsV2(tx, context, visible, reader, decoded);
+}
+
+/** Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it. */
+async function termClosingsV2(
+  tx: StudentPortalPostgresQueryV1,
+  context: ContextV2,
+  projection: SelfResponseV1,
+  reader: AcademicStudentReaderPostgresV1,
+  decoded: Map<string, SourceV2>,
+): Promise<SelfResponseV1> {
+  const targets = termClosingTargetsV1(
+    context.policy.enforcedValue,
+    context.profile.academicState,
+    context.now,
+  );
+  if (targets.periods.length === 0) return projection;
+  const source = await closingSourceV2(tx, context, reader, decoded);
+  return source ? attachTermClosingsV1({ projection, targets, ...source }) : projection;
+}
+
+/** Newest edition's closing codes; null when unreadable (the closing is supplementary). */
+async function closingSourceV2(
+  tx: StudentPortalPostgresQueryV1,
+  context: ContextV2,
+  reader: AcademicStudentReaderPostgresV1,
+  decoded: Map<string, SourceV2>,
+) {
+  const latest = await readLatestSourceV2(tx, context.account.link!.studentId);
+  if (!latest || latest.payload_json === null || latest.class_id !== context.policy.classId) return null;
+  try {
+    const revision = academicVersionSchemaV1.parse(latest.revision);
+    const source = preparedSourceV2({ payload_json: latest.payload_json } as ScopedRowV2, revision, reader, decoded, context);
+    return {
+      evaluations: source.closings,
+      sourceSubjects: source.student.subjects,
+      studentKey: await readStudentKeyV2(tx, context.account.id),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Admin preview (D12, R7): the same engine and variants the student receives, computed as if the
+ * `showTermClosing` policy and access were on, so the school can review before enabling it.
+ */
+export async function termClosingPreviewV2(tx: StudentPortalPostgresQueryV1, context: ContextV2) {
+  const value = settingsValueV1.parse(context.policy.enforcedValue);
+  const targets = termClosingTargetsV1(
+    { ...value, showTermClosing: true, accessEnabled: true },
+    context.profile.academicState,
+    context.now,
+  );
+  const visibleToStudent = value.showTermClosing && value.accessEnabled && targets.periods.length > 0;
+  const source = targets.periods.length
+    ? await closingSourceV2(tx, context, new AcademicStudentReaderPostgresV1(tx), new Map())
+    : null;
+  if (!source) return { mode: targets.mode, closedPeriods: targets.periods, visibleToStudent, subjects: [], summary: undefined };
+  const { closings, summary } = buildTermClosingsV1({ targets, ...source });
+  return {
+    mode: targets.mode,
+    closedPeriods: targets.periods,
+    visibleToStudent,
+    subjects: source.sourceSubjects
+      .filter((subject) => closings.has(subject.subjectId))
+      .map((subject) => ({ subjectId: subject.subjectId, label: subject.label, closings: closings.get(subject.subjectId)! })),
+    summary,
+  };
 }

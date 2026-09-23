@@ -1,4 +1,5 @@
 import { PanelScopeContextV1 } from './shared/panel-scope-v1';
+import { AccountClosingPreviewV1 } from './accounts/account-closing-preview-v1';
 import { ClassTabsV1 } from '../../shared/ui/class-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
@@ -276,6 +277,7 @@ function PortalWorkspace({
           canWrite={context.canWrite}
         />
       ),
+      closing: (context) => <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />,
       audit: (context) => (
         <StudentAuditV1
           {...common}

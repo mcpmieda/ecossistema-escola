@@ -152,7 +152,7 @@ describe('administrative settings UI', () => {
       mock = setup(inherited);
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    expect(screen.getAllByText('Padrão da escola')).toHaveLength(7);
+    expect(screen.getAllByText('Padrão da escola')).toHaveLength(9);
     await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     expect(mock.writes).toHaveLength(0);
     const dialog = screen.getByRole('dialog');
@@ -298,7 +298,7 @@ describe('administrative settings UI', () => {
     await act(async () => {
       resolve(json({ ...base, state: 'settings', settings: settingsFixtureV1(SETTINGS_CLASS_V1) }));
     });
-    expect(screen.getAllByText('Padrão da escola')).toHaveLength(7);
+    expect(screen.getAllByText('Padrão da escola')).toHaveLength(9);
     expect(screen.queryByText('Turma 900001 · 2026')).toBeNull();
   });
   it('has no editing or dangerous preview for a read-only operator, and no invented settings on failure', async () => {

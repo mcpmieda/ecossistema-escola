@@ -2,7 +2,7 @@
 
 Acompanhamento: issue #1132.
 
-Status: **especificada, não implementada**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Não há decisão pendente. Existe um único portão antes da produção: a escola aprovar o catálogo de frases (D6).
+Status: **implementada no PR da issue #1132, desligada por padrão**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Existe um único portão antes de ligar em produção: a escola aprovar o catálogo de frases (D6). A migração `0020` precisa ser aplicada depois do deploy do Worker.
 
 ## Objetivo
 
@@ -62,6 +62,8 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 | D13 | Aviso ao aluno | **Só um destaque no portal**: selo "Novo" no Boletim e na disciplina até o aluno abrir. Sem notificação fora do portal. |
 | D14 | Faixas da conclusão | **Três níveis.** (1) Abaixo do mínimo: `conclusion.attention`. (2) Logo acima do mínimo **ou** com algum ponto fraco: `conclusion.good-with-point`. (3) Claramente acima e sem ponto fraco: só a linha de reconhecimento (`line.good`). Quem passou raspando não lê "fechou bem". |
 | D15 | Lançamento no meio do ano | **Retroativo.** Ao ligar a chave, todos os trimestres já encerrados ganham fechamento, cada um na sua aba (D11), e o resumo do Boletim mostra o mais recente. |
+| D16 | Termos de conclusão ou acompanhamento | **Nova política "Usar termos de conclusão"** (`termClosingConclusive`, padrão ligado), escolhida pela escola no painel. **Ligada:** "Fechamento do Nº trimestre" para os trimestres encerrados, frases no passado (o comportamento de D2 a D15). **Desligada:** "Acompanhamento do Nº trimestre" só para o trimestre **em andamento**, frases no presente e ações para frente ("Procure fazer todas as próximas atividades"). Resolve a mistura de passado e futuro no mesmo texto. |
+| D17 | Posição no Boletim | O resumo fica **abaixo da lista de notas**, como o fechamento da disciplina fica abaixo do detalhamento. |
 
 ## Regras derivadas das decisões (obrigatórias)
 
@@ -79,6 +81,8 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 - **R10: faixa intermediária (D14).** A largura da faixa "logo acima do mínimo" é calibrada com a distribuição real, como os demais limiares. Um aluno nessa faixa sempre recebe um "o que mais pesou": o componente com pior desempenho relativo dentro do próprio aluno (em geral as avaliações). Nenhuma frase diz "perto do mínimo" ou equivalente, por causa de R1.
 - **R11: retroativo (D15).** O texto de um trimestre antigo é o mesmo que ele teria na época. "Próximas avaliações" e "próximo trimestre" continuam se referindo ao trimestre seguinte àquele fechamento. No dia do lançamento, o selo "Novo" (D13) aparece em todos os fechamentos existentes.
 - **R6: chave (D8).** Novo campo de política `showTermClosing` (booleano), com herança escola → turma → aluno igual às demais. **O padrão é desligado.** A escola liga depois de aprovar o catálogo (D6), o que permite piloto por turma.
+- **R12: acompanhamento (D16).** O trimestre em andamento é aquele cuja data de fim ainda não chegou e cujo início chegou (ou cujo trimestre anterior terminou). A leitura usa só o que já foi lançado (valores e máximos das atividades com nota) com os mesmos limiares, e exige ao menos uma avaliação com nota. Nunca há "prova paralela" como ação. No acompanhamento não há leitura de recuperação.
+- **R13: auditoria da prévia (R7, como implementado).** A prévia do admin é uma leitura V2 somente leitura, como as demais leituras da ficha do aluno, que hoje não gravam evento de auditoria. Ela segue o mesmo padrão.
 
 ## Etapas de implementação sugeridas
 

@@ -19,7 +19,7 @@ runtime: production_composed_and_verified
 student_portal_schema: migrations_0001_through_0019_applied
 student_portal_schema_table_count: 27
 student_portal_schema_latest_migration: 0019_remove_legacy_projection_v1.sql
-student_portal_latest_migration_in_tree: 0019_remove_legacy_projection_v1.sql
+student_portal_latest_migration_in_tree: 0020_term_closing_policy_v1.sql
 legacy_projection_removal_0019:
   pull_request: 1122
   migration: 0019_remove_legacy_projection_v1.sql

@@ -96,3 +96,23 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
     }),
   };
 }
+
+/** Newest prepared edition of one student (spec D3: the closing reads every recorded fact). */
+export async function readLatestSourceV2(tx: StudentPortalPostgresQueryV1, studentId: number) {
+  const rows = await tx.unsafe(`SELECT s.payload_json,s.class_id,h.generation||':'||s.revision::text AS revision
+    FROM student_portal.publication_source_head_v2 h
+    JOIN LATERAL (SELECT payload_json,class_id,revision FROM student_portal.publication_source_v2
+      WHERE academic_year=2026 AND student_id=$1::integer AND generation=h.generation AND revision<=h.revision
+      ORDER BY revision DESC LIMIT 1) s ON true
+    WHERE h.academic_year=2026`, [studentId]);
+  const row = rows[0];
+  return row ? { payload_json: row.payload_json, class_id: Number(row.class_id), revision: String(row.revision) } : null;
+}
+
+/** Durable student key for stable phrase variants (spec decision 7). */
+export async function readStudentKeyV2(tx: StudentPortalPostgresQueryV1, accountId: string) {
+  // to_jsonb keeps older disposable schemas (before 0018) readable; production always has the column.
+  const rows = await tx.unsafe("SELECT to_jsonb(a)->>'student_uid' AS uid FROM student_portal.account a WHERE a.id=$1::uuid", [accountId]);
+  const uid = rows[0]?.uid;
+  return typeof uid === 'string' && uid.length > 0 ? uid : `account:${accountId}`;
+}
