@@ -160,6 +160,8 @@ const COUNCIL_SITUATION_V1: Record<1 | 2 | 3, AnnualSituationV1> = {
  * Relays the BN's own annual verdict with its exact wording; no new rule. A formal Council
  * decision prevails (same precedence as `result`); EM CURSO and terminal enrollment statuses
  * (desistente/transferido/falecido) carry no situation, and ASSISTIDO never has one.
+ * Owner decision (2026-09-23): there is no "awaiting Council" status for students. A student
+ * eligible for the Council stays EM RECUPERAÇÃO until the final result, before or after it.
  */
 export function annualSituationV1(input: {
   status: number | null;
@@ -169,7 +171,7 @@ export function annualSituationV1(input: {
   if (input.status === 2) return undefined;
   if (input.formalDecision === 1 || input.formalDecision === 2 || input.formalDecision === 3)
     return COUNCIL_SITUATION_V1[input.formalDecision];
-  if (input.annual.state === 'council-eligible') return 'awaiting-council';
+  if (input.annual.state === 'council-eligible') return 'in-recovery';
   return input.annual.visibleResult === null
     ? undefined
     : VISIBLE_ANNUAL_SITUATION_V1[input.annual.visibleResult];

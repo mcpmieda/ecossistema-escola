@@ -404,7 +404,6 @@ const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2',
 const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] = [
   ['none', 'Em curso'],
   ['in-recovery', 'Em recuperação'],
-  ['awaiting-council', 'Aguardando Conselho'],
   ['approved-direct', 'Aprovado direto'],
   ['approved-after-recovery', 'Aprovado pela recuperação'],
   ['approved-by-council', 'Aprovado pelo Conselho'],
@@ -445,7 +444,7 @@ function subjectSituationFor(
   }
 }
 const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] =>
-  situation === 'none' || situation === 'in-recovery' || situation === 'awaiting-council'
+  situation === 'none' || situation === 'in-recovery'
     ? 'in-progress'
     : situation === 'failed-by-absence'
       ? 'failed-attendance'

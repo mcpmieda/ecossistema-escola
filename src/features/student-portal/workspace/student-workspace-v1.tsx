@@ -68,7 +68,8 @@ const ANNUAL_SITUATION_LABELS_V1: Record<
   { label: string; tone: ToneV1 }
 > = {
   'in-recovery': { label: 'Em recuperação', tone: 'warning' },
-  'awaiting-council': { label: 'Aguardando Conselho de Classe', tone: 'default' },
+  // Not emitted any more (owner decision 2026-09-23); older payloads read as EM RECUPERAÇÃO.
+  'awaiting-council': { label: 'Em recuperação', tone: 'warning' },
   'approved-direct': { label: 'Aprovado direto', tone: 'success' },
   'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
   'approved-special': { label: 'Aprovado', tone: 'success' },
@@ -248,7 +249,8 @@ function SummaryV1({
   const published = subjects.filter((subject) =>
     active === 'REC' ? recoveryPeriodsOf(subject).length > 0 : subjectPeriodV1(subject, active),
   );
-  const situation = data.profile.annualSituation;
+  const situation =
+    data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
   const finalResult = situation
     ? ANNUAL_SITUATION_LABELS_V1[situation]
     : data.profile.result in finalResultLabelsV1
