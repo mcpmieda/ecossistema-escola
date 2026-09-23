@@ -81,6 +81,36 @@ describe('student portal grade workspace', () => {
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
   });
 
+  it('marks each activity from the server classification only, flagging observed blanks', async () => {
+    const data = gradesFixtureV1(true);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    first.periods.find((p) => p.period === 'T1')!.partials![1] = {
+      assessmentId: 900002,
+      label: 'AV2 SYNTHETIC',
+      notDone: true,
+      mark: { kind: 'absent' },
+    };
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+
+    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
+    const status = (label: string | RegExp) => {
+      const row = rows.find((item) => within(item).queryByText(label))!;
+      const icon = row.querySelector('.pa-partial-status')!;
+      return icon.classList.contains('pa-partial-status--met')
+        ? 'met'
+        : icon.classList.contains('pa-partial-status--attention')
+          ? 'attention'
+          : 'none';
+    };
+    expect(status('I AVALIAÇÃO')).toBe('attention'); // numeric zero, below the minimum
+    expect(status('AV2 SYNTHETIC')).toBe('attention'); // observed blank ("Não fez")
+    expect(status('Atividade 3')).toBe('none'); // no maximum → no classification to show
+    expect(status('Atividade 4')).toBe('met');
+    expect(status('Atividade 2')).toBe('none'); // not yet recorded
+    expect(status(/descrição oficial extensa/u)).toBe('none'); // R/R marker
+  });
+
   it('clamps an overflowing activity description to two lines and reveals it on demand', async () => {
     // jsdom has no layout: report every clamped description as overflowing.
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {

@@ -13,6 +13,7 @@ import {
   BookOpenCheck,
   BookOpenText,
   Calculator,
+  Check,
   Dumbbell,
   FlaskConical,
   Globe2,
@@ -25,6 +26,7 @@ import {
   Palette,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
@@ -363,6 +365,33 @@ function SummaryV1({
   );
 }
 
+type PartialV1 = NonNullable<PeriodV1['partials']>[number];
+
+/**
+ * Leading status mark per activity. It only restates the server's `meetsMinimum` (a mark without
+ * a maximum has none, so no icon is invented); an observed blank ("Não fez") is flagged too.
+ * Decorative: the mark's own accessible label already states the classification.
+ */
+function PartialStatusV1({ partial }: { partial: PartialV1 }) {
+  const met = partial.mark.kind === 'score' ? partial.mark.meetsMinimum : null;
+  const attention = met === false || partial.notDone === true;
+  if (met !== true && !attention) return <span className="pa-partial-status" aria-hidden="true" />;
+  const title = met === true ? 'Atingiu o mínimo' : partial.notDone ? 'Não fez' : 'Abaixo do mínimo';
+  return (
+    <span
+      className={'pa-partial-status ' + (met === true ? 'pa-partial-status--met' : 'pa-partial-status--attention')}
+      aria-hidden="true"
+      title={title}
+    >
+      {met === true ? (
+        <Check size={14} strokeWidth={3} />
+      ) : (
+        <TriangleAlert size={15} strokeWidth={2.4} />
+      )}
+    </span>
+  );
+}
+
 /**
  * Activity descriptions reach 120 characters. Show two lines and offer "Ver tudo" only when the
  * text really overflows at the current width (measured, not guessed from its length), so a wide
@@ -564,6 +593,7 @@ function SubjectV1View({
                       const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
                       return (
                         <li key={partial.assessmentId}>
+                          <PartialStatusV1 partial={partial} />
                           <PartialLabelV1 label={partial.label} />
                           <strong>
                             {partial.notDone || zero ? (
