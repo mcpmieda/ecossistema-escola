@@ -19,9 +19,9 @@ export interface PhotoEditServiceOptionsV1 {
   codec: Pick<StudentWebpCodecV1, 'normalize'>;
   repository: Pick<PhotoWriteRepositoryV1, 'claim' | 'commit' | 'acknowledgeCleanup' | 'complete'>;
   guard: Pick<PhotoWriteGuardV1, 'assertInitialized' | 'assertTransfer'>;
-  /** Resolve current administrative permission and exact actor/person scope. No default allow. */
   authorize(context: PhotoWriteContextV1): Promise<void>;
   storage(authorize: (action: SharePointPhotoActionV1) => Promise<void>): Pick<PhotoWritePortsV1, 'upload' | 'remove'>;
+  publish?: PhotoWritePortsV1['publish'];
 }
 const variants = ['portrait', 'avatar'] as const;
 const empty = (): PhotoWriteInputV1 => ({ portrait: null, avatar: null });
@@ -30,9 +30,7 @@ function assertBudget(bytes: Uint8Array, variant: PhotoVariantV1): void {
   if (!(bytes instanceof Uint8Array) || bytes.length < 20 || bytes.length > (variant === 'portrait' ? 131072 : 65536))
     throw new PhotoWriteErrorV1('invalid');
 }
-
-/** Copy both variants synchronously, before the first await; caller mutations cannot
- * replace the avatar while the portrait is being processed. No persistent draft/cache. */
+/** Snapshot both variants before any asynchronous work. */
 function snapshot(command: PhotoWriteCommandV1, input: PhotoWriteInputV1): PhotoWriteInputV1 {
   const copies = empty();
   try {
@@ -41,8 +39,7 @@ function snapshot(command: PhotoWriteCommandV1, input: PhotoWriteInputV1): Photo
       const bytes = input[variant];
       if (wanted !== (bytes !== null)) throw new PhotoWriteErrorV1('invalid');
       if (bytes === null) continue;
-      assertBudget(bytes, variant);
-      copies[variant] = new Uint8Array(bytes);
+      assertBudget(bytes, variant); copies[variant] = new Uint8Array(bytes);
     }
     return copies;
   } catch (error) { clear(copies); throw error; }
@@ -60,96 +57,67 @@ async function sourceMetadata(bytes: Uint8Array): Promise<PhotoVariantMetadataV1
   if (probe.type !== 'image/webp') throw new PhotoWriteErrorV1('invalid');
   return metadata(bytes, probe.width, probe.height);
 }
-
-/** Private application service. A preview is not authorization or a saved image.
- * Save recalculates from the ORIGINAL browser-prepared input, never from preview output.
- * Current administrative routes must still enforce body limits/CSRF/origin/feature gates. */
+/** Save recalculates from the original browser-prepared input, never preview output. */
 export class PhotoEditServiceV1 {
   constructor(private readonly options: PhotoEditServiceOptionsV1) {}
-
   private async authorize(context: PhotoWriteContextV1, signal: AbortSignal): Promise<void> {
-    signal.throwIfAborted();
-    await this.options.authorize(context);
-    signal.throwIfAborted();
+    signal.throwIfAborted(); await this.options.authorize(context); signal.throwIfAborted();
   }
-
   async preview(contextInput: PhotoWriteContextV1, commandInput: PhotoWriteCommandV1,
     qualitiesInput: unknown, input: PhotoWriteInputV1, signal: AbortSignal): Promise<PhotoPreviewResultV1> {
     const context = photoWriteContextV1.parse(contextInput), command = photoWriteCommandV1.parse(commandInput);
     const qualities = photoQualitiesV1.parse(qualitiesInput);
     if (command.kind === 'remove') throw new PhotoWriteErrorV1('invalid');
-    assertPhotoQualitiesV1(command, qualities);
-    signal.throwIfAborted();
+    assertPhotoQualitiesV1(command, qualities); signal.throwIfAborted();
     const copies = snapshot(command, input), images = empty();
-    const source: PhotoWritePlanV1 = { portrait: null, avatar: null };
-    const output: PhotoWritePlanV1 = { portrait: null, avatar: null };
+    const source: PhotoWritePlanV1 = { portrait: null, avatar: null }, output: PhotoWritePlanV1 = { portrait: null, avatar: null };
     try {
-      await this.authorize(context, signal);
-      await this.options.guard.assertInitialized(context);
+      await this.authorize(context, signal); await this.options.guard.assertInitialized(context);
       for (const variant of variants) {
-        const bytes = copies[variant], quality = qualities[variant];
-        if (!bytes || quality === null) continue;
-        source[variant] = await sourceMetadata(bytes);
-        signal.throwIfAborted();
+        const bytes = copies[variant], quality = qualities[variant]; if (!bytes || quality === null) continue;
+        source[variant] = await sourceMetadata(bytes); signal.throwIfAborted();
         const value = await this.options.codec.normalize(bytes, variant, quality, signal);
         try {
-          signal.throwIfAborted();
-          assertBudget(value.bytes, variant);
-          output[variant] = await metadata(value.bytes, value.width, value.height);
-          images[variant] = new Uint8Array(value.bytes);
+          signal.throwIfAborted(); assertBudget(value.bytes, variant);
+          output[variant] = await metadata(value.bytes, value.width, value.height); images[variant] = new Uint8Array(value.bytes);
         } finally { value.bytes.fill(0); }
       }
-      const approval = photoPreviewApprovalV1.parse({ version: 1, codec: 'student-webp-1.6.0-v1',
-        context, command, qualities, source, output });
-      await this.authorize(context, signal);
-      return { approval, images };
-    } catch (error) { clear(images); throw error; }
-    finally { clear(copies); }
+      const approval = photoPreviewApprovalV1.parse({ version: 1, codec: 'student-webp-1.6.0-v1',context,command,qualities,source,output });
+      await this.authorize(context, signal); return { approval, images };
+    } catch (error) { clear(images); throw error; } finally { clear(copies); }
   }
-
   private async normalizeApproved(bytes: Uint8Array, variant: PhotoVariantV1,
     approval: PhotoPreviewApprovalV1, signal: AbortSignal): Promise<ValidatedPhotoBytesV1> {
     const source = approval.source[variant], expected = approval.output[variant], quality = approval.qualities[variant];
-    if (!source || !expected || quality === null || !samePhotoMetadataV1(await sourceMetadata(bytes), source))
-      throw new PhotoWriteErrorV1('conflict');
+    if (!source || !expected || quality === null || !samePhotoMetadataV1(await sourceMetadata(bytes), source)) throw new PhotoWriteErrorV1('conflict');
     signal.throwIfAborted();
     const value = await this.options.codec.normalize(bytes, variant, quality, signal);
     try {
-      signal.throwIfAborted();
-      assertBudget(value.bytes, variant);
-      if (!samePhotoMetadataV1(await metadata(value.bytes, value.width, value.height), expected))
-        throw new PhotoWriteErrorV1('conflict');
-      signal.throwIfAborted();
-      return value; // Ownership moves to the coordinator, which clears it after copying.
+      signal.throwIfAborted(); assertBudget(value.bytes, variant);
+      if (!samePhotoMetadataV1(await metadata(value.bytes, value.width, value.height), expected)) throw new PhotoWriteErrorV1('conflict');
+      signal.throwIfAborted(); return value;
     } catch (error) { value.bytes.fill(0); throw error; }
   }
-
   private transferGuard(context: PhotoWriteContextV1, command: PhotoWriteCommandV1, signal: AbortSignal) {
     return async (action: SharePointPhotoActionV1): Promise<void> => {
       await this.authorize(context, signal);
       if (action.kind === 'upload') {
         if (action.context.actorId !== context.actorId || action.context.studentUid !== context.studentUid
           || action.requestId !== command.requestId) throw new PhotoWriteErrorV1('receipt-conflict');
-        await this.options.guard.assertTransfer(context, command.requestId,
-          { kind: 'upload', variant: action.variant, metadata: action.metadata });
-      } else {
-        await this.options.guard.assertTransfer(context, command.requestId, { kind: 'remove', asset: action.asset });
-      }
+        await this.options.guard.assertTransfer(context, command.requestId,{ kind:'upload',variant:action.variant,metadata:action.metadata });
+      } else await this.options.guard.assertTransfer(context, command.requestId,{ kind:'remove',asset:action.asset });
       signal.throwIfAborted();
     };
   }
-
   async save(contextInput: PhotoWriteContextV1, commandInput: PhotoWriteCommandV1,
     approvalInput: unknown, input: PhotoWriteInputV1, signal: AbortSignal): Promise<PhotoWriteResultV1> {
     const context = photoWriteContextV1.parse(contextInput), command = photoWriteCommandV1.parse(commandInput);
     const approval = command.kind === 'remove' ? null : photoPreviewApprovalV1.parse(approvalInput);
     if (command.kind === 'remove' && approvalInput !== null) throw new PhotoWriteErrorV1('invalid');
     if (approval) assertPhotoPreviewContextV1(approval, context, command);
-    signal.throwIfAborted();
-    const copies = snapshot(command, input);
+    signal.throwIfAborted(); const copies = snapshot(command, input);
     try {
-      await this.authorize(context, signal);
-      await this.options.guard.assertInitialized(context);
+      await this.authorize(context, signal); await this.options.guard.assertInitialized(context);
       const storage = this.options.storage(this.transferGuard(context, command, signal));
       const coordinator = new PhotoWriteCoordinatorV1(this.options.repository, {
         authorize: ctx => this.authorize(ctx, signal),
@@ -157,23 +125,19 @@ export class PhotoEditServiceV1 {
           if (!approval) throw new PhotoWriteErrorV1('invalid');
           return this.normalizeApproved(bytes, variant, approval, stageSignal);
         },
-        upload: data => storage.upload(data), remove: (asset, stageSignal) => storage.remove(asset, stageSignal),
+        upload:data=>storage.upload(data),remove:(asset,stageSignal)=>storage.remove(asset,stageSignal),publish:this.options.publish,
       });
       return await coordinator.execute(context, command, copies, signal);
     } finally { clear(copies); }
   }
 }
-
-/** Concrete composition: the same private DB backs the journal and transfer guard.
- * Pass the single isolate-level proven codec; this factory does not fetch a WASM module. */
+/** Base composition stays reusable for protocol proofs. Production MUST provide
+ * publish, which also enables atomic retention of pending recovery bytes. */
 export function createSharePointPhotoEditServiceV1(options: {
-  database: PhotoWriteDatabaseV1; codec: StudentWebpCodecV1;
-  authorize: PhotoEditServiceOptionsV1['authorize'];
-  sharepoint: Omit<SharePointPhotoOptionsV1, 'authorize'>;
-}): PhotoEditServiceV1 {
-  return new PhotoEditServiceV1({
-    codec: options.codec, authorize: options.authorize,
-    repository: new PhotoWriteRepositoryV1(options.database), guard: new PhotoWriteGuardV1(options.database),
-    storage: authorize => new SharePointPhotoTransportV1({ ...options.sharepoint, authorize }),
-  });
+  database:PhotoWriteDatabaseV1;codec:StudentWebpCodecV1;authorize:PhotoEditServiceOptionsV1['authorize'];
+  sharepoint:Omit<SharePointPhotoOptionsV1,'authorize'>;publish?:PhotoWritePortsV1['publish'];
+}):PhotoEditServiceV1 {
+  return new PhotoEditServiceV1({codec:options.codec,authorize:options.authorize,publish:options.publish,
+    repository:new PhotoWriteRepositoryV1(options.database,options.publish!==undefined),guard:new PhotoWriteGuardV1(options.database),
+    storage:authorize=>new SharePointPhotoTransportV1({...options.sharepoint,authorize})});
 }

@@ -4,6 +4,7 @@ import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contr
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
@@ -285,6 +286,8 @@ function AccountDetailBodyV1({
         {account && context && (
           <>
             <AccountIdentityV1 account={account} />
+            <StudentPhotoPanelV1 showAvatar={false} canWrite={canWrite}
+              subject={{ source: 'portal', academicYear: ownScope.academicYear, accountIds: [account.accountId] }} />
             <AccountStatusV1 account={account} />
             <dl className="pa-account-facts">
               <div>

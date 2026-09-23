@@ -153,13 +153,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf dist node_modules/.cache/student-portal-edge
+          rm -rf dist node_modules/.cache/student-portal-edge node_modules/.cache/student-photo-codec-v1
           cp -a validated-production-inputs/dist dist
+          mkdir -p node_modules/.cache
+          cp -a validated-production-inputs/node_modules/.cache/student-photo-codec-v1 node_modules/.cache/student-photo-codec-v1
           mkdir -p node_modules/.cache
           cp -a validated-production-inputs/node_modules/.cache/student-portal-edge node_modules/.cache/student-portal-edge
           test -f dist/index.html
           test -f node_modules/.cache/student-portal-edge/_worker.js
           test -f node_modules/.cache/student-portal-edge/wrangler.jsonc
+
+      - name: Verify source-built codec matches the deployed tree
+        env:
+          PR_HEAD_SHA: ${{ steps.gates.outputs.pr_head_sha }}
+          FINAL_TREE_SHA: ${{ steps.gates.outputs.final_tree_sha }}
+        run: node scripts/student-photos/verify-codec-artifact-v1.mjs
 
       - name: Configure private production bindings
         shell: bash

@@ -1,17 +1,11 @@
 name: Student photo codec proof
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/student-photo-codec-proof.yml'
-      - 'scripts/student-photos/codec-v1/**'
-      - 'server/student-photos/webp-codec-v1.ts'
-      - 'shared/student-photos/**'
-      - 'tests/student-photos/codec-proof/**'
-      - 'package-lock.json'
+  workflow_call:
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: student-photo-codec-proof-${{ github.event.pull_request.number }}
+  group: student-photo-codec-proof-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   workerd-codec:

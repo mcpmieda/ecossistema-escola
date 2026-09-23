@@ -108,7 +108,14 @@ try {
     assert.notEqual(sha256(output), sha256(portrait));
     assert.equal(sha256(await normalized(portrait, 'portrait', 30, 40)), sha256(output));
   });
-  await check('explicit-qualities', async () => {
+  await check('simultaneous-canonical-validation-and-normalization', async () => {
+    const response = await caller.fetch('http://codec.test/validate-concurrency', {
+      method: 'POST', body: portrait, signal: AbortSignal.timeout(15000),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { unchanged: true, dimensions: [[30, 40], [30, 40], [30, 40]] });
+  });
+  await check('explicit-qualities' , async () => {
     for (const quality of [92, 86, 80]) await normalized(portrait, 'portrait', 30, 40, quality);
     for (const quality of [0, 79, 93, 100, 'missing']) await rejected(portrait, 'portrait', quality, 'input');
   });

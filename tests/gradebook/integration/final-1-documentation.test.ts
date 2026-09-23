@@ -189,7 +189,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(source('AGENTS.md')).toContain('CI no head final');
     expect(section('security')).toContain('automatic_authority_activation: forbidden');
     expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('d8758cddab3583806b300c5da6a64dc247e453c6');
+      .toBe('5a0838bcd16b5dedf591440809aae22e60340530');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [

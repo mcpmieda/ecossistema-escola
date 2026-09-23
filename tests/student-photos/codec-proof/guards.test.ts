@@ -15,7 +15,7 @@ function plausibleHeader(width = 3, height = 4): Uint8Array {
 afterEach(() => vi.restoreAllMocks());
 
 it('rejects invalid quality, variant and byte budgets before creating WASM state', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
+  const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   for (const quality of [0, 79, 93, 100, Number.NaN])
     await expect(codec.normalize(plausibleHeader(), 'portrait', quality as WebpPhotoQualityV1, signal())).rejects.toMatchObject({ code: 'input' });
   await expect(codec.normalize(plausibleHeader(), 'other' as WebpPhotoVariantV1, 92, signal())).rejects.toMatchObject({ code: 'input' });
@@ -25,7 +25,7 @@ it('rejects invalid quality, variant and byte budgets before creating WASM state
 });
 
 it('rejects geometry and trailing bytes without a decoder, and releases the admission guard', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
+  const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   for (const [variant, width, height] of [['portrait', 3, 5], ['portrait', 903, 1204], ['avatar', 321, 321]] as const)
     await expect(codec.normalize(plausibleHeader(width, height), variant, 92, signal())).rejects.toMatchObject({ code: 'dimensions' });
   const trailing = new Uint8Array(32); trailing.set(plausibleHeader());
@@ -36,7 +36,7 @@ it('rejects geometry and trailing bytes without a decoder, and releases the admi
 });
 
 it('rejects extra private chunks before allocating the decoder', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
+  const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   const bytes = new Uint8Array(40), view = new DataView(bytes.buffer);
   bytes.set(plausibleHeader()); view.setUint32(4, 32, true);
   bytes.set(new TextEncoder().encode('EXIF'), 30); view.setUint32(34, 2, true);
@@ -45,30 +45,48 @@ it('rejects extra private chunks before allocating the decoder', async () => {
 });
 
 it('does no WASM work for an already cancelled operation', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
+  const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   const controller = new AbortController(); controller.abort();
   await expect(codec.normalize(plausibleHeader(), 'portrait', 92, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
   expect(instantiate).not.toHaveBeenCalled();
 });
 
-it('admits only one overlapping initialization and permits a fresh attempt after failure', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
+it('runs independent synchronous initializations without a false busy rejection', async () => {
+  const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   const results = await Promise.allSettled([
     codec.normalize(plausibleHeader(), 'portrait', 92, signal()),
     codec.normalize(plausibleHeader(), 'portrait', 92, signal()),
   ]);
-  expect(results.every(result => result.status === 'rejected')).toBe(true);
+  expect(results).toHaveLength(2);
+  for (const result of results) {
+    expect(result.status).toBe('rejected');
+    if (result.status === 'rejected') expect(result.reason).toMatchObject({ code: 'unavailable' });
+  }
+  expect(instantiate).toHaveBeenCalledTimes(2);
+  await expect(codec.normalize(plausibleHeader(), 'portrait', 92, signal())).rejects.toMatchObject({ code: 'unavailable' });
+  expect(instantiate).toHaveBeenCalledTimes(3);
+});
+
+it('rejects reentrant initialization and releases the guard after the outer failure', async () => {
+  const codec = new StudentWebpCodecV1(emptyModule);
+  let nested: Promise<unknown> | undefined;
+  const instantiate = vi.spyOn(WebAssembly, 'Instance').mockImplementationOnce(function () {
+    nested = codec.normalize(plausibleHeader(), 'portrait', 92, signal());
+    throw new Error('synthetic-initialization-failure');
+  });
+  await expect(codec.normalize(plausibleHeader(), 'portrait', 92, signal())).rejects.toMatchObject({ code: 'unavailable' });
+  await expect(nested).rejects.toMatchObject({ code: 'unavailable' });
   expect(instantiate).toHaveBeenCalledTimes(1);
   await expect(codec.normalize(plausibleHeader(), 'portrait', 92, signal())).rejects.toMatchObject({ code: 'unavailable' });
   expect(instantiate).toHaveBeenCalledTimes(2);
 });
 
-it('cancels during async initialization without leaving admission reserved', async () => {
-  const instantiate = vi.spyOn(WebAssembly, 'instantiate'), codec = new StudentWebpCodecV1(emptyModule);
-  const controller = new AbortController();
-  const pending = codec.normalize(plausibleHeader(), 'portrait', 92, controller.signal);
-  controller.abort();
-  await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+it('honors cancellation observed during synchronous initialization and releases admission', async () => {
+  const codec = new StudentWebpCodecV1(emptyModule), controller = new AbortController();
+  const instantiate = vi.spyOn(WebAssembly, 'Instance').mockImplementationOnce(function () {
+    controller.abort(); throw new Error('synthetic-cancelled-initialization');
+  });
+  await expect(codec.normalize(plausibleHeader(), 'portrait', 92, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
   await expect(codec.normalize(plausibleHeader(), 'portrait', 92, signal())).rejects.toMatchObject({ code: 'unavailable' });
   expect(instantiate).toHaveBeenCalledTimes(2);
 });

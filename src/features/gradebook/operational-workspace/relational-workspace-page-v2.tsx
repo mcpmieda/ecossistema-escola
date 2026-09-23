@@ -30,6 +30,8 @@ import type {
 import { WORKSPACE_KINDS_V2 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { sourceSubjectAbbreviationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { useRelationalWorkspaceV2 } from './use-relational-workspace-v2';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 
 const LABELS: Record<WorkspaceKindV2, string> = {
   student: 'Aluno',
@@ -161,7 +163,10 @@ function BindingTable({
             >
               <td className="p-3 font-medium">{row.number}</td>
               <td className="p-1">
-                <Link value={row.student} onOpen={onOpen} />
+                <div className="flex min-w-0 items-center gap-2">
+                  <LinkedStudentPhotoAvatarV1 decorative size="sm" subject={{ source: 'gradebook', academicYear: year, studentIds: [row.student.id] }} />
+                  <Link value={row.student} onOpen={onOpen} />
+                </div>
               </td>
               <td className="p-1">
                 <Link value={row.classGroup} onOpen={onOpen} />
@@ -263,7 +268,9 @@ function Center({
       <Card.Header className="border-b border-separator bg-surface-secondary/35">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <EntityIcon kind={value.entity.kind} />
+            {value.entity.kind === 'student'
+              ? <LinkedStudentPhotoAvatarV1 decorative size="lg" subject={{ source: 'gradebook', academicYear: year, studentIds: [value.entity.id] }} />
+              : <EntityIcon kind={value.entity.kind} />}
             <div className="min-w-0">
               <Card.Description>
                 {teacherConfiguration
@@ -283,6 +290,8 @@ function Center({
             {year}
           </Chip>
         </div>
+        {value.entity.kind === 'student' ? <StudentPhotoPanelV1 showAvatar={false}
+          subject={{ source: 'gradebook', academicYear: year, studentIds: [value.entity.id] }} /> : null}
       </Card.Header>
       <Card.Content className="grid min-w-0 gap-6 pt-5">
         {value.classInfo ? (

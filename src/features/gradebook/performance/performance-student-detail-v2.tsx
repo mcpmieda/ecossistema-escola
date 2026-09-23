@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Avatar, Button, Drawer, Table } from '@heroui/react';
-import { UserRound } from 'lucide-react';
+import { Button, Drawer, Table } from '@heroui/react';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import type {
   PerformancePeriodV2,
   PerformanceReadyV2,
@@ -63,11 +64,8 @@ export function PerformanceStudentDetailV2({
     <>
       <Drawer.Header className="border-b border-separator pb-5 pr-10">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar size="lg" className="size-16 shrink-0" aria-label="Foto de perfil padrão">
-            <Avatar.Fallback>
-              <UserRound size={34} aria-hidden="true" />
-            </Avatar.Fallback>
-          </Avatar>
+          <LinkedStudentPhotoAvatarV1 decorative size="lg" className="size-16 shrink-0"
+            subject={{ source: 'gradebook', academicYear: detail.context.year, studentIds: [student.id] }} />
           <div className="min-w-0">
             <Drawer.Heading className="break-words text-2xl font-bold tracking-tight">
               {student.name}
@@ -85,6 +83,8 @@ export function PerformanceStudentDetailV2({
             </p>
           </div>
         </div>
+        <StudentPhotoPanelV1 showAvatar={false}
+          subject={{ source: 'gradebook', academicYear: detail.context.year, studentIds: [student.id] }} />
       </Drawer.Header>
       <Drawer.Body ref={drawerBody} className="flex min-w-0 flex-col gap-5 pt-5">
         {detail.operation === 'student-detail' ? (
