@@ -67,7 +67,8 @@ export async function jobPolicyVersionV1(tx: StudentPortalPostgresQueryV1, accou
     count(DISTINCT s.version)::integer AS epochs FROM student_portal.account a CROSS JOIN student_portal.setting s
     WHERE a.id=$1::uuid AND s.scope_key='school:2026' GROUP BY a.version`, [accountId]);
   const row = rows[0];
-  if (!row || row.fields !== 7 || row.epochs !== 1) throw new Error('student-portal-policy-defaults-unavailable');
+  // 7 fields before migration 0020 (#1132), 9 after it.
+  if (!row || Number(row.fields) < 7 || Number(row.fields) > 9 || row.epochs !== 1) throw new Error('student-portal-policy-defaults-unavailable');
   return `epoch:${versionV1.parse(Number(row.epoch))}:account:${versionV1.parse(Number(row.version))}`;
 }
 

@@ -53,6 +53,10 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
     'Atualiza as notas já liberadas quando o Banco recebe uma alteração. Não libera novos períodos por conta própria.',
   showFinalResult:
     'Mostra o resultado final autorizado pela escola, a partir da data de divulgação configurada.',
+  showTermClosing:
+    'Mostra ao aluno uma leitura curta de cada disciplina. Ligue somente depois de a escola aprovar as frases.',
+  termClosingConclusive:
+    'Ligado: ao fim de cada trimestre, um fechamento com frases de conclusão ("Seu trimestre foi bom…"). Desligado: acompanhamento do trimestre em andamento, com orientações para frente ("Procure fazer todas as próximas atividades").',
   allowedPeriods:
     'Escolha os períodos que podem aparecer. Desmarcar todos oculta as notas; Usar padrão recupera a escolha da escola ou turma.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',

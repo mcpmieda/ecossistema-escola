@@ -37,7 +37,7 @@ export interface AccountSlotContextV1 {
 }
 export type AccountSlotsV1 = Partial<
   Record<
-    'birth' | 'credentials' | 'sessions' | 'publication' | 'audit' | 'settings',
+    'birth' | 'credentials' | 'sessions' | 'publication' | 'closing' | 'audit' | 'settings',
     (context: AccountSlotContextV1) => ReactNode
   >
 >;
@@ -61,6 +61,7 @@ const slotLabels = {
   credentials: 'QR code',
   sessions: 'Sessões',
   publication: 'Notas publicadas',
+  closing: 'Fechamento',
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;

@@ -27,11 +27,27 @@ const FIELDS = [
   'showPartials',
   'autoUpdate',
   'showFinalResult',
+  'showTermClosing',
+  'termClosingConclusive',
   'allowedPeriods',
   'risk',
   'calendar',
 ] as const;
 type Field = (typeof FIELDS)[number];
+/** Added by migration 0020 (#1132). Until it exists the school row may be absent and reads as off. */
+const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing', 'termClosingConclusive'];
+const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.length;
+const schoolFieldCountValidV1 = (count: number) =>
+  count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
+/** Before migration 0020 the school row may be absent: the feature then reads as off. */
+const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = {
+  showTermClosing: false,
+  termClosingConclusive: true,
+};
+const schoolValueV1 = (school: readonly StoredRowV1[]) => ({
+  ...OPTIONAL_SCHOOL_DEFAULTS_V1,
+  ...Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
+});
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
 const storedRow = z.object({
   scope_key: z.string(),
@@ -149,17 +165,17 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
 
 function schoolDefaultsV1(records: readonly StoredRowV1[]) {
   const school = records.filter((row) => row.scope_key === key(SCHOOL));
+  const present = new Set(school.map((row) => row.field_key));
   const complete =
-    school.length === FIELDS.length &&
-    new Set(school.map((row) => row.field_key)).size === FIELDS.length &&
+    schoolFieldCountValidV1(school.length) &&
+    present.size === school.length &&
+    FIELDS.every((field) => present.has(field) || OPTIONAL_SCHOOL_FIELDS.includes(field)) &&
     new Set(school.map((row) => row.version)).size === 1;
   if (!complete) throw new Error('student-portal-policy-defaults-unavailable');
   if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL)))
     throw new Error('student-portal-policy-defaults-unavailable');
   try {
-    const defaults = settingsValueV1.parse(
-      Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
-    );
+    const defaults = settingsValueV1.parse(schoolValueV1(school));
     normalizeCalendarV1(defaults.calendar);
   } catch {
     throw new Error('student-portal-policy-defaults-unavailable');
@@ -205,12 +221,17 @@ export async function resolvePolicySnapshotRowsV1(
   const classId =
     target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
   const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId));
+  for (const [field, fallback] of Object.entries(OPTIONAL_SCHOOL_DEFAULTS_V1))
+    if (!(field in value)) {
+      value[field] = fallback;
+      sources[field] = SCHOOL;
+    }
   const accountVersion = z.coerce.number().int().safe().nonnegative().parse(target.account_version);
   const version = versionV1.parse(epoch + accountVersion);
   const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
   return {
     settings,
-    enforcedValue: enforceSchoolAccessV1(settings.value, settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])))),
+    enforcedValue: enforceSchoolAccessV1(settings.value, settingsValueV1.parse(schoolValueV1(school))),
     classId,
     epoch,
     policyVersion: `policy:${await hash({ settings, classId })}`,
@@ -329,7 +350,7 @@ async function advancePolicyEpochV1(tx: StudentPortalPostgresQueryV1, nextEpoch:
     "UPDATE student_portal.setting SET version=$1,updated_at=statement_timestamp() WHERE scope_key='school:2026' RETURNING field_key",
     [nextEpoch],
   );
-  if (advanced.length !== FIELDS.length)
+  if (!schoolFieldCountValidV1(advanced.length))
     throw new Error('student-portal-policy-defaults-unavailable');
   // Preserve the last published payload; the new policyVersion invalidates its authorization.
   await tx.unsafe(

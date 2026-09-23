@@ -28,8 +28,10 @@ sobre o fuso horário da execução. Blob Git do arquivo: **`54aef301d949cbe5da5
 
 ## Validação funcional
 
-A exibição de notas por login real **após** a 0019 aguarda confirmação do
-responsável. O healthcheck e as consultas de catálogo confirmam disponibilidade
-e o efeito do DDL, mas não substituem esse teste autenticado. Não foram usados
-dados, credenciais ou sessões de estudantes em testes artificiais. A tabela
-removida não pode ser recuperada por rollback de código.
+Em 23/09/2026, **após** a 0019 e o deploy oficial do merge `5ad5ae47`, o
+responsável confirmou por login real que as notas continuam aparecendo no
+Portal. Essa é a validação funcional autenticada desta operação; nenhuma nota,
+identidade, credencial ou captura de tela foi registrada no repositório. O
+healthcheck e as consultas de catálogo comprovam separadamente a disponibilidade
+e o efeito do DDL. A tabela removida não pode ser recuperada por rollback de
+código.

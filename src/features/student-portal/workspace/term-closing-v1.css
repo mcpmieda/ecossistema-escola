@@ -1,0 +1,109 @@
+/* Fechamento do trimestre (#1132). Layout/tone only; the text comes from the shared catalog. */
+.pa-closing,
+.pa-closing-summary {
+  --pa-closing-accent: #1e40af;
+  --pa-closing-surface: #ffffff;
+  --pa-closing-border: #dbeafe;
+  margin-top: 0.9rem;
+  padding: 0.95rem 1rem 1rem;
+  border: 1px solid var(--pa-closing-border);
+  border-radius: 1.1rem;
+  background: var(--pa-closing-surface);
+  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
+  text-align: left;
+}
+.pa-closing--attention,
+.pa-closing-summary--attention {
+  --pa-closing-accent: #b45309;
+  --pa-closing-surface: #fffbeb;
+  --pa-closing-border: #fde68a;
+}
+.pa-closing--point {
+  --pa-closing-accent: #1e40af;
+  --pa-closing-surface: #f5f9ff;
+}
+.pa-closing--good,
+.pa-closing-summary--good {
+  --pa-closing-accent: #15803d;
+  --pa-closing-surface: #f0fdf4;
+  --pa-closing-border: #bbf7d0;
+}
+.pa-closing-summary {
+  margin: 1.1rem 0 0;
+}
+.pa-closing--good {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.pa-closing--good > div {
+  flex: 1;
+  min-width: 0;
+}
+.pa-closing-line-icon {
+  flex: none;
+  color: var(--pa-closing-accent);
+}
+.pa-closing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.pa-closing-eyebrow {
+  margin: 0;
+  color: var(--pa-closing-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pa-closing-title {
+  margin: 0.35rem 0 0.7rem;
+  color: #0f172a;
+  font-size: 1.15rem;
+  font-weight: 760;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.pa-closing-line,
+.pa-closing-summary-text {
+  margin: 0.2rem 0 0;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.pa-closing-pieces {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-closing-pieces li,
+.pa-closing-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.pa-closing-pieces svg,
+.pa-closing-action svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--pa-closing-accent);
+}
+.pa-closing-action {
+  margin: 0.8rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.8rem;
+  background: rgb(255 255 255 / 0.7);
+  color: #0f172a;
+  font-weight: 650;
+}
+.pa-closing-new {
+  flex: none;
+}

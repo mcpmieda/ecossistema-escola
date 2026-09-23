@@ -28,7 +28,7 @@ const projectionStateSchema = z.object({
     production_migration_version: z.literal(20260923164053),
     validated_source_head: z.literal('f01a410a8dd3e58ff1ee664ba3ee2e5b424aa20c'),
     evidence: z.literal('docs/student-portal/POSTFLIGHT_0019.md'),
-    authenticated_grade_display_after_migration: z.literal('pending-owner-confirmation'),
+    authenticated_grade_display_after_migration: z.literal('confirmed-by-owner-2026-09-23'),
   }),
 });
 
@@ -57,22 +57,22 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0019_remove_legacy_projection_v1.sql');
+    expect(latest).toBe('0020_term_closing_policy_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0019-applied-after-worker-deploy',
+        student_portal_candidate_migrations_status: '0020-pending-worker-deploy-then-additive-policy-migration',
       },
       student_portal_integration: {
-        schema_migration_file: latest,
+        schema_migration_file: '0019_remove_legacy_projection_v1.sql',
         schema_migration_production_version: 20260923164053,
         schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
-      student_portal_schema_latest_migration: latest,
+      student_portal_schema_latest_migration: '0019_remove_legacy_projection_v1.sql',
       student_portal_schema_production_version: 20260923164053,
       student_portal_schema_table_count: 27,
       recovery_1101: {

@@ -77,7 +77,7 @@ Só uma frase. Aparece só se houver um ponto positivo real.
 **`strength.parallel-done`**: fez a prova paralela. É reconhecimento de algo que já aconteceu, nunca um convite.
 Uma paralela elegível e deixada em branco não vira mensagem: ela não conta como "atividade não realizada", porque é avaliação, e não gera ação.
 1. Você fez a prova paralela e aproveitou a chance de recuperar.
-2. Fazer a prova paralela foi uma boa decisão.
+2. Você também fez a prova paralela deste trimestre.
 3. Você não deixou passar a prova paralela.
 
 ## 4. Próximo passo (uma única ação)
@@ -134,6 +134,18 @@ Os marcadores `{lista}` e `{trimestre}` são preenchidos pelo sistema. `{lista}`
 3. {lista} precisam de mais cuidado depois deste {trimestre}.
 
 > A concordância singular/plural ("pede"/"pedem") é resolvida pelo sistema, não por texto fixo.
+
+## 7. Acompanhamento do trimestre em andamento (política "Usar termos de conclusão" desligada)
+
+Mesmo motor, frases no presente e rótulo **"Acompanhamento do Nº trimestre"**. O código está em `shared/student-portal-contracts/term-closing-catalog-v1.ts` (prefixo `progress.`):
+
+- **Conclusão:** "Até agora, esta disciplina pede sua atenção." · "Você está indo bem, mas há um ponto para cuidar." · linha: "Até aqui, tudo certo nesta disciplina."
+- **O que mais pesa:** "Até agora, as avaliações são o principal ponto de atenção." · "Há atividades não realizadas neste trimestre." · "As atividades do dia a dia estão sendo um desafio para você."
+- **O que reconhecer:** "Você está indo bem nas atividades do dia a dia." · "Você está indo bem nas avaliações." · "Você está com as atividades em dia." · "Você também fez a prova paralela deste trimestre."
+- **Próximo passo:** "Agora: procure fazer todas as próximas atividades." · "Agora: prepare-se com antecedência para as próximas avaliações."
+- **Resumo no Boletim:** "Até agora, o {trimestre} vai bem na maior parte das disciplinas. {lista} {pede} sua atenção."
+
+Todas as versões (três ou mais por mensagem, seis nas linhas de "vai bem") estão no arquivo de código e também passam pela aprovação da escola (D6).
 
 ## Pontos para confirmar com a escola junto com as frases
 
