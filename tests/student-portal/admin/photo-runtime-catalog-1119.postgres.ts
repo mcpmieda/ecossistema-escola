@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { PhotoCatalogRepositoryV1 } from '../../../server/student-photos/catalog-repository-v1';
 import { PhotoWriteRepositoryV1, type PhotoWriteDatabaseV1 } from '../../../server/student-photos/write-repository-v1';
-import { photoWriteFingerprintV1, type PhotoAssetV1, type PhotoWriteContextV1 } from '../../../shared/student-photos/write-v1';
+import { photoWriteFingerprintV1, type PhotoAssetV1, type PhotoWriteContextV1, photoVariantMetadataV1 } from '../../../shared/student-photos/write-v1';
 
 const target=new URL(process.env.PORTAL_TEST_DATABASE_URL??'http://invalid');
 if(target.protocol!=='postgres:'||target.hostname!=='127.0.0.1'||target.pathname!=='/portal705_test'||target.search||target.hash)
@@ -24,6 +24,12 @@ function adapter():PhotoWriteDatabaseV1{return{transaction:async work=>{
 function asset(bytes:Uint8Array,width:number,height:number,itemId:string):PhotoAssetV1{
   return{driveId:'synthetic-drive',itemId,etag:'"synthetic-etag-'+itemId+'"',width,height,byteSize:bytes.length,
     sha256:createHash('sha256').update(bytes).digest('hex')};
+}
+function planOf(assets: {portrait:PhotoAssetV1;avatar:PhotoAssetV1}) {
+  const metadata=(value:PhotoAssetV1)=>photoVariantMetadataV1.parse({
+    width:value.width,height:value.height,byteSize:value.byteSize,sha256:value.sha256,
+  });
+  return {portrait:metadata(assets.portrait),avatar:metadata(assets.avatar)};
 }
 async function person(legacy=false){
   const context:PhotoWriteContextV1={studentUid:crypto.randomUUID(),actorId:actor};
@@ -80,7 +86,7 @@ it('resolves account and academic reference to the same canonical person',async(
 });
 it('reserves recovery pixels atomically and rolls the reservation back on a wrong hash',async()=>{
   const p=await person();await p.catalog.initialize(p.context,null,null);
-  const plan={portrait:asset(portrait,30,40,'new-main'),avatar:asset(avatar,32,32,'new-avatar')};
+  const plan=planOf({portrait:asset(portrait,30,40,'new-main'),avatar:asset(avatar,32,32,'new-avatar')});
   const command={requestId:crypto.randomUUID(),expectedRevision:null,kind:'replace' as const};
   await expect(p.writer.claim(p.context,command,plan,{portrait:new Uint8Array(portrait.length),avatar})).rejects.toThrow('photo-payload-mismatch');
   expect((await p.catalog.family(p.context.studentUid))?.pending).toBeNull();
@@ -92,7 +98,7 @@ it('publishes committed pixels and deletes temporary recovery pixels only after 
   const p=await person();await p.catalog.initialize(p.context,null,null);
   const command={requestId:crypto.randomUUID(),expectedRevision:null,kind:'replace' as const};
   const assets={portrait:asset(portrait,30,40,'p-'+command.requestId),avatar:asset(avatar,32,32,'a-'+command.requestId)};
-  await p.writer.claim(p.context,command,assets,{portrait,avatar});
+  await p.writer.claim(p.context,command,planOf(assets),{portrait,avatar});
   await p.writer.commit(p.context,command.requestId,assets);
   await p.catalog.publish(p.context,'portrait',assets.portrait,portrait);await p.catalog.publish(p.context,'avatar',assets.avatar,avatar);
   await p.writer.complete(p.context,command.requestId);
@@ -111,7 +117,7 @@ it('audits explicit recovery by another authorized operator and fences the old r
   const p=await person();await p.catalog.initialize(p.context,null,null);
   const command={requestId:crypto.randomUUID(),expectedRevision:null,kind:'replace' as const};
   const assets={portrait:asset(portrait,30,40,'p-'+command.requestId),avatar:asset(avatar,32,32,'a-'+command.requestId)};
-  const receipt=await p.writer.claim(p.context,command,assets,{portrait,avatar});
+  const receipt=await p.writer.claim(p.context,command,planOf(assets),{portrait,avatar});
   const next={...p.context,actorId:crypto.randomUUID()};
   const fingerprint=await photoWriteFingerprintV1(next,command,receipt.plan);
   await adapter().transaction(tx=>tx.query('SELECT student_photos.takeover_write_v1($1::uuid,$2::uuid,$3::uuid,$4)',[next.studentUid,next.actorId,command.requestId,fingerprint]));
