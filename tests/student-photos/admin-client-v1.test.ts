@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createPhotoAdminClientV1 } from '../../src/features/student-photos/admin-client-v1';
+import { photoAdminResponseV1 } from '../../shared/student-photos/admin-http-v1';
 import { ACTOR, OPERATION, subject, command, qualities, images, preview, previewResponse } from './http-fixture-v1';
 const signal = () => new AbortController().signal;
 describe('photo editor HTTP client', () => {
@@ -43,7 +44,9 @@ describe('photo editor HTTP client', () => {
       .rejects.toMatchObject({ code: 'unavailable' });
   });
   it('rejects a substituted preview hash or an unrelated write receipt', async () => {
-    const changed = await previewResponse().json();
+    const changed = photoAdminResponseV1.parse(await previewResponse().json());
+    if (changed.state !== 'preview' || changed.approval.output.portrait === null)
+      throw new Error('synthetic-preview-fixture-invalid');
     changed.approval.output.portrait.sha256 = 'a'.repeat(64);
     const fetcher = vi.fn<typeof fetch>(async () => Response.json(changed));
     await expect(createPhotoAdminClientV1(fetcher).preview(subject, command, qualities, images(), signal())).rejects.toThrow();

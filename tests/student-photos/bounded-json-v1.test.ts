@@ -6,7 +6,10 @@ import { images } from './http-fixture-v1';
 const signal = () => new AbortController().signal;
 function message(bytes: Uint8Array[], headers: Record<string, string> = {}) {
   return { headers: new Headers({ 'content-type': 'application/json', ...headers }),
-    body: new ReadableStream<Uint8Array>({ start(controller) { for (const part of bytes) controller.enqueue(part); controller.close(); } }) };
+    body: new ReadableStream<Uint8Array<ArrayBuffer>>({ start(controller) {
+      for (const part of bytes) controller.enqueue(new Uint8Array(part));
+      controller.close();
+    } }) };
 }
 afterEach(() => vi.useRealTimers());
 describe('bounded photo transport', () => {
@@ -17,7 +20,8 @@ describe('bounded photo transport', () => {
     expect(await readPhotoJsonV1(message([atLimit]), signal())).toEqual({});
   });
   it('checks actual length even without Content-Length or with a forged smaller header', async () => {
-    for (const headers of [{}, { 'content-length': '2' }]) {
+    const cases: Record<string, string>[] = [{}, { 'content-length': '2' }];
+    for (const headers of cases) {
       const data = message([new Uint8Array(PHOTO_ADMIN_BODY_BYTES_V1), new Uint8Array(1)], headers);
       await expect(readPhotoJsonV1(data, signal())).rejects.toMatchObject({ code: 'too-large' });
     }
@@ -26,9 +30,10 @@ describe('bounded photo transport', () => {
   });
   it('rejects compressed/non-JSON data, invalid UTF-8 and malformed lengths', async () => {
     const bytes = new TextEncoder().encode('{}');
-    for (const headers of [{ 'content-encoding': 'gzip' }, { 'content-type': 'text/plain' },
+    const cases: Record<string, string>[] = [{ 'content-encoding': 'gzip' }, { 'content-type': 'text/plain' },
       { 'content-length': '-1' }, { 'content-length': '2.0' }, { 'content-length': '2e0' },
-      { 'content-length': '9007199254740992' }]) {
+      { 'content-length': '9007199254740992' }];
+    for (const headers of cases) {
       await expect(readPhotoJsonV1(message([bytes], headers), signal())).rejects.toBeInstanceOf(PhotoTransportReadErrorV1);
     }
     await expect(readPhotoJsonV1(message([Uint8Array.of(255, 254)]), signal())).rejects.toMatchObject({ code: 'invalid' });

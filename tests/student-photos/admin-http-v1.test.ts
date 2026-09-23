@@ -49,9 +49,10 @@ describe('photo ADM HTTP boundary with real sealed sessions', () => {
 
   it('rejects cross-origin/forwarded claims, missing application header, query selectors and preview environments', async () => {
     const h = harness();
-    for (const headers of [{ origin: 'https://attacker.invalid' }, { origin: 'null' }, { origin: '' },
+    const invalidHeaders: Record<string, string>[] = [{ origin: 'https://attacker.invalid' }, { origin: 'null' }, { origin: '' },
       { host: 'attacker.invalid' }, { 'x-forwarded-host': ORIGIN }, { 'x-original-url': '/other' },
-      { 'sec-fetch-site': 'cross-site' }, { 'x-student-photo-request': '' }]) {
+      { 'sec-fetch-site': 'cross-site' }, { 'x-student-photo-request': '' }];
+    for (const headers of invalidHeaders) {
       expect((await servePhotoAdminV1(await request(previewBody(), 'preview', headers), env, h.options)).status).toBe(403);
     }
     expect((await servePhotoAdminV1(await request(previewBody(), 'preview?studentUid=' + STUDENT), env, h.options)).status).toBe(403);
