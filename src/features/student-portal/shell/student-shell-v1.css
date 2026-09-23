@@ -678,20 +678,12 @@
     transform: none;
   }
 }
-@keyframes pa-hero-portrait-rise {
-  from {
-    opacity: 0;
-    transform: translateY(1.25rem);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .pa-page-skeleton .skeleton,
   .pa-page-skeleton .skeleton::after,
-  .pa-hero-copy,
+  .pa-hero-copy {
+    animation: none;
+  }
 }
 
 /* Arch portrait: the original 3×4 photo (background included) in an upright arch whose round
