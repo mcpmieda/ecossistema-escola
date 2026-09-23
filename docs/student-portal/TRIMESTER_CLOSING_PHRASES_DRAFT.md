@@ -41,7 +41,7 @@ Aparece em destaque, abaixo do rótulo "Fechamento do Nº trimestre" (D10).
 Só uma frase, escolhida pela prioridade do motor.
 
 **`weight.assessments`**: as avaliações puxaram o resultado para baixo.
-1. As avaliações foram o principal ponto de atenção.
+1. As avaliações foram o principal ponto de preocupação.
 2. O que mais pesou neste trimestre foram as avaliações.
 3. As avaliações foram a parte mais difícil deste trimestre.
 
@@ -51,7 +51,7 @@ Só uma frase, escolhida pela prioridade do motor.
 3. Atividades que ficaram para trás pesaram no seu resultado.
 
 **`weight.activities`**: as atividades do dia a dia ficaram abaixo do esperado (raro; as qualitativas costumam ir bem).
-1. As atividades do dia a dia pesaram mais do que deveriam.
+1. As atividades do dia a dia foram um desafio para você.
 2. As atividades ao longo do trimestre foram o principal ponto de atenção.
 3. O que mais pesou foram as atividades do dia a dia.
 
@@ -74,17 +74,15 @@ Só uma frase. Aparece só se houver um ponto positivo real.
 2. Nenhuma atividade ficou para trás, e isso conta muito.
 3. Você manteve todas as atividades em dia.
 
-**`strength.parallel-done`**: fez a prova paralela.
+**`strength.parallel-done`**: fez a prova paralela. É reconhecimento de algo que já aconteceu, nunca um convite.
+Uma paralela elegível e deixada em branco não vira mensagem: ela não conta como "atividade não realizada", porque é avaliação, e não gera ação.
 1. Você fez a prova paralela e aproveitou a chance de recuperar.
 2. Fazer a prova paralela foi uma boa decisão.
 3. Você não deixou passar a prova paralela.
 
 ## 4. Próximo passo (uma única ação)
 
-**`action.parallel`**: elegível e ainda sem a prova paralela.
-1. Agora: faça a prova paralela. Ela pode melhorar sua nota.
-2. Agora: não deixe de fazer a prova paralela.
-3. Agora: aproveite a prova paralela para recuperar pontos.
+O fechamento só aparece quando o trimestre já terminou e as notas estão fechadas. Por isso toda ação aponta para o **próximo** trimestre (ou para a recuperação, no 3º), nunca para algo do trimestre encerrado. Não existe ação "faça a prova paralela" (decisão do dono, 2026-09-23).
 
 **`action.catch-up`**: houve atividades não realizadas.
 1. Agora: procure fazer todas as próximas atividades.
@@ -139,6 +137,8 @@ Os marcadores `{lista}` e `{trimestre}` são preenchidos pelo sistema. `{lista}`
 
 ## Pontos para confirmar com a escola junto com as frases
 
-1. **Prazo da prova paralela.** O fechamento aparece na data de fim do trimestre (D2). Se a paralela acontecer depois dessa data, `action.parallel` está correta. Se ela acontecer antes do fim, essa ação quase nunca vai aparecer.
-2. **"Recuperação" no 3º trimestre.** Confirmar se "Você vai fazer a recuperação nesta disciplina" está alinhado com a forma como a escola comunica isso às famílias.
-3. **Tom de `weight.not-done`.** A regra diz que branco é sempre "não fez" (D1). A escola deve confirmar se aceita a frase para todos os casos, inclusive faltas justificadas.
+1. **"Recuperação" no 3º trimestre.** Confirmar se "Você vai fazer a recuperação nesta disciplina" está alinhado com a forma como a escola comunica isso às famílias.
+
+Resolvidos pelo dono em 2026-09-23:
+- **Prova paralela:** não existe ação para fazê-la. O aluno só vê o fechamento com as notas já fechadas, quando não há mais oportunidade.
+- **`weight.not-done` vale para todos os casos**, inclusive faltas justificadas. Quando o registro chega como "não fez", em geral o aluno teve oportunidade de fazer em outro momento, a critério do professor.

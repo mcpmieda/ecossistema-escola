@@ -33,7 +33,7 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
    - **Testes.** Os testes verificam a estabilidade (mesma entrada, mesma variante), a distribuição aproximadamente uniforme numa turma sintética e a ausência de repetição dentro da tela de um aluno.
 8. **Parciais ocultas podem ser usadas.** Se a escola mostra só o total, o fechamento continua completo, porque é calculado no servidor a partir dos registros acadêmicos, e não do que está desenhado na tela. Isso segue a decisão do dono.
 9. **Nenhum texto pode permitir deduzir uma nota que não está exibida.** Proibido: "faltaram X pontos", "menos de 40%", "sua última avaliação foi a pior".
-10. **Prova paralela.** Quando o aluno é elegível e ainda não fez a paralela, a ação é "faça a prova paralela". É o sinal mais concreto e justo, e já é visível para o aluno.
+10. **Prova paralela (revisado pelo dono, 2026-09-23).** Não existe ação "faça a prova paralela": o fechamento só aparece com as notas do trimestre fechadas, quando não há mais oportunidade. A paralela entra apenas como reconhecimento ("você fez a prova paralela"). Uma paralela deixada em branco não gera mensagem. Todas as ações apontam para o próximo trimestre ou para a recuperação.
 11. **Alunos assistidos não têm fechamento**, pelo mesmo motivo de não terem resultado global.
 12. **Dados insuficientes.** Nesse caso não há fechamento, em vez de "aguarde". Exemplo: faltam as duas avaliações no trimestre.
 13. **Correções de nota.** O fechamento é recalculado a cada leitura, sem guardar cópia (ver R5).
@@ -67,7 +67,7 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
   - Isso deve ser garantido **por tipo**: os códigos do motor não carregam valores, e um teste falha se o catálogo contiver dígitos ou marcadores de quantidade.
 - **R2: data chegou antes da liberação (conflito entre D2 e D11, resolvido pelo agente).** Se a data de fim passou e o trimestre ainda não foi liberado, a aba desse trimestre aparece na disciplina **contendo só o fechamento**, sem nota nem parciais. Quando as notas forem liberadas, elas aparecem acima do fechamento na mesma aba.
 - **R3: data não configurada.** Se `tNEndsAt` estiver nulo, não há fechamento desse trimestre. Com `accessEnabled` desligado, nada aparece.
-- **R4: "não fez" (D1) é tratado com cuidado de tom.** O texto diz "houve atividades não realizadas neste trimestre" e a ação sugere colocá-las em dia. O texto não conta quantas e não cita qual (R1 e decisão 5).
+- **R4: "não fez" (D1) é tratado com cuidado de tom.** O texto diz "houve atividades não realizadas neste trimestre" e a ação aponta para as próximas atividades. O texto não conta quantas e não cita qual (R1 e decisão 5). Vale para todos os casos, inclusive faltas justificadas (dono, 2026-09-23): quando o registro chega como "não fez", em geral o aluno teve outra oportunidade, a critério do professor.
 - **R5: correções.** Como o motor usa todos os registros (D3), o fechamento acompanha a revisão mais recente assim que ela existe. Isso é esperado.
 - **R7: prévia no admin (D12).** A prévia usa o mesmo motor e o mesmo sorteio de variantes do aluno, nunca uma cópia separada. Ela exige a mesma permissão de leitura da ficha e fica registrada na auditoria, como as demais leituras de dados do aluno.
 - **R8: selo "Novo" (D13).** O estado "já visto" fica no navegador do aluno (armazenamento local, chave por trimestre e disciplina), sem nova tabela nem dado pessoal no servidor. Em outro dispositivo, o selo pode reaparecer uma vez, o que é aceitável.
