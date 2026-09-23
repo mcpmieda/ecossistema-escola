@@ -504,7 +504,8 @@
   .pa-hero-copy {
     width: 58%;
     max-width: 14.25rem;
-    padding: 1.2rem 0 0.55rem;
+    /* Bottom room = content-sheet overlap (2.15rem) + gap, so long (3-line) names grow the hero. */
+    padding: 1.2rem 0 3.45rem;
   }
   .pa-hero-greeting {
     margin-bottom: 0.2rem;
@@ -584,7 +585,8 @@
   .pa-hero-copy {
     align-self: start;
     max-width: 31rem;
-    padding: 1.75rem 0 0 2%;
+    /* Overlap (2.55rem) + gap: long names grow the hero instead of sliding under the sheet. */
+    padding: 1.75rem 0 4.85rem 2%;
   }
   .pa-hero-greeting {
     margin-bottom: 0.2rem;
@@ -662,7 +664,7 @@
   .pa-hero-copy {
     align-self: start;
     max-width: 36rem;
-    padding: 1.75rem 0 0 4%;
+    padding: 1.75rem 0 5.15rem 4%;
   }
   .pa-hero-greeting {
     margin-bottom: 0.2rem;

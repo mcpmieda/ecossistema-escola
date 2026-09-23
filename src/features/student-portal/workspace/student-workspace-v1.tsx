@@ -396,8 +396,24 @@ function SubjectV1View({
   // chosen subject back into view (inline only, so the page itself does not jump).
   const subjectTabs = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const tab = subjectTabs.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-    tab?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+    // On mount the panel is still being revealed (and HeroUI's scroll shadow measures after
+    // paint), so an immediate scroll is dropped. Retry after paint and after the slide-in.
+    // Horizontal only: moving the bar's own scroller never scrolls the page vertically.
+    const reveal = () => {
+      const tab = subjectTabs.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      const scroller = tab?.closest<HTMLElement>('.scroll-shadow') ?? tab?.parentElement?.parentElement;
+      if (!tab || !scroller) return;
+      const offset = tab.offsetLeft - (scroller.clientWidth - tab.offsetWidth) / 2;
+      scroller.scrollLeft = Math.max(0, Math.min(offset, scroller.scrollWidth - scroller.clientWidth));
+    };
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(reveal);
+    });
+    const settled = setTimeout(reveal, 260);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settled);
+    };
   }, [subject.subjectId]);
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
