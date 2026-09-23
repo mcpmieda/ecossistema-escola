@@ -325,6 +325,26 @@
     linear-gradient(180deg, rgb(251 253 255 / 0.99) 0%, #f6faff 18%, #f6faff 100%);
   box-shadow: 0 -18px 42px rgb(15 46 101 / 0.14);
 }
+/* Notebook dot grid behind the sheet's content (cards stay opaque above it): strongest under
+   the hero glow, fading out down the page so long lists stay calm. Static, CSS only. */
+.pa-shell--with-hero .pa-shell-content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-image: radial-gradient(circle, rgb(30 64 175 / 0.2) 1px, transparent 1.5px);
+  background-size: 18px 18px;
+  background-position: center 9px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, rgb(0 0 0 / 0.45) 16rem, transparent 42rem);
+  mask-image: linear-gradient(180deg, #000 0, rgb(0 0 0 / 0.45) 16rem, transparent 42rem);
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .pa-shell--with-hero .pa-shell-content::before {
+    display: none;
+  }
+}
 .pa-shell-content:focus {
   outline: none;
 }
