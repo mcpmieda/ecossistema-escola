@@ -195,6 +195,15 @@
   box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
 }
 
+/* Stronger blue header for marks at/above the minimum, matching the amber one; text darkened
+   with it (WCAG AA on the darkest stop): mark #1e40af 6.1:1, maximum #3b4f7d 5.7:1, chip 8.7:1. */
+.pa-score-card--positive {
+  --pa-score-accent: #1e40af;
+  --pa-score-surface: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  --pa-score-border: #93c5fd;
+  --pa-score-maximum: #3b4f7d;
+}
+
 /* Stronger amber header; text darkened with it (WCAG AA ≥ 4.5:1 on the darkest stop):
    mark #92400e 5.2:1, maximum #7a4b12 5.4:1, status chip on white 7.1:1. */
 .pa-score-card--negative {
@@ -468,20 +477,25 @@
   border-radius: 0.6rem;
 }
 
+/* White badge so it stands out on the tinted (blue/amber) card headers. */
 .pa-trend--higher {
-  background: linear-gradient(145deg, #e0ecff, #cfe0ff);
+  background: white;
   color: #1d4ed8;
-  box-shadow: inset 0 0 0 1px rgb(29 78 216 / 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgb(29 78 216 / 0.22),
+    0 3px 8px -4px rgb(29 78 216 / 0.45);
 }
 
 .pa-trend--lower {
-  background: linear-gradient(145deg, #fee4e2, #fdd3cf);
+  background: white;
   color: #d92d20;
-  box-shadow: inset 0 0 0 1px rgb(217 45 32 / 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgb(217 45 32 / 0.24),
+    0 3px 8px -4px rgb(217 45 32 / 0.45);
 }
 
 .pa-trend--equal {
-  background: #eef2f6;
+  background: white;
   color: #64748b;
   box-shadow: inset 0 0 0 1px rgb(100 116 139 / 0.14);
 }
