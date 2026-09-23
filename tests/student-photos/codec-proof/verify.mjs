@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
-import { Miniflare } from 'miniflare';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 
 const directory = 'node_modules/.cache/student-photo-codec-v1';
 const wasm = readFileSync(`${directory}/codec.wasm`);
@@ -30,20 +30,27 @@ assert.equal(bundledWasm.length, 1);
 assert.equal(sha256(readFileSync(resolve(bundle, bundledWasm[0]))), provenance.wasmSha256);
 console.log(JSON.stringify({ event: 'codec-proof-bundle', entrypoint: entrypoints[0], wasm: bundledWasm[0] }));
 let outbound = 0;
-const mf = new Miniflare({
-  modules: true,
-  scriptPath: resolve(bundle, entrypoints[0]),
-  modulesRoot: bundle,
-  modulesRules: [{ type: 'CompiledWasm', globs: ['**/*.wasm'], fallthrough: true }],
-  compatibilityDate: '2026-09-11',
+const mf = new Miniflare(convertV4MiniflareOptions({
   cf: false,
-  outboundService: () => { outbound++; return new Response(null, { status: 403 }); },
-});
+  workers: [{
+    name: 'codec-proof',
+    modulesRoot: bundle,
+    modules: [
+      { type: 'ESModule', path: resolve(bundle, entrypoints[0]) },
+      { type: 'CompiledWasm', path: resolve(bundle, bundledWasm[0]) },
+    ],
+    compatibilityDate: '2026-09-11',
+    outboundService: () => { outbound++; return new Response(null, { status: 403 }); },
+  }],
+}));
+let caller;
 const cases = [];
 async function check(name, work) {
   const start = performance.now();
   await work();
-  cases.push({ name, elapsedMs: Math.round(performance.now() - start) });
+  const result = { name, elapsedMs: Math.round(performance.now() - start) };
+  cases.push(result);
+  console.log(JSON.stringify({ event: 'codec-proof-case-passed', ...result }));
 }
 function raster(width, height, alpha = 255) {
   const data = Buffer.alloc(width * height * 4);
@@ -61,7 +68,7 @@ async function fixture(width, height, alpha = 255) {
   return sharp(image.data, { raw: image.raw }).webp({ lossless: true }).toBuffer();
 }
 async function request(bytes, variant = 'portrait', quality = 92) {
-  return mf.dispatchFetch(`http://codec.test/?variant=${variant}&quality=${quality}`, {
+  return caller.fetch(`http://codec.test/?variant=${variant}&quality=${quality}`, {
     method: 'POST', body: bytes, signal: AbortSignal.timeout(15000),
   });
 }
@@ -94,7 +101,7 @@ async function normalized(bytes, variant, width, height, quality = 92) {
 }
 
 try {
-  await mf.ready;
+  caller = await mf.getWorker('codec-proof');
   const portrait = await fixture(30, 40), avatar = await fixture(32, 32);
   await check('full-lossless-decode-and-lossy-reencode', async () => {
     const output = await normalized(portrait, 'portrait', 30, 40);
