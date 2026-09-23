@@ -8,15 +8,15 @@ import type { PhotoWriteRepositoryV1 } from './write-repository-v1';
 export type PhotoVariantV1 = 'portrait' | 'avatar';
 export interface ValidatedPhotoBytesV1 { bytes: Uint8Array; width: number; height: number }
 export interface PhotoWritePortsV1 {
-  /** Mandatory existing administrative authorization; rechecked before commit/deletion. */
+  /** Mandatory existing administrative authorization; rechecked before mutations. */
   authorize(context: PhotoWriteContextV1): Promise<void>;
   /** MUST decode and re-encode in the server runtime. No header-only/default implementation. */
   validate(bytes: Uint8Array, variant: PhotoVariantV1, signal: AbortSignal): Promise<ValidatedPhotoBytesV1>;
-  /** Create-only, deterministic operation key; reconcile an ambiguous response by verifying remote bytes.
+  /** Create-only deterministic key. Reconcile ambiguous responses by verifying remote bytes.
    * Never overwrite the current family or infer success from size alone. */
   upload(input: { context: PhotoWriteContextV1; requestId: string; variant: PhotoVariantV1;
     bytes: Uint8Array; metadata: PhotoVariantMetadataV1; signal: AbortSignal }): Promise<PhotoAssetV1>;
-  /** Must use the exact retired locator and expected ETag, no lock/retention bypass. */
+  /** Exact retired locator and expected ETag, without lock/retention bypass. */
   remove(asset: PhotoAssetV1, signal: AbortSignal): Promise<'deleted' | 'already-absent'>;
 }
 export interface PhotoWriteInputV1 { portrait: Uint8Array | null; avatar: Uint8Array | null }
@@ -29,10 +29,15 @@ async function metadataOf(value: ValidatedPhotoBytesV1): Promise<PhotoVariantMet
     byte => byte.toString(16).padStart(2, '0')).join('');
   return { width: value.width, height: value.height, byteSize: value.bytes.length, sha256 };
 }
+const resultOf = (requestId: string, cleanupPending: boolean): PhotoWriteResultV1 =>
+  ({ state: 'committed', requestId, revision: requestId, cleanupPending });
+function assertByteBudget(bytes: Uint8Array, variant: PhotoVariantV1): void {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 20 || bytes.length > (variant === 'portrait' ? 131072 : 65536))
+    throw new PhotoWriteErrorV1('invalid');
+}
 
-/** Composes short database transactions and remote I/O; NEVER mounts an HTTP endpoint.
- * Deliberately has no permissive codec or authorization fallback. The application must
- * prove those production adapters before connecting this coordinator to the editor. */
+/** Internal composition only. No permissive codec or authorization fallback exists.
+ * Application adapters must be proven before connecting this to a public editor route. */
 export class PhotoWriteCoordinatorV1 {
   constructor(private readonly repository: Pick<PhotoWriteRepositoryV1, 'claim' | 'commit' | 'acknowledgeCleanup' | 'complete'>,
     private readonly ports: PhotoWritePortsV1) {}
@@ -45,12 +50,11 @@ export class PhotoWriteCoordinatorV1 {
       const bytes = input[variant];
       if (wanted !== (bytes !== null)) throw new PhotoWriteErrorV1('invalid');
       if (!bytes) continue;
-      if (!(bytes instanceof Uint8Array) || bytes.length < 20 || bytes.length > (variant === 'portrait' ? 131072 : 65536))
-        throw new PhotoWriteErrorV1('invalid');
+      assertByteBudget(bytes,variant);
       signal.throwIfAborted();
       const result = await this.ports.validate(new Uint8Array(bytes), variant, signal);
       signal.throwIfAborted();
-      // Own the output before hashing or awaiting any remote operation.
+      assertByteBudget(result.bytes,variant);
       const stable = { ...result, bytes: new Uint8Array(result.bytes) };
       plan[variant] = await metadataOf(stable);
       validated[variant] = stable;
@@ -67,8 +71,10 @@ export class PhotoWriteCoordinatorV1 {
     await this.ports.authorize(context);
     const prepared = await this.prepare(command, input, signal);
     signal.throwIfAborted();
+    await this.ports.authorize(context);
+    signal.throwIfAborted();
     let receipt = await this.repository.claim(context, command, prepared.plan);
-    if (receipt.phase === 'complete') return { state: 'committed', requestId: command.requestId, revision: command.requestId, cleanupPending: false };
+    if (receipt.phase === 'complete') return resultOf(command.requestId,false);
     if (receipt.phase === 'prepared') {
       const uploaded: { portrait: PhotoAssetV1 | null; avatar: PhotoAssetV1 | null } = { portrait: null, avatar: null };
       try {
@@ -80,16 +86,15 @@ export class PhotoWriteCoordinatorV1 {
             bytes: data.bytes, metadata, signal });
         }
       } catch {
-        // The server may have stored bytes before the response was lost. Keep the reservation
-        // and retry this SAME receipt; do not delete a file that may still be uploading.
+        // Bytes may already exist remotely. Keep the reservation, even after cancellation.
         return { state: 'pending', requestId: command.requestId, stage: 'upload' };
       }
-      signal.throwIfAborted();
+      if (signal.aborted) return { state:'pending',requestId:command.requestId,stage:'commit' };
       await this.ports.authorize(context);
+      if (signal.aborted) return { state:'pending',requestId:command.requestId,stage:'commit' };
       try { receipt = await this.repository.commit(context, command.requestId, uploaded); }
       catch (error) {
         if (error instanceof PhotoWriteErrorV1) throw error;
-        // Commit may have succeeded: only its durable receipt can settle the outcome.
         return { state: 'pending', requestId: command.requestId, stage: 'commit' };
       }
     }
@@ -99,19 +104,17 @@ export class PhotoWriteCoordinatorV1 {
   private async cleanup(context: PhotoWriteContextV1, initial: PhotoWriteReceiptV1, signal: AbortSignal): Promise<PhotoWriteResultV1> {
     let receipt = initial;
     for (const asset of initial.cleanup) {
-      signal.throwIfAborted();
+      if (signal.aborted) return resultOf(receipt.requestId,true);
       await this.ports.authorize(context);
+      if (signal.aborted) return resultOf(receipt.requestId,true);
       try {
         const outcome = await this.ports.remove(asset, signal);
         receipt = await this.repository.acknowledgeCleanup(context, receipt.requestId, asset, outcome);
-      } catch {
-        return { state: 'committed', requestId: receipt.requestId, revision: receipt.requestId, cleanupPending: true };
-      }
+      } catch { return resultOf(receipt.requestId,true); }
     }
+    if (signal.aborted) return resultOf(receipt.requestId,true);
     try { await this.repository.complete(context, receipt.requestId); }
-    catch {
-      return { state: 'committed', requestId: receipt.requestId, revision: receipt.requestId, cleanupPending: true };
-    }
-    return { state: 'committed', requestId: receipt.requestId, revision: receipt.requestId, cleanupPending: false };
+    catch { return resultOf(receipt.requestId,true); }
+    return resultOf(receipt.requestId,false);
   }
 }

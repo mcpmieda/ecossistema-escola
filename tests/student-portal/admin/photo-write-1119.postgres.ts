@@ -37,10 +37,15 @@ async function context(): Promise<PhotoWriteContextV1> {
   return { studentUid, actorId: actor };
 }
 function database(connection: ReturnType<typeof postgres>): PhotoWriteDatabaseV1 {
-  return { transaction: work => connection.begin(async tx => {
-    await tx.unsafe('SET LOCAL ROLE gradebook_app');
-    return work({ query: async (text, values = []) => Array.from(await tx.unsafe(text, [...values] as never[], { prepare: false })) });
-  }) };
+  return { transaction: async work => {
+    // Box the value so postgres.begin does not reinterpret a generic array result.
+    const box = await connection.begin(async tx => {
+      await tx.unsafe('SET LOCAL ROLE gradebook_app');
+      const value = await work({ query: async (text, values = []) => Array.from(await tx.unsafe(text, [...values] as never[], { prepare: false })) });
+      return { value };
+    });
+    return box.value;
+  } };
 }
 async function current(ctx: PhotoWriteContextV1) {
   const rows = await db.unsafe('SELECT revision::text,pending_request::text,assets FROM student_photos.photo_family_v1 WHERE student_uid=$1::uuid', [ctx.studentUid]);

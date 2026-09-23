@@ -9,22 +9,22 @@ CREATE TABLE student_photos.photo_family_v1 (
   pending_request uuid,
   assets jsonb NOT NULL DEFAULT '{"portrait":null,"avatar":null}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT statement_timestamp(),
-  CHECK (jsonb_typeof(assets)='object' AND assets ?& ARRAY['portrait','avatar']
+  CHECK ((jsonb_typeof(assets)='object' AND assets ?& ARRAY['portrait','avatar']
     AND assets - ARRAY['portrait','avatar']='{}'::jsonb
     AND jsonb_typeof(assets->'portrait') IN ('object','null')
-    AND jsonb_typeof(assets->'avatar') IN ('object','null'))
+    AND jsonb_typeof(assets->'avatar') IN ('object','null')) IS TRUE)
 );
 CREATE TABLE student_photos.write_operation_v1 (
   request_id uuid PRIMARY KEY,
   student_uid uuid NOT NULL REFERENCES student_photos.photo_family_v1(student_uid) ON UPDATE RESTRICT ON DELETE RESTRICT,
   actor_id uuid NOT NULL,
-  input_hash text NOT NULL CHECK (input_hash ~ '^[a-f0-9]{64}$'),
+  input_hash text NOT NULL CHECK (input_hash ~ '^[0-9a-f]{64}$'),
   receipt jsonb NOT NULL CHECK (jsonb_typeof(receipt)='object' AND octet_length(receipt::text) <= 16384),
   created_at timestamptz NOT NULL DEFAULT statement_timestamp(),
   updated_at timestamptz NOT NULL DEFAULT statement_timestamp(),
-  CHECK (receipt->>'requestId'=request_id::text AND receipt->>'studentUid'=student_uid::text
+  CHECK ((receipt->>'requestId'=request_id::text AND receipt->>'studentUid'=student_uid::text
     AND receipt->>'actorId'=actor_id::text AND receipt->>'inputHash'=input_hash
-    AND receipt->>'phase' IN ('prepared','committed','complete')),
+    AND receipt->>'phase' IN ('prepared','committed','complete')) IS TRUE),
   CHECK (receipt ?& ARRAY['requestId','studentUid','actorId','inputHash','phase'])
 );
 CREATE INDEX photo_write_student_v1 ON student_photos.write_operation_v1(student_uid,created_at);
