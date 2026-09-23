@@ -60,15 +60,16 @@ export function TermClosingCardV1({
   subjectId: number;
   accountId: string;
 }) {
-  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}`);
+  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}|${closing.mode}`);
+  const label = termClosingLabelV1(closing.period, closing.mode);
   const text = (message: TermClosingV1['conclusion'] | undefined) =>
     message ? renderTermClosingMessageV1(message, { period: closing.period }) : null;
   if (closing.level === 'good')
     return (
-      <section className="pa-closing pa-closing--good" aria-label={termClosingLabelV1(closing.period)}>
+      <section className="pa-closing pa-closing--good" aria-label={label}>
         <CircleCheck className="pa-closing-line-icon" size={18} aria-hidden="true" />
         <div>
-          <p className="pa-closing-eyebrow">{termClosingLabelV1(closing.period)}</p>
+          <p className="pa-closing-eyebrow">{label}</p>
           <p className="pa-closing-line">{text(closing.conclusion)}</p>
         </div>
         {isNew ? <NewBadgeV1 /> : null}
@@ -78,10 +79,10 @@ export function TermClosingCardV1({
   return (
     <section
       className={'pa-closing pa-closing--' + closing.level}
-      aria-label={termClosingLabelV1(closing.period)}
+      aria-label={label}
     >
       <header className="pa-closing-header">
-        <p className="pa-closing-eyebrow">{termClosingLabelV1(closing.period)}</p>
+        <p className="pa-closing-eyebrow">{label}</p>
         {isNew ? <NewBadgeV1 /> : null}
       </header>
       <h3 className="pa-closing-title">{text(closing.conclusion)}</h3>
@@ -119,7 +120,8 @@ export function TermClosingSummaryCardV1({
   subjects: readonly SelfResponseV1['subjects'][number][];
   accountId: string;
 }) {
-  const isNew = useTermClosingNewV1(`${accountId}|summary|${summary.period}`);
+  const isNew = useTermClosingNewV1(`${accountId}|summary|${summary.period}|${summary.mode}`);
+  const label = termClosingLabelV1(summary.period, summary.mode);
   const names = summary.attentionSubjectIds
     .map((id) => subjects.find((subject) => subject.subjectId === id)?.label)
     .filter((label): label is string => Boolean(label));
@@ -127,10 +129,10 @@ export function TermClosingSummaryCardV1({
   return (
     <section
       className={'pa-closing-summary pa-closing-summary--' + (attention ? 'attention' : 'good')}
-      aria-label={termClosingLabelV1(summary.period)}
+      aria-label={label}
     >
       <header className="pa-closing-header">
-        <p className="pa-closing-eyebrow">{termClosingLabelV1(summary.period)}</p>
+        <p className="pa-closing-eyebrow">{label}</p>
         {isNew ? <NewBadgeV1 /> : null}
       </header>
       <p className="pa-closing-summary-text">

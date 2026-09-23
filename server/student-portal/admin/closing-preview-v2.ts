@@ -26,7 +26,7 @@ export async function readClosingPreviewV2(
   );
   const preview = context
     ? await termClosingPreviewV2(tx, context)
-    : { closedPeriods: [], visibleToStudent: false, subjects: [], summary: undefined };
+    : { mode: 'conclusion' as const, closedPeriods: [], visibleToStudent: false, subjects: [], summary: undefined };
   return adminReadResponseV2.parse({
     contractVersion: 2,
     requestId,
@@ -35,6 +35,7 @@ export async function readClosingPreviewV2(
     scope: query.scope,
     available: context !== null,
     visibleToStudent: preview.visibleToStudent,
+    mode: preview.mode,
     closedPeriods: preview.closedPeriods,
     subjects: preview.subjects,
     ...(preview.summary ? { summary: preview.summary } : {}),

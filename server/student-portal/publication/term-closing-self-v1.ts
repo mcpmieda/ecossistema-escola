@@ -3,6 +3,7 @@ import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import {
   TERM_CLOSING_PERIODS_V1,
+  type TermClosingModeV1,
   type TermClosingPeriodV1,
 } from '../../../shared/student-portal-contracts/term-closing-v1';
 import {
@@ -14,39 +15,59 @@ import {
 type PolicyValueV1 = Parameters<typeof settingsValueV1.parse>[0];
 const END_FIELD_V1 = { T1: 't1EndsAt', T2: 't2EndsAt', T3: 't3EndsAt' } as const;
 
+const START_FIELD_V1 = { T1: 'yearStartsAt', T2: 't2StartsAt', T3: 't3StartsAt' } as const;
+const PREVIOUS_V1: Partial<Record<TermClosingPeriodV1, TermClosingPeriodV1>> = { T2: 'T1', T3: 'T2' };
+export interface TermClosingTargetsV1 {
+  readonly mode: TermClosingModeV1;
+  readonly periods: readonly TermClosingPeriodV1[];
+}
+
 /**
- * Trimesters whose official end date has passed (D2, R3). Empty when the feature is off, access is
- * closed, or the student is assisted/special (D9). Retroactive by construction (D15).
+ * Which trimesters get a reading. Nothing when the feature is off, access is closed, or the
+ * student is assisted/special (D9). `termClosingConclusive` on: every trimester whose official end
+ * date has passed (D2, R3; retroactive, D15). Off: only the trimester in progress (its end date not
+ * reached, its start reached or the previous trimester ended).
  */
-export function closedTermClosingPeriodsV1(
+export function termClosingTargetsV1(
   policy: PolicyValueV1,
   academicState: SelfResponseV1['profile']['academicState'],
   now: Date,
-): TermClosingPeriodV1[] {
+): TermClosingTargetsV1 {
   const value = settingsValueV1.parse(policy);
-  if (!value.showTermClosing || !value.accessEnabled || academicState !== 'regular') return [];
-  return TERM_CLOSING_PERIODS_V1.filter((period) => {
-    const end = value.calendar[END_FIELD_V1[period]];
-    return end !== null && Number.isFinite(Date.parse(end)) && now.getTime() >= Date.parse(end);
+  const mode: TermClosingModeV1 = value.termClosingConclusive ? 'conclusion' : 'progress';
+  if (!value.showTermClosing || !value.accessEnabled || academicState !== 'regular') return { mode, periods: [] };
+  const at = (raw: string | null | undefined) => (raw && Number.isFinite(Date.parse(raw)) ? Date.parse(raw) : null);
+  const ended = (period: TermClosingPeriodV1) => {
+    const end = at(value.calendar[END_FIELD_V1[period]]);
+    return end !== null && now.getTime() >= end;
+  };
+  if (mode === 'conclusion') return { mode, periods: TERM_CLOSING_PERIODS_V1.filter(ended) };
+  const current = TERM_CLOSING_PERIODS_V1.find((period) => {
+    if (at(value.calendar[END_FIELD_V1[period]]) === null || ended(period)) return false;
+    const start = at(value.calendar[START_FIELD_V1[period]]);
+    const previous = PREVIOUS_V1[period];
+    return start !== null ? now.getTime() >= start : previous === undefined || ended(previous);
   });
+  return { mode, periods: current ? [current] : [] };
 }
 
 /** Shared by the student page and the admin preview so both show the same codes and variants. */
 export function buildTermClosingsV1(input: {
-  closedPeriods: readonly TermClosingPeriodV1[];
+  targets: TermClosingTargetsV1;
   evaluations: ReadonlyMap<number, readonly TermClosingEvaluationV1[]>;
   studentKey: string;
 }) {
+  const { mode, periods } = input.targets;
   const inScope = new Map<number, TermClosingEvaluationV1[]>();
   for (const [subjectId, list] of input.evaluations) {
-    const kept = list.filter((evaluation) => input.closedPeriods.includes(evaluation.period));
+    const kept = list.filter((evaluation) => evaluation.mode === mode && periods.includes(evaluation.period));
     if (kept.length) inScope.set(subjectId, kept);
   }
   const closings = assignTermClosingVariantsV1(input.studentKey, inScope);
-  const latest = [...input.closedPeriods].reverse().find((period) =>
+  const latest = [...periods].reverse().find((period) =>
     [...closings.values()].some((list) => list.some((closing) => closing.period === period)),
   );
-  return { closings, summary: latest ? termClosingSummaryV1(input.studentKey, latest, closings) : undefined };
+  return { closings, summary: latest ? termClosingSummaryV1(input.studentKey, latest, closings, mode) : undefined };
 }
 
 /**
@@ -55,13 +76,13 @@ export function buildTermClosingsV1(input: {
  */
 export function attachTermClosingsV1(input: {
   projection: SelfResponseV1;
-  closedPeriods: readonly TermClosingPeriodV1[];
+  targets: TermClosingTargetsV1;
   evaluations: ReadonlyMap<number, readonly TermClosingEvaluationV1[]>;
   sourceSubjects: readonly { subjectId: number; label: string }[];
   studentKey: string;
 }): SelfResponseV1 {
-  const { projection, closedPeriods } = input;
-  if (closedPeriods.length === 0) return projection;
+  const { projection } = input;
+  if (input.targets.periods.length === 0) return projection;
   const { closings, summary } = buildTermClosingsV1(input);
   if (closings.size === 0) return projection;
 

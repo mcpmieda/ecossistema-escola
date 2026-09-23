@@ -11,7 +11,7 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 import type { publicationContextV1 } from './self-projection-reader-v1';
 import { dataVectorV1, PERIODS_V1, publicationDigestV1 } from './state-v1';
 import { readLatestSourceV2, readScopedSourcesV2, readStudentKeyV2 } from './scoped-source-v2';
-import { attachTermClosingsV1, buildTermClosingsV1, closedTermClosingPeriodsV1 } from './term-closing-self-v1';
+import { attachTermClosingsV1, buildTermClosingsV1, termClosingTargetsV1 } from './term-closing-self-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 
 type ContextV2 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
@@ -220,14 +220,14 @@ async function termClosingsV2(
   reader: AcademicStudentReaderPostgresV1,
   decoded: Map<string, SourceV2>,
 ): Promise<SelfResponseV1> {
-  const closedPeriods = closedTermClosingPeriodsV1(
+  const targets = termClosingTargetsV1(
     context.policy.enforcedValue,
     context.profile.academicState,
     context.now,
   );
-  if (closedPeriods.length === 0) return projection;
+  if (targets.periods.length === 0) return projection;
   const source = await closingSourceV2(tx, context, reader, decoded);
-  return source ? attachTermClosingsV1({ projection, closedPeriods, ...source }) : projection;
+  return source ? attachTermClosingsV1({ projection, targets, ...source }) : projection;
 }
 
 /** Newest edition's closing codes; null when unreadable (the closing is supplementary). */
@@ -258,19 +258,20 @@ async function closingSourceV2(
  */
 export async function termClosingPreviewV2(tx: StudentPortalPostgresQueryV1, context: ContextV2) {
   const value = settingsValueV1.parse(context.policy.enforcedValue);
-  const closedPeriods = closedTermClosingPeriodsV1(
+  const targets = termClosingTargetsV1(
     { ...value, showTermClosing: true, accessEnabled: true },
     context.profile.academicState,
     context.now,
   );
-  const visibleToStudent = value.showTermClosing && value.accessEnabled && closedPeriods.length > 0;
-  const source = closedPeriods.length
+  const visibleToStudent = value.showTermClosing && value.accessEnabled && targets.periods.length > 0;
+  const source = targets.periods.length
     ? await closingSourceV2(tx, context, new AcademicStudentReaderPostgresV1(tx), new Map())
     : null;
-  if (!source) return { closedPeriods, visibleToStudent, subjects: [], summary: undefined };
-  const { closings, summary } = buildTermClosingsV1({ closedPeriods, ...source });
+  if (!source) return { mode: targets.mode, closedPeriods: targets.periods, visibleToStudent, subjects: [], summary: undefined };
+  const { closings, summary } = buildTermClosingsV1({ targets, ...source });
   return {
-    closedPeriods,
+    mode: targets.mode,
+    closedPeriods: targets.periods,
     visibleToStudent,
     subjects: source.sourceSubjects
       .filter((subject) => closings.has(subject.subjectId))

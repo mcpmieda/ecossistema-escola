@@ -14,6 +14,7 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   autoUpdate: 'Atualizar notas já publicadas',
   showFinalResult: 'Resultado final',
   showTermClosing: 'Fechamento do trimestre',
+  termClosingConclusive: 'Usar termos de conclusão',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
   calendar: 'Datas',

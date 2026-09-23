@@ -303,14 +303,6 @@ function SummaryV1({
           </Card>
         ) : null}
 
-        {data.closingSummary ? (
-          <TermClosingSummaryCardV1
-            summary={data.closingSummary}
-            subjects={subjects}
-            accountId={data.profile.accountId}
-          />
-        ) : null}
-
         {available.length ? (
           <Tabs
             className="pa-boletim-period-tabs"
@@ -398,6 +390,14 @@ function SummaryV1({
           })}
         </ListBox>
         </div>
+        {/* Below the marks, like the subject closing under its breakdown. */}
+        {data.closingSummary ? (
+          <TermClosingSummaryCardV1
+            summary={data.closingSummary}
+            subjects={subjects}
+            accountId={data.profile.accountId}
+          />
+        ) : null}
       </section>
     </div>
   );

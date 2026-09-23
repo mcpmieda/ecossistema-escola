@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assignTermClosingVariantsV1,
   evaluateTermClosingV1,
+  evaluateTermProgressV1,
   termClosingSummaryV1,
   type TermClosingEvaluationV1,
 } from '../../../server/student-portal/academic/term-closing-v1';
@@ -44,6 +45,7 @@ describe('Fechamento do trimestre engine (#1132)', () => {
   it('reads a clean, clearly-above-minimum term as a recognition line only (D5, D14)', () => {
     expect(term1([[1, 8500, 7500], [2, 5000, 4500], ...qualitative([4500, 3000, 5500, 3000])])).toEqual({
       period: 'T1',
+      mode: 'conclusion',
       level: 'good',
       conclusion: 'line.good',
     });
@@ -84,7 +86,7 @@ describe('Fechamento do trimestre engine (#1132)', () => {
     const t3 = (values: number[], recoveryPending: boolean) =>
       term1([[1, 13000, values[0]!], [2, 5000, values[1]!], ...[6000, 4000, 12000].map((max, i) => [11 + i, max, values[2 + i]!] as const)], { term: 3, recoveryPending });
     expect(t3([4000, 2000, 3000, 2000, 5000], true)).toMatchObject({ conclusion: 'conclusion.recovery', action: 'action.recovery' });
-    expect(t3([12000, 4500, 6000, 4000, 11000], false)).toEqual({ period: 'T3', level: 'good', conclusion: 'line.year-good' });
+    expect(t3([12000, 4500, 6000, 4000, 11000], false)).toEqual({ period: 'T3', mode: 'conclusion', level: 'good', conclusion: 'line.year-good' });
     const weak = t3([6000, 3000, 6000, 4000, 12000], false);
     expect(weak?.level).not.toBe('good');
     expect(weak?.action).toBeUndefined();
@@ -102,11 +104,51 @@ describe('Fechamento do trimestre engine (#1132)', () => {
   });
 });
 
+describe('Acompanhamento: the trimester in progress (termClosingConclusive off)', () => {
+  const progress = (facts: readonly FactV1[]) => {
+    const outcome = resolveSimplifiedTermV1({
+      term: 2,
+      instruments: facts.map(([slot, maximum, value]) => ({ slot: slot as SimplifiedInstrumentSlotV1, maximumMilli: maximum, valueMilli: value })),
+    });
+    return evaluateTermProgressV1({
+      term: 2,
+      outcome,
+      officialTotalMilli: null,
+      instruments: facts.map(([slot, maximum, value, observed]) => ({ slot, maximum, value, observed: observed ?? value !== null })),
+      minimumApprovalMilli: 60_000,
+      recoveryPending: false,
+    });
+  };
+
+  it('reads only what is recorded so far, in present tense, with a forward action', () => {
+    const early = progress([[1, 8500, 3000], [2, 5000, null, false], [11, 4500, 4000], [12, 3000, null, false]]);
+    expect(early).toMatchObject({ period: 'T2', mode: 'progress', level: 'attention', conclusion: 'progress.conclusion.attention',
+      weight: 'progress.weight.assessments', action: 'progress.action.assessments' });
+    expect(early?.strength).toBe('progress.strength.activities');
+    const asMessages = Object.fromEntries(Object.entries(early!).map(([key, value]) =>
+      ['conclusion', 'weight', 'strength', 'action'].includes(key) ? [key, { code: value, variant: 0 }] : [key, value]));
+    expect(termClosingV1.safeParse(asMessages).success).toBe(true);
+  });
+
+  it('says "até aqui, tudo certo" for a good start and waits for a first assessment', () => {
+    expect(progress([[1, 8500, 8000], [2, 5000, null, false], [11, 4500, 4500]])).toEqual({
+      period: 'T2', mode: 'progress', level: 'good', conclusion: 'progress.line.good',
+    });
+    expect(progress([[1, 8500, null, false], [2, 5000, null, false], [11, 4500, 4500]])).toBeNull();
+  });
+
+  it('keeps every progress phrase in present or future tense and never mixes modes', () => {
+    for (const [code, variants] of Object.entries(TERM_CLOSING_CATALOG_V1))
+      if (code.startsWith('progress.')) for (const text of variants) expect(text).not.toMatch(/foram|fechou|fechamento/iu);
+    expect(termClosingV1.safeParse({ period: 'T1', mode: 'progress', level: 'good', conclusion: { code: 'line.good', variant: 0 } }).success).toBe(false);
+  });
+});
+
 describe('variants and summary (decision 7, D4)', () => {
   const evaluation = (level: TermClosingEvaluationV1['level']): TermClosingEvaluationV1 =>
     level === 'good'
-      ? { period: 'T1', level, conclusion: 'line.good' }
-      : { period: 'T1', level, conclusion: 'conclusion.attention', weight: 'weight.assessments', action: 'action.assessments' };
+      ? { period: 'T1', mode: 'conclusion', level, conclusion: 'line.good' }
+      : { period: 'T1', mode: 'conclusion', level, conclusion: 'conclusion.attention', weight: 'weight.assessments', action: 'action.assessments' };
   const subjects = (level: TermClosingEvaluationV1['level'], count = 12) =>
     new Map(Array.from({ length: count }, (_, index) => [900 + index, [evaluation(level)]]));
 
@@ -140,32 +182,40 @@ describe('variants and summary (decision 7, D4)', () => {
 });
 
 describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
-  const { attachTermClosingsV1, closedTermClosingPeriodsV1 } = await import('../../../server/student-portal/publication/term-closing-self-v1');
+  const { attachTermClosingsV1, termClosingTargetsV1 } = await import('../../../server/student-portal/publication/term-closing-self-v1');
   const { initialPolicyDefaultsV1 } = await import('../../../server/student-portal/policies/defaults-v1');
   const { SYNTHETIC_SELF_V1 } = await import('../../../shared/student-portal-contracts/fixtures-v1');
   const now = new Date('2026-06-01T12:00:00Z');
   const policy = (patch: Record<string, unknown> = {}, calendar: Record<string, unknown> = {}) => {
     const value = initialPolicyDefaultsV1();
-    return { ...value, accessEnabled: true, showTermClosing: true, ...patch,
+    return { ...value, accessEnabled: true, showTermClosing: true, termClosingConclusive: true, ...patch,
       calendar: { ...value.calendar, t1EndsAt: '2026-05-15T03:00:00.000Z', ...calendar } };
   };
 
   it('opens only closed trimesters, and only with the policy, access and a regular student', () => {
-    expect(closedTermClosingPeriodsV1(policy(), 'regular', now)).toEqual(['T1']);
-    expect(closedTermClosingPeriodsV1(policy({ showTermClosing: false }), 'regular', now)).toEqual([]);
-    expect(closedTermClosingPeriodsV1(policy({ accessEnabled: false }), 'regular', now)).toEqual([]);
-    expect(closedTermClosingPeriodsV1(policy(), 'special', now)).toEqual([]);
-    expect(closedTermClosingPeriodsV1(policy(), 'assisted', now)).toEqual([]);
-    expect(closedTermClosingPeriodsV1(policy({}, { t1EndsAt: null }), 'regular', now)).toEqual([]);
-    expect(closedTermClosingPeriodsV1(policy({}, { t1EndsAt: '2026-07-01T03:00:00.000Z' }), 'regular', now)).toEqual([]);
+    const periods = (...args: Parameters<typeof termClosingTargetsV1>) => termClosingTargetsV1(...args).periods;
+    expect(periods(policy(), 'regular', now)).toEqual(['T1']);
+    expect(periods(policy({ showTermClosing: false }), 'regular', now)).toEqual([]);
+    expect(periods(policy({ accessEnabled: false }), 'regular', now)).toEqual([]);
+    expect(periods(policy(), 'special', now)).toEqual([]);
+    expect(periods(policy(), 'assisted', now)).toEqual([]);
+    expect(periods(policy({}, { t1EndsAt: null }), 'regular', now)).toEqual([]);
+    expect(periods(policy({}, { t1EndsAt: '2026-07-01T03:00:00.000Z' }), 'regular', now)).toEqual([]);
+  });
+
+  it('with conclusive terms off, reads only the trimester in progress', () => {
+    const progress = policy({ termClosingConclusive: false }, { t2EndsAt: '2026-09-01T03:00:00.000Z' });
+    expect(termClosingTargetsV1(progress, 'regular', now)).toEqual({ mode: 'progress', periods: ['T2'] });
+    expect(termClosingTargetsV1(progress, 'regular', new Date('2026-04-01T12:00:00Z'))).toEqual({ mode: 'progress', periods: ['T1'] });
+    expect(termClosingTargetsV1(progress, 'regular', new Date('2026-10-01T12:00:00Z'))).toEqual({ mode: 'progress', periods: [] });
   });
 
   it('shows a closing for a closed but unreleased trimester without any marks (R2)', () => {
     const projection = { ...SYNTHETIC_SELF_V1, state: 'no-publication' as const, subjects: [] };
     const result = attachTermClosingsV1({
       projection,
-      closedPeriods: ['T1'],
-      evaluations: new Map([[77, [{ period: 'T1' as const, level: 'good' as const, conclusion: 'line.good' as const }]]]),
+      targets: { mode: 'conclusion', periods: ['T1'] },
+      evaluations: new Map([[77, [{ period: 'T1' as const, mode: 'conclusion' as const, level: 'good' as const, conclusion: 'line.good' as const }]]]),
       sourceSubjects: [{ subjectId: 77, label: 'MATEMÁTICA' }],
       studentKey: 'uid-r2',
     });

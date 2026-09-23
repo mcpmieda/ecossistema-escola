@@ -378,12 +378,31 @@ const realPreviewData = selfResponseV1.parse({
 type ClosingV1 = NonNullable<SelfResponseV1['subjects'][number]['closings']>[number];
 const goodLine = (variant: number): ClosingV1 => ({
   period: 'T1',
+  mode: 'conclusion',
   level: 'good',
   conclusion: { code: 'line.good', variant },
 });
+/** Same reading as "Acompanhamento" (policy termClosingConclusive off): present-tense codes. */
+function asProgressV1(closing: ClosingV1): ClosingV1 {
+  const code = (value: string) =>
+    value
+      .replace('conclusion.good-with-point', 'conclusion.point')
+      .replace(/^(conclusion|weight|strength|action|line)\./u, 'progress.$1.');
+  const message = (value?: ClosingV1['conclusion']) =>
+    value ? { ...value, code: code(value.code) as ClosingV1['conclusion']['code'] } : undefined;
+  return selfResponseV1.shape.subjects.element.shape.closings.unwrap().element.parse({
+    ...closing,
+    mode: 'progress',
+    conclusion: message(closing.conclusion),
+    ...(closing.weight ? { weight: message(closing.weight) } : {}),
+    ...(closing.strength ? { strength: message(closing.strength) } : {}),
+    ...(closing.action ? { action: message(closing.action) } : {}),
+  });
+}
 const REAL_CLOSINGS_V1: Record<number, ClosingV1> = {
   910001: {
     period: 'T1',
+    mode: 'conclusion',
     level: 'attention',
     conclusion: { code: 'conclusion.attention', variant: 1 },
     weight: { code: 'weight.not-done', variant: 1 },
@@ -391,6 +410,7 @@ const REAL_CLOSINGS_V1: Record<number, ClosingV1> = {
   },
   910003: {
     period: 'T1',
+    mode: 'conclusion',
     level: 'attention',
     conclusion: { code: 'conclusion.attention', variant: 0 },
     weight: { code: 'weight.assessments', variant: 0 },
@@ -399,6 +419,7 @@ const REAL_CLOSINGS_V1: Record<number, ClosingV1> = {
   },
   910006: {
     period: 'T1',
+    mode: 'conclusion',
     level: 'point',
     conclusion: { code: 'conclusion.good-with-point', variant: 2 },
     weight: { code: 'weight.assessments', variant: 1 },
@@ -431,6 +452,8 @@ interface AdminSimulationV1 {
   showPartials: boolean;
   /** Policy `showTermClosing` (#1132); the preview treats T1 as already closed. */
   showTermClosing: boolean;
+  /** Policy `termClosingConclusive`: off shows the same T1 as a trimester in progress. */
+  termClosingConclusive: boolean;
   periods: readonly PeriodIdV1[];
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
@@ -547,7 +570,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
         .map((subject): SelfResponseV1['subjects'][number] => {
           const shown = subjects.find((item) => item.subjectId === subject.subjectId);
           return { ...(shown ?? { subjectId: subject.subjectId, label: subject.label, order: subject.order, periods: [] }),
-            closings: [REAL_CLOSINGS_V1[subject.subjectId]!] };
+            closings: [admin.termClosingConclusive ? REAL_CLOSINGS_V1[subject.subjectId]! : asProgressV1(REAL_CLOSINGS_V1[subject.subjectId]!)] };
         })
         .concat(subjects.filter((subject) => !REAL_CLOSINGS_V1[subject.subjectId]) as SelfResponseV1['subjects'])
         .sort((a, b) => a.order - b.order)
@@ -557,7 +580,8 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     ...data,
     state: withClosings.length > 0 ? 'ready' : 'no-publication',
     ...(closingsOn && withClosings.some((subject) => subject.closings)
-      ? { closingSummary: { period: 'T1', message: { code: attention.length ? 'summary.few-attention' : 'summary.all-good', variant: 0 },
+      ? { closingSummary: { period: 'T1', mode: admin.termClosingConclusive ? 'conclusion' : 'progress',
+          message: { code: `${admin.termClosingConclusive ? '' : 'progress.'}${attention.length ? 'summary.few-attention' : 'summary.all-good'}`, variant: 0 },
           attentionSubjectIds: attention.map((subject) => subject.subjectId) } }
       : {}),
     profile: {
@@ -593,7 +617,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -627,6 +651,7 @@ function AdminSimulatorPanelV1({
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
         <label>{toggle('showTermClosing')} Fechamento do trimestre</label>
+        <label>{toggle('termClosingConclusive')} Usar termos de conclusão</label>
         <label>{toggle('hasPortrait')} Foto do aluno</label>
       </div>
       <div style={rowStyle}>
@@ -714,6 +739,7 @@ function PreviewAppV1() {
     accessEnabled: true,
     showPartials: true,
     showTermClosing: true,
+    termClosingConclusive: true,
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: true,

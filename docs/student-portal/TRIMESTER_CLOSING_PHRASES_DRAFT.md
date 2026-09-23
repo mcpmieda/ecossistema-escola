@@ -135,6 +135,18 @@ Os marcadores `{lista}` e `{trimestre}` são preenchidos pelo sistema. `{lista}`
 
 > A concordância singular/plural ("pede"/"pedem") é resolvida pelo sistema, não por texto fixo.
 
+## 7. Acompanhamento do trimestre em andamento (política "Usar termos de conclusão" desligada)
+
+Mesmo motor, frases no presente e rótulo **"Acompanhamento do Nº trimestre"**. O código está em `shared/student-portal-contracts/term-closing-v1.ts` (prefixo `progress.`):
+
+- **Conclusão:** "Até agora, esta disciplina pede sua atenção." · "Você está indo bem, mas há um ponto para cuidar." · linha: "Até aqui, tudo certo nesta disciplina."
+- **O que mais pesa:** "Até agora, as avaliações são o principal ponto de atenção." · "Há atividades não realizadas neste trimestre." · "As atividades do dia a dia estão sendo um desafio para você."
+- **O que reconhecer:** "Você está indo bem nas atividades do dia a dia." · "Você está indo bem nas avaliações." · "Você está com as atividades em dia." · "Você também fez a prova paralela deste trimestre."
+- **Próximo passo:** "Agora: procure fazer todas as próximas atividades." · "Agora: prepare-se com antecedência para as próximas avaliações."
+- **Resumo no Boletim:** "Até agora, o {trimestre} vai bem na maior parte das disciplinas. {lista} {pede} sua atenção."
+
+Todas as versões (três ou mais por mensagem, seis nas linhas de "vai bem") estão no arquivo de código e também passam pela aprovação da escola (D6).
+
 ## Pontos para confirmar com a escola junto com as frases
 
 1. **"Recuperação" no 3º trimestre.** Confirmar se "Você vai fazer a recuperação nesta disciplina" está alinhado com a forma como a escola comunica isso às famílias.

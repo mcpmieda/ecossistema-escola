@@ -69,7 +69,7 @@ describe('durable inherited policy', () => {
     expect(second).toEqual(first);
     expect(first.settings).toMatchObject({ version: 1, value: { accessEnabled: false, allowedPeriods: [], showFinalResult: false } });
     expect(first.settings.value.calendar.yearEndsAt).toBeNull();
-    expect((await pg.query('SELECT count(*)::integer AS count FROM student_portal.setting')).rows).toEqual([{ count: 8 }]);
+    expect((await pg.query('SELECT count(*)::integer AS count FROM student_portal.setting')).rows).toEqual([{ count: 9 }]);
     await set(CLASS, { accessEnabled: true });
     await pg.exec(`UPDATE student_portal.setting SET value_json='"synthetic-invalid-default"'::jsonb
       WHERE scope_key='school:2026' AND field_key='accessEnabled'`);

@@ -29,7 +29,7 @@
   --pa-closing-border: #bbf7d0;
 }
 .pa-closing-summary {
-  margin: 0 0 1rem;
+  margin: 1.1rem 0 0;
 }
 .pa-closing--good {
   display: flex;

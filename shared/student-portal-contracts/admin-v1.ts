@@ -32,7 +32,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1, includeSavedBirth: z.literal(true).optional() }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-batch'), classId: z.number().int().positive(), expectedCount: z.number().int().min(1).max(100), items: z.array(birthWriteV1).min(1).max(100), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('settings-set'), scope: scopeV1, value: settingsOverrideV1, acknowledgeImmediateEffect: z.boolean() }).strict(),
-  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: scopeV1, keys: z.array(z.enum(['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult', 'showTermClosing', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(8) }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: scopeV1, keys: z.array(z.enum(['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult', 'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(9) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish-update'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('unpublish'), scope: scopeV1, period: periodV1, confirmed: z.literal(true) }).strict(),

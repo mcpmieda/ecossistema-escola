@@ -547,7 +547,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     if (existing.length === 0 ? expectedVersion !== 0 : existing.some((row) => integer(row.version, 'setting-version') !== expectedVersion)) return false;
     await rows(this.sql, 'DELETE FROM student_portal.setting WHERE scope_key=$1', [key]);
     const [kind, year, classId, accountId] = scopeColumns(parsed.scope);
-    const fields = ['accessEnabled','showPartials','autoUpdate','showFinalResult','showTermClosing','allowedPeriods','risk','calendar'] as const;
+    const fields = ['accessEnabled','showPartials','autoUpdate','showFinalResult','showTermClosing','termClosingConclusive','allowedPeriods','risk','calendar'] as const;
     for (const field of fields) {
       await rows(
         this.sql,

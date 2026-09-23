@@ -28,18 +28,22 @@ const FIELDS = [
   'autoUpdate',
   'showFinalResult',
   'showTermClosing',
+  'termClosingConclusive',
   'allowedPeriods',
   'risk',
   'calendar',
 ] as const;
 type Field = (typeof FIELDS)[number];
 /** Added by migration 0020 (#1132). Until it exists the school row may be absent and reads as off. */
-const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing'];
+const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing', 'termClosingConclusive'];
 const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.length;
 const schoolFieldCountValidV1 = (count: number) =>
-  count === REQUIRED_SCHOOL_FIELD_COUNT || count === FIELDS.length;
+  count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
 /** Before migration 0020 the school row may be absent: the feature then reads as off. */
-const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = { showTermClosing: false };
+const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = {
+  showTermClosing: false,
+  termClosingConclusive: true,
+};
 const schoolValueV1 = (school: readonly StoredRowV1[]) => ({
   ...OPTIONAL_SCHOOL_DEFAULTS_V1,
   ...Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),

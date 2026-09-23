@@ -170,6 +170,28 @@ it('publishes in one scoped row and serves individual grades immediately, withou
   expect(JSON.stringify(await self())).not.toContain('PRIVATE TEACHER');
   console.log('P803_SYNTHETIC_RELEASE', JSON.stringify({ students: 106, queries: calls, elapsedMs: elapsed, jobs: 0 }));
 });
+it('adds the Fechamento do trimestre from the newest edition only when the policy asks (#1132)', async () => {
+  await release();
+  expect((await self())?.subjects[0]?.closings).toBeUndefined();
+  // Both assessments recorded (decision 12), then a recorded change prepares a newer edition (D3).
+  await owner.unsafe('INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor) VALUES(803002,746001,2000) ON CONFLICT DO NOTHING');
+  await preparedChange(8001);
+  await policy({ showTermClosing: true });
+  try {
+    const closed = await self();
+    const closing = closed?.subjects.find((subject) => subject.closings)?.closings?.[0];
+    expect(closing).toMatchObject({ period: 'T1', mode: 'conclusion' });
+    expect(closed?.closingSummary).toMatchObject({ period: 'T1', mode: 'conclusion' });
+    expect(JSON.stringify(closed?.subjects.map((subject) => subject.closings))).not.toMatch(/"value"|8\.001/u);
+    // Conclusive terms off: only the trimester in progress (T3 by this calendar) could be read.
+    await policy({ termClosingConclusive: false });
+    const progress = await self();
+    expect(progress?.subjects.flatMap((subject) => subject.closings ?? []).every((item) => item.mode === 'progress')).toBe(true);
+    expect(progress?.closingSummary?.mode ?? 'progress').toBe('progress');
+  } finally {
+    await policy({ showTermClosing: false, termClosingConclusive: true });
+  }
+});
 it('replays identical intent after a lost reply without another release or audit record', async () => {
   const service = new ScopedPublicationServiceV2(portal);
   const input = await command();

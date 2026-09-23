@@ -162,6 +162,8 @@ beforeAll(async () => {
   await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=true WHERE academic_year=2026');
   await admin.unsafe(readFileSync('migrations/student-portal/0019_remove_legacy_projection_v1.sql', 'utf8'));
   await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
+  // Fechamento do trimestre policy fields (#1132).
+  await migrator.unsafe(readFileSync('migrations/student-portal/0020_term_closing_policy_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });

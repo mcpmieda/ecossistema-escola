@@ -122,6 +122,8 @@ export const settingsValueV1 = z
     showFinalResult: z.boolean(),
     // Fechamento do trimestre (#1132). The policy service reads a missing school row as off.
     showTermClosing: z.boolean(),
+    // On: past-tense closing of ended trimesters. Off: present-tense reading of the one in progress.
+    termClosingConclusive: z.boolean(),
     allowedPeriods: z
       .array(periodV1)
       .max(6)
@@ -147,6 +149,7 @@ export const effectiveSettingsV1 = z
         autoUpdate: scopeV1,
         showFinalResult: scopeV1,
         showTermClosing: scopeV1,
+        termClosingConclusive: scopeV1,
         allowedPeriods: scopeV1,
         risk: scopeV1,
         calendar: scopeV1,

@@ -73,8 +73,10 @@ export function AccountClosingPreviewV1({
   if (preview.closedPeriods.length === 0)
     return (
       <p>
-        Nenhum trimestre encerrado ainda. O fechamento aparece a partir da data de encerramento
-        configurada nas políticas. Alunos assistidos ou especiais não recebem o fechamento.
+        {preview.mode === 'progress'
+          ? 'Nenhum trimestre em andamento pelas datas configuradas nas políticas.'
+          : 'Nenhum trimestre encerrado ainda. O fechamento aparece a partir da data de encerramento configurada nas políticas.'}{' '}
+        Alunos assistidos ou especiais não recebem esta leitura.
       </p>
     );
   const names = new Map(preview.subjects.map((subject) => [subject.subjectId, subject.label]));
@@ -87,7 +89,7 @@ export function AccountClosingPreviewV1({
       </p>
       {preview.summary ? (
         <section aria-label="Resumo no Boletim">
-          <h4 className="font-semibold">Resumo no Boletim · {termClosingLabelV1(preview.summary.period)}</h4>
+          <h4 className="font-semibold">Resumo no Boletim · {termClosingLabelV1(preview.summary.period, preview.summary.mode)}</h4>
           <p>
             {renderTermClosingMessageV1(preview.summary.message, {
               period: preview.summary.period,
@@ -104,7 +106,7 @@ export function AccountClosingPreviewV1({
           {subject.closings.map((closing) => (
             <div key={closing.period}>
               <p className="text-sm text-muted">
-                {termClosingLabelV1(closing.period)} · {LEVEL_LABEL_V1[closing.level]}
+                {termClosingLabelV1(closing.period, closing.mode)} · {LEVEL_LABEL_V1[closing.level]}
               </p>
               <ul className="list-disc pl-5">
                 <MessageLineV1 message={closing.conclusion} closing={closing} />

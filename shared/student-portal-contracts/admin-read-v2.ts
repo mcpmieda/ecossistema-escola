@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
+import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_MODES_V1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
 import { settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
 import { customizationsResponseV1 } from './customizations-v1';
@@ -76,7 +76,7 @@ export const customizedSettingsRowV1 = z.object({
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('closing-preview'), scope: scopeV1,
-    available: z.boolean(), visibleToStudent: z.boolean(),
+    available: z.boolean(), visibleToStudent: z.boolean(), mode: z.enum(TERM_CLOSING_MODES_V1),
     closedPeriods: z.array(z.enum(TERM_CLOSING_PERIODS_V1)).max(3),
     subjects: z.array(z.object({ subjectId: z.number().int().positive(), label: z.string().min(1).max(120),
       closings: z.array(termClosingV1).max(3) }).strict()).max(100),

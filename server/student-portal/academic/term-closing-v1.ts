@@ -1,6 +1,7 @@
 import {
   TERM_CLOSING_CATALOG_V1,
   type TermClosingCodeV1,
+  type TermClosingModeV1,
   type TermClosingPeriodV1,
   type TermClosingSummaryV1,
   type TermClosingV1,
@@ -30,6 +31,8 @@ export interface TermClosingInstrumentV1 {
   readonly slot: number;
   readonly value: number | null;
   readonly observed: boolean;
+  /** Recorded maximum; used only by the in-progress reading (progress mode). */
+  readonly maximum?: number | null;
 }
 export interface TermClosingInputV1 {
   readonly term: 1 | 2 | 3;
@@ -44,6 +47,7 @@ export interface TermClosingInputV1 {
 /** Codes without variants; variants are assigned per student by `assignTermClosingVariantsV1`. */
 export interface TermClosingEvaluationV1 {
   readonly period: TermClosingPeriodV1;
+  readonly mode: TermClosingModeV1;
   readonly level: TermClosingV1['level'];
   readonly conclusion: TermClosingCodeV1;
   readonly weight?: TermClosingCodeV1;
@@ -86,17 +90,19 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
   if (term === 3 && input.recoveryPending)
     return {
       period,
+      mode: 'conclusion',
       level: 'attention',
       conclusion: 'conclusion.recovery',
       weight: weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio),
       ...strengthV1(parallelDone, notDone, hasQualitative, assessmentRatio, qualitativeRatio, weakAssessments, weakActivities),
       action: 'action.recovery',
     };
-  if (level === 'good') return { period, level, conclusion: term === 3 ? 'line.year-good' : 'line.good' };
+  if (level === 'good') return { period, mode: 'conclusion', level, conclusion: term === 3 ? 'line.year-good' : 'line.good' };
 
   const weight = weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
   return {
     period,
+    mode: 'conclusion',
     level,
     conclusion: level === 'attention' ? 'conclusion.attention' : 'conclusion.good-with-point',
     weight,
@@ -104,6 +110,57 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
     // No "next assessments" after T3 (spec decision 15); recovery is handled above.
     ...(term === 3 ? {} : { action: weight === 'weight.assessments' ? 'action.assessments' : 'action.catch-up' }),
   } as TermClosingEvaluationV1;
+}
+
+/**
+ * In-progress reading (policy `termClosingConclusive` off): only what is recorded so far, present
+ * tense codes, and always a forward action. Needs at least one assessment with a mark.
+ */
+export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEvaluationV1 | null {
+  const period = `T${input.term}` as TermClosingPeriodV1;
+  const recorded = input.instruments.filter(
+    (item) => item.slot !== 3 && item.value !== null && (item.maximum ?? 0) > 0,
+  );
+  const sum = (items: readonly TermClosingInstrumentV1[], key: 'value' | 'maximum') =>
+    items.reduce((total, item) => total + (item[key] ?? 0), 0);
+  const assessments = recorded.filter((item) => item.slot === 1 || item.slot === 2);
+  const qualitative = recorded.filter((item) => item.slot >= 11);
+  if (assessments.length === 0) return null;
+  const minimumRatio = input.minimumApprovalMilli / ANNUAL_MAXIMUM_MILLI;
+  const assessmentRatio = sum(assessments, 'value') / sum(assessments, 'maximum');
+  const qualitativeRatio = qualitative.length ? sum(qualitative, 'value') / sum(qualitative, 'maximum') : null;
+  const totalRatio = sum(recorded, 'value') / sum(recorded, 'maximum');
+  const notDone = input.instruments.some((item) => item.slot !== 3 && item.observed && item.value === null);
+  const parallelDone = input.instruments.some((item) => item.slot === 3 && item.value !== null);
+  const weakAssessments = assessmentRatio < minimumRatio;
+  const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
+  const level: TermClosingV1['level'] =
+    totalRatio < minimumRatio
+      ? 'attention'
+      : totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities
+        ? 'point'
+        : 'good';
+  if (level === 'good') return { period, mode: 'progress', level, conclusion: 'progress.line.good' };
+  const weight = weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
+  const { strength } = strengthV1(
+    parallelDone,
+    notDone,
+    qualitative.length > 0,
+    assessmentRatio,
+    qualitativeRatio,
+    weakAssessments,
+    weakActivities,
+  );
+  const progress = (code: TermClosingCodeV1) => `progress.${code}` as TermClosingCodeV1;
+  return {
+    period,
+    mode: 'progress',
+    level,
+    conclusion: level === 'attention' ? 'progress.conclusion.attention' : 'progress.conclusion.point',
+    weight: progress(weight),
+    ...(strength ? { strength: progress(strength) } : {}),
+    action: weight === 'weight.assessments' ? 'progress.action.assessments' : 'progress.action.catch-up',
+  };
 }
 
 /** Priority: missing work, then assessments, then activities; otherwise the weaker component (R10). */
@@ -203,6 +260,7 @@ export function assignTermClosingVariantsV1(
         const action = message('action');
         return {
           period: evaluation.period,
+          mode: evaluation.mode,
           level: evaluation.level,
           conclusion: message('conclusion')!,
           ...(weight ? { weight } : {}),
@@ -219,22 +277,27 @@ export function termClosingSummaryV1(
   studentKey: string,
   period: TermClosingPeriodV1,
   closings: ReadonlyMap<number, readonly TermClosingV1[]>,
+  mode: TermClosingModeV1 = 'conclusion',
 ): TermClosingSummaryV1 | undefined {
   const inPeriod = [...closings].flatMap(([subjectId, list]) =>
-    list.filter((closing) => closing.period === period).map((closing) => ({ subjectId, closing })),
+    list
+      .filter((closing) => closing.period === period && closing.mode === mode)
+      .map((closing) => ({ subjectId, closing })),
   );
   if (inPeriod.length === 0) return undefined;
   const attentionSubjectIds = inPeriod
     .filter((item) => item.closing.level === 'attention')
     .map((item) => item.subjectId);
-  const code: TermClosingCodeV1 =
+  const base =
     attentionSubjectIds.length === 0
       ? 'summary.all-good'
       : attentionSubjectIds.length <= 2
         ? 'summary.few-attention'
         : 'summary.many-attention';
+  const code = (mode === 'progress' ? `progress.${base}` : base) as TermClosingCodeV1;
   return {
     period,
+    mode,
     message: { code, variant: stableHashV1(`${studentKey}|${period}|${code}`) % TERM_CLOSING_CATALOG_V1[code].length },
     attentionSubjectIds,
   };
