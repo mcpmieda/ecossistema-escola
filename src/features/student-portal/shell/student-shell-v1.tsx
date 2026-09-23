@@ -4,7 +4,7 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
-import { GraduationCap, LogOut, School } from 'lucide-react';
+import { GraduationCap, LogOut } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
@@ -99,6 +99,15 @@ export function StudentPortalShellV1({
 }
 
 /**
+ * Long names get a smaller type size instead of piling up lines in the hero. Measured in
+ * characters (not words) because uppercase official names vary widely in width.
+ */
+function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
+  const length = Array.from(name.trim()).length;
+  return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
+}
+
+/**
  * `cutout`: an approved background-free portrait standing over the cover art.
  * `arch`: the original 3×4 photo (background included) in an upright arch that tucks under the
  * content sheet like the cutout — no background removal needed.
@@ -154,7 +163,7 @@ export function StudentProfileV1({
             </div>
             <div className="pa-hero-brand-copy">
               <h1>Portal do Aluno</h1>
-              <span aria-label="versão 2">v2</span>
+              <p className="pa-hero-brand-school">{schoolName}</p>
             </div>
           </div>
 
@@ -177,7 +186,7 @@ export function StudentProfileV1({
         <div className="pa-hero-body">
           <div className="pa-hero-copy">
             <p className="pa-hero-greeting">Olá,</p>
-            <h3 className="pa-student-name">
+            <h3 className={'pa-student-name pa-student-name--' + nameLengthV1(profile.name)} title={profile.name}>
               {profile.name}
             </h3>
 
@@ -185,10 +194,6 @@ export function StudentProfileV1({
               <p>
                 <GraduationCap size={21} aria-hidden="true" />
                 <span>{profile.classLabel}</span>
-              </p>
-              <p>
-                <School size={21} aria-hidden="true" />
-                <span>{schoolName}</span>
               </p>
             </div>
 

@@ -183,10 +183,9 @@
   box-shadow: none;
 }
 .pa-hero-brand-copy {
-  display: flex;
-  align-items: center;
+  display: grid;
   min-width: 0;
-  gap: 0.55rem;
+  gap: 0.12rem;
 }
 .pa-hero-brand-copy h1 {
   margin: 0;
@@ -196,21 +195,15 @@
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
-.pa-hero-brand-copy span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: 1.35rem;
-  padding-inline: 0.45rem;
-  border: 1px solid rgb(255 255 255 / 0.18);
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ff3b47, #e0141f);
-  box-shadow: 0 4px 12px rgb(224 20 31 / 0.35);
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1;
+.pa-hero-brand-school {
+  overflow: hidden;
+  margin: 0;
+  color: rgb(247 250 255 / 0.9);
+  font-size: 0.72rem;
+  font-weight: 520;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pa-hero-action {
   flex: 0 0 auto;
@@ -278,9 +271,6 @@
   flex: 0 0 auto;
   color: #dbeafe;
   filter: drop-shadow(0 2px 6px rgb(2 30 74 / 0.2));
-}
-.pa-hero-details p:last-child span {
-  white-space: nowrap;
 }
 .pa-profile-meta {
   display: none;
@@ -480,17 +470,11 @@
     height: 2.15rem;
     border-radius: 0.9rem;
   }
-  .pa-hero-brand-copy {
-    gap: 0.45rem;
-  }
   .pa-hero-brand-copy h1 {
     font-size: 0.74rem;
   }
-  .pa-hero-brand-copy span {
-    min-width: 1.5rem;
-    height: 1rem;
-    padding-inline: 0.3rem;
-    font-size: 0.52rem;
+  .pa-hero-brand-school {
+    font-size: 0.58rem;
   }
   .pa-hero-action {
     min-width: 2.35rem;
@@ -531,9 +515,6 @@
   .pa-hero-details svg {
     width: 15px;
     height: 15px;
-  }
-  .pa-hero-details p:last-child {
-    font-size: 0.56rem;
   }
   /* Larger portrait sinks below the content sheet, which crops it at chest height. */
   .pa-hero-portrait {
@@ -582,6 +563,9 @@
   .pa-hero-brand-copy h1 {
     font-size: 0.86rem;
   }
+  .pa-hero-brand-school {
+    font-size: 0.74rem;
+  }
   .pa-hero-body {
     grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.98fr);
     gap: 1.25rem;
@@ -614,9 +598,6 @@
   .pa-hero-details svg {
     width: 20px;
     height: 20px;
-  }
-  .pa-hero-details p:last-child {
-    font-size: 0.88rem;
   }
   .pa-hero-body {
     position: relative;
@@ -666,6 +647,9 @@
   .pa-hero-brand-copy h1 {
     font-size: 0.9rem;
   }
+  .pa-hero-brand-school {
+    font-size: 0.78rem;
+  }
   .pa-hero-body {
     grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
     gap: 2rem;
@@ -696,9 +680,6 @@
   .pa-hero-details svg {
     width: 21px;
     height: 21px;
-  }
-  .pa-hero-details p:last-child {
-    font-size: 0.92rem;
   }
   .pa-hero-body {
     position: relative;
@@ -834,5 +815,45 @@
 @media (prefers-reduced-motion: reduce) {
   .pa-hero-frame {
     animation: none;
+  }
+}
+/* Long names: smaller type by length tier (see nameLengthV1) instead of more lines. The line cap
+   only guards against absurd lengths; the full name stays in the title and accessible text. */
+/* Padding (cancelled by a negative margin) keeps capital accents (Á, Ã) and cedillas (Ç)
+   inside the clipped box despite the tight line-height. */
+.pa-student-name.pa-student-name--long,
+.pa-student-name.pa-student-name--xlong {
+  display: -webkit-box;
+  max-width: none;
+  margin-block: -0.14em;
+  padding-block: 0.14em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+@media (max-width: 767px) {
+  .pa-student-name.pa-student-name--long {
+    font-size: 1.45rem;
+  }
+  /* Up to 4 lines on phones: a real (≈50 character) name must never lose a surname. */
+  .pa-student-name.pa-student-name--xlong {
+    font-size: 1.08rem;
+    -webkit-line-clamp: 4;
+  }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .pa-student-name.pa-student-name--long {
+    font-size: 2.1rem;
+  }
+  .pa-student-name.pa-student-name--xlong {
+    font-size: 1.75rem;
+  }
+}
+@media (min-width: 1200px) {
+  .pa-student-name.pa-student-name--long {
+    font-size: 2.45rem;
+  }
+  .pa-student-name.pa-student-name--xlong {
+    font-size: 2rem;
   }
 }

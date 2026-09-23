@@ -1,4 +1,4 @@
-import { StrictMode, useMemo, useState, type CSSProperties } from 'react';
+import { StrictMode, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
@@ -236,8 +236,16 @@ interface AdminSimulationV1 {
   /** Approved background-free portrait exists (none in production yet). */
   hasPortrait: boolean;
   portraitStyle: 'cutout' | 'arch';
+  studentName: string;
   situation: AnnualSituationV1 | 'none';
 }
+// Short (regular), long and extra-long names exercise the hero's type-size tiers.
+const PREVIEW_NAMES_V1 = [
+  'Pedro Henrique Almeida',
+  'MARIA LUIZA FERREIRA XAVIER',
+  'MARIA EDUARDA DOS SANTOS FERREIRA DA SILVA XAVIER',
+  'ÂNGELA GONÇALVES DE ÁVILA JOÃO',
+] as const;
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
 const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] = [
   ['none', 'Em curso'],
@@ -328,6 +336,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     state: subjects.length > 0 ? 'ready' : 'no-publication',
     profile: {
       ...data.profile,
+      name: admin.studentName,
       result: final ? coarseResultV1(admin.situation) : 'in-progress',
       ...(visible(situation, 'in-recovery') ? { annualSituation: situation } : {}),
     },
@@ -398,6 +407,19 @@ function AdminSimulatorPanelV1({
         ))}
       </div>
       <div style={rowStyle}>
+        <span style={{ opacity: 0.7 }}>Nome:</span>
+        <select
+          value={value.studentName}
+          onChange={(event) => onChange({ ...value, studentName: event.target.value })}
+        >
+          {PREVIEW_NAMES_V1.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div style={rowStyle}>
         <span style={{ opacity: 0.7 }}>Situação oficial no BN:</span>
         <select
           value={value.situation}
@@ -420,14 +442,39 @@ function AdminSimulatorPanelV1({
   );
 }
 
+/*
+ * Optional real photo for local design checks: src/student-portal/assets/local-test/portrait.*
+ * is git-ignored on the owner's machine (.git/info/exclude) and never committed. Without it the
+ * invented demo portrait is used.
+ */
+const LOCAL_TEST_PORTRAIT_V1 = '/assets/local-test/portrait.jpg';
+function useLocalTestPortraitV1() {
+  const [src, setSrc] = useState<string | undefined>();
+  useEffect(() => {
+    let active = true;
+    void fetch(LOCAL_TEST_PORTRAIT_V1, { method: 'HEAD' })
+      .then((response) => {
+        if (active && response.ok && response.headers.get('content-type')?.startsWith('image/'))
+          setSrc(LOCAL_TEST_PORTRAIT_V1);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+  return src;
+}
+
 function PreviewAppV1() {
+  const localPortrait = useLocalTestPortraitV1();
   const [admin, setAdmin] = useState<AdminSimulationV1>({
     accessEnabled: true,
     showPartials: true,
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
-    hasPortrait: false,
+    hasPortrait: true,
     portraitStyle: 'arch',
+    studentName: PREVIEW_NAMES_V1[0]!,
     situation: 'none',
   });
   const data = useMemo(() => simulateAdminV1(previewData, admin), [admin]);
@@ -437,7 +484,7 @@ function PreviewAppV1() {
       <StudentPortalPageV1
         load={{ state: 'ready', data }}
         onLogout={() => undefined}
-        portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
+        portraitSrc={admin.hasPortrait ? (localPortrait ?? previewPortrait) : undefined}
         portraitVariant={admin.portraitStyle}
       />
     </>
