@@ -1,8 +1,10 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { readSharePointPhotoV1 } from '../../server/student-photos/sharepoint-download-v1';
+import type { RuntimeEnv } from '../../server/env';
 import { testEnv } from '../fixtures';
-const env = { ...testEnv, SHAREPOINT_SITE_ID: 'synthetic-school.sharepoint.com,synthetic-site,synthetic-web' };
+// Production Wrangler literals are replaced only in this isolated, fully mocked fixture.
+const env = { ...testEnv, SHAREPOINT_SITE_ID: 'synthetic-school.sharepoint.com,synthetic-site,synthetic-web' } as unknown as RuntimeEnv;
 const download = 'https://synthetic-school.sharepoint.com/_layouts/download.aspx?token=SYNTHETIC';
 const metadata = { id: 'ITEM_A', eTag: '"synthetic-etag-1"', size: 24, file: { mimeType: 'image/webp' },
   parentReference: { driveId: 'DRIVE_A' }, '@microsoft.graph.downloadUrl': download };

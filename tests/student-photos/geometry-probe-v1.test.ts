@@ -49,15 +49,15 @@ describe('header preflight followed by a real decoder, not an upload validator',
   it('rejects corruption, oversized sources, SVG and decompression-bomb dimensions before decoding', async () => {
     expect(() => probePhotoSourceV1(new Uint8Array(PHOTO_SOURCE_MAX_BYTES_V1 + 1))).toThrow('student-photo-size');
     expect(() => probePhotoSourceV1(new TextEncoder().encode('<svg>not-a-photo</svg>'))).toThrow();
-    const webp = await solid().webp().toBuffer(); webp.writeUInt32LE(100, 4);
+    const webp = new Uint8Array(await solid().webp().toBuffer()); new DataView(webp.buffer).setUint32(4, 100, true);
     expect(() => probePhotoSourceV1(webp)).toThrow();
-    const png = await solid().png().toBuffer(); png.writeUInt32BE(100000, 16);
+    const png = new Uint8Array(await solid().png().toBuffer()); new DataView(png.buffer).setUint32(16, 100000);
     expect(() => probePhotoSourceV1(png)).toThrow('student-photo-dimensions');
   });
   it('detects private metadata and refuses animated WebP', async () => {
     const bytes = await solid().withExif({ IFD0: { ImageDescription: 'SYNTHETIC METADATA' } }).webp().toBuffer();
     expect(probePhotoSourceV1(bytes).privateMetadata).toBe(true);
-    expect(bytes.toString('ascii', 12, 16)).toBe('VP8X'); bytes[20] = bytes[20]! | 2;
+    expect(String.fromCharCode(...bytes.subarray(12, 16))).toBe('VP8X'); bytes[20] = bytes[20]! | 2;
     expect(() => probePhotoSourceV1(bytes)).toThrow();
   });
 });
