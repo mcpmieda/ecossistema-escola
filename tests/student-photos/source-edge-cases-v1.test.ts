@@ -7,7 +7,13 @@ import { loadPhotoSourceV1, type PhotoBrowserV1 } from '../../src/features/stude
 
 // Generated 60x80 RGB quadrants with EXIF orientation 6; no person or production data.
 // The same fixture's Blob URL and createImageBitmap were checked in real Chromium.
-const orientedPng = () => new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAADwAAABQCAIAAADKqIEEAAAAGmVYSWZNTQAqAAAACAABARIAAwAAAAEABgAAAAAAANZnS2kAAACOSURBVHic7dCxDYIAFEVRJFbU1tSMQO2QDOFCNg7jFP8kJPcM8HLzHr/9WGa8r21oeR3aHVW0UrRStFK0UrRStFK0UrRStFK0UrRStFK0UrRStFK0UrRStFK08jxfn6Hp734OLd/y6aKVopWilaKVopWilaKVopWilaKVopWilaKVopWilaKVopWilaKVopWilaKVP9juBMljzAkBAAAAAElFTkSuQmCC', 'base64'));
+const orientedPng = () => new Uint8Array(Buffer.from([
+  'iVBORw0KGgoAAAANSUhEUgAAADwAAABQCAIAAADKqIEEAAAAGmVYSWZNTQAqAAAA',
+  'CAABARIAAwAAAAEABgAAAAAAANZnS2kAAACOSURBVHic7dCxDYIAFEVRJFbU1tSM',
+  'QO2QDOFCNg7jFP8kJPcM8HLzHr/9WGa8r21oeR3aHVW0UrRStFK0UrRStFK0UrRS',
+  'tFK0UrRStFK0UrRStFK0UrRStFK08jxfn6Hp734OLd/y6aKVopWilaKVopWilaKV',
+  'opWilaKVopWilaKVopWilaKVopWilaKVP9juBMljzAkBAAAAAElFTkSuQmCC',
+].join(''), 'base64'));
 const sourceBlob = (bytes: Uint8Array) => new Blob([new Uint8Array(bytes).buffer], { type: 'image/png' });
 function browserFor(width: number, height: number) {
   const close = vi.fn(), create = vi.fn(() => 'blob:synthetic-oriented-png'), revoke = vi.fn();
@@ -18,6 +24,7 @@ function browserFor(width: number, height: number) {
 }
 it('accepts native EXIF-swapped PNG dimensions and uses the oriented size for both crop previews', async () => {
   const bytes = orientedPng();
+  expect(bytes.length).toBe(237);
   expect(await sharp(bytes).metadata()).toMatchObject({ format: 'png', width: 60, height: 80, orientation: 6 });
   expect(probePhotoSourceV1(bytes)).toMatchObject({ width: 60, height: 80, exifMetadata: true, privateMetadata: true });
   const test = browserFor(80, 60);
