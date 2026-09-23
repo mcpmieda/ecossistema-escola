@@ -96,14 +96,15 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE family student_photos.photo_family_v1%ROWTYPE; image_revision uuid; w integer; h integer;
 BEGIN
   SELECT * INTO family FROM student_photos.photo_family_v1 WHERE student_uid=p_uid FOR UPDATE;
-  IF NOT FOUND OR family.revision IS NULL OR p_actor IS NULL OR p_variant NOT IN ('portrait','avatar')
+  IF NOT FOUND OR family.revision IS NULL OR p_actor IS NULL OR p_variant IS NULL
+    OR p_variant NOT IN ('portrait','avatar') OR p_bytes IS NULL
     OR p_asset IS NULL OR family.assets->p_variant IS DISTINCT FROM p_asset
     OR encode(sha256(p_bytes),'hex') IS DISTINCT FROM p_asset->>'sha256'
     OR octet_length(p_bytes) IS DISTINCT FROM (p_asset->>'byteSize')::integer
-    OR octet_length(p_bytes) NOT BETWEEN 20 AND CASE WHEN p_variant='portrait' THEN 131072 ELSE 65536 END
+    OR octet_length(p_bytes) NOT BETWEEN 20 AND (CASE WHEN p_variant='portrait' THEN 131072 ELSE 65536 END)
     THEN RAISE EXCEPTION 'photo-publication-conflict' USING ERRCODE='40001'; END IF;
   w:=(p_asset->>'width')::integer; h:=(p_asset->>'height')::integer;
-  IF w NOT BETWEEN 1 AND 900 OR h NOT BETWEEN 1 AND 1200
+  IF w IS NULL OR h IS NULL OR w NOT BETWEEN 1 AND 900 OR h NOT BETWEEN 1 AND 1200
     OR (p_variant='portrait' AND w*4<>h*3)
     OR (p_variant='avatar' AND (w<>h OR w>320)) THEN RAISE EXCEPTION 'photo-publication-dimensions'; END IF;
   INSERT INTO student_photos.asset_delivery_v1(student_uid,variant,revision,source_asset,image_webp)
