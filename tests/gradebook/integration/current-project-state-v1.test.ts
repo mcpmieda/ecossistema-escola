@@ -19,6 +19,18 @@ const identityStateSchema = z.object({
     evidence: z.literal('docs/student-identity/POSTFLIGHT_1114.md'),
   }),
 });
+const projectionStateSchema = z.object({
+  legacy_projection_removal_0019: z.object({
+    pull_request: z.literal(1122),
+    migration: z.literal('0019_remove_legacy_projection_v1.sql'),
+    status: z.literal('applied-and-technical-postflight-verified'),
+    production_migration_applied: z.literal(true),
+    production_migration_version: z.literal(20260923164053),
+    validated_source_head: z.literal('f01a410a8dd3e58ff1ee664ba3ee2e5b424aa20c'),
+    evidence: z.literal('docs/student-portal/POSTFLIGHT_0019.md'),
+    authenticated_grade_display_after_migration: z.literal('confirmed-by-owner-2026-09-23'),
+  }),
+});
 
 /** Reuses the installed formatter's public YAML config loader, not substring matching or a custom parser. */
 async function readYamlDocument(path: string) {
@@ -41,7 +53,7 @@ describe('current canonical project state', () => {
     expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
   });
 
-  it('parses the applied identity checkpoint and preserves the earlier recovery evidence', async () => {
+  it('parses the applied projection removal and preserves earlier migration evidence', async () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
@@ -50,19 +62,19 @@ describe('current canonical project state', () => {
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0019-and-0020-pending-worker-deploy-then-separate-migrations',
+        student_portal_candidate_migrations_status: '0020-pending-worker-deploy-then-additive-policy-migration',
       },
       student_portal_integration: {
-        schema_migration_file: '0018_shared_student_identity_v1.sql',
-        schema_migration_production_version: 20260922212633,
-        schema_table_count: 28,
+        schema_migration_file: '0019_remove_legacy_projection_v1.sql',
+        schema_migration_production_version: 20260923164053,
+        schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
-      student_portal_schema_latest_migration: '0018_shared_student_identity_v1.sql',
-      student_portal_schema_production_version: 20260922212633,
-      student_portal_schema_table_count: 28,
+      student_portal_schema_latest_migration: '0019_remove_legacy_projection_v1.sql',
+      student_portal_schema_production_version: 20260923164053,
+      student_portal_schema_table_count: 27,
       recovery_1101: {
         production_migrations_applied: true,
         production_migration_versions: [20260922150000, 20260922150001],
@@ -74,6 +86,11 @@ describe('current canonical project state', () => {
       const evidence = source(identity.evidence);
       expect(evidence).toContain(String(identity.production_migration_version));
       expect(evidence).toContain('0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab');
+      const projection = projectionStateSchema.parse(state).legacy_projection_removal_0019;
+      const projectionEvidence = source(projection.evidence);
+      expect(projectionEvidence).toContain(String(projection.production_migration_version));
+      expect(projectionEvidence).toContain('54aef301d949cbe5da5de07977580722491563ad');
+      expect(projectionEvidence).toContain(projection.validated_source_head);
     }
   });
 
