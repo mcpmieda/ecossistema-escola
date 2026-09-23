@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
 import { clientFixtureV1, SESSION } from '../ui/auth/fixtures-v1';
@@ -16,11 +16,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('renders the actual student application with only the security channel and no background notices', async () => {
+it.each([204, 401, 503])('keeps notes manual and the security channel separate from an optional photo response (%i)', async status => {
   const socket = vi.fn(function () {
     return { addEventListener: vi.fn(), close: vi.fn(), send: vi.fn() };
   });
-  const fetcher = vi.fn();
+  const fetcher = vi.fn<typeof fetch>(async () => new Response(null, { status }));
   vi.stubGlobal('WebSocket', socket);
   vi.stubGlobal('fetch', fetcher);
   const client = clientFixtureV1();
@@ -31,8 +31,12 @@ it('renders the actual student application with only the security channel and no
   });
   render(<StudentPortalApp client={client} />);
   await screen.findByRole('heading', { name: 'Minhas notas' });
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+  expect(fetcher).toHaveBeenCalledWith('/api/student/photo', expect.objectContaining({
+    method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+  }));
   expect(screen.getByRole('button', { name: 'Sair' })).toBeTruthy();
-  act(() => {
+  await act(async () => {
     window.dispatchEvent(new Event('focus'));
     window.dispatchEvent(new Event('online'));
     document.dispatchEvent(new Event('visibilitychange'));
@@ -42,8 +46,11 @@ it('renders the actual student application with only the security channel and no
   const url = new URL(String((socket.mock.calls[0] as unknown[])[0]));
   expect(url.pathname).toBe('/api/student/live');
   expect(url.searchParams.get('purpose')).toBe('security');
-  expect(fetcher).not.toHaveBeenCalled();
+  // The one initial metadata read is not a license to refresh photos or notes on passive events.
+  expect(fetcher).toHaveBeenCalledTimes(1);
   expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('heading', { name: 'Minhas notas' })).toBeTruthy();
+  expect(document.querySelector('.pa-hero-portrait')).toBeNull();
   expect(screen.queryByText(/recuperação periódica continua ativa/u)).toBeNull();
 });

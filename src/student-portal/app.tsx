@@ -9,6 +9,8 @@ import {
   createPortalSelfClientV1,
   type PortalSelfClientV1,
 } from '../features/student-portal/shared/self-client-v1';
+import { useStudentPortraitV1 } from '../features/student-portal/photos/use-student-portrait-v1';
+import type { PortraitClientV1 } from '../features/student-portal/photos/portrait-client-v1';
 import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
 
 const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
@@ -27,14 +29,21 @@ const defaultEntry: StudentEntryV1 = { qr: null, invalidQr: false, route: 'root'
 export function StudentPortalApp({
   entry = defaultEntry,
   client = defaultClient,
+  portraitClient,
 }: {
   entry?: StudentEntryV1;
   client?: PortalSelfClientV1;
+  portraitClient?: PortraitClientV1;
 }) {
   const [initialQr, setInitialQr] = useState(entry.qr);
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');
   const session = useStudentSessionV1(client);
+  const portraitSrc = useStudentPortraitV1(
+    session.load.state === 'ready' && !access && entry.route !== 'unknown'
+      && !['pending', 'failed', 'done'].includes(session.logoutState) ? session.load.data : null,
+    portraitClient,
+  );
   useEffect(() => {
     if (session.load.state === 'error' && ['unavailable', 'invalid-response', 'network-error'].includes(session.load.error.state))
       reportStudentDiagnosticV1('read');
@@ -110,7 +119,7 @@ export function StudentPortalApp({
       </main>
     );
   return (
-    <StudentPortalPageV1 load={session.load}
+    <StudentPortalPageV1 load={session.load} portraitSrc={portraitSrc}
       onRetry={() => { void session.refresh(); }}
       onLogin={() => { discardQr(); setAccess(true); }}
       onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}
