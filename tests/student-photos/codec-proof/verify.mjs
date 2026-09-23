@@ -22,8 +22,13 @@ assert.equal(instance.exports.memory.buffer.byteLength, 33554432);
 assert.throws(() => instance.exports.memory.grow(1), RangeError);
 
 const bundle = resolve('node_modules/.cache/student-photo-codec-proof');
-const entrypoints = readdirSync(bundle).filter(name => name.endsWith('.js'));
-assert.equal(entrypoints.length, 1);
+const bundleFiles = readdirSync(bundle);
+const entrypoints = bundleFiles.filter(name => /\.(?:mjs|js)$/.test(name));
+assert.equal(entrypoints.length, 1, `Expected one bundled entrypoint: ${bundleFiles.join(', ')}`);
+const bundledWasm = bundleFiles.filter(name => name.endsWith('.wasm'));
+assert.equal(bundledWasm.length, 1);
+assert.equal(sha256(readFileSync(resolve(bundle, bundledWasm[0]))), provenance.wasmSha256);
+console.log(JSON.stringify({ event: 'codec-proof-bundle', entrypoint: entrypoints[0], wasm: bundledWasm[0] }));
 let outbound = 0;
 const mf = new Miniflare({
   modules: true,
