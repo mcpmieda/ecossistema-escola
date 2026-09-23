@@ -58,6 +58,8 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 | D11 | Trimestres anteriores | **Um fechamento por trimestre, dentro da aba do trimestre.** O resumo geral do Boletim mostra o trimestre encerrado mais recente. |
 | D12 | Prévia no admin | **Sim, na ficha do aluno.** A coordenação vê exatamente o fechamento, com as mesmas mensagens e variantes que o aluno recebe, para atender dúvidas e revisar antes de ligar a chave numa turma. |
 | D13 | Aviso ao aluno | **Só um destaque no portal**: selo "Novo" no Boletim e na disciplina até o aluno abrir. Sem notificação fora do portal. |
+| D14 | Faixas da conclusão | **Três níveis.** (1) Abaixo do mínimo: `conclusion.attention`. (2) Logo acima do mínimo **ou** com algum ponto fraco: `conclusion.good-with-point`. (3) Claramente acima e sem ponto fraco: só a linha de reconhecimento (`line.good`). Quem passou raspando não lê "fechou bem". |
+| D15 | Lançamento no meio do ano | **Retroativo.** Ao ligar a chave, todos os trimestres já encerrados ganham fechamento, cada um na sua aba (D11), e o resumo do Boletim mostra o mais recente. |
 
 ## Regras derivadas das decisões (obrigatórias)
 
@@ -72,6 +74,8 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 - **R7: prévia no admin (D12).** A prévia usa o mesmo motor e o mesmo sorteio de variantes do aluno, nunca uma cópia separada. Ela exige a mesma permissão de leitura da ficha e fica registrada na auditoria, como as demais leituras de dados do aluno.
 - **R8: selo "Novo" (D13).** O estado "já visto" fica no navegador do aluno (armazenamento local, chave por trimestre e disciplina), sem nova tabela nem dado pessoal no servidor. Em outro dispositivo, o selo pode reaparecer uma vez, o que é aceitável.
 - **R9: recuperações.** As abas REC não têm fechamento próprio. A situação de recuperação entra no fechamento do trimestre e no status "Em recuperação".
+- **R10: faixa intermediária (D14).** A largura da faixa "logo acima do mínimo" é calibrada com a distribuição real, como os demais limiares. Um aluno nessa faixa sempre recebe um "o que mais pesou": o componente com pior desempenho relativo dentro do próprio aluno (em geral as avaliações). Nenhuma frase diz "perto do mínimo" ou equivalente, por causa de R1.
+- **R11: retroativo (D15).** O texto de um trimestre antigo é o mesmo que ele teria na época. "Próximas avaliações" e "próximo trimestre" continuam se referindo ao trimestre seguinte àquele fechamento. No dia do lançamento, o selo "Novo" (D13) aparece em todos os fechamentos existentes.
 - **R6: chave (D8).** Novo campo de política `showTermClosing` (booleano), com herança escola → turma → aluno igual às demais. **O padrão é desligado.** A escola liga depois de aprovar o catálogo (D6), o que permite piloto por turma.
 
 ## Etapas de implementação sugeridas
