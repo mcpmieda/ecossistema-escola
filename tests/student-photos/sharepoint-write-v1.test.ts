@@ -1,8 +1,10 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../server/env';
 import { GraphError, type GraphDependencies } from '../../server/graph/request-policy-v1';
 import { SharePointPhotoTransportV1, type SharePointPhotoActionV1 } from '../../server/student-photos/sharepoint-write-v1';
 import type { PhotoAssetV1 } from '../../shared/student-photos/write-v1';
+import { testEnv } from '../fixtures';
 
 // Header-only synthetic transport fixture, deliberately NOT a successful codec proof.
 const bytes = () => {
@@ -14,7 +16,8 @@ const bytes = () => {
 };
 const digest = async (value: Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
   new Uint8Array(value).buffer)), byte => byte.toString(16).padStart(2,'0')).join('');
-const env = { SHAREPOINT_SITE_ID: 'synthetic.sharepoint.com,site,web' } as RuntimeEnv;
+// Production Wrangler literals are replaced only in this isolated, fully mocked fixture.
+const env = { ...testEnv, SHAREPOINT_SITE_ID: 'synthetic.sharepoint.com,site,web' } as unknown as RuntimeEnv;
 const library = { driveId: 'synthetic-drive', parentItemId: 'synthetic-folder' };
 const context = { studentUid: '10000000-0000-4000-8000-000000000001', actorId: '10000000-0000-4000-8000-000000000002' };
 const requestId = '20000000-0000-4000-8000-000000000001';
