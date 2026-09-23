@@ -20,7 +20,6 @@ export async function quarantineSyntheticRestoreV1(sql: StudentPortalPostgresSql
     await tx.unsafe(`UPDATE student_portal.account_access_data SET birth_year=NULL,confirmation=NULL,version=version+1,
       updated_at=statement_timestamp() WHERE birth_year IS NOT NULL`);
     await tx.unsafe("UPDATE student_portal.publication_job SET state='failed',attempts=0,lease_until=NULL,updated_at=statement_timestamp() WHERE state IN ('queued','running')");
-    await tx.unsafe('DELETE FROM student_portal.published_projection');
     await tx.unsafe("UPDATE student_portal.publication SET state='no-data',available_revision=NULL,published_revision=NULL,version=version+1,updated_at=statement_timestamp()");
     await tx.unsafe('DELETE FROM student_portal.operation_receipt');
     await tx.unsafe('UPDATE student_portal.link_close_preview SET consumed_at=statement_timestamp() WHERE consumed_at IS NULL');

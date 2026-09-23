@@ -7,8 +7,6 @@ import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
 import { AdminCursorV1 } from '../../../server/student-portal/admin/cursor-v1';
-import { PublicationReconcilerV1 } from '../../../server/student-portal/jobs/reconcile-v1';
-import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
 import {
   adminQueryV1,
   type AdminResponseV1,
@@ -131,7 +129,7 @@ beforeEach(async () => {
   await pg.exec(`TRUNCATE student_portal.operation_receipt,student_portal.audit_event,student_portal.qr_credential,
     student_portal.password_credential,student_portal.session,student_portal.auth_challenge,student_portal.auth_attempt,
     student_portal.account_access_data,student_portal.setting,student_portal.publication,student_portal.publication_job,
-    student_portal.published_projection,student_portal.link_closure,student_portal.link_close_preview;
+    student_portal.link_closure,student_portal.link_close_preview;
     UPDATE gradebook.vinculo SET turma_id=910001,situacao=NULL;
     UPDATE student_portal.lifecycle_control SET population_enabled=false;`);
   for (const account of accounts)
@@ -443,7 +441,7 @@ describe('private administrative API with real persistence', () => {
     expect(current.items.find((item) => item.sessionId === ids[1])!.revokedAt).toBeNull();
   });
 
-  it('dispatches settings inheritance and publication using their actual exposed CAS values', async () => {
+  it('dispatches settings inheritance and refuses legacy publication without scoped V2', async () => {
     const initial = await query('settings');
     state(
       await api.command(
@@ -487,34 +485,20 @@ describe('private administrative API with real persistence', () => {
         disclosure: { mode: 'single', at: at(-10), periods: ['T1'] },
       },
     });
-    await new PublicationReconcilerV1(sql).run();
-    await new PublicationJobsV1(sql).run();
+    // Scoped V2 is the only publisher; without it the legacy commands fail closed.
     for (const operation of ['publish', 'publish-update', 'unpublish']) {
-      const snapshot = await query('publication', { scope: accountScope() });
-      const t1 = snapshot.items[0]!;
+      const t1 = (await query('publication', { scope: accountScope() })).items[0]!;
       const extra =
         operation === 'unpublish'
           ? { confirmed: true }
           : { targetDataVersion: t1.availableRevision };
-      state(
-        await api.command(
-          context(),
-          command(operation, t1.version, { scope: accountScope(), period: 'T1', ...extra }),
-        ),
-        'committed',
+      const result = await api.command(
+        context(),
+        command(operation, t1.version, { scope: accountScope(), period: 'T1', ...extra }),
       );
-      await new PublicationJobsV1(sql).run();
-      if (operation === 'publish') {
-        await pg.query('UPDATE gradebook.fechamento SET am1_fonte=COALESCE(am1_fonte,0)+1 WHERE oferta_id=910001 AND aluno_id=910001');
-        await pg.query(
-          "SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'marks'::text,true,ARRAY[910001]::integer[],statement_timestamp())",
-          [crypto.randomUUID()],
-        );
-        expect((await new PublicationReconcilerV1(sql).run()).failed).toBe(0);
-        expect((await query('publication', { scope: accountScope() })).items[0])
-          .toMatchObject({ state: 'update-pending' });
-      }
+      expect(result.state).toBe('unavailable');
     }
+    expect((await pg.query('SELECT 1 FROM student_portal.publication_job')).rows).toHaveLength(0);
   });
 
   it('starts the school population idempotently and removes pilot policy overrides', async () => {

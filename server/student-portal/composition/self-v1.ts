@@ -146,9 +146,10 @@ export async function servePortalSelfV1(
         new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).withAuthorized(
           sessionCookieTokenV1(request),
           async (context, tx) => {
-            const scoped =
-              env.PORTAL_PUBLICATION_MODE === 'scoped-v2' && (await scopedPublicationEnabledV2(tx));
-            return new SelfProjectionReaderV1(sql, scoped).readInTransaction(
+            // Scoped V2 editions are the only published source; without them Self fails closed.
+            if (env.PORTAL_PUBLICATION_MODE !== 'scoped-v2' || !(await scopedPublicationEnabledV2(tx)))
+              throw new Error('student-portal-scoped-publication-unavailable');
+            return new SelfProjectionReaderV1(sql).readInTransaction(
               tx,
               context.account.id,
               crypto.randomUUID(),

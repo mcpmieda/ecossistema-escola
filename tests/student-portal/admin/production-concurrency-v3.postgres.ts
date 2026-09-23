@@ -52,7 +52,7 @@ async function release(operation: 'publish' | 'unpublish' = 'publish') {
     ...(operation === 'publish' ? { targetDataVersion: state.dataVersion } : { confirmed: true }) });
 }
 const self = () => new SessionServiceV1(sql, cryptoPort, null, true).withAuthorized(token,
-  (context, tx) => new SelfProjectionReaderV1(sql, true).readInTransaction(tx, context.account.id, crypto.randomUUID(), true));
+  (context, tx) => new SelfProjectionReaderV1(sql).readInTransaction(tx, context.account.id, crypto.randomUUID(), true));
 const score = async () => (await self())?.subjects[0]?.periods[0]?.final;
 const metrics = async () => (await owner.unsafe('SELECT * FROM student_portal.publication_preparation_metrics_v3'))[0]!;
 beforeAll(async () => {
@@ -111,7 +111,7 @@ it('prepares only the affected class, retains unrelated editions and publishes u
   });
   expect(await metrics()).toMatchObject({ mode: 'incremental', scanned_students: 50, written_sources: 1 });
   expect(await score()).toMatchObject({ value: 9 });
-  expect((await new SelfProjectionReaderV1(sql, true).read(readAccountIdV2(1), crypto.randomUUID()))?.profile.accountId).toBe(own);
+  expect((await new SelfProjectionReaderV1(sql).read(readAccountIdV2(1), crypto.randomUUID()))?.profile.accountId).toBe(own);
 });
 it('expands instrument metadata changes to classmates, not the school', async () => {
   await ownerSql().begin(async (tx) => {

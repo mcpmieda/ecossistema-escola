@@ -3,8 +3,6 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ScopedPublicationServiceV2 } from '../../../server/student-portal/publication/scoped-publication-service-v2';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
-import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
-import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
 import { AcademicStudentReaderPostgresV1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { currentRevisionV1 } from '../../../server/student-portal/publication/state-v1';
 import { scopedPublicationEnabledV2 } from '../../../server/student-portal/publication/scoped-source-v2';
@@ -91,16 +89,9 @@ async function command(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | '
 async function release(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | 'publish-update' | 'unpublish' = 'publish', period = 'T1') {
   return new ScopedPublicationServiceV2(portal).command(READ_ACTOR_V2, await command(scope, operation, period));
 }
-const self = (account = own) => new SelfProjectionReaderV1(portal, true).read(account, crypto.randomUUID());
+const self = (account = own) => new SelfProjectionReaderV1(portal).read(account, crypto.randomUUID());
 const score = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1')?.final;
 const count = async (table: string) => Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.' + table))[0]!.n);
-async function legacyRelease() {
-  await owner.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false');
-  const service = new PublicationServiceV1(portal);
-  const state = await service.read(ownScope);
-  await service.command(READ_ACTOR_V2, { contractVersion: 1, operation: 'publish', scope: ownScope, period: 'T1',
-    expectedVersion: state.version, targetDataVersion: await currentRevisionV1(portal), idempotencyKey: crypto.randomUUID() });
-}
 
 beforeAll(async () => {
   await cluster.unsafe('CREATE DATABASE ' + databaseName);
@@ -133,7 +124,6 @@ async function resetPublicationFixture() {
     DELETE FROM student_portal.publication_auto_approval_v2;
     DELETE FROM student_portal.publication_job;
     DELETE FROM student_portal.publication;
-    DELETE FROM student_portal.published_projection;
     DELETE FROM student_portal.operation_receipt;
     DELETE FROM student_portal.audit_event;
     DELETE FROM student_portal.session;
@@ -279,14 +269,10 @@ it('denies blocked accounts and private snapshot writes even when a school relea
 });
 it('runs the real administrative facade with its audit wrapper and without a nested isolation upgrade', async () => {
   const api = new PortalAdminApiV1(withAuditSqlV1(portal, null), { tenantId: READ_TENANT_V2, cursorSecret: 'synthetic-scoped-803-'.repeat(4),
-    cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true, scopedPublicationCapable: true });
+    cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true });
   expect((await api.query(readContextV2(), { contractVersion: 1, operation: 'publication', scope: READ_SCHOOL_V2, page: {} })).state).toBe('publication');
   expect((await api.command({ ...readContextV2(), capability: 'platform.settings.write' }, await command())).state).toBe('committed');
   expect((await self())?.state).toBe('ready');
-});
-it('rejects a legacy command that waited across cutover instead of recreating account jobs', async () => {
-  await expect(new PublicationServiceV1(portal, true).command(READ_ACTOR_V2, await command())).rejects.toThrow('cutover-conflict');
-  expect(await count('publication_job')).toBe(0);
 });
 it('does not wait on the academic year or another account while publishing prepared data', async () => {
   const input = await command();
@@ -304,36 +290,6 @@ it('does not wait on the academic year or another account while publishing prepa
     await expect(new ScopedPublicationServiceV2(portal).command(READ_ACTOR_V2, input)).resolves.toHaveProperty('operationId');
     expect((await new ScopedPublicationServiceV2(portal).read(READ_SCHOOL_V2)).items[0]?.state).toBe('published');
   } finally { releaseLock(); await holding; }
-});
-it('adopts an exact pending legacy approval at cutover without creating another publication', async () => {
-  await legacyRelease();
-  expect(await count('publication_job')).toBe(1);
-  const switched = await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2() AS result');
-  expect(switched[0]!.result).toMatchObject({ state: 'active', adoptedPendingPeriods: 1 });
-  expect(await score()).toMatchObject({ value: 8.001 });
-  expect(await new PublicationJobsV1(portal).claim()).toBeNull();
-});
-it('refuses to substitute current grades for an old pending source during cutover', async () => {
-  await legacyRelease();
-  await preparedChange(9000);
-  await expect(owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()')).rejects.toThrow('pending-source-conflict');
-  expect(await scopedPublicationEnabledV2(portal)).toBe(false);
-  expect(await count('publication_release_v2')).toBe(0);
-});
-it('preserves an exact historical legacy projection when that source predates the new store', async () => {
-  await legacyRelease();
-  const jobs = new PublicationJobsV1(portal);
-  const job = await jobs.claim();
-  expect(job).not.toBeNull();
-  expect(await jobs.perform(job!)).toBe('done');
-  const next = await preparedChange(9000);
-  await owner.unsafe('DELETE FROM student_portal.publication_source_v2 WHERE student_id=746001 AND revision<$1::numeric', [next.split(':')[1]!]);
-  await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
-  expect(await score()).toMatchObject({ value: 8.001 });
-  await release(ownScope, 'unpublish');
-  expect((await self())?.state).toBe('no-publication');
-  await release(ownScope);
-  expect(await score()).toMatchObject({ value: 9 });
 });
 it('serves an actual opaque session through the new HTTP and private administrative compositions', async () => {
   const session = await accountTransactionV1(portal, async (tx, store) => {
@@ -363,11 +319,9 @@ it('serves an actual opaque session through the new HTTP and private administrat
   await owner.unsafe('UPDATE student_portal.session SET revoked_at=statement_timestamp() WHERE account_id=$1::uuid', [own]);
   expect((await read()).status).toBe(401);
 });
-it('fences obsolete writers in SQL while preserving lifecycle deletion and modern releases', async () => {
+it('fences obsolete writers in SQL while preserving modern releases', async () => {
   await expect(portal.unsafe('UPDATE student_portal.publication SET version=version WHERE false')).rejects.toThrow('scoped-cutover-conflict');
-  await expect(portal.unsafe('UPDATE student_portal.published_projection SET updated_at=updated_at WHERE false')).rejects.toThrow('scoped-cutover-conflict');
   await expect(portal.unsafe('INSERT INTO student_portal.publication_job SELECT * FROM student_portal.publication_job WHERE false')).rejects.toThrow('scoped-cutover-conflict');
-  await expect(portal.unsafe('DELETE FROM student_portal.published_projection WHERE false')).resolves.toBeDefined();
   await release();
   expect(await score()).toMatchObject({ value: 8.001 });
 });
