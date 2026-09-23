@@ -44,7 +44,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await pg.exec(`TRUNCATE student_portal.setting,student_portal.operation_receipt,student_portal.audit_event,
-    student_portal.publication_job,student_portal.published_projection;
+    student_portal.publication_job;
     UPDATE student_portal.account SET version=0,eligibility='eligible';
     DELETE FROM gradebook.vinculo;
     INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900001,1,900001);
@@ -153,22 +153,19 @@ describe('durable inherited policy', () => {
     await expect(set(SCHOOL, { calendar: { ...calendar, yearEndsAt: at(60) } }, false)).resolves.toMatchObject({ version: 3 });
   });
 
-  it('keeps calendar and risk atomic, preserves published payload, and invalidates jobs with the old policy version', async () => {
+  it('keeps calendar and risk atomic and invalidates jobs with the old policy version', async () => {
     await service.initializeDefaults();
     const original = await service.read(accountScope());
     const calendar = { ...original.value.calendar, yearStartsAt: '2026-01-01T00:00:00-03:00', yearEndsAt: '2027-01-01T00:00:00-03:00' };
     await set(SCHOOL, { calendar });
     await set(CLASS, { calendar: { ...calendar, yearEndsAt: null } });
     expect((await service.read(accountScope())).value.calendar.yearEndsAt).toBeNull();
-    await pg.query(`INSERT INTO student_portal.published_projection(account_id,payload_json,data_version,policy_version,publication_version,generated_at)
-      VALUES ($1,'{"synthetic":"retained"}','academic:1','policy:old','publication:1',now());`, [accountId]);
     await pg.query(`INSERT INTO student_portal.publication_job(id,account_id,data_version,policy_version,publication_version,state,next_attempt_at)
       VALUES (gen_random_uuid(),$1,'academic:1','policy:old','publication:1','queued',now())`, [accountId]);
     const before = await service.readSnapshot(accountScope());
     await set(SCHOOL, { autoUpdate: true });
     const after = await service.readSnapshot(accountScope());
     expect(after.policyVersion).not.toBe(before.policyVersion);
-    expect((await pg.query('SELECT payload_json FROM student_portal.published_projection')).rows).toEqual([{ payload_json: { synthetic: 'retained' } }]);
     expect((await pg.query('SELECT state FROM student_portal.publication_job')).rows).toEqual([{ state: 'failed' }]);
   });
 

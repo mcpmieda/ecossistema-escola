@@ -31,7 +31,7 @@ export async function portalAdminRpcV1(env: PortalCompositionEnvV1, kind: 'query
       const scopedPublication = capable && await scopedPublicationEnabledV2(sql);
       // V2 reads set isolation before their first query; the audit wrapper stays on every V1 command.
       return new PortalAdminApiV1(kind === 'query' && (parsed.data.contractVersion === 2 || parsed.data.operation === 'bulk-preview') ? sql : withAuditSqlV1(sql, trusted.data.clientIp ?? null, trusted.data),
-        { ...keys, tenantId: env.PORTAL_ADMIN_TENANT_ID, scopedPublication, scopedPublicationCapable: capable })[kind](trusted.data, parsed.data);
+        { ...keys, tenantId: env.PORTAL_ADMIN_TENANT_ID, scopedPublication })[kind](trusted.data, parsed.data);
     });
   } catch { return fail('unavailable'); }
 }

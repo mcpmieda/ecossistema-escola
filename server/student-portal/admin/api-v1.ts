@@ -24,7 +24,7 @@ import { BulkAdminV1 } from './bulk-v1';
 
 export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number;
-  cursorSecret: string; scopedPublication?: boolean; scopedPublicationCapable?: boolean };
+  cursorSecret: string; scopedPublication?: boolean };
 
 /** Only the dedicated server-to-server ADM binding may invoke this facade. Shape validation is not authentication. */
 export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
@@ -142,8 +142,9 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(
           sql, this.options.cryptoPort, this.options.pepperVersion, this.options.scopedPublication ? 4 : 1).batch(context.actorId, command) });
         case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(sql).mutate(context.actorId, command));
-        case 'publish': case 'publish-update': case 'unpublish': return committed(await (this.options.scopedPublication
-          ? new ScopedPublicationServiceV2(sql) : new PublicationServiceV1(sql, this.options.scopedPublicationCapable)).command(context.actorId, command));
+        case 'publish': case 'publish-update': case 'unpublish':
+          if (!this.options.scopedPublication) throw new Error('student-portal-scoped-publication-unavailable');
+          return committed(await new ScopedPublicationServiceV2(sql).command(context.actorId, command));
         case 'links-close': return committed(await closeLinksIdempotentlyV1(sql, context.actorId, command));
         case 'population-start': return committed(await startPopulationV1(sql, context.actorId, command));
       }

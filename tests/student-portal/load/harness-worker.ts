@@ -10,8 +10,7 @@ import { SelfProjectionReaderV1 } from '../../../server/student-portal/publicati
 import { measurePortalSqlV1 } from '../../../server/student-portal/observability/metrics-v1';
 import { portalJsonV1 } from '../../../server/student-portal/runtime/http-v1';
 import { portalServingGateV1 } from '../../../server/student-portal/maintenance/serving-gate-v1';
-import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
-import { PublicationReconcilerV1 } from '../../../server/student-portal/jobs/reconcile-v1';
+import { scopedPublicationEnabledV2 } from '../../../server/student-portal/publication/scoped-source-v2';
 
 // Local-only synthetic harness. Never deploy; no production resource or secret is referenced.
 export default {
@@ -33,15 +32,10 @@ export default {
         const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(51)]]), new Map([[1, new Uint8Array(32).fill(52)]]));
         const path = new URL(request.url).pathname;
         let response: Response;
-        if (path === '/harness/reconcile') {
-          response = portalJsonV1(await new PublicationReconcilerV1(sql).run(5), 200);
-        } else if (path === '/harness/job') {
-          const jobs = new PublicationJobsV1(sql);
-          const job = await jobs.claim();
-          response = portalJsonV1({ result: job ? await jobs.perform(job) : 'empty' }, 200);
-        } else if (path === '/harness/admin/query' || path === '/harness/admin/command') {
+        if (path === '/harness/admin/query' || path === '/harness/admin/command') {
           const api = new PortalAdminApiV1(sql, { tenantId: '22222222-2222-4222-8222-222222222222',
-            cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, cursorSecret: 'synthetic-local-harness-cursor-714-'.repeat(2) });
+            cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, cursorSecret: 'synthetic-local-harness-cursor-714-'.repeat(2),
+            scopedPublication: await scopedPublicationEnabledV2(sql) });
           const context = { actorId: '11111111-1111-4111-8111-111111111111', tenantId: '22222222-2222-4222-8222-222222222222',
             requestId: crypto.randomUUID(), authenticatedAt: new Date().toISOString(), capability: 'platform.settings.write', clientIp: '192.0.2.71' };
           const input = await request.json();
