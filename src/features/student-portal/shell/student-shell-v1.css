@@ -545,9 +545,15 @@
     place-items: end center;
     pointer-events: none;
   }
+  /* Sized by height so any aspect (3×4 ID photo or square) keeps the head below the top bar
+     and the shoulders above the sheet; width follows the photo. */
   .pa-hero-photo {
-    width: 100%;
+    width: auto;
+    height: 13.4rem;
+    max-width: 100%;
     max-height: none;
+    object-fit: contain;
+    object-position: center bottom;
     transform: none;
     transform-origin: center bottom;
   }
@@ -626,8 +632,12 @@
     pointer-events: none;
   }
   .pa-hero-photo {
-    width: 100%;
+    width: auto;
+    height: 18.5rem;
+    max-width: 100%;
     max-height: none;
+    object-fit: contain;
+    object-position: center bottom;
   }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 1rem), 68rem);
@@ -703,8 +713,12 @@
     pointer-events: none;
   }
   .pa-hero-photo {
-    width: 100%;
+    width: auto;
+    height: 19.5rem;
+    max-width: 100%;
     max-height: none;
+    object-fit: contain;
+    object-position: center bottom;
   }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 2rem), 72rem);
