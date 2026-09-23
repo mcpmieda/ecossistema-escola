@@ -23,8 +23,18 @@ export function createPhotoAdminClientV1(fetcher: typeof fetch = fetch) {
     }
     signal.throwIfAborted();
     let parsed: ReturnType<typeof photoAdminResponseV1.parse>;
-    try { parsed = photoAdminResponseV1.parse(await readPhotoJsonV1(response, signal)); }
-    catch (error) {
+    try {
+      const headers = new Headers(response.headers);
+      // Fetch has already decoded response content codings, but these headers can still
+      // describe the compressed wire representation. Bound decoded bytes instead.
+      // This adaptation is browser-response-only; incoming ADM bodies still reject compression.
+      const encoding = headers.get('content-encoding');
+      if (encoding !== null && encoding.trim().toLowerCase() !== 'identity') {
+        headers.delete('content-encoding');
+        headers.delete('content-length');
+      }
+      parsed = photoAdminResponseV1.parse(await readPhotoJsonV1({ body: response.body, headers }, signal));
+    } catch (error) {
       if (signal.aborted) throw error;
       throw new PhotoAdminClientErrorV1('unavailable');
     }
