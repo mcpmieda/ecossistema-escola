@@ -85,8 +85,14 @@ beforeAll(async () => {
   END $$;
   CREATE SCHEMA gradebook;
   CREATE TABLE gradebook.student_identity(id uuid PRIMARY KEY);`, [], { prepare: false });
-  for (const migration of ['0001_private_delivery_v1.sql','0002_write_journal_v1.sql'])
-    await db.unsafe(readFileSync('migrations/student-photos/' + migration,'utf8'), [], { prepare: false });
+  // The migration owns BEGIN/COMMIT: reserve its connection rather than running
+  // an explicit transaction across an unconstrained pool. Keep four connections
+  // for the concurrency tests; the driver's unsafe-transaction guard stays on.
+  const migrationConnection = await db.reserve();
+  try {
+    for (const migration of ['0001_private_delivery_v1.sql','0002_write_journal_v1.sql'])
+      await migrationConnection.unsafe(readFileSync('migrations/student-photos/' + migration,'utf8'), [], { prepare: false });
+  } finally { await migrationConnection.release(); }
   repository = new PhotoWriteRepositoryV1(database(db));
 }, 30_000);
 afterAll(async () => {
@@ -187,6 +193,19 @@ it('keeps private tables and audit immutable to readers, and does not grant dire
   const rows = await db.unsafe(`SELECT has_table_privilege('gradebook_app','student_photos.portal_delivery_v1','UPDATE') AS publish,
     has_function_privilege('gradebook_app','student_photos.revoke_changed_portrait_v1()','EXECUTE') AS execute`);
   expect(rows[0]).toEqual({ publish: false, execute: false });
+});
+
+it('rejects null identity fields in a persisted receipt instead of accepting SQL unknown', async () => {
+  const ctx = await context(), request = command('replace');
+  const before = await repository.claim(ctx,request,plan);
+  for (const key of ['requestId','studentUid','actorId','inputHash','phase']) {
+    await expect(db.begin(async tx => {
+      await tx.unsafe('SET LOCAL ROLE gradebook_app');
+      await tx.unsafe(`UPDATE student_photos.write_operation_v1
+        SET receipt=jsonb_set(receipt,ARRAY[$2::text],'null'::jsonb) WHERE request_id=$1::uuid`,[request.requestId,key]);
+    })).rejects.toMatchObject({ code:'23514' });
+  }
+  expect(await repository.claim(ctx,request,plan)).toEqual(before);
 });
 
 it('recovers a lost commit response without uploading again and keeps remote deletion failures pending', async () => {
