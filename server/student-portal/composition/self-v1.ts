@@ -17,6 +17,8 @@ import { portalFailureV1, portalJsonV1, portalRequestOriginAllowedV1 } from '../
 import { portalKeysV1, type PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { connectPortalLiveV1 } from '../live/live-connect-v1';
+import { servePortalPhotoV1 } from '../photos/http-v1';
+import { STUDENT_PHOTO_META_PATH_V1, STUDENT_PHOTO_CONTENT_PATH_V1 } from '../../../shared/student-photos/portrait-v1';
 
 const paths = new Set([
   '/api/student/auth/challenge',
@@ -35,6 +37,8 @@ export async function servePortalSelfV1(
   if (!portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN))
     return portalJsonV1(portalFailureV1('forbidden'), 403);
   const path = new URL(request.url).pathname;
+  if (path === STUDENT_PHOTO_META_PATH_V1 || path === STUDENT_PHOTO_CONTENT_PATH_V1)
+    return servePortalPhotoV1(request, env);
   if (path === '/healthz' && request.method === 'GET')
     return portalJsonV1({ contractVersion: 1, state: 'ok' }, 200);
   if (!paths.has(path)) return portalJsonV1(portalFailureV1('unavailable'), 404);
