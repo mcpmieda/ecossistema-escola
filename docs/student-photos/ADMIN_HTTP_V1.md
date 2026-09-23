@@ -6,6 +6,26 @@ produtivas** enquanto faltarem codec no pacote oficial, configuração/permissõ
 Graph, adoção do acervo e os gates da integração. Não fornecer serviços falsos
 para ligar a UI.
 
+## Uso de imagem — decisão vigente
+
+Em **23/09/2026, 16:20:49 UTC**, o responsável confirmou que o uso das imagens
+já está autorizado na matrícula. A pendência institucional de consentimento
+está resolvida, conforme o Avanço 41 da #1119. Não exigir novo termo, comprovante,
+checkbox por fotografia, allowlist ou bloqueio adicional de consentimento para
+este uso interno no Ecossistema e no Portal. Esta decisão substitui referências
+anteriores a uma autorização de imagem ainda pendente no plano e na documentação.
+
+A confirmação foi fornecida pelo responsável; não é uma alegação de auditoria
+documental realizada pelo agente. Documentos de matrícula e imagens reais não
+pertencem ao repositório público. A aprovação da prévia confirma o arquivo a
+salvar e não é uma nova coleta de consentimento. Autenticação, autorização de
+edição, acesso do próprio aluno, accessEnabled e integridade permanecem intactos.
+
+A ordem desta entrega é incorporar a main atualizada, verificar, integrar a
+#1127 e encerrar. Não iniciar nova branch nem implementar a etapa seguinte nessa
+mesma execução. A indisponibilidade atual do recurso completo decorre das
+conexões técnicas ainda não montadas, não de autorização de imagem pendente.
+
 ## Contrato
 
 POST `/api/student-photos/admin/preview` ou `/api/student-photos/admin/save`,
@@ -88,6 +108,7 @@ ao tenant ou ao acervo. Execução/SHAs/resultados são registrados na issue/PR;
 teste escrito não é alegação de teste aprovado.
 
 Esta entrega não aplica migrations, provisiona recursos, concede permissões,
-monta o lápis, publica imagens reais ou presume autorização de responsáveis.
-Não altera shell/workspace/phase-3, Portal aluno, notas, login ou CSP. O fluxo
-produtivo completo permanece pendente e é registrado na issue #1119.
+monta o lápis ou publica imagens reais. A autorização de imagem já foi confirmada
+pelo responsável e não é uma pendência. Não altera shell/workspace/phase-3,
+Portal aluno, notas, login ou CSP. O fluxo produtivo completo permanece pendente
+por implementação técnica e é registrado na issue #1119.

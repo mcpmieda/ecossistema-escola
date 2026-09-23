@@ -30,7 +30,8 @@ describe('official annual situation relay', () => {
     expect(relay('REPROVADO POR NÃO COMPARECIMENTO')).toBe('failed-no-show');
     expect(relay('REPROVADO')).toBe('failed-repeat');
     expect(relay('APROVADO')).toBe('approved-special');
-    expect(relay(null, 'council-eligible')).toBe('awaiting-council');
+    // No "awaiting Council" status: the student stays EM RECUPERAÇÃO until the final result.
+    expect(relay(null, 'council-eligible')).toBe('in-recovery');
     for (const terminal of ['DESISTENTE', 'TRANSFERIDO', 'FALECIDO'] as const)
       expect(relay(terminal)).toBeUndefined();
   });

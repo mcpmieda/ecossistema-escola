@@ -1,10 +1,10 @@
-import { useId, useRef, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
-import { GraduationCap, LogOut, School } from 'lucide-react';
+import { GraduationCap, LogOut } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
@@ -98,6 +98,15 @@ export function StudentPortalShellV1({
   );
 }
 
+/**
+ * Long names get a smaller type size instead of piling up lines in the hero. Measured in
+ * characters (not words) because uppercase official names vary widely in width.
+ */
+function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
+  const length = Array.from(name.trim()).length;
+  return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
+}
+
 export function StudentProfileV1({
   profile,
   updatedAt,
@@ -114,9 +123,15 @@ export function StudentProfileV1({
   logo?: ReactNode;
   onLogout?: () => void;
   loggingOut?: boolean;
+  /**
+   * The student's original 3×4 photo (background included, no cutout), shown in the arch.
+   * Must be same-origin (CSP img-src 'self'). Absent or failing to load → no portrait at all.
+   */
   portraitSrc?: string;
 }) {
   const heading = useId();
+  const [failedSrc, setFailedSrc] = useState<string>();
+  const photo = portraitSrc && portraitSrc !== failedSrc ? portraitSrc : undefined;
   const status =
     profile.academicState === 'assisted'
       ? { label: 'ASSISTIDO', color: 'accent' as const }
@@ -125,7 +140,9 @@ export function StudentProfileV1({
 
   return (
     <header
-      className={portraitSrc ? 'pa-student-hero' : 'pa-student-hero pa-student-hero--no-portrait'}
+      className={
+        photo ? 'pa-student-hero pa-student-hero--arch' : 'pa-student-hero pa-student-hero--no-portrait'
+      }
       aria-labelledby={heading}
     >
       <h2 id={heading} className="pa-visually-hidden">
@@ -139,7 +156,7 @@ export function StudentProfileV1({
             </div>
             <div className="pa-hero-brand-copy">
               <h1>Portal do Aluno</h1>
-              <span aria-label="versão 2">v2</span>
+              <p className="pa-hero-brand-school">{schoolName}</p>
             </div>
           </div>
 
@@ -162,7 +179,7 @@ export function StudentProfileV1({
         <div className="pa-hero-body">
           <div className="pa-hero-copy">
             <p className="pa-hero-greeting">Olá,</p>
-            <h3 className="pa-student-name">
+            <h3 className={'pa-student-name pa-student-name--' + nameLengthV1(profile.name)} title={profile.name}>
               {profile.name}
             </h3>
 
@@ -170,10 +187,6 @@ export function StudentProfileV1({
               <p>
                 <GraduationCap size={21} aria-hidden="true" />
                 <span>{profile.classLabel}</span>
-              </p>
-              <p>
-                <School size={21} aria-hidden="true" />
-                <span>{schoolName}</span>
               </p>
             </div>
 
@@ -190,11 +203,19 @@ export function StudentProfileV1({
             </div>
           </div>
 
-          {/* Only an approved background-free portrait is shown. Without one there is no
-              placeholder: the copy takes the space and the cover artwork stays visible. */}
-          {portraitSrc ? (
-            <div className="pa-hero-portrait">
-              <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
+          {/* The original 3×4 photo in an arch taken from the cover geometry. No photo, or one
+              that fails to load, means no portrait and no placeholder: the copy keeps the space. */}
+          {photo ? (
+            <div className="pa-hero-portrait pa-hero-portrait--arch">
+              <div className="pa-hero-frame">
+                <img
+                  className="pa-hero-frame-photo"
+                  src={photo}
+                  alt=""
+                  aria-hidden="true"
+                  onError={() => setFailedSrc(photo)}
+                />
+              </div>
             </div>
           ) : null}
         </div>
