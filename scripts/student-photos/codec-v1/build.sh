@@ -7,9 +7,9 @@ source_dir="$root/node_modules/.cache/student-photo-codec-source"
 build_dir="$root/node_modules/.cache/student-photo-codec-build"
 out="$root/node_modules/.cache/student-photo-codec-v1"
 source_sha=4fa21912338357f89e4fd51cf2368325b59e9bd9
-[ "$(git -C "$source_dir" rev-parse HEAD)" = "$source_sha" ]
-[ -z "$(git -C "$source_dir" status --porcelain)" ]
-[ "$(emcc -dumpversion)" = "4.0.15" ]
+[[ "$(git -C "$source_dir" rev-parse HEAD)" = "$source_sha" ]]
+[[ -z "$(git -C "$source_dir" status --porcelain)" ]]
+[[ "$(emcc -dumpversion)" = "4.0.15" ]]
 mkdir -p "$out"
 emcmake cmake -S "$source_dir" -B "$build_dir" \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
@@ -20,7 +20,8 @@ emcmake cmake -S "$source_dir" -B "$build_dir" \
 cmake --build "$build_dir" --target webp --parallel 2
 mapfile -t webp < <(find "$build_dir" -type f -name libwebp.a)
 mapfile -t yuv < <(find "$build_dir" -type f -name libsharpyuv.a)
-[ "${#webp[@]}" = 1 ] && [ "${#yuv[@]}" = 1 ]
+[[ "${#webp[@]}" = 1 ]]
+[[ "${#yuv[@]}" = 1 ]]
 emcc scripts/student-photos/codec-v1/bridge.c "${webp[0]}" "${yuv[0]}" \
   -I "$source_dir/src" -O2 -DNDEBUG --no-entry -s STANDALONE_WASM=1 \
   -s FILESYSTEM=0 -s MALLOC=emmalloc -s ABORTING_MALLOC=0 \
@@ -34,17 +35,25 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 const directory = 'node_modules/.cache/student-photo-codec-v1';
 const digest = path => createHash('sha256').update(readFileSync(path)).digest('hex');
+const applicationCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const applicationHeadCommit = process.env.PR_HEAD_SHA ?? null;
+const applicationBaseCommit = process.env.PR_BASE_SHA ?? null;
+const checkoutParents = execFileSync('git', ['cat-file', '-p', 'HEAD'], { encoding: 'utf8' })
+  .split('\n').filter(line => line.startsWith('parent ')).map(line => line.slice(7));
+if (applicationHeadCommit !== null || applicationBaseCommit !== null || process.env.GITHUB_EVENT_NAME === 'pull_request') {
+  if (!/^[a-f0-9]{40}$/u.test(applicationHeadCommit ?? '') || !/^[a-f0-9]{40}$/u.test(applicationBaseCommit ?? '')
+    || checkoutParents.length !== 2 || checkoutParents[0] !== applicationBaseCommit || checkoutParents[1] !== applicationHeadCommit)
+    throw new Error('student-photo-codec-provenance-mismatch');
+}
 const report = {
-  kind: 'student-photo-codec-build-v1',
-  applicationCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  kind: 'student-photo-codec-build-v1', applicationCommit, applicationHeadCommit, applicationBaseCommit, checkoutParents,
   sourceCommit: process.env.SOURCE_SHA,
   emsdkCommit: '389a68bc35dcff7ebae4614e1615099dafda00d1',
   emscriptenVersion: '4.0.15', libwebpVersion: '1.6.0',
   wasmSha256: digest(`${directory}/codec.wasm`),
   bridgeSha256: digest('scripts/student-photos/codec-v1/bridge.c'),
   buildScriptSha256: digest('scripts/student-photos/codec-v1/build.sh'),
-  linearMemoryBytes: 33554432,
-  productionApproved: false,
+  linearMemoryBytes: 33554432, productionApproved: false,
 };
 writeFileSync(`${directory}/provenance.json`, JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report));

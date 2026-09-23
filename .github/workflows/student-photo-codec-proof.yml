@@ -27,6 +27,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Reject missing or ambiguous archive discovery
+        run: node tests/student-photos/codec-proof/archive-guard.mjs
       - name: Checkout pinned libwebp source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -48,6 +50,9 @@ jobs:
           ./emsdk install 4.0.15
           ./emsdk activate 4.0.15
       - name: Build bounded module from pinned source
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           source node_modules/.cache/student-photo-codec-emsdk/emsdk_env.sh
           bash scripts/student-photos/codec-v1/build.sh
