@@ -168,6 +168,24 @@ try {
       await normalized(i % 2 ? avatar : portrait, i % 2 ? 'avatar' : 'portrait', i % 2 ? 32 : 30, i % 2 ? 32 : 40);
     }
   });
+  await check('final-preview-save-byte-equality-and-idempotency', async () => {
+    const response = await caller.fetch('http://codec.test/edit-proof', {
+      method: 'POST', body: JSON.stringify({ portrait: Array.from(portrait), avatar: Array.from(avatar) }),
+      signal: AbortSignal.timeout(15000),
+    });
+    assert.equal(response.status, 200, 'Real codec edit composition must complete');
+    const result = await response.json();
+    assert.equal(result.state, 'passed'); assert.equal(result.claims, 2);
+    assert.equal(result.commits, 1); assert.equal(result.uploads, 2); assert.equal(result.changedPreviewRejected, true);
+    for (const [variant, width, height] of [['portrait', 30, 40], ['avatar', 32, 32]]) {
+      const bytes = Buffer.from(result[variant]);
+      assert.equal(sha256(bytes), result.output[variant].sha256);
+      assert.equal(bytes.length, result.output[variant].byteSize);
+      const image = await sharp(bytes).metadata();
+      assert.equal(image.width, width); assert.equal(image.height, height); assert.equal(image.hasAlpha, false);
+      await sharp(bytes).raw().toBuffer();
+    }
+  });
   assert.equal(outbound, 0);
   const report = { ...provenance, kind: 'student-photo-codec-workerd-proof-v1',
     executedDecoderVersion: '1.6.0', executedEncoderVersion: '1.6.0', memoryGrowthDenied: true,
