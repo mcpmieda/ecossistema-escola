@@ -1,5 +1,7 @@
 # Fechamento do trimestre — especificação para implementação futura
 
+Acompanhamento: issue #1132.
+
 Status: **especificada, não implementada**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Não há decisão pendente. Existe um único portão antes da produção: a escola aprovar o catálogo de frases (D6).
 
 ## Objetivo
