@@ -195,10 +195,13 @@
   box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
 }
 
+/* Stronger amber header; text darkened with it (WCAG AA ≥ 4.5:1 on the darkest stop):
+   mark #92400e 5.2:1, maximum #7a4b12 5.4:1, status chip on white 7.1:1. */
 .pa-score-card--negative {
-  --pa-score-accent: #b45309;
-  --pa-score-surface: #fffbeb;
-  --pa-score-border: #fde9b8;
+  --pa-score-accent: #92400e;
+  --pa-score-surface: linear-gradient(135deg, #fde9b5 0%, #fbd88c 100%);
+  --pa-score-border: #f3c566;
+  --pa-score-maximum: #7a4b12;
 }
 
 .pa-score-card--neutral {
@@ -492,7 +495,7 @@
 }
 
 .pa-score-card-value > span:not(.pa-trend) {
-  color: #64748b;
+  color: var(--pa-score-maximum, #64748b);
   font-size: 0.78rem;
   font-weight: 600;
 }
