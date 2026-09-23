@@ -56,6 +56,8 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 | D9 | Alunos `special` | **Não recebem o fechamento** (nem o resumo). Os assistidos também não. |
 | D10 | Nome na tela | Rótulo **"Fechamento do Nº trimestre"**, com a conclusão do motor como título em destaque. |
 | D11 | Trimestres anteriores | **Um fechamento por trimestre, dentro da aba do trimestre.** O resumo geral do Boletim mostra o trimestre encerrado mais recente. |
+| D12 | Prévia no admin | **Sim, na ficha do aluno.** A coordenação vê exatamente o fechamento, com as mesmas mensagens e variantes que o aluno recebe, para atender dúvidas e revisar antes de ligar a chave numa turma. |
+| D13 | Aviso ao aluno | **Só um destaque no portal**: selo "Novo" no Boletim e na disciplina até o aluno abrir. Sem notificação fora do portal. |
 
 ## Regras derivadas das decisões (obrigatórias)
 
@@ -67,6 +69,9 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 - **R3: data não configurada.** Se `tNEndsAt` estiver nulo, não há fechamento desse trimestre. Com `accessEnabled` desligado, nada aparece.
 - **R4: "não fez" (D1) é tratado com cuidado de tom.** O texto diz "houve atividades não realizadas neste trimestre" e a ação sugere colocá-las em dia. O texto não conta quantas e não cita qual (R1 e decisão 5).
 - **R5: correções.** Como o motor usa todos os registros (D3), o fechamento acompanha a revisão mais recente assim que ela existe. Isso é esperado.
+- **R7: prévia no admin (D12).** A prévia usa o mesmo motor e o mesmo sorteio de variantes do aluno, nunca uma cópia separada. Ela exige a mesma permissão de leitura da ficha e fica registrada na auditoria, como as demais leituras de dados do aluno.
+- **R8: selo "Novo" (D13).** O estado "já visto" fica no navegador do aluno (armazenamento local, chave por trimestre e disciplina), sem nova tabela nem dado pessoal no servidor. Em outro dispositivo, o selo pode reaparecer uma vez, o que é aceitável.
+- **R9: recuperações.** As abas REC não têm fechamento próprio. A situação de recuperação entra no fechamento do trimestre e no status "Em recuperação".
 - **R6: chave (D8).** Novo campo de política `showTermClosing` (booleano), com herança escola → turma → aluno igual às demais. **O padrão é desligado.** A escola liga depois de aprovar o catálogo (D6), o que permite piloto por turma.
 
 ## Etapas de implementação sugeridas
@@ -74,4 +79,4 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 1. **Protótipo visual no preview** (rápido): usar o cenário "Como na produção" e casos fixos para validar formato, tamanho e tom.
 2. **Especificação fina + catálogo de frases**: lista de sinais com limiares calibrados com dados reais, regras de prioridade e frases submetidas à escola (D6).
 3. **Motor no servidor** (grande): detectar sinais na edição aprovada, priorizar, emitir códigos, mudar o contrato do Self e escrever testes combinatórios.
-4. **Tela real + publicação**: regra de exibição (D2, R2, R3), chave `showTermClosing` no admin (D8, R6), resumo no Boletim (D4), PR próprio, revisão e deploy. Ligar em produção só após a aprovação do catálogo (D6).
+4. **Tela real + publicação**: regra de exibição (D2, R2, R3), chave `showTermClosing` no admin (D8, R6), prévia na ficha do aluno (D12, R7), selo "Novo" (D13, R8), resumo no Boletim (D4), PR próprio, revisão e deploy. Ligar em produção só após a aprovação do catálogo (D6).
