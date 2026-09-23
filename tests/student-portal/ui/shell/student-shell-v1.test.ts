@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -95,6 +95,17 @@ describe('student shell and canonical profile', () => {
     expect(screen.queryByText('Não se aplica')).toBeNull();
     expect(document.querySelector('img')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
+  });
+  it('shows the original photo in the arch and drops it entirely if it fails to load', () => {
+    const profile = SYNTHETIC_SELF_V1.profile;
+    render(createElement(StudentProfileV1, { profile, portraitSrc: '/api/student/photo?v=1' }));
+    expect(document.querySelector('.pa-student-hero--arch')).not.toBeNull();
+    const photo = document.querySelector('.pa-hero-frame-photo')!;
+    expect(photo.getAttribute('src')).toBe('/api/student/photo?v=1');
+    // A broken image never shows: no frame and no placeholder, the copy keeps the space.
+    fireEvent.error(photo);
+    expect(document.querySelector('.pa-hero-frame')).toBeNull();
+    expect(document.querySelector('.pa-student-hero--no-portrait')).not.toBeNull();
   });
   it('exposes an optional real projection timestamp with an explicit school timezone', () => {
     render(page({ showUpdatedAt: true }));

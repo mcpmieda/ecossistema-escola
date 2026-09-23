@@ -13,9 +13,11 @@ import {
   BookOpenCheck,
   BookOpenText,
   Calculator,
+  Check,
   Dumbbell,
   FlaskConical,
   Globe2,
+  HandHeart,
   Landmark,
   Languages,
   LayoutDashboard,
@@ -23,8 +25,11 @@ import {
   MoveRight,
   Music2,
   Palette,
+  PenLine,
+  Scale,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
@@ -63,7 +68,8 @@ const ANNUAL_SITUATION_LABELS_V1: Record<
   { label: string; tone: ToneV1 }
 > = {
   'in-recovery': { label: 'Em recuperação', tone: 'warning' },
-  'awaiting-council': { label: 'Aguardando Conselho de Classe', tone: 'default' },
+  // Not emitted any more (owner decision 2026-09-23); older payloads read as EM RECUPERAÇÃO.
+  'awaiting-council': { label: 'Em recuperação', tone: 'warning' },
   'approved-direct': { label: 'Aprovado direto', tone: 'success' },
   'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
   'approved-special': { label: 'Aprovado', tone: 'success' },
@@ -166,10 +172,18 @@ function SubjectIconV1({ label, size = 18 }: { label: string; size?: number }) {
   else if (normalized.includes('historia')) Icon = Landmark;
   else if (normalized.includes('geografia')) Icon = Globe2;
   else if (normalized.includes('ingles')) Icon = Languages;
-  else if (normalized.includes('educacao fisica')) Icon = Dumbbell;
+  // Production labels are upper-case abbreviations (ED. FÍSICA, COMPUTAÇÃO, REDAÇÃO...).
+  else if (normalized.includes('educacao fisica') || normalized.startsWith('ed. fisica')) Icon = Dumbbell;
+  else if (normalized.includes('redacao')) Icon = PenLine;
+  else if (normalized.includes('religiao') || normalized.includes('ensino religioso')) Icon = HandHeart;
+  else if (normalized.includes('etica')) Icon = Scale;
   else if (normalized.includes('arte')) Icon = Palette;
   else if (normalized.includes('musica')) Icon = Music2;
-  else if (normalized.includes('informatica') || normalized.includes('tecnologia')) Icon = Monitor;
+  else if (
+    normalized.includes('informatica') ||
+    normalized.includes('computacao') ||
+    normalized.includes('tecnologia')
+  ) Icon = Monitor;
   else if (normalized === 'fisica' || normalized.includes('fisica ')) Icon = Atom;
   else if (
     normalized.includes('ciencia') ||
@@ -235,7 +249,8 @@ function SummaryV1({
   const published = subjects.filter((subject) =>
     active === 'REC' ? recoveryPeriodsOf(subject).length > 0 : subjectPeriodV1(subject, active),
   );
-  const situation = data.profile.annualSituation;
+  const situation =
+    data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
   const finalResult = situation
     ? ANNUAL_SITUATION_LABELS_V1[situation]
     : data.profile.result in finalResultLabelsV1
@@ -359,6 +374,71 @@ function SummaryV1({
         </ListBox>
         </div>
       </section>
+    </div>
+  );
+}
+
+type PartialV1 = NonNullable<PeriodV1['partials']>[number];
+
+/**
+ * Leading status mark per activity. It only restates the server's `meetsMinimum` (a mark without
+ * a maximum has none, so no icon is invented); an observed blank ("Não fez") is flagged too.
+ * Decorative: the mark's own accessible label already states the classification.
+ */
+function PartialStatusV1({ partial }: { partial: PartialV1 }) {
+  const met = partial.mark.kind === 'score' ? partial.mark.meetsMinimum : null;
+  const attention = met === false || partial.notDone === true;
+  if (met !== true && !attention) return <span className="pa-partial-status" aria-hidden="true" />;
+  const title = met === true ? 'Atingiu o mínimo' : partial.notDone ? 'Não fez' : 'Abaixo do mínimo';
+  return (
+    <span
+      className={'pa-partial-status ' + (met === true ? 'pa-partial-status--met' : 'pa-partial-status--attention')}
+      aria-hidden="true"
+      title={title}
+    >
+      {met === true ? (
+        <Check size={14} strokeWidth={3} />
+      ) : (
+        <TriangleAlert size={15} strokeWidth={2.4} />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Activity descriptions reach 120 characters. Show two lines and offer "Ver tudo" only when the
+ * text really overflows at the current width (measured, not guessed from its length), so a wide
+ * screen that fits the whole description shows no toggle. Nothing is ever permanently hidden.
+ */
+function PartialLabelV1({ label }: { label: string }) {
+  const text = useRef<HTMLSpanElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const element = text.current;
+    if (!element || expanded) return;
+    const measure = () => setOverflowing(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [label, expanded]);
+  return (
+    <div className="pa-workspace-list-copy">
+      <span ref={text} className={'pa-partial-label' + (expanded ? ' is-expanded' : '')}>
+        {label}
+      </span>
+      {overflowing || expanded ? (
+        <button
+          type="button"
+          className="pa-partial-more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'Ver menos' : 'Ver tudo'}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -519,23 +599,15 @@ function SubjectV1View({
               {period.partials.length ? (
                 <>
                   <p className="pa-score-card-partials-title">Detalhamento</p>
-                  <ListBox
-                    aria-label="Avaliações publicadas"
-                    selectionMode="none"
-                    className="pa-partials-list"
-                  >
+                  {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
+                  <ul aria-label="Avaliações publicadas" className="pa-partials-list">
                     {period.partials.map((partial) => {
                       // Same rule as the bulletin table: observed blank → Não fez, numeric 0 → Tirou zero.
                       const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
                       return (
-                        <ListBox.Item
-                          id={String(partial.assessmentId)}
-                          key={partial.assessmentId}
-                          textValue={partial.label}
-                        >
-                          <div className="pa-workspace-list-copy">
-                            <Label>{partial.label}</Label>
-                          </div>
+                        <li key={partial.assessmentId}>
+                          <PartialStatusV1 partial={partial} />
+                          <PartialLabelV1 label={partial.label} />
                           <strong>
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
@@ -543,10 +615,10 @@ function SubjectV1View({
                               <StudentMarkV1 mark={partial.mark} showMaximum />
                             )}
                           </strong>
-                        </ListBox.Item>
+                        </li>
                       );
                     })}
-                  </ListBox>
+                  </ul>
                 </>
               ) : (
                 <Description className="pa-score-card-empty">
