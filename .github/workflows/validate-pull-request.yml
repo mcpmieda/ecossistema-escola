@@ -67,6 +67,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Temporary development transport for #1119. No production secrets, .git,
+      # untracked images or external account data enter these inputs. Remove before merge.
+      - name: Prepare exact temporary integration inputs
+        if: github.event.pull_request.number == 1135 && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          mkdir -p integration-inputs
+          git archive --format=tar HEAD > integration-inputs/source.tar
+          git rev-parse HEAD > integration-inputs/source-commit.txt
+          tar -czf integration-inputs/dependencies.tar.gz --exclude=node_modules/.cache node_modules
+          sha256sum integration-inputs/source.tar integration-inputs/dependencies.tar.gz > integration-inputs/SHA256SUMS
+
+      - name: Preserve exact temporary integration inputs
+        if: github.event.pull_request.number == 1135 && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: photo-integration-inputs-v1
+          path: integration-inputs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
       - name: Verify
         run: npm run verify
 
