@@ -763,13 +763,15 @@
   }
 }
 
-/* Framed portraits: the original 3×4 photo (background included) inside a shape taken from
-   the cover — upright, no tilt. `arch` tucks under the sheet like the cutout; `orb` is whole. */
+/* Arch portrait: the original 3×4 photo (background included) in an upright arch whose round
+   top echoes the cover glass; the flat base tucks under the grades sheet like the cutout. */
 .pa-hero-frame {
   position: relative;
   z-index: 2;
-  isolation: isolate;
+  height: 11.4rem;
+  aspect-ratio: 0.78;
   padding: 0.3rem;
+  border-radius: 999px 999px 1.2rem 1.2rem;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.18));
   box-shadow:
     0 26px 48px -18px rgb(2 20 60 / 0.62),
@@ -780,56 +782,10 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-}
-/* Red accent echoing the red shape of the cover art, peeking from behind the frame. */
-.pa-hero-frame::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  border-radius: 999px;
-  background: linear-gradient(160deg, #ff4a55, #d0111d);
-  box-shadow: 0 12px 28px -10px rgb(208 17 29 / 0.7);
-}
-
-/* Arch: rounded top, flat base hidden behind the grades sheet. */
-.pa-hero-portrait--arch .pa-hero-frame {
-  height: 11.4rem;
-  aspect-ratio: 0.78;
-  border-radius: 999px 999px 1.2rem 1.2rem;
-}
-.pa-hero-portrait--arch .pa-hero-frame-photo {
   border-radius: 999px 999px 0.95rem 0.95rem;
+  object-fit: cover;
   object-position: center 16%;
 }
-.pa-hero-portrait--arch .pa-hero-frame::before {
-  left: -22%;
-  bottom: 14%;
-  width: 58%;
-  height: 46%;
-  transform: rotate(-24deg);
-}
-
-/* Orb: circular portrait with a glass ring and a red arc, always whole above the sheet. */
-.pa-hero-portrait--orb .pa-hero-frame {
-  height: 8rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  padding: 0.28rem;
-  background: conic-gradient(from 200deg, #ff4a55 0deg 78deg, rgb(255 255 255 / 0.82) 78deg 360deg);
-}
-.pa-hero-portrait--orb .pa-hero-frame-photo {
-  object-position: center 28%;
-  box-shadow: 0 0 0 2px rgb(11 63 156 / 0.9);
-}
-.pa-hero-portrait--orb .pa-hero-frame::before {
-  inset: -0.55rem;
-  background: none;
-  border: 1px solid rgb(255 255 255 / 0.35);
-  box-shadow: none;
-}
-
 @keyframes pa-hero-frame-in {
   from {
     opacity: 0;
@@ -840,14 +796,9 @@
     transform: none;
   }
 }
-
 @media (max-width: 767px) {
   .pa-student-hero--arch .pa-hero-copy {
     width: calc(100% - 8.4rem);
-    max-width: none;
-  }
-  .pa-student-hero--orb .pa-hero-copy {
-    width: calc(100% - 8.8rem);
     max-width: none;
   }
   .pa-hero-portrait--arch {
@@ -855,48 +806,29 @@
     bottom: -0.6rem;
     width: auto;
   }
-  .pa-hero-portrait--orb {
-    right: 0.5rem;
-    bottom: 3rem;
-    width: auto;
-  }
 }
 @media (min-width: 768px) and (max-width: 1199px) {
-  .pa-hero-portrait--arch .pa-hero-frame {
+  .pa-hero-frame {
     height: 17rem;
     border-radius: 999px 999px 1.6rem 1.6rem;
   }
-  .pa-hero-portrait--arch .pa-hero-frame-photo {
+  .pa-hero-frame-photo {
     border-radius: 999px 999px 1.3rem 1.3rem;
   }
   .pa-hero-portrait--arch {
     bottom: -0.9rem;
   }
-  .pa-hero-portrait--orb .pa-hero-frame {
-    height: 12.5rem;
-    padding: 0.38rem;
-  }
-  .pa-hero-portrait--orb {
-    bottom: 3.6rem;
-  }
 }
 @media (min-width: 1200px) {
-  .pa-hero-portrait--arch .pa-hero-frame {
+  .pa-hero-frame {
     height: 18rem;
     border-radius: 999px 999px 1.7rem 1.7rem;
   }
-  .pa-hero-portrait--arch .pa-hero-frame-photo {
+  .pa-hero-frame-photo {
     border-radius: 999px 999px 1.4rem 1.4rem;
   }
   .pa-hero-portrait--arch {
     bottom: -1rem;
-  }
-  .pa-hero-portrait--orb .pa-hero-frame {
-    height: 13.5rem;
-    padding: 0.4rem;
-  }
-  .pa-hero-portrait--orb {
-    bottom: 3.9rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

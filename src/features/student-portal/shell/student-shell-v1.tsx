@@ -100,10 +100,10 @@ export function StudentPortalShellV1({
 
 /**
  * `cutout`: an approved background-free portrait standing over the cover art.
- * `arch` / `orb`: the original 3×4 photo (background included) framed in a shape — no cutout
- * needed. Arch tucks under the content sheet like the cutout; orb is always whole.
+ * `arch`: the original 3×4 photo (background included) in an upright arch that tucks under the
+ * content sheet like the cutout — no background removal needed.
  */
-export type StudentPortraitVariantV1 = 'cutout' | 'arch' | 'orb';
+export type StudentPortraitVariantV1 = 'cutout' | 'arch';
 
 export function StudentProfileV1({
   profile,

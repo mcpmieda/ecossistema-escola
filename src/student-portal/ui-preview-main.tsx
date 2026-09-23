@@ -235,7 +235,7 @@ interface AdminSimulationV1 {
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
   hasPortrait: boolean;
-  portraitStyle: 'cutout' | 'arch' | 'orb';
+  portraitStyle: 'cutout' | 'arch';
   situation: AnnualSituationV1 | 'none';
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
@@ -375,7 +375,6 @@ function AdminSimulatorPanelV1({
         >
           <option value="cutout">Recortada (sem fundo)</option>
           <option value="arch">Arco (foto 3×4 original)</option>
-          <option value="orb">Círculo (foto 3×4 original)</option>
         </select>
       </div>
       <div style={rowStyle}>
