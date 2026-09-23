@@ -72,11 +72,11 @@ student_portal_integration:
   part_2_status: technically-complete-release-closed-by-policy
   gate_g_b: accepted-with-explicit-physical-device-deferrals
   gate_g_p: passed-technical-release-general-opening-not-authorized
-  schema_table_count: 28
-  schema: student_portal_migrations_0001_through_0018_applied
-  schema_migration_file: 0018_shared_student_identity_v1.sql
-  schema_migration_production_version: 20260922212633
-  schema_migration_production_evidence: issue-1114-advance-17-postflight
+  schema_table_count: 27
+  schema: student_portal_migrations_0001_through_0019_applied
+  schema_migration_file: 0019_remove_legacy_projection_v1.sql
+  schema_migration_production_version: 20260923164053
+  schema_migration_production_evidence: docs/student-portal/POSTFLIGHT_0019.md
   academic_authority: unchanged-official-imported-source
   reset_guard: integrated-706-before-population
   transactional_producers: integrated-707
@@ -88,7 +88,7 @@ student_portal_integration:
 repository_snapshot:
   gradebook_latest_migration_in_tree: 0013_default_privileges_hardening_v1.sql
   student_portal_latest_migration_in_tree: 0019_remove_legacy_projection_v1.sql
-  student_portal_candidate_migrations_status: 0019-pending-worker-deploy-then-separate-destructive-migration
+  student_portal_candidate_migrations_status: 0019-applied-after-worker-deploy
   git_presence_alone_is_production_proof: false
   current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
   historical_checkpoint_668_is_runtime_authority: false
@@ -103,6 +103,15 @@ shared_student_identity_1114:
   production_migration_version: 20260922212633
   validated_source_head: 7092aefa5f05e1c74ae2da8e53a417df6ed1c54c
   evidence: docs/student-identity/POSTFLIGHT_1114.md
+legacy_projection_removal_0019:
+  pull_request: 1122
+  migration: 0019_remove_legacy_projection_v1.sql
+  status: applied-and-technical-postflight-verified
+  production_migration_applied: true
+  production_migration_version: 20260923164053
+  validated_source_head: f01a410a8dd3e58ff1ee664ba3ee2e5b424aa20c
+  evidence: docs/student-portal/POSTFLIGHT_0019.md
+  authenticated_grade_display_after_migration: pending-owner-confirmation
 next_safe_action:
   issue: 970
   description: execute-bn-maintenance-children-in-order-with-current-main-revalidation
