@@ -191,21 +191,7 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   socket.close(1000, 'synthetic-test-complete');
 
   expect((await student.me()).profile.accountId).toBe(account.accountId);
-  // Source becomes available through the deployed scheduled reconciler, not a direct fixture write.
-  for (let n = 0; n < 10; n++) {
-    await harness.scheduled();
-    const observed = await client.query({
-      contractVersion: 1,
-      operation: 'publication',
-      scope,
-      page: {},
-    });
-    if (
-      observed.state === 'publication' &&
-      observed.items.some((item) => item.period === 'T1' && item.availableRevision)
-    )
-      break;
-  }
+  // The prepared V2 edition is available at once; no scheduled work is involved.
   const publication = await client.query({
     contractVersion: 1,
     operation: 'publication',
@@ -224,11 +210,6 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     targetDataVersion: t1.availableRevision!,
     idempotencyKey: crypto.randomUUID(),
   });
-  for (let n = 0; n < 10; n++) {
-    await harness.scheduled();
-    const me = await student.me();
-    if (me.state === 'ready' && me.subjects.length) break;
-  }
   const self = await student.me();
   expect(self.state).toBe('ready');
   expect(self.subjects.length).toBeGreaterThan(0);

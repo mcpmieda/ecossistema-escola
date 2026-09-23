@@ -3,10 +3,7 @@ import {
   assessmentLabelV1,
   assessmentNamesSchemaV1,
 } from '../../../shared/gradebook-contracts/settings/assessment-names-v1';
-import {
-  selfResponseV1,
-  type SelfResponseV1,
-} from '../../../shared/student-portal-contracts/self-v1';
+import { type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import type {
   PublishedProjectionPortV1,
   PortalTransactionV1,
@@ -17,18 +14,11 @@ import {
   type StudentPortalPostgresQueryV1,
   type StudentPortalPostgresSqlV1,
 } from '../persistence/postgres-persistence-v1';
-import { accountScopeV1, authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
+import { accountScopeV1, authNowV1 } from '../auth/transaction-v1';
 import { readPortalSnapshotV2 } from '../auth/read-snapshot-v2';
-import { applyPublishedVisibilityV1, sessionExpiryV1 } from '../policies/calendar-v1';
+import { sessionExpiryV1 } from '../policies/calendar-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
-import {
-  dataVectorV1,
-  parseDataVectorV1,
-  PERIODS_V1,
-  publicationDigestV1,
-  publicationRowsV1,
-} from './state-v1';
 import { scopedSelfV2 } from './scoped-self-v2';
 
 /** Fresh names/status come from the BN; the lifecycle snapshot proves the projection scope.
@@ -113,32 +103,13 @@ export async function publicationContextV1(
   );
   return { ...context, profile, assessmentLabels };
 }
-export async function storedProjectionV1(
-  tx: StudentPortalPostgresQueryV1,
-  accountId: string,
-): Promise<SelfResponseV1 | null> {
-  const rows = await tx.unsafe(
-    'SELECT payload_json FROM student_portal.published_projection WHERE account_id=$1::uuid AND academic_year=2026',
-    [accountId],
-  );
-  if (rows.length === 0) return null;
-  const projection = selfResponseV1.parse(rows[0]!.payload_json);
-  if (projection.profile.accountId !== accountId)
-    throw new Error('student-portal-publication-identity-conflict');
-  parseDataVectorV1(projection.revisions.dataVersion);
-  return projection;
-}
-
+/** Serves Self only from scoped V2 prepared editions (the legacy stored projection was removed). */
 export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
-  constructor(
-    private readonly sql: StudentPortalPostgresSqlV1,
-    private readonly scopedPublication = false,
-  ) {}
+  constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
   async read(accountId: string, requestId: string): Promise<SelfResponseV1 | null> {
     z.uuid().parse(accountId);
-    const transact = this.scopedPublication ? readPortalSnapshotV2 : accountTransactionV1;
-    return transact(this.sql, (tx, store) =>
-      this.authorized(tx, store, accountId, requestId, this.scopedPublication),
+    return readPortalSnapshotV2(this.sql, (tx, store) =>
+      this.authorized(tx, store, accountId, requestId, true),
     );
   }
   async readInTransaction(
@@ -170,63 +141,12 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
     store: PortalTransactionV1,
     accountId: string,
     requestId: string,
-    snapshot = false,
+    snapshot: boolean,
   ): Promise<SelfResponseV1 | null> {
     const context = await publicationContextV1(this.sql, tx, store, accountId, true, !snapshot);
     if (!context || context.account.state !== 'active') return null;
-    const previous = await storedProjectionV1(tx, accountId);
-    if (
-      previous &&
-      (previous.profile.link.studentId !== context.account.link!.studentId ||
-        previous.profile.link.academicYear !== 2026)
-    )
-      return null;
-    const rows = await publicationRowsV1(tx, accountId);
-    if (this.scopedPublication)
-      return labelPublishedAssessmentsV1(
-        await scopedSelfV2(tx, context, previous, rows, requestId),
-        context.assessmentLabels,
-      );
-    const vector = previous
-      ? parseDataVectorV1(previous.revisions.dataVersion)
-      : PERIODS_V1.map(() => null);
-    const accepted = rows.map((row, index) =>
-      row.publishedRevision !== null && row.publishedRevision === vector[index]
-        ? row.publishedRevision
-        : null,
-    );
-    const sameState = previous?.profile.academicState === context.profile.academicState;
-    const subjects = (previous?.subjects ?? [])
-      .map((subject) => ({
-        ...subject,
-        periods: subject.periods.filter(
-          (period) => accepted[PERIODS_V1.indexOf(period.period)] !== null,
-        ),
-      }))
-      .filter((subject) => subject.periods.length > 0);
-    const projection = selfResponseV1.parse({
-      contractVersion: 1,
-      requestId,
-      state: subjects.length ? 'ready' : 'no-publication',
-      profile: {
-        ...context.profile,
-        result: sameState ? previous!.profile.result : context.profile.result,
-      },
-      subjects,
-      generatedAt: previous?.generatedAt ?? context.now.toISOString(),
-      revisions: {
-        dataVersion: dataVectorV1(accepted),
-        policyVersion: context.policy.policyVersion,
-        publicationVersion: `pub:${publicationDigestV1(rows.map((row) => [row.period, row.publishedRevision]))}`,
-      },
-    });
     return labelPublishedAssessmentsV1(
-      applyPublishedVisibilityV1(
-        projection,
-        context.policy.enforcedValue,
-        context.now,
-        sameState && accepted.some((revision) => revision !== null),
-      ),
+      await scopedSelfV2(tx, context, requestId),
       context.assessmentLabels,
     );
   }

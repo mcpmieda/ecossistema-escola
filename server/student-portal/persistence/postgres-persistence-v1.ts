@@ -2,15 +2,12 @@ import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-con
 import {
   accountStateV1,
   eligibilityStateV1,
-  revisionsV1,
   scopeV1,
   type AcademicLinkV1,
-  type RevisionsV1,
   type ScopeV1,
 } from '../../../shared/student-portal-contracts/core-v1';
 import { auditEventV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { effectiveSettingsV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
-import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import type {
   AccountRecordV1,
   AttemptRecordV1,
@@ -560,26 +557,6 @@ class StudentPortalTransaction implements PortalTransactionV1 {
         [key, field, kind, year, classId, accountId, JSON.stringify(parsed.value[field]), JSON.stringify(parsed.sources[field]), parsed.version],
       );
     }
-    return true;
-  }
-
-  async swapProjection(accountId: string, projection: SelfResponseV1, expected: RevisionsV1): Promise<boolean> {
-    const parsedProjection = selfResponseV1.parse(projection);
-    const parsedExpected = revisionsV1.parse(expected);
-    if (parsedProjection.profile.accountId !== accountId) return false;
-    if (JSON.stringify(parsedProjection.revisions) !== JSON.stringify(parsedExpected)) return false;
-    await this.lockAccounts([accountId]);
-    await rows(
-      this.sql,
-      `INSERT INTO student_portal.published_projection
-         (account_id,academic_year,payload_json,data_version,policy_version,publication_version,generated_at)
-       VALUES ($1::uuid,2026,$2::text::jsonb,$3,$4,$5,$6::timestamptz)
-       ON CONFLICT (account_id,academic_year) DO UPDATE SET
-         payload_json=EXCLUDED.payload_json,data_version=EXCLUDED.data_version,
-         policy_version=EXCLUDED.policy_version,publication_version=EXCLUDED.publication_version,
-         generated_at=EXCLUDED.generated_at,updated_at=now()`,
-      [accountId, JSON.stringify(parsedProjection), parsedExpected.dataVersion, parsedExpected.policyVersion, parsedExpected.publicationVersion, parsedProjection.generatedAt],
-    );
     return true;
   }
 

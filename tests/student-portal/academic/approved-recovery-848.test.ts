@@ -103,7 +103,7 @@ it('keeps the selected older edition and published REC through scopedSelfV2 with
       name: 'ESTUDANTE SINTETICO', classLabel: 'TURMA SINTETICA', academicState: 'regular', result: 'in-progress' },
     now: new Date('2026-09-18T00:00:00Z'),
   } as unknown as Parameters<typeof scopedSelfV2>[1];
-  const result = await scopedSelfV2(tx, context, null, [], '84800000-0000-4000-8000-000000000099');
+  const result = await scopedSelfV2(tx, context, '84800000-0000-4000-8000-000000000099');
   expect(queries).toHaveLength(1);
   expect(queries[0]).toContain('publication_source_v2');
   expect(queries[0]).not.toContain('academic_mark_v1');

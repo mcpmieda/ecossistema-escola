@@ -3,7 +3,8 @@ import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-
 import { selfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import { createLocalPortalHarnessV1 } from './local-harness-v1';
 
-/** Authentication setup is a synthetic session fixture; the separate load proof exercises full activation. */
+/** Authentication setup is a synthetic session fixture; the separate load proof exercises full activation.
+ * The caller activates scoped V2 publication first: prepared editions are the only published source. */
 export async function proveWorkerPublicationV1(connectionString: string, accountId: string, token: string) {
   const harness = await createLocalPortalHarnessV1(connectionString);
   const scope = { kind: 'account', academicYear: 2026, accountId };
@@ -27,17 +28,11 @@ export async function proveWorkerPublicationV1(connectionString: string, account
       value: { accessEnabled: true, allowedPeriods: ['T1'], showPartials: true, autoUpdate: false, showFinalResult: false,
         calendar: { ...settings.settings.value.calendar, yearStartsAt: at(-60), t1EndsAt: at(-50), t2EndsAt: at(-40), t3EndsAt: at(-30),
           recoveriesStartAt: at(-20), yearEndsAt: at(30), finalDisclosureAt: at(-10), disclosure: { mode: 'single', at: at(-10), periods: ['T1'] } } } })).state).toBe('committed');
-    expect(await call('/harness/reconcile', {})).toMatchObject({ failed: 0 });
     const publication = await query('publication');
     if (publication.state !== 'publication') throw new Error('synthetic-publication-query');
     const t1 = publication.items.find((item) => item.period === 'T1')!;
     expect(t1.availableRevision).not.toBeNull();
     expect((await command({ operation: 'publish', scope, period: 'T1', expectedVersion: t1.version, targetDataVersion: t1.availableRevision })).state).toBe('committed');
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const value = await call('/harness/job', {}) as { result: string };
-      expect(['done', 'stale', 'empty']).toContain(value.result);
-      if (value.result === 'empty') break;
-    }
     const self = selfResponseV1.parse(await call('/api/student/me'));
     expect(self.state).toBe('ready');
     expect(self.subjects).toHaveLength(2);

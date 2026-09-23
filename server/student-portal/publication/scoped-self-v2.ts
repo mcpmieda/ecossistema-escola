@@ -9,13 +9,7 @@ import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../academic/a
 import { applyPublishedVisibilityV1 } from '../policies/calendar-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import type { publicationContextV1 } from './self-projection-reader-v1';
-import {
-  dataVectorV1,
-  parseDataVectorV1,
-  PERIODS_V1,
-  publicationDigestV1,
-  type PublicationRowV1,
-} from './state-v1';
+import { dataVectorV1, PERIODS_V1, publicationDigestV1 } from './state-v1';
 import { readLatestSourceV2, readScopedSourcesV2, readStudentKeyV2 } from './scoped-source-v2';
 import { attachTermClosingsV1, buildTermClosingsV1, closedTermClosingPeriodsV1 } from './term-closing-self-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
@@ -28,7 +22,6 @@ type PeriodSelectionV2 = {
   available: readonly SubjectV2[];
   acceptedRevision: string | null;
   source?: SourceV2;
-  usedLegacy: boolean;
   explicitWithdrawal: boolean;
 };
 
@@ -69,46 +62,24 @@ function preparedSourceV2(
   return source;
 }
 
+/** A released period is served only from its prepared edition; there is no legacy fallback. */
 function selectPeriodV2(
   row: ScopedRowV2,
-  index: number,
-  period: (typeof PERIODS_V1)[number],
   context: ContextV2,
-  previous: SelfResponseV1 | null,
-  legacy: readonly PublicationRowV1[],
-  oldVector: readonly (string | null)[],
   reader: AcademicStudentReaderPostgresV1,
   decoded: Map<string, SourceV2>,
 ): PeriodSelectionV2 {
   const explicitWithdrawal = row.decision_version !== null && row.approved_revision === null;
   const revision = academicVersionSchemaV1.nullable().parse(row.target_revision);
-  if (revision === null)
-    return { available: [], acceptedRevision: null, usedLegacy: false, explicitWithdrawal };
-
-  if (row.payload_json !== null && row.edition_class_id === context.policy.classId) {
-    const source = preparedSourceV2(row, revision, reader, decoded, context);
-    return {
-      available: academicToSelfV1(source.student, context.account.id).subjects,
-      acceptedRevision: revision,
-      source,
-      usedLegacy: false,
-      explicitWithdrawal,
-    };
-  }
-
-  const legacyMatches =
-    row.payload_json === null &&
-    previous !== null &&
-    oldVector[index] === revision &&
-    legacy.find((item) => item.period === period)?.publishedRevision === revision;
-  return legacyMatches
-    ? {
-        available: previous.subjects,
-        acceptedRevision: revision,
-        usedLegacy: true,
-        explicitWithdrawal,
-      }
-    : { available: [], acceptedRevision: null, usedLegacy: false, explicitWithdrawal };
+  if (revision === null || row.payload_json === null || row.edition_class_id !== context.policy.classId)
+    return { available: [], acceptedRevision: null, explicitWithdrawal };
+  const source = preparedSourceV2(row, revision, reader, decoded, context);
+  return {
+    available: academicToSelfV1(source.student, context.account.id).subjects,
+    acceptedRevision: revision,
+    source,
+    explicitWithdrawal,
+  };
 }
 
 function mergePeriodSubjectsV2(
@@ -131,32 +102,24 @@ function mergePeriodSubjectsV2(
 
 function finalAuthorityV2(
   context: ContextV2,
-  previous: SelfResponseV1 | null,
   finalSource: SourceV2 | undefined,
-  usedLegacy: boolean,
   explicitWithdrawal: boolean,
-  accepted: readonly (string | null)[],
-) {
-  const sameState = finalSource
-    ? finalSource.student.profile.academicState === context.profile.academicState
-    : previous?.profile.academicState === context.profile.academicState;
-  const sourceAuthority =
-    finalSource?.finalAuthority.global ||
-    (!finalSource && usedLegacy && accepted.some((revision) => revision !== null));
-  return !explicitWithdrawal && Boolean(sameState && sourceAuthority);
+): boolean {
+  return (
+    !explicitWithdrawal &&
+    finalSource !== undefined &&
+    finalSource.student.profile.academicState === context.profile.academicState &&
+    finalSource.finalAuthority.global
+  );
 }
 
 function orderedSubjectsV2(
   subjects: Map<number, SubjectV2>,
   finalSource: SourceV2 | undefined,
-  previous: SelfResponseV1 | null,
   accountId: string,
   finalAuthority: boolean,
-  usedLegacy: boolean,
 ) {
-  const finalSubjects = finalSource
-    ? academicToSelfV1(finalSource.student, accountId).subjects
-    : (previous?.subjects ?? []);
+  const finalSubjects = finalSource ? academicToSelfV1(finalSource.student, accountId).subjects : [];
   return [...subjects.values()]
     .sort(
       (a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
@@ -164,9 +127,7 @@ function orderedSubjectsV2(
     .map((subject, order) => {
       const official = finalSubjects.find((item) => item.subjectId === subject.subjectId);
       const outcome = official?.officialOutcome;
-      const hasAuthority = finalSource
-        ? finalSource.finalAuthority.subjectIds.includes(subject.subjectId)
-        : usedLegacy;
+      const hasAuthority = finalSource?.finalAuthority.subjectIds.includes(subject.subjectId) === true;
       // Final classifications need the same authority as officialOutcome. `recovery-pending`
       // exists precisely before the annual closure, so it is relayed from the accepted edition
       // and gated later by T3 disclosure (applyPublishedVisibilityV1).
@@ -188,29 +149,9 @@ function orderedSubjectsV2(
     });
 }
 
-function profileResultV2(
-  context: ContextV2,
-  previous: SelfResponseV1 | null,
-  finalSource: SourceV2 | undefined,
-  finalAuthority: boolean,
-) {
-  if (!finalAuthority) return context.profile.result;
-  return finalSource?.student.profile.result ?? previous!.profile.result;
-}
-
-function profileSituationV2(
-  context: ContextV2,
-  previous: SelfResponseV1 | null,
-  finalSource: SourceV2 | undefined,
-  finalAuthority: boolean,
-) {
-  const sameState = finalSource
-    ? finalSource.student.profile.academicState === context.profile.academicState
-    : previous?.profile.academicState === context.profile.academicState;
-  if (!sameState) return undefined;
-  const situation = finalSource
-    ? finalSource.student.profile.annualSituation
-    : previous?.profile.annualSituation;
+function profileSituationV2(context: ContextV2, finalSource: SourceV2 | undefined, finalAuthority: boolean) {
+  if (finalSource?.student.profile.academicState !== context.profile.academicState) return undefined;
+  const situation = finalSource.student.profile.annualSituation;
   // Same authority as `result`, except EM RECUPERAÇÃO, which precedes the annual closure.
   return finalAuthority || situation === 'in-recovery' ? situation : undefined;
 }
@@ -219,70 +160,39 @@ function profileSituationV2(
 export async function scopedSelfV2(
   tx: StudentPortalPostgresQueryV1,
   context: ContextV2,
-  previous: SelfResponseV1 | null,
-  legacy: readonly PublicationRowV1[],
   requestId: string,
 ): Promise<SelfResponseV1> {
   const accountId = context.account.id;
   const link = context.account.link!;
   const rows = await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
   if (rows.length !== PERIODS_V1.length) throw new Error('student-portal-preparation-unavailable');
-  const oldVector = previous
-    ? parseDataVectorV1(previous.revisions.dataVersion)
-    : PERIODS_V1.map(() => null);
   const accepted: (string | null)[] = PERIODS_V1.map(() => null);
   const subjects = new Map<number, SubjectV2>();
   const reader = new AcademicStudentReaderPostgresV1(tx);
   const decoded = new Map<string, SourceV2>();
   let finalSource: SourceV2 | undefined;
-  let usedLegacy = false;
   let explicitWithdrawal = false;
 
   for (const [index, period] of PERIODS_V1.entries()) {
     const row = rows.find((item) => item.period === period);
     if (!row) throw new Error('student-portal-preparation-unavailable');
-    const selected = selectPeriodV2(
-      row,
-      index,
-      period,
-      context,
-      previous,
-      legacy,
-      oldVector,
-      reader,
-      decoded,
-    );
+    const selected = selectPeriodV2(row, context, reader, decoded);
     accepted[index] = selected.acceptedRevision;
     finalSource = newestSourceV2(finalSource, selected.source);
-    usedLegacy ||= selected.usedLegacy;
     explicitWithdrawal ||= selected.explicitWithdrawal;
     mergePeriodSubjectsV2(subjects, selected.available, period);
   }
 
-  const finalAuthority = finalAuthorityV2(
-    context,
-    previous,
-    finalSource,
-    usedLegacy,
-    explicitWithdrawal,
-    accepted,
-  );
-  const ordered = orderedSubjectsV2(
-    subjects,
-    finalSource,
-    previous,
-    accountId,
-    finalAuthority,
-    usedLegacy,
-  );
-  const annualSituation = profileSituationV2(context, previous, finalSource, finalAuthority);
+  const finalAuthority = finalAuthorityV2(context, finalSource, explicitWithdrawal);
+  const ordered = orderedSubjectsV2(subjects, finalSource, accountId, finalAuthority);
+  const annualSituation = profileSituationV2(context, finalSource, finalAuthority);
   const projection = selfResponseV1.parse({
     contractVersion: 1,
     requestId,
     state: ordered.length ? 'ready' : 'no-publication',
     profile: {
       ...context.profile,
-      result: profileResultV2(context, previous, finalSource, finalAuthority),
+      result: finalAuthority && finalSource ? finalSource.student.profile.result : context.profile.result,
       ...(annualSituation === undefined ? {} : { annualSituation }),
     },
     subjects: ordered,

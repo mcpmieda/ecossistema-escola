@@ -9,7 +9,6 @@ import {
 } from '../../../server/student-portal/policies/calendar-v1';
 import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import type { SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
-import { disclosureDueV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
 
 function policy(): ReturnType<typeof initialPolicyDefaultsV1> {
   const defaults = initialPolicyDefaultsV1();
@@ -106,7 +105,6 @@ describe('calendar and session policy', () => {
     };
     expect(periodDisclosureV1(current, 'T1', new Date('2026-09-01T00:00:00Z'))).toBe('allowed');
     expect(periodDisclosureV1(current, 'T2', new Date('2026-09-01T03:00:00Z'))).toBe('allowed');
-    expect(disclosureDueV1(current, ['T2'])?.toISOString()).toBe('2026-05-18T03:00:00.000Z');
     expect(() =>
       normalizeCalendarV1({
         ...current.calendar,

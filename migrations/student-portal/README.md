@@ -1,6 +1,6 @@
 # Student Portal PostgreSQL migrations
 
-Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separate from `migrations/gradebook*`.
+Owner: #704 (`[PA][P1]`, family P1-02). The migrations are separate from `migrations/gradebook*`; `0019` is destructive.
 
 ## Ledger
 
@@ -24,9 +24,10 @@ Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separa
 | `0016_audit_entities_v1.sql` | #1102 (aplicada em produção em 22/09/2026, versão `20260922150000`): rótulos históricos de operador/aluno/turma em `audit_event`, sem backfill fabricado nem novas permissões |
 | `0017_security_event_priority_v1.sql` | #1101 (aplicada em produção em 22/09/2026, versão `20260922150001`): marca `security_relevant` no outbox live para o canal exclusivo de segurança, sem novo payload protegido |
 | `0018_shared_student_identity_v1.sql` | #1114 (aplicada e verificada em produção, versão `20260922212633`): identidade durável compartilhada em `student_uid`, backfill por vínculos existentes, FKs e imutabilidade; preserva IDs, credenciais e referências de fotos. Evidência: `docs/student-identity/POSTFLIGHT_1114.md` |
-| `0020_term_closing_policy_v1.sql` | #1132: aceita o campo de política `showTermClosing` (Fechamento do trimestre) e semeia o padrão da escola desligado na época atual. Aditiva. Aplicar **depois** do deploy do Worker que tolera 7 ou 8 campos. |
+| `0019_remove_legacy_projection_v1.sql` | PR #1122 (**não aplicada em produção**): remove a tabela `published_projection` e seus dados após o deploy do Worker que serve Self somente por edições preparadas V2. Exige publicação V2 ativa; não há rollback dos dados removidos pela migration. |
+| `0020_term_closing_policy_v1.sql` | #1132 (**não aplicada em produção**): aceita os campos de política do Fechamento do trimestre e semeia o padrão da escola desligado na época atual. Aditiva. Aplicar **depois** do deploy do Worker que tolera a ausência desses campos. |
 
-The ledger above is the **repository migration sequence**, not independent proof that every file has been applied remotely. Production application is recorded by the owning issue/deploy evidence and by the canonical project state. The sequence began against the Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`; later Portal migrations declare newer Gradebook dependencies explicitly (for example `0012` depends on Gradebook `0009`). `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
+The ledger above is the **repository migration sequence**, not independent proof that every file has been applied remotely. Production application is recorded by the owning issue/deploy evidence and by the canonical project state. The sequence began against the Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`; later Portal migrations declare newer Gradebook dependencies explicitly (for example `0012` depends on Gradebook `0009`). `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely. A `0019` só pode ser aplicada depois do deploy do Worker sem leitura legada, em operação separada e autorizada; o modo legado já não serve Self no código da PR #1122.
 
 ## Invariants
 
@@ -44,4 +45,4 @@ The ledger above is the **repository migration sequence**, not independent proof
 
 #704 authors and tests these files only. It does **not** apply them to Supabase. #705 owns remote application/Hyperdrive/driver proof after this branch is integrated.
 
-These migrations intentionally fail on replay against an existing `student_portal` schema rather than silently resetting it. Rollback of code must remain compatible with the additive schema; dropping tables/schema/roles in production is not a standard rollback and requires a separate destructive plan.
+These migrations intentionally fail on replay against an existing `student_portal` schema rather than silently resetting it. Through `0018`, code rollback must remain compatible with the additive schema. `0019` deliberately drops the legacy projection and its rows; reverting code cannot restore them. Its production application requires the separate, authorized destructive step described above.

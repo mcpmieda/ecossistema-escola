@@ -88,7 +88,7 @@ student_portal_integration:
 repository_snapshot:
   gradebook_latest_migration_in_tree: 0013_default_privileges_hardening_v1.sql
   student_portal_latest_migration_in_tree: 0020_term_closing_policy_v1.sql
-  student_portal_candidate_migrations_status: 0020-pending-worker-deploy-then-additive-policy-migration
+  student_portal_candidate_migrations_status: 0019-and-0020-pending-worker-deploy-then-separate-migrations
   git_presence_alone_is_production_proof: false
   current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
   historical_checkpoint_668_is_runtime_authority: false

@@ -50,7 +50,7 @@ describe('current canonical project state', () => {
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0020-pending-worker-deploy-then-additive-policy-migration',
+        student_portal_candidate_migrations_status: '0019-and-0020-pending-worker-deploy-then-separate-migrations',
       },
       student_portal_integration: {
         schema_migration_file: '0018_shared_student_identity_v1.sql',

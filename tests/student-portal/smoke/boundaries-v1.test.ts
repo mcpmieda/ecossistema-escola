@@ -3,8 +3,6 @@ import { servePortalSelfV1 } from '../../../server/student-portal/composition/se
 import { portalKeysV1, type PortalCompositionEnvV1 } from '../../../server/student-portal/composition/config-v1';
 import { portalScheduledV1 } from '../../../server/student-portal/composition/scheduled-v1';
 import { portalAdminRpcV1 } from '../../../server/student-portal/composition/admin-v1';
-import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
-import { PublicationReconcilerV1 } from '../../../server/student-portal/jobs/reconcile-v1';
 const database = vi.hoisted(() => vi.fn());
 vi.mock('../../../server/student-portal/composition/database-v1', () => ({ portalDatabaseV1: database }));
 const env: PortalCompositionEnvV1 = { PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: 'https://aluno.escolaieda.com',
@@ -35,20 +33,10 @@ it('refuses fake admin context and preview before SQL; unavailable maintenance d
   expect((await portalAdminRpcV1({ ...env, PORTAL_SERVING_ENABLED: 'false' }, 'query', context, query)).state).toBe('unavailable');
   expect(database).not.toHaveBeenCalled();
 });
-it('keeps reconciliation bounded and drains more work than one production passage creates', async () => {
-  database.mockImplementation(async (_env, operation, run) => {
-    if (operation === 'cleanup') throw new Error('synthetic-cleanup-unavailable');
-    return run({});
-  });
-  const reconcile = vi.spyOn(PublicationReconcilerV1.prototype, 'run')
-    .mockResolvedValue({ inspected: 5, reconciled: 5, failed: 0 });
-  const jobs = vi.spyOn(PublicationJobsV1.prototype, 'run')
-    .mockResolvedValue({ processed: 10, done: 10, deferred: 0, failed: 0, unavailable: 0 });
-
-  await portalScheduledV1(env);
-
-  expect(reconcile).toHaveBeenCalledWith(5);
-  expect(jobs).toHaveBeenCalledWith(10);
+it('schedules only privacy retention; no legacy publication loop opens a connection', async () => {
+  database.mockImplementation(async (_env, _operation, run) => run({}));
+  await portalScheduledV1(env).catch(() => undefined);
+  expect(database.mock.calls.map(([, operation]) => operation)).toEqual(['cleanup']);
 });
 it('loads versioned synthetic keys, separates cursor signatures and refuses absent/malformed key material', async () => {
   expect(() => portalKeysV1(env)).toThrow();

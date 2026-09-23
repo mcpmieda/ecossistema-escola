@@ -7,8 +7,7 @@ import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 /** New synthetic namespace on each run; lives only in the disposable cluster. */
 export async function installIntegrationFixtureV1(sql: ReturnType<typeof postgres>) {
   await openSyntheticSchoolV1(sql as unknown as StudentPortalPostgresSqlV1);
-  // The runtime now declares V2 capability, but legacy composition tests deliberately
-  // retain enabled=false. The separate atomic suite proves the activated HTTP path.
+  // Scoped V2 is the only publisher; the fixture is activated below, as in production.
   const migration = await sql.unsafe("SELECT to_regclass('student_portal.publication_control_v2') IS NOT NULL AS installed");
   if (migration[0]!.installed !== true) {
     for (const file of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
@@ -52,6 +51,12 @@ export async function installIntegrationFixtureV1(sql: ReturnType<typeof postgre
         .replaceAll('SYNTHETIC ACADEMIC OTHER', prefix + ' OTHER'),
     ),
   );
+  // Like a real import: the recorded change prepares the edition an administrator can release.
+  await sql.unsafe(
+    "SELECT * FROM student_portal.record_gradebook_change_v1(gen_random_uuid(),2026::smallint,'marks',true,ARRAY[$1::integer,$2::integer],statement_timestamp())",
+    [base + 1, base + 2],
+  );
+  await sql.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
   return {
     classId,
     emptyClassId: base + 2,
