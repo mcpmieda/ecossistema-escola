@@ -75,6 +75,8 @@ describe('final preview and confirmed photo save', () => {
     expect(f.repository.claim).not.toHaveBeenCalled(); expect(f.storage).not.toHaveBeenCalled();
     expect(preview.images.portrait).not.toEqual(initial.portrait);
     expect(await f.service.save(context, command, preview.approval, f.inputs, signal())).toMatchObject({ state: 'committed', cleanupPending: false });
+    const savedPlan: PhotoWritePlanV1 = f.repository.claim.mock.calls[0]![2];
+    expect(savedPlan).toEqual(preview.approval.output);
     expect(f.sent).toEqual([{ variant: 'portrait', bytes: preview.images.portrait }, { variant: 'avatar', bytes: preview.images.avatar }]);
     expect(f.originalInputs).toEqual([initial.portrait, initial.avatar, initial.portrait, initial.avatar]);
     expect(f.inputs).toEqual(initial);
