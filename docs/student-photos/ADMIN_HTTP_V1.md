@@ -1,9 +1,10 @@
 # Fronteira HTTP administrativa de fotos — #1119
 
-Complementa a composição #1126. O handler e o cliente são implementados e
-verificáveis isoladamente; **não estão montados em rotas produtivas** enquanto
-faltarem codec no pacote oficial, configuração/permissões Graph, adoção do
-acervo e os gates da integração. Não fornecer serviços falsos para ligar a UI.
+Complementa a composição #1126, integrada à main. O handler e o cliente são
+implementados e verificáveis isoladamente; **não estão montados em rotas
+produtivas** enquanto faltarem codec no pacote oficial, configuração/permissões
+Graph, adoção do acervo e os gates da integração. Não fornecer serviços falsos
+para ligar a UI.
 
 ## Contrato
 
@@ -15,13 +16,29 @@ e duas variantes limitadas codificadas em base64. A referência usa um ano
 explícito; nomes e contexto de autoridade fornecido pelo cliente são rejeitados.
 
 Principal até 128 KiB, avatar até 64 KiB, corpo JSON até 288 KiB. Base64 é apenas
-a representação de transporte, não o formato de armazenamento. O limite de
-leitura é aplicado aos bytes reais com ou sem Content-Length; divergência do
-comprimento, corpo comprimido, UTF-8 inválido e JSON inválido são rejeitados.
-Prazo absoluto de leitura: 10 segundos, sem renovação a cada chunk. Cancelar a
-leitura não fica esperando um cancel() travado. Não se afirma que isso mede ou
-limita a CPU síncrona do codec. Strings internas/runtime não podem ser apagadas
-com a mesma garantia que os arrays descartáveis sob controle da aplicação.
+a representação de transporte, não o formato de armazenamento. Na entrada ADM,
+o limite de leitura é aplicado aos bytes reais com ou sem Content-Length;
+divergência do comprimento, corpo comprimido, UTF-8 inválido e JSON inválido são
+rejeitados. Prazo absoluto de leitura: 10 segundos, sem renovação por chunk.
+Cancelar a leitura não espera um cancel() travado. Não se afirma que isso mede
+ou limita a CPU síncrona do codec. Strings internas/runtime não podem ser
+apagadas com a mesma garantia que os arrays descartáveis sob controle do código.
+
+### Respostas compactadas do servidor
+
+Fetch descompacta o corpo de respostas HTTP, mas pode conservar Content-Encoding
+e Content-Length referentes à representação comprimida. O cliente copia os
+headers apenas para a leitura local e, nesse caso, descarta esses dois valores:
+o leitor continua impondo o MESMO teto aos bytes efetivamente descompactados.
+Não muda os headers enviados pelo servidor nem aceita uploads comprimidos.
+Não usar essa adaptação de resposta em requisições de entrada ou transportes
+HTTP que entreguem bytes ainda comprimidos.
+
+O caso foi reproduzido com fetch nativo/servidor loopback no container: 70 bytes
+comprimidos no cabeçalho e 681 bytes de corpo decodificado. Há regressões reais
+com gzip/Brotli locais e uma resposta decodificada infinita/excessiva, sem
+consulta externa ou imagens de pessoas. Referência normativa:
+https://fetch.spec.whatwg.org/#http-network-fetch (tratamento de content codings).
 
 ## Autorização e confirmação
 
@@ -43,8 +60,13 @@ real. Ele não substitui a guarda transacional da #1126.
 Prévia não grava nada. Retorna apenas as imagens finais verificadas, manifesto
 e identificador técnico de rastreio. Hash/tamanho/dimensões são conferidos no
 transporte; decodificação de pixels continua sendo responsabilidade do codec.
-Arrays intermediários e de retorno são limpos depois da serialização ou em
-falhas. Cliente descarta prévias e URLs temporárias ao trocar aluno/cancelar.
+O cliente exige a qualidade escolhida e a correspondência da origem com os
+bytes congelados da requisição, além da integridade da imagem final. Não aceita
+revisão confirmada que não corresponda à operação solicitada.
+Arrays intermediários e de retorno do handler são limpos depois da serialização
+ou em falhas. O chamador do cliente recebe a propriedade das imagens de prévia
+e deve descartar os arrays/URLs ao trocar aluno/cancelar; não há montagem da UI
+nesta entrega nem promessa de limpeza de rascunhos ainda não integrados.
 
 Save devolve `committed` ou `pending` sem paths/ETags/credenciais do SharePoint.
 Perda de permissão depois de um commit não transforma um resultado confirmado
@@ -60,8 +82,10 @@ Testes da fronteira usam sessões seladas reais e resolvedor/serviço sintético
 autorização antes do corpo, expiração durante leitura, troca de identidade/ator,
 origem/ambiente/CSRF, limites reais, limpeza, erros sanitizados e envelopes.
 Testes do leitor cobrem stream infinito, timeout, cancelamento travado e tamanho
-falso. Testes do cliente cobrem prévia verificada, protocolo de save/pending,
-falhas sem retry e cancelamento. Não comprovam acesso ao tenant ou ao acervo.
+falso. Testes do cliente cobrem origem/qualidade/saída, confirmação/pending,
+compressão de respostas, falhas sem retry e cancelamento. Não comprovam acesso
+ao tenant ou ao acervo. Execução/SHAs/resultados são registrados na issue/PR;
+teste escrito não é alegação de teste aprovado.
 
 Esta entrega não aplica migrations, provisiona recursos, concede permissões,
 monta o lápis, publica imagens reais ou presume autorização de responsáveis.
