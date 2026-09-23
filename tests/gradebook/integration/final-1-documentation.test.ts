@@ -29,7 +29,8 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(current).toMatch(/^schema_version: 3$/mu);
     expect(current).toContain('executable_issue: null');
     expect(current).toContain('program_status: completed-functional-program-596');
-    expect(current).toContain('total_table_count: 30');
+    expect(current).toContain('total_table_count: 31');
+    expect(current).toContain('student_identity_table_count: 1');
     expect(current).toContain('materialized_years: [2025, 2026]');
     expect(current).toContain('academic_authority: imported-source');
     expect(current).toContain('part_2_status: technically-complete-release-closed-by-policy');
