@@ -72,7 +72,7 @@ nos caminhos indicados pelo workflow:
 ```sh
 source node_modules/.cache/student-photo-codec-emsdk/emsdk_env.sh
 bash scripts/student-photos/codec-v1/build.sh
-npx wrangler deploy --dry-run --config tests/student-photos/codec-proof/wrangler.jsonc --outdir node_modules/.cache/student-photo-codec-proof
+npx wrangler deploy --dry-run --config tests/student-photos/codec-proof/wrangler.jsonc --outdir "$PWD/node_modules/.cache/student-photo-codec-proof"
 node tests/student-photos/codec-proof/verify.mjs
 ```
 
