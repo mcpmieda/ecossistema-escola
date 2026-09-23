@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -107,13 +107,6 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
   return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
 }
 
-/**
- * `cutout`: an approved background-free portrait standing over the cover art.
- * `arch`: the original 3×4 photo (background included) in an upright arch that tucks under the
- * content sheet like the cutout — no background removal needed.
- */
-export type StudentPortraitVariantV1 = 'cutout' | 'arch';
-
 export function StudentProfileV1({
   profile,
   updatedAt,
@@ -122,7 +115,6 @@ export function StudentProfileV1({
   onLogout,
   loggingOut = false,
   portraitSrc,
-  portraitVariant = 'cutout',
 }: {
   profile: SelfResponseV1['profile'];
   /** Optional projection timestamp; never an invented date or the last BN import. */
@@ -131,10 +123,15 @@ export function StudentProfileV1({
   logo?: ReactNode;
   onLogout?: () => void;
   loggingOut?: boolean;
+  /**
+   * The student's original 3×4 photo (background included, no cutout), shown in the arch.
+   * Must be same-origin (CSP img-src 'self'). Absent or failing to load → no portrait at all.
+   */
   portraitSrc?: string;
-  portraitVariant?: StudentPortraitVariantV1;
 }) {
   const heading = useId();
+  const [failedSrc, setFailedSrc] = useState<string>();
+  const photo = portraitSrc && portraitSrc !== failedSrc ? portraitSrc : undefined;
   const status =
     profile.academicState === 'assisted'
       ? { label: 'ASSISTIDO', color: 'accent' as const }
@@ -144,11 +141,7 @@ export function StudentProfileV1({
   return (
     <header
       className={
-        !portraitSrc
-          ? 'pa-student-hero pa-student-hero--no-portrait'
-          : portraitVariant === 'cutout'
-            ? 'pa-student-hero'
-            : 'pa-student-hero pa-student-hero--framed pa-student-hero--' + portraitVariant
+        photo ? 'pa-student-hero pa-student-hero--arch' : 'pa-student-hero pa-student-hero--no-portrait'
       }
       aria-labelledby={heading}
     >
@@ -210,21 +203,20 @@ export function StudentProfileV1({
             </div>
           </div>
 
-          {/* Only an approved background-free portrait is shown. Without one there is no
-              placeholder: the copy takes the space and the cover artwork stays visible. */}
-          {portraitSrc ? (
-            portraitVariant !== 'cutout' ? (
-              // The original 3×4 photo, background included, framed in a shape from the cover.
-              <div className={'pa-hero-portrait pa-hero-portrait--' + portraitVariant}>
-                <div className="pa-hero-frame">
-                  <img className="pa-hero-frame-photo" src={portraitSrc} alt="" aria-hidden="true" />
-                </div>
+          {/* The original 3×4 photo in an arch taken from the cover geometry. No photo, or one
+              that fails to load, means no portrait and no placeholder: the copy keeps the space. */}
+          {photo ? (
+            <div className="pa-hero-portrait pa-hero-portrait--arch">
+              <div className="pa-hero-frame">
+                <img
+                  className="pa-hero-frame-photo"
+                  src={photo}
+                  alt=""
+                  aria-hidden="true"
+                  onError={() => setFailedSrc(photo)}
+                />
               </div>
-            ) : (
-              <div className="pa-hero-portrait">
-                <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
-              </div>
-            )
+            </div>
           ) : null}
         </div>
       </div>
@@ -332,7 +324,6 @@ export interface StudentPagePropsV1
   onLogin?: () => void;
   showUpdatedAt?: boolean;
   portraitSrc?: string;
-  portraitVariant?: StudentPortraitVariantV1;
 }
 
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
@@ -343,7 +334,6 @@ export function StudentPortalPageV1({
   onLogin,
   showUpdatedAt = false,
   portraitSrc,
-  portraitVariant,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
@@ -391,7 +381,6 @@ export function StudentPortalPageV1({
         onLogout={shell.onLogout}
         loggingOut={shell.loggingOut}
         portraitSrc={portraitSrc}
-        portraitVariant={portraitVariant}
       />
     ) : undefined;
 

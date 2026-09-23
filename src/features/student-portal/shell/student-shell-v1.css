@@ -304,22 +304,6 @@
   align-self: stretch;
   place-items: end center;
 }
-.pa-hero-photo {
-  position: relative;
-  z-index: 2;
-  display: block;
-  width: min(24rem, 100%);
-  height: auto;
-  max-height: 100%;
-  margin: 0;
-  object-fit: contain;
-  object-position: center bottom;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  filter: drop-shadow(0 18px 24px rgb(1 26 69 / 0.26));
-}
 .pa-shell-content {
   max-width: 80rem;
   margin-inline: auto;
@@ -526,18 +510,6 @@
     place-items: end center;
     pointer-events: none;
   }
-  /* Sized by height so any aspect (3×4 ID photo or square) keeps the head below the top bar
-     and the shoulders above the sheet; width follows the photo. */
-  .pa-hero-photo {
-    width: auto;
-    height: 13.4rem;
-    max-width: 100%;
-    max-height: none;
-    object-fit: contain;
-    object-position: center bottom;
-    transform: none;
-    transform-origin: center bottom;
-  }
   .pa-shell--with-hero .pa-shell-content {
     width: calc(100% - 0.45rem);
     margin-top: -2.15rem;
@@ -612,14 +584,6 @@
     place-items: end center;
     pointer-events: none;
   }
-  .pa-hero-photo {
-    width: auto;
-    height: 18.5rem;
-    max-width: 100%;
-    max-height: none;
-    object-fit: contain;
-    object-position: center bottom;
-  }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 1rem), 68rem);
     margin-top: -2.55rem;
@@ -693,14 +657,6 @@
     place-items: end center;
     pointer-events: none;
   }
-  .pa-hero-photo {
-    width: auto;
-    height: 19.5rem;
-    max-width: 100%;
-    max-height: none;
-    object-fit: contain;
-    object-position: center bottom;
-  }
   .pa-shell--with-hero .pa-shell-content {
     width: min(calc(100% - 2rem), 72rem);
     margin-top: -2.85rem;
@@ -711,9 +667,6 @@
 /* Hero entrance, once per mount: the copy rises, then the portrait settles onto the glass. */
 .pa-hero-copy {
   animation: pa-hero-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.pa-hero-photo {
-  animation: pa-hero-portrait-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) 90ms both;
 }
 @keyframes pa-hero-rise {
   from {
@@ -739,9 +692,6 @@
   .pa-page-skeleton .skeleton,
   .pa-page-skeleton .skeleton::after,
   .pa-hero-copy,
-  .pa-hero-photo {
-    animation: none;
-  }
 }
 
 /* Arch portrait: the original 3×4 photo (background included) in an upright arch whose round
