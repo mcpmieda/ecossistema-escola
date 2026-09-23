@@ -1,15 +1,16 @@
-# Fotos — ledger separado da entrega privada
+# Fotos — ledger privado
 
 | Arquivo | Estado produtivo | Dependência |
 | --- | --- | --- |
 | `0001_private_delivery_v1.sql` | **Candidato; não aplicado** | Identidade `student-portal/0018`, já aplicada como `20260922212633` |
+| `0002_write_journal_v1.sql` | **Candidato; não aplicado** | Fotos 0001 |
 
-O schema privado `student_photos` pertence ao recurso transversal de fotos, não à matrícula anual nem às credenciais. A primeira tabela mantém apenas a cópia de entrega 3×4 com fundo, até 128 KiB. Não move originais do SharePoint, altera `profile_photo`, publica o acervo ou concede escrita ao runtime.
+A primeira migration mantém a cópia limitada de entrega 3x4 com fundo. A segunda acrescenta referências vigentes, reserva por pessoa, recibos idempotentes, auditoria privada e revogação automática da cópia antiga quando a principal muda. Nenhuma migra o acervo, renomeia arquivos, modifica profile_photo ou presume autorização de imagem.
 
-Aplicação somente após testes PostgreSQL, revisão, pré-flight e decisão operacional de ativação. Verificar que o schema não existe antes de aplicar; não usar `IF NOT EXISTS` para aceitar uma estrutura diferente silenciosamente. Não reaplicar a migration 0018.
+0001 concede somente leitura filtrada ao Portal. 0002 concede ao backend administrativo acesso limitado ao estado/recibos e auditoria append-only. Não concede publicação, aprovação ou escrita direta na cópia do Portal. Seu trigger SECURITY DEFINER só revoga; não existe RPC público de publicação.
 
-`PORTAL_PHOTOS_ENABLED` permanece ausente/desativado. A existência desta migration no Git não é evidência de aplicação, aprovação de imagem ou implementação do editor/publisher.
+Aplicar em ordem somente depois de testes/revisão, pré-flight e autorização operacional. Verificar a baseline exata, sem IF NOT EXISTS para aceitar outra estrutura. **Não reaplicar a 0018.** PORTAL_PHOTOS_ENABLED continua ausente/desativado; a existência do SQL em Git não é prova de aplicação.
 
-A autorização é confirmação institucional de evidência mantida pela escola. A referência é privada; não anexar documentos, nomes ou fotos a issues, testes ou commits. O publicador futuro deve validar/decodificar/reencodar uploads, conferir autorização, revisão esperada e resultado SharePoint antes de gravar. Hash/magic bytes na entrega não substituem um decodificador de uploads.
+O escritor e coordenador internos estão em `server/student-photos/write-*.ts`; protocolo e testes em `docs/student-photos/WRITE_PROTOCOL_V1.md`. Nenhum endpoint/codec produtivo de upload está conectado nesta entrega. Cabeçalho/hash ou conversão no browser não substituem o decoder/reencoder real no servidor.
 
-Revogação requer retirar bytes (`image_webp=NULL`) e registrar `revoked_at`; o serviço de escrita, limpeza SharePoint e auditoria ainda pertencem à próxima entrega. A fundação não oferece atalhos manuais de publicação em produção.
+A escola mantém a evidência de autorização de imagem, sem anexar documentos ou dados reais ao Git. Ativação exige integração do acervo, codec comprovado, permissões Graph efetivas, recuperação e exclusão, autorização institucional e aceite. Restore deve reconciliar reservas/recibos com SharePoint antes de reabrir escrita; não reexecutar limpeza antiga automaticamente.
