@@ -100,9 +100,10 @@ export function StudentPortalShellV1({
 
 /**
  * `cutout`: an approved background-free portrait standing over the cover art.
- * `card`: the original 3×4 photo (with its background) framed as a card — no cutout needed.
+ * `arch` / `orb`: the original 3×4 photo (background included) framed in a shape — no cutout
+ * needed. Arch tucks under the content sheet like the cutout; orb is always whole.
  */
-export type StudentPortraitVariantV1 = 'cutout' | 'card';
+export type StudentPortraitVariantV1 = 'cutout' | 'arch' | 'orb';
 
 export function StudentProfileV1({
   profile,
@@ -136,9 +137,9 @@ export function StudentProfileV1({
       className={
         !portraitSrc
           ? 'pa-student-hero pa-student-hero--no-portrait'
-          : portraitVariant === 'card'
-            ? 'pa-student-hero pa-student-hero--card'
-            : 'pa-student-hero'
+          : portraitVariant === 'cutout'
+            ? 'pa-student-hero'
+            : 'pa-student-hero pa-student-hero--framed pa-student-hero--' + portraitVariant
       }
       aria-labelledby={heading}
     >
@@ -207,11 +208,11 @@ export function StudentProfileV1({
           {/* Only an approved background-free portrait is shown. Without one there is no
               placeholder: the copy takes the space and the cover artwork stays visible. */}
           {portraitSrc ? (
-            portraitVariant === 'card' ? (
-              // The original 3×4 photo, background included, framed as a glass ID card.
-              <div className="pa-hero-portrait pa-hero-portrait--card">
-                <div className="pa-hero-card">
-                  <img className="pa-hero-card-photo" src={portraitSrc} alt="" aria-hidden="true" />
+            portraitVariant !== 'cutout' ? (
+              // The original 3×4 photo, background included, framed in a shape from the cover.
+              <div className={'pa-hero-portrait pa-hero-portrait--' + portraitVariant}>
+                <div className="pa-hero-frame">
+                  <img className="pa-hero-frame-photo" src={portraitSrc} alt="" aria-hidden="true" />
                 </div>
               </div>
             ) : (

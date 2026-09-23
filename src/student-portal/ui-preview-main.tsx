@@ -235,7 +235,7 @@ interface AdminSimulationV1 {
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
   hasPortrait: boolean;
-  portraitStyle: 'cutout' | 'card';
+  portraitStyle: 'cutout' | 'arch' | 'orb';
   situation: AnnualSituationV1 | 'none';
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
@@ -374,7 +374,8 @@ function AdminSimulatorPanelV1({
           }
         >
           <option value="cutout">Recortada (sem fundo)</option>
-          <option value="card">Cartão (foto 3×4 original)</option>
+          <option value="arch">Arco (foto 3×4 original)</option>
+          <option value="orb">Círculo (foto 3×4 original)</option>
         </select>
       </div>
       <div style={rowStyle}>
@@ -427,7 +428,7 @@ function PreviewAppV1() {
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: false,
-    portraitStyle: 'card',
+    portraitStyle: 'arch',
     situation: 'none',
   });
   const data = useMemo(() => simulateAdminV1(previewData, admin), [admin]);

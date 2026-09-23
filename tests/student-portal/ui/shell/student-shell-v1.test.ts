@@ -96,18 +96,18 @@ describe('student shell and canonical profile', () => {
     expect(document.querySelector('img')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
   });
-  it('frames the original photo as a card or shows the cutout, never both', () => {
+  it('frames the original photo in a shape or shows the cutout, never both', () => {
     const profile = SYNTHETIC_SELF_V1.profile;
     const view = render(
-      createElement(StudentProfileV1, { profile, portraitSrc: 'data:image/webp;base64,AA==', portraitVariant: 'card' }),
+      createElement(StudentProfileV1, { profile, portraitSrc: 'data:image/webp;base64,AA==', portraitVariant: 'arch' }),
     );
-    expect(document.querySelector('.pa-student-hero--card')).not.toBeNull();
-    expect(document.querySelector('.pa-hero-card-photo')).not.toBeNull();
+    expect(document.querySelector('.pa-student-hero--arch')).not.toBeNull();
+    expect(document.querySelector('.pa-hero-frame-photo')).not.toBeNull();
     expect(document.querySelector('.pa-hero-photo')).toBeNull();
     view.unmount();
     render(createElement(StudentProfileV1, { profile, portraitSrc: 'data:image/webp;base64,AA==' }));
     expect(document.querySelector('.pa-hero-photo')).not.toBeNull();
-    expect(document.querySelector('.pa-hero-card')).toBeNull();
+    expect(document.querySelector('.pa-hero-frame')).toBeNull();
   });
   it('exposes an optional real projection timestamp with an explicit school timezone', () => {
     render(page({ showUpdatedAt: true }));
