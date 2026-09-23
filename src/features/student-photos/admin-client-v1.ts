@@ -8,6 +8,7 @@ import type { PhotoPreviewApprovalV1, PhotoQualitiesV1 } from '../../../shared/s
 export class PhotoAdminClientErrorV1 extends Error {
   constructor(readonly code: PhotoAdminFailureStateV1 | 'transport') { super(`student-photo-client-${code}`); }
 }
+/** Same-origin client with bounded responses and explicit, caller-controlled confirmation/retry. */
 export function createPhotoAdminClientV1(fetcher: typeof fetch = fetch) {
   async function send(path: string, body: unknown, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -39,20 +40,29 @@ export function createPhotoAdminClientV1(fetcher: typeof fetch = fetch) {
       source: PhotoByteImagesV1, signal: AbortSignal) {
       const input = photoAdminPreviewRequestV1.parse({ version: 1, subject, command, qualities, images: encodePhotoBytesV1(source) });
       const result = await send(PHOTO_ADMIN_PATHS_V1.preview, input, signal);
-      if (result.state !== 'preview' || !sameCommand(result.approval.command, input.command))
+      if (result.state !== 'preview' || !sameCommand(result.approval.command, input.command)
+        || result.approval.qualities.portrait !== input.qualities.portrait
+        || result.approval.qualities.avatar !== input.qualities.avatar)
         throw new PhotoAdminClientErrorV1('unavailable');
-      const images = decodePhotoBytesV1(result.images);
+      const images: PhotoByteImagesV1 = { portrait: null, avatar: null };
+      const frozenSource = decodePhotoBytesV1(input.images);
       try {
+        // Bind the returned approval to the exact original bytes serialized for this call.
+        // Reuse the transport check against source metadata; this does not replace the codec.
+        await assertPhotoPreviewBytesV1({ ...result.approval, output: result.approval.source }, frozenSource);
+        Object.assign(images, decodePhotoBytesV1(result.images));
         await assertPhotoPreviewBytesV1(result.approval, images);
         signal.throwIfAborted();
         return { approval: result.approval, images }; // Caller clears on cancel/student change.
       } catch (error) { clearPhotoBytesV1(images); throw error; }
+      finally { clearPhotoBytesV1(frozenSource); }
     },
     async save(subject: PhotoAdminSubjectV1, command: PhotoWriteCommandV1, approval: PhotoPreviewApprovalV1 | null,
       source: PhotoByteImagesV1, signal: AbortSignal) {
       const input = photoAdminSaveRequestV1.parse({ version: 1, subject, command, approval, images: encodePhotoBytesV1(source) });
       const result = await send(PHOTO_ADMIN_PATHS_V1.save, input, signal);
-      if (result.state === 'preview' || result.requestId !== input.command.requestId)
+      if (result.state === 'preview' || result.requestId !== input.command.requestId
+        || (result.state === 'committed' && result.revision !== input.command.requestId))
         throw new PhotoAdminClientErrorV1('unavailable');
       return result;
     },
