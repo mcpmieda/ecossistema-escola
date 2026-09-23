@@ -44,7 +44,7 @@ export function verifyPhotoCodecArtifactV1({ directory, root, tree, head, base }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const root = process.cwd();
-  const tree = process.env.FINAL_TREE_SHA || execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+  const tree = process.env.FINAL_TREE_SHA || execFileSync('/usr/bin/git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
   const result = verifyPhotoCodecArtifactV1({ root, directory: resolve(root, 'node_modules/.cache/student-photo-codec-v1'),
     tree, head: process.env.PR_HEAD_SHA, base: process.env.PR_BASE_SHA });
   console.log(JSON.stringify({ state: 'verified', ...result }));

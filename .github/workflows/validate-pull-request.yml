@@ -88,7 +88,7 @@ jobs:
         run: npm run verify
 
       - name: Bundle administrative Pages Functions with the actual codec
-        run: npx wrangler pages functions build --outdir node_modules/.cache/photo-pages-build --compatibility-date 2026-08-24 --compatibility-flags nodejs_compat
+        run: ./node_modules/.bin/wrangler pages functions build --outdir node_modules/.cache/photo-pages-build --compatibility-date 2026-08-24 --compatibility-flags nodejs_compat
 
       - name: Stage exact validated production inputs
         if: github.event_name == 'pull_request'
