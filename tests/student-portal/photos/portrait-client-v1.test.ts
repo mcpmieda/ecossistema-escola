@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createPortraitClientV1 } from '../../../src/features/student-portal/photos/portrait-client-v1';
+import { portraitMetadataV1 } from '../../../shared/student-photos/portrait-v1';
 import { photoAccountV1, otherPhotoAccountV1, photoMetadataFixtureV1 as metadata,
   syntheticWebpV1 } from './fixture-v1';
 
@@ -9,16 +10,42 @@ const signal = () => new AbortController().signal;
 const src = 'blob:https://aluno.escolaieda.com/synthetic-photo';
 afterEach(() => vi.useRealTimers());
 
+it('preserves the synthetic metadata and binary fixture through the same platform stream and decoding primitives', async () => {
+  const cancellation = signal(); cancellation.throwIfAborted();
+  for (const response of [json(), image()]) {
+    const reader = response.body!.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      cancellation.throwIfAborted();
+      const part = await reader.read();
+      if (part.done) break;
+      chunks.push(part.value); size += part.value.byteLength;
+    }
+    await reader.cancel(); reader.releaseLock();
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    if (response.headers.get('content-type') === 'application/json') {
+      expect(portraitMetadataV1.parse(JSON.parse(new TextDecoder().decode(bytes)))).toEqual(metadata);
+    } else {
+      expect(bytes).toEqual(syntheticWebpV1());
+      expect(new Blob([new Uint8Array(bytes).buffer], { type: 'image/webp' }).size).toBe(syntheticWebpV1().byteLength);
+    }
+  }
+});
+
 it('uses only two own-origin bounded reads and one disposable object, never source URLs or credentials', async () => {
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json()).mockResolvedValueOnce(image());
   const create = vi.fn<(blob: Blob) => string>().mockReturnValue(src), revoke = vi.fn(), decode = vi.fn(async () => true);
   const load = createPortraitClientV1({ fetch: send, createObjectURL: create, revokeObjectURL: revoke, decode });
   const result = await load(photoAccountV1, signal());
-  expect(result?.src).toBe(src);
   expect(send.mock.calls.map(call => call[0])).toEqual(['/api/student/photo', '/api/student/photo/content?v=' + metadata.revision]);
-  for (const [, init] of send.mock.calls) expect(init).toMatchObject({ credentials: 'same-origin', redirect: 'error', cache: 'no-store', method: 'GET' });
   expect(create).toHaveBeenCalledTimes(1); expect(create.mock.calls[0]?.[0]).toBeInstanceOf(Blob);
-  expect(decode).toHaveBeenCalledTimes(1); expect(revoke).not.toHaveBeenCalled();
+  expect(decode).toHaveBeenCalledTimes(1);
+  expect(result?.src).toBe(src);
+  for (const [, init] of send.mock.calls) expect(init).toMatchObject({ credentials: 'same-origin', redirect: 'error', cache: 'no-store', method: 'GET' });
+  expect(revoke).not.toHaveBeenCalled();
   result?.dispose(); result?.dispose(); expect(revoke).toHaveBeenCalledTimes(1);
 });
 
@@ -50,9 +77,11 @@ it('rejects an oversized stream even without Content-Length and rejects an unexp
 
 it('removes a corrupt or dimension-mismatched image before returning portraitSrc', async () => {
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json()).mockResolvedValueOnce(image());
-  const revoke = vi.fn();
-  const client = createPortraitClientV1({ fetch: send, createObjectURL: () => src, revokeObjectURL: revoke, decode: async () => false });
-  expect(await client(photoAccountV1, signal())).toBeUndefined(); expect(revoke).toHaveBeenCalledWith(src);
+  const create = vi.fn<(blob: Blob) => string>().mockReturnValue(src), revoke = vi.fn();
+  const client = createPortraitClientV1({ fetch: send, createObjectURL: create, revokeObjectURL: revoke, decode: async () => false });
+  expect(await client(photoAccountV1, signal())).toBeUndefined();
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(revoke).toHaveBeenCalledWith(src);
 });
 
 it('aborts a pending request at the deadline instead of retrying or holding the notes screen', async () => {
