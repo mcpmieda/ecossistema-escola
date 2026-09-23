@@ -195,10 +195,22 @@
   box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
 }
 
+/* Stronger blue header for marks at/above the minimum, matching the amber one; text darkened
+   with it (WCAG AA on the darkest stop): mark #1e40af 6.1:1, maximum #3b4f7d 5.7:1, chip 8.7:1. */
+.pa-score-card--positive {
+  --pa-score-accent: #1e40af;
+  --pa-score-surface: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  --pa-score-border: #93c5fd;
+  --pa-score-maximum: #3b4f7d;
+}
+
+/* Stronger amber header; text darkened with it (WCAG AA ≥ 4.5:1 on the darkest stop):
+   mark #92400e 5.2:1, maximum #7a4b12 5.4:1, status chip on white 7.1:1. */
 .pa-score-card--negative {
-  --pa-score-accent: #b45309;
-  --pa-score-surface: #fffbeb;
-  --pa-score-border: #fde9b8;
+  --pa-score-accent: #92400e;
+  --pa-score-surface: linear-gradient(135deg, #fde9b5 0%, #fbd88c 100%);
+  --pa-score-border: #f3c566;
+  --pa-score-maximum: #7a4b12;
 }
 
 .pa-score-card--neutral {
@@ -234,28 +246,84 @@
 
 /* Compact rows with hairline dividers; the maximum is secondary to the mark. */
 .pa-partials-list {
-  gap: 0;
+  display: grid;
+  margin: 0;
   padding: 0;
+  list-style: none;
 }
 
-.pa-partials-list > [role='option'] {
-  min-height: 0;
+.pa-partials-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
   padding: 0.6rem 0.1rem;
-  border-radius: 0;
   border-bottom: 1px solid #edf1f7;
 }
 
-.pa-partials-list > [role='option']:last-child {
+.pa-partials-list > li:last-child {
   border-bottom: 0;
 }
 
-.pa-partials-list > [role='option']:hover {
-  background: transparent;
+/* Leading status (see PartialStatusV1). An empty slot keeps descriptions aligned; top-aligned
+   so it sits on the first line of a wrapped description. */
+.pa-partial-status {
+  display: inline-grid;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: 0.02rem;
+  place-items: center;
+  border-radius: 999px;
 }
 
-.pa-partials-list label {
+.pa-partial-status--met {
+  background: #dbeafe;
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px rgb(29 78 216 / 0.18);
+}
+
+.pa-partial-status--attention {
+  border-radius: 0.4rem;
+  background: #fef3c7;
+  color: #b45309;
+  box-shadow: inset 0 0 0 1px rgb(180 83 9 / 0.22);
+}
+
+/* Two lines by default; "Ver tudo" reveals the rest (see PartialLabelV1). */
+.pa-partial-label {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--foreground);
   font-size: 0.84rem;
   line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pa-partial-label.is-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.pa-partial-more {
+  margin-top: 0.15rem;
+  padding: 0.1rem 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pa-partial-more:focus-visible {
+  border-radius: 0.3rem;
+  outline: 2px solid var(--focus, #2563eb);
+  outline-offset: 2px;
 }
 
 .pa-partials-list strong {
@@ -266,7 +334,6 @@
   font-size: 0.72rem;
   font-weight: 500;
 }
-
 .pa-score-card-empty {
   margin: 0;
   color: #94a3b8;
@@ -436,20 +503,25 @@
   border-radius: 0.6rem;
 }
 
+/* White badge so it stands out on the tinted (blue/amber) card headers. */
 .pa-trend--higher {
-  background: linear-gradient(145deg, #e0ecff, #cfe0ff);
+  background: white;
   color: #1d4ed8;
-  box-shadow: inset 0 0 0 1px rgb(29 78 216 / 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgb(29 78 216 / 0.22),
+    0 3px 8px -4px rgb(29 78 216 / 0.45);
 }
 
 .pa-trend--lower {
-  background: linear-gradient(145deg, #fee4e2, #fdd3cf);
+  background: white;
   color: #d92d20;
-  box-shadow: inset 0 0 0 1px rgb(217 45 32 / 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgb(217 45 32 / 0.24),
+    0 3px 8px -4px rgb(217 45 32 / 0.45);
 }
 
 .pa-trend--equal {
-  background: #eef2f6;
+  background: white;
   color: #64748b;
   box-shadow: inset 0 0 0 1px rgb(100 116 139 / 0.14);
 }
@@ -463,7 +535,7 @@
 }
 
 .pa-score-card-value > span:not(.pa-trend) {
-  color: #64748b;
+  color: var(--pa-score-maximum, #64748b);
   font-size: 0.78rem;
   font-weight: 600;
 }
