@@ -1,10 +1,12 @@
 // Synthetic local test entrypoint only. Never mount this handler in the application.
 import wasm from '../../../node_modules/.cache/student-photo-codec-v1/codec.wasm';
 import { StudentWebpCodecV1, WebpCodecErrorV1, type WebpPhotoQualityV1, type WebpPhotoVariantV1 } from '../../../server/student-photos/webp-codec-v1';
+import { provePhotoEditV1 } from './edit-proof';
 const codec = new StudentWebpCodecV1(wasm);
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/edit-proof') return provePhotoEditV1(codec, request);
     try {
       const input = new Uint8Array(await request.arrayBuffer());
       const result = await codec.normalize(input, url.searchParams.get('variant') as WebpPhotoVariantV1,
