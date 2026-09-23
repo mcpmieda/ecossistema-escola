@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { readPublishedPortraitV1 } from '../../../server/student-portal/photos/read-v1';
+import type { StudentPortalPostgresQueryV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { photoUidV1, otherPhotoUidV1, photoAccountV1, otherPhotoAccountV1, photoRevisionFixtureV1,
   otherPhotoRevisionV1, photoSourceV1, photoActorV1, syntheticPhotoHashV1, syntheticWebpV1 } from '../photos/fixture-v1';
 
@@ -13,8 +14,9 @@ const cluster = postgres(target.toString(), { max: 1, onnotice: () => undefined 
 const name = 'portal1119_' + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
 let created = false;
 let db: ReturnType<typeof postgres> | undefined;
-const adapter = (connection: Pick<ReturnType<typeof postgres>, 'unsafe'>) => ({
-  unsafe: (text: string, parameters: readonly unknown[] = []) => connection.unsafe(text, [...parameters] as never[], { prepare: false }),
+const adapter = (connection: Pick<ReturnType<typeof postgres>, 'unsafe'>): StudentPortalPostgresQueryV1 => ({
+  unsafe: <Row extends Record<string, unknown>>(text: string, parameters: readonly unknown[] = []) =>
+    connection.unsafe<Row[]>(text, [...parameters] as never[], { prepare: false }),
 });
 const native = () => { if (!db) throw new Error('photo-test-not-ready'); return db; };
 const exec = (text: string) => native().unsafe(text, [], { prepare: false });

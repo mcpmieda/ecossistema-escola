@@ -7,6 +7,7 @@ import { photoAccountV1, otherPhotoAccountV1 } from './fixture-v1';
 
 const first: PortraitScopeV1 = { requestId: '60000000-0000-4000-8000-000000000001', profile: { accountId: photoAccountV1 } };
 const second: PortraitScopeV1 = { requestId: '60000000-0000-4000-8000-000000000002', profile: { accountId: otherPhotoAccountV1 } };
+const initialProps: { scope: PortraitScopeV1 | null } = { scope: first };
 const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
 const photo = (label: string): PortraitObjectV1 => ({ src: 'blob:https://aluno.escolaieda.com/synthetic-' + label, dispose: vi.fn() });
 afterEach(cleanup);
@@ -15,7 +16,7 @@ it('loads once under StrictMode and does not reload on focus, visibility or same
   const image = photo('first');
   const client = vi.fn<PortraitClientV1>().mockResolvedValue(image);
   const hook = renderHook(({ scope }: { scope: PortraitScopeV1 | null }) => useStudentPortraitV1(scope, client),
-    { initialProps: { scope: first }, wrapper });
+    { initialProps, wrapper });
   await waitFor(() => expect(hook.result.current).toBe(image.src));
   expect(client).toHaveBeenCalledTimes(1);
   act(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
@@ -31,7 +32,7 @@ it('immediately hides the old photo on account change and discards a late respon
     signals.push(signal); return new Promise(resolve => pending.push(resolve));
   });
   const hook = renderHook(({ scope }: { scope: PortraitScopeV1 | null }) => useStudentPortraitV1(scope, client),
-    { initialProps: { scope: first }, wrapper });
+    { initialProps, wrapper });
   await waitFor(() => expect(client).toHaveBeenCalledTimes(1));
   hook.rerender({ scope: second });
   expect(hook.result.current).toBeUndefined(); expect(signals[0]!.aborted).toBe(true);
@@ -47,7 +48,7 @@ it('clears a loaded image on logout and never reuses its revoked object after re
   const image = photo('first');
   const client = vi.fn<PortraitClientV1>().mockResolvedValueOnce(image).mockResolvedValue(undefined);
   const hook = renderHook(({ scope }: { scope: PortraitScopeV1 | null }) => useStudentPortraitV1(scope, client),
-    { initialProps: { scope: first }, wrapper });
+    { initialProps, wrapper });
   await waitFor(() => expect(hook.result.current).toBe(image.src));
   hook.rerender({ scope: null });
   expect(hook.result.current).toBeUndefined(); expect(image.dispose).toHaveBeenCalledTimes(1);
@@ -60,7 +61,7 @@ it('clears a loaded image on logout and never reuses its revoked object after re
 it('contains reader rejection and cleanup failures, without making the containing screen fail', async () => {
   const client = vi.fn<PortraitClientV1>().mockRejectedValueOnce(new Error('synthetic-photo-outage'));
   const hook = renderHook(({ scope }: { scope: PortraitScopeV1 | null }) => useStudentPortraitV1(scope, client),
-    { initialProps: { scope: first }, wrapper });
+    { initialProps, wrapper });
   await waitFor(() => expect(client).toHaveBeenCalledTimes(1));
   expect(hook.result.current).toBeUndefined();
   client.mockResolvedValue({ src: 'blob:https://aluno.escolaieda.com/synthetic-next', dispose: () => { throw new Error('synthetic-dispose'); } });
