@@ -1,5 +1,13 @@
 # Identidade compartilhada do aluno — #1114
 
+## Estado de produção
+
+A migration 0018 foi aplicada e verificada em produção, versão registrada
+`20260922212633`. Evidências de preservação, catálogo e segurança estão em
+[POSTFLIGHT_1114.md](POSTFLIGHT_1114.md) e no Avanço 17 da issue #1114.
+Não reaplicar a migração. Integração/publicação do código são verificações
+separadas, registradas na issue e na PR #1115.
+
 ## Contrato e limites
 
 `studentUid` é o UUID imutável da pessoa, compartilhado entre Banco de Notas,
@@ -20,7 +28,8 @@ armazenar esses valores e a migração não deve torná-los ilegíveis no contra
 Esta entrega prepara a identidade; não implementa editor, leitura HTTP de fotos,
 remoção de fundo, novo fluxo de matrícula ou redesign. Não modifica os DTOs
 acadêmicos antigos nem cria endpoint público ou novas permissões de pessoas.
-A branch incorpora a main publicada pela PR #1116; a capa pronta não é refeita.
+A branch incorpora a main publicada pela PR #1116 e as correções posteriores
+até #1118; a capa pronta não é refeita.
 
 ## Persistência
 
@@ -95,7 +104,10 @@ a conta, sem renomear os arquivos existentes no SharePoint.
 
 O arquivo no Git **não comprova aplicação em produção**. A issue #1114 separa
 código, testes, revisão, integração, publicação, autorização/aplicação de schema
-e pós-condições. A migração continua candidata até existir evidência explícita.
+e pós-condições. A aplicação efetiva da 0018 está em
+[POSTFLIGHT_1114.md](POSTFLIGHT_1114.md). O protocolo abaixo foi usado na aplicação
+e permanece referência para restauração em alvo novo, não instrução de replay
+sobre a produção já migrada.
 
 1. Confirmar baseline/ausência da migração e integridade dos vínculos. Registrar
    apenas contagens e checagens sanitizadas, nunca UUIDs, fotos ou sessões reais.
