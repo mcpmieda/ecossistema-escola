@@ -2,19 +2,19 @@ import { Card, Label, Slider } from '@heroui/react';
 import { photoGeometryV1, type CropControlsV1, type PhotoKindV1 } from '../../../shared/student-photos/crop-v1';
 import type { PhotoSourceV1 } from './browser-v1';
 
-function CropSliderV1({ label, value, min = 0, max = 100, step = 1, disabled, onChange }: {
+function CropSliderV1({ label, value, min = 0, max = 100, step = 1, disabled, onChange }: Readonly<{
   label: string; value: number; min?: number; max?: number; step?: number; disabled: boolean; onChange(value: number): void;
-}) {
+}>) {
   return <Slider aria-label={label} value={value} minValue={min} maxValue={max} step={step}
     isDisabled={disabled} onChange={next => { if (typeof next === 'number') onChange(next); }}>
     <Label>{label}</Label><Slider.Output />
     <Slider.Track><Slider.Fill /><Slider.Thumb /></Slider.Track>
   </Slider>;
 }
-export function PhotoCropPanelV1({ source, kind, controls, portraitWidth, disabled, onChange }: {
+export function PhotoCropPanelV1({ source, kind, controls, portraitWidth, disabled, onChange }: Readonly<{
   source: PhotoSourceV1; kind: PhotoKindV1; controls: CropControlsV1; portraitWidth: 600 | 900;
   disabled: boolean; onChange(controls: CropControlsV1): void;
-}) {
+}>) {
   const title = kind === 'portrait' ? 'Foto 3×4' : 'Avatar';
   const geometry = photoGeometryV1(source, controls, kind, portraitWidth), crop = geometry.crop;
   return <Card className="student-photo-crop" aria-label={'Enquadramento: ' + title}>

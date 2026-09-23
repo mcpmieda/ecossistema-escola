@@ -10,5 +10,6 @@
 .student-photo-frame--avatar { aspect-ratio: 1; border-radius: 50%; }
 .student-photo-frame img { position: absolute; max-width: none; user-select: none; pointer-events: none; }
 .student-photo-size { text-align: center; font-size: .8rem; }
-.student-photo-options { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: .75rem; }
+.student-photo-options { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: .75rem; padding: 0; border: 0; min-width: 0; }
+.student-photo-options legend { margin-bottom: .5rem; padding: 0; }
 @media (max-width: 36rem) { .student-photo-grid { grid-template-columns: minmax(0, 1fr); } }

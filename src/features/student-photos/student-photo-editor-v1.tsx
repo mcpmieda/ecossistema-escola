@@ -24,10 +24,10 @@ const errorText = {
 } as const;
 
 /** Mount lazily from an authorized administrative sheet; changing owner destroys the whole draft. */
-export function StudentPhotoEditorV1(props: StudentPhotoEditorPropsV1) {
-  return <PhotoEditorSessionV1 key={props.ownerKey} {...props} />;
+export function StudentPhotoEditorV1({ ownerKey, ...session }: Readonly<StudentPhotoEditorPropsV1>) {
+  return <PhotoEditorSessionV1 key={ownerKey} {...session} />;
 }
-function PhotoEditorSessionV1({ onCancel, onPrepared, media }: StudentPhotoEditorPropsV1) {
+function PhotoEditorSessionV1({ onCancel, onPrepared, media }: Readonly<Omit<StudentPhotoEditorPropsV1, 'ownerKey'>>) {
   const controller = useMemo(() => createPhotoEditorControllerV1(media), [media]);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const inputId = useId();
@@ -44,7 +44,7 @@ function PhotoEditorSessionV1({ onCancel, onPrepared, media }: StudentPhotoEdito
             onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
               if (file) void controller.select(file); }} />
         </div>
-        {busy ? <p role="status">{state.status === 'loading' ? 'Abrindo foto…' : 'Preparando enquadramentos…'}</p> : null}
+        {busy ? <output aria-live="polite">{state.status === 'loading' ? 'Abrindo foto…' : 'Preparando enquadramentos…'}</output> : null}
         {state.error ? <p role="alert">{errorText[state.error]}</p> : null}
         {state.source ? <>
           <div className="student-photo-grid">
@@ -52,18 +52,18 @@ function PhotoEditorSessionV1({ onCancel, onPrepared, media }: StudentPhotoEdito
               controls={state.options[kind]} portraitWidth={state.options.portraitWidth} disabled={busy}
               onChange={controls => controller.change(kind, controls)} />)}
           </div>
-          <div className="student-photo-options" role="group" aria-label="Resolução da foto">
-            <span>Largura máxima</span>
+          <fieldset className="student-photo-options" aria-label="Resolução da foto" disabled={busy}>
+            <legend>Largura máxima</legend>
             {([900, 600] as const).map(width => <Button key={width} type="button" size="sm" isDisabled={busy}
               variant={state.options.portraitWidth === width ? 'primary' : 'secondary'}
               aria-pressed={state.options.portraitWidth === width} onPress={() => controller.output(width, state.options.quality)}>{width} px</Button>)}
-          </div>
-          <div className="student-photo-options" role="group" aria-label="Qualidade WebP">
-            <span>Qualidade</span>
+          </fieldset>
+          <fieldset className="student-photo-options" aria-label="Qualidade WebP" disabled={busy}>
+            <legend>Qualidade</legend>
             {[0.92, 0.86, 0.8].map(quality => <Button key={quality} type="button" size="sm" isDisabled={busy}
               variant={state.options.quality === quality ? 'primary' : 'secondary'} aria-pressed={state.options.quality === quality}
               onPress={() => controller.output(state.options.portraitWidth, quality)}>{Math.round(quality * 100)}%</Button>)}
-          </div>
+          </fieldset>
           <Button type="button" variant="tertiary" isDisabled={busy} onPress={() => {
             controller.change('portrait', initialPhotoCropV1('portrait')); controller.change('avatar', initialPhotoCropV1('avatar'));
           }}>Reiniciar enquadramentos</Button>
