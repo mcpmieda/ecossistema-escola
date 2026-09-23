@@ -17,6 +17,7 @@ import {
   Dumbbell,
   FlaskConical,
   Globe2,
+  HandHeart,
   Landmark,
   Languages,
   LayoutDashboard,
@@ -24,6 +25,8 @@ import {
   MoveRight,
   Music2,
   Palette,
+  PenLine,
+  Scale,
   TrendingDown,
   TrendingUp,
   TriangleAlert,
@@ -168,10 +171,18 @@ function SubjectIconV1({ label, size = 18 }: { label: string; size?: number }) {
   else if (normalized.includes('historia')) Icon = Landmark;
   else if (normalized.includes('geografia')) Icon = Globe2;
   else if (normalized.includes('ingles')) Icon = Languages;
-  else if (normalized.includes('educacao fisica')) Icon = Dumbbell;
+  // Production labels are upper-case abbreviations (ED. FÍSICA, COMPUTAÇÃO, REDAÇÃO...).
+  else if (normalized.includes('educacao fisica') || normalized.startsWith('ed. fisica')) Icon = Dumbbell;
+  else if (normalized.includes('redacao')) Icon = PenLine;
+  else if (normalized.includes('religiao') || normalized.includes('ensino religioso')) Icon = HandHeart;
+  else if (normalized.includes('etica')) Icon = Scale;
   else if (normalized.includes('arte')) Icon = Palette;
   else if (normalized.includes('musica')) Icon = Music2;
-  else if (normalized.includes('informatica') || normalized.includes('tecnologia')) Icon = Monitor;
+  else if (
+    normalized.includes('informatica') ||
+    normalized.includes('computacao') ||
+    normalized.includes('tecnologia')
+  ) Icon = Monitor;
   else if (normalized === 'fisica' || normalized.includes('fisica ')) Icon = Atom;
   else if (
     normalized.includes('ciencia') ||

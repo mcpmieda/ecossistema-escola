@@ -220,6 +220,154 @@ const previewData = selfResponseV1.parse({
 });
 
 /*
+ * Production-shaped scenario (checked against the published 2026 projections on 2026-09-23).
+ * Marks and names are invented; only the structure and catalog mirror production:
+ * - Fundamental II classes (6º–9º ANO) with the 12 real subjects, upper-case, in the real order;
+ * - only T1 is published; term maximum 30 = AV1 8,5 + AV2 5 + JOGOS 3 + PARTICIPAÇÃO 4,5 + activities;
+ * - 6–9 activities per subject with the teachers' own upper-case, abbreviated labels;
+ * - "Recuperação paralela" (and a few others) come as a plain absent mark, never notDone;
+ * - a few scores have no maximum (meetsMinimum null), and a few are zero.
+ */
+type RealActivityV1 = readonly [label: string, maximum: number | null, value: number | null];
+const realSubject = (
+  subjectId: number,
+  label: string,
+  order: number,
+  activities: readonly RealActivityV1[],
+) => {
+  const partials = activities.map(([activity, maximum, value]) => ({
+    assessmentId: ++nextAssessmentId,
+    label: activity,
+    mark:
+      value === null
+        ? absent
+        : maximum === null
+          ? { kind: 'score' as const, value, maximum: null, meetsMinimum: null }
+          : score(value, maximum),
+  }));
+  const final = activities.reduce((sum, [, , value]) => sum + (value ?? 0), 0);
+  return { subjectId, label, order, periods: [{ period: 'T1' as const, final: score(final, 30), partials }] };
+};
+const REC_PARALELA: RealActivityV1 = ['Recuperação paralela', null, null];
+const realPreviewData = selfResponseV1.parse({
+  ...previewData,
+  profile: { ...previewData.profile, classLabel: '7º ANO B' },
+  subjects: [
+    realSubject(910001, 'PORTUGUÊS', 0, [
+      ['Avaliação 1', 8.5, 4],
+      ['Avaliação 2', 5, 2.5],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 3],
+      ['1ª ATIVIDADE AVALIATIVA', 6, null],
+      ['PRODUÇÃO DE TEXTO', 3, 1.5],
+      REC_PARALELA,
+    ]),
+    realSubject(910002, 'MATEMÁTICA', 1, [
+      ['Avaliação 1', 8.5, 7.5],
+      ['Avaliação 2', 5, 4],
+      ['JOGOS', 3, 3],
+      ['PART', 4.5, 4.5],
+      ['I ATIV', 6, 5],
+      ['II ATIV', 3, 2.5],
+      REC_PARALELA,
+    ]),
+    realSubject(910003, 'HISTÓRIA', 2, [
+      ['Avaliação 1', 8.5, 3],
+      ['Avaliação 2', 5, 2],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 2],
+      ['1ª ATIVIDADE', 6, 3],
+      ['2ª ATIVIDADE', 3, 0],
+      ['EX', null, null],
+      REC_PARALELA,
+    ]),
+    realSubject(910004, 'GEOGRAFIA', 3, [
+      ['Avaliação 1', 8.5, 6],
+      ['Avaliação 2', 5, 3.5],
+      ['JOGOS', 3, 3],
+      ['PARTI', 4.5, 4],
+      ['CAED', 6, 4.5],
+      ['MAPA-MENTAL', 3, 2],
+      REC_PARALELA,
+    ]),
+    realSubject(910005, 'CIÊNCIAS', 4, [
+      ['Avaliação 1', 8.5, 8],
+      ['Avaliação 2', 5, 4.5],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 4],
+      ['ATIVIDADE INVESTIGATIVA', 6, 5.5],
+      ['LAPBOOK', 3, 3],
+      REC_PARALELA,
+    ]),
+    realSubject(910006, 'ARTE', 5, [
+      ['Avaliação 1', 8.5, 5],
+      ['Avaliação 2', 5, 3],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 3.5],
+      ['RELEITURA - ABAPORU (INDIVIDUAL)', 3, 2.5],
+      ['CARTAZ (MPB, BOSSA NOVA E ROCK)', 3, 2],
+      ['VÍDEO HOMENAGEM MEDEIROS NETO', 3, null],
+      ['P.D.', null, 1],
+      REC_PARALELA,
+    ]),
+    realSubject(910007, 'RELIGIÃO', 6, [
+      ['Avaliação 1', 8.5, 7],
+      ['Avaliação 2', 5, 4],
+      ['JOGOS', 3, 3],
+      ['PRT', 4.5, 4],
+      ['LÍDERES RELIGIOSOS', 3, 3],
+      ['LIVROS SAGRADOS', 6, 5],
+      REC_PARALELA,
+    ]),
+    realSubject(910008, 'REDAÇÃO', 7, [
+      ['Avaliação 1', 8.5, 6.5],
+      ['Avaliação 2', 5, 3],
+      ['JOGOS', 3, 3],
+      ['PARTIC.', 4.5, 3.5],
+      ['PRODUÇÃO DE TEXTO', 6, 4],
+      ['2ª ATIVIDADE', 3, 2],
+      REC_PARALELA,
+    ]),
+    realSubject(910009, 'ED. FÍSICA', 8, [
+      ['Avaliação 1', 8.5, 8.5],
+      ['Avaliação 2', 5, 5],
+      ['Jogos interclasse', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 4.5],
+      ['GINCANA', 6, 6],
+      ['PESQUISA', 3, 2.5],
+      REC_PARALELA,
+    ]),
+    realSubject(910010, 'ÉTICA', 9, [
+      ['Avaliação 1', 8.5, 7],
+      ['Avaliação 2', 5, 4.5],
+      ['JOGOS', 3, 3],
+      ['PART', 4.5, 4],
+      ['ÁRVORE DE VALORES', 6, 5],
+      ['2ª PARTICIPAÇÃO', 3, 2.5],
+      REC_PARALELA,
+    ]),
+    realSubject(910011, 'INGLÊS', 10, [
+      ['Avaliação 1', 8.5, 7.5],
+      ['Avaliação 2', 5, 4],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 4],
+      ['1ª ATIV', 6, 5],
+      ['2ª ATIV', 3, 3],
+      REC_PARALELA,
+    ]),
+    realSubject(910012, 'COMPUTAÇÃO', 11, [
+      ['Avaliação 1', 8.5, 6],
+      ['Avaliação 2', 5, 4],
+      ['JOGOS', 3, 3],
+      ['PARTICIPAÇÃO', 4.5, 4.5],
+      ['A. COMP.', 6, 5],
+      ['TRAB', 3, 3],
+      REC_PARALELA,
+    ]),
+  ],
+});
+
+/*
  * Admin simulator (preview only). The browser bundle may not import server code, so this
  * restates server/student-portal/policies/calendar-v1.ts#applyPublishedVisibilityV1 over the
  * invented data: unreleased periods are dropped, partials are removed when showPartials is off,
@@ -238,9 +386,15 @@ interface AdminSimulationV1 {
   hasPortrait: boolean;
   studentName: string;
   situation: AnnualSituationV1 | 'none';
+  dataset: 'real' | 'example';
+  academicState: SelfResponseV1['profile']['academicState'];
+  /** Two real students have a single published subject. */
+  singleSubject: boolean;
 }
-// Short (regular), long and extra-long names exercise the hero's type-size tiers.
+// Short (regular), long and extra-long names exercise the hero's type-size tiers. Production
+// names are all upper-case, 20–39 characters, 3–6 words; the first one mirrors that.
 const PREVIEW_NAMES_V1 = [
+  'ANA CAROLINA DE JESUS SANTOS OLIVEIRA',
   'Pedro Henrique Almeida',
   'MARIA LUIZA FERREIRA XAVIER',
   'MARIA EDUARDA DOS SANTOS FERREIRA DA SILVA XAVIER',
@@ -268,7 +422,8 @@ function subjectSituationFor(
   situation: AdminSimulationV1['situation'],
   label: string,
 ): SubjectSituationV1 | undefined {
-  const recovered = label === 'Língua Portuguesa' || label === 'Geografia';
+  const key = label.normalize('NFD').replace(/[̀-ͯ]/gu, '').toLowerCase();
+  const recovered = key.includes('portugues') || key === 'geografia';
   switch (situation) {
     case 'none':
     case 'approved-special':
@@ -280,13 +435,13 @@ function subjectSituationFor(
     case 'approved-after-recovery':
       return recovered ? 'approved-after-recovery' : 'approved-direct';
     case 'failed-after-recovery':
-      return recovered || label === 'História' ? 'not-approved' : 'approved-direct';
+      return recovered || key === 'historia' ? 'not-approved' : 'approved-direct';
     case 'failed-no-show':
-      return label === 'Geografia' ? 'failed-no-show' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      return key === 'geografia' ? 'failed-no-show' : recovered ? 'approved-after-recovery' : 'approved-direct';
     case 'failed-repeat':
-      return label === 'Geografia' ? 'failed-repeat' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      return key === 'geografia' ? 'failed-repeat' : recovered ? 'approved-after-recovery' : 'approved-direct';
     default: // Council cases: one subject failed within the Council limit.
-      return label === 'Geografia' ? 'not-approved' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      return key === 'geografia' ? 'not-approved' : recovered ? 'approved-after-recovery' : 'approved-direct';
   }
 }
 const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] =>
@@ -303,9 +458,11 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
   const recoveryDisclosed = admin.accessEnabled && admin.periods.includes('T3');
   const visible = (value: string | undefined, early: string) =>
     value !== undefined && (final || (recoveryDisclosed && value === early));
-  const situation = admin.situation === 'none' ? undefined : admin.situation;
+  const assisted = admin.academicState === 'assisted';
+  const situation = admin.situation === 'none' || assisted ? undefined : admin.situation;
   const subjects = admin.accessEnabled
     ? data.subjects
+        .slice(0, admin.singleSubject ? 1 : undefined)
         .map((subject) => {
           const subjectSituation = subjectSituationFor(admin.situation, subject.label);
           const outcome =
@@ -337,7 +494,8 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     profile: {
       ...data.profile,
       name: admin.studentName,
-      result: final ? coarseResultV1(admin.situation) : 'in-progress',
+      academicState: admin.academicState,
+      result: assisted ? 'not-applicable' : final ? coarseResultV1(admin.situation) : 'in-progress',
       ...(visible(situation, 'in-recovery') ? { annualSituation: situation } : {}),
     },
     subjects,
@@ -366,12 +524,36 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'finalDisclosed' | 'hasPortrait') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
     <details style={panelStyle}>
       <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Simular admin</summary>
+      <div style={rowStyle}>
+        <span style={{ opacity: 0.7 }}>Dados:</span>
+        <select
+          value={value.dataset}
+          onChange={(event) => onChange({ ...value, dataset: event.target.value as AdminSimulationV1['dataset'] })}
+        >
+          <option value="real">Como na produção (7º ANO, só T1)</option>
+          <option value="example">Exemplo completo (T1–T3 e REC)</option>
+        </select>
+        <label>{toggle('singleSubject')} Só 1 disciplina</label>
+      </div>
+      <div style={rowStyle}>
+        <span style={{ opacity: 0.7 }}>Aluno:</span>
+        <select
+          value={value.academicState}
+          onChange={(event) =>
+            onChange({ ...value, academicState: event.target.value as AdminSimulationV1['academicState'] })
+          }
+        >
+          <option value="regular">Regular</option>
+          <option value="assisted">Assistido</option>
+          <option value="special">Especial</option>
+        </select>
+      </div>
       <div style={rowStyle}>
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
@@ -466,8 +648,14 @@ function PreviewAppV1() {
     hasPortrait: true,
     studentName: PREVIEW_NAMES_V1[0]!,
     situation: 'none',
+    dataset: 'real',
+    academicState: 'regular',
+    singleSubject: false,
   });
-  const data = useMemo(() => simulateAdminV1(previewData, admin), [admin]);
+  const data = useMemo(
+    () => simulateAdminV1(admin.dataset === 'real' ? realPreviewData : previewData, admin),
+    [admin],
+  );
   return (
     <>
       <AdminSimulatorPanelV1 value={admin} onChange={setAdmin} />
