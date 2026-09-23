@@ -106,13 +106,10 @@ describe('transactional profile lifecycle', () => {
     expect(await service.synchronize({ createProfiles: true })).toMatchObject({ created: 0 });
   });
 
-  it('keeps identity and sessions across rename/move while discarding the old class projection', async () => {
+  it('keeps identity and sessions across rename/move', async () => {
     await service.synchronize({ createProfiles: true });
     const before = await account();
     await saveSession(before.id);
-    await pg.query(`INSERT INTO student_portal.published_projection
-      (account_id,payload_json,data_version,policy_version,publication_version,generated_at)
-      VALUES ($1,'{}','synthetic-old','policy-1','publication-1',now())`, [before.id]);
     await pg.exec(`UPDATE gradebook.aluno SET nome='PESSOA SINTETICA RENOMEADA' WHERE id=900001;
       UPDATE gradebook.vinculo SET situacao=6,turma_relacionada_id=900002 WHERE aluno_id=900001;
       INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id,situacao,turma_relacionada_id)
@@ -120,7 +117,6 @@ describe('transactional profile lifecycle', () => {
     expect(await service.synchronize({ createProfiles: true })).toEqual({ created: 0, updated: 1, denied: 0 });
     expect(await account()).toMatchObject({ id: before.id, security_version: before.security_version });
     expect((await pg.query('SELECT class_id FROM student_portal.lifecycle_snapshot')).rows).toEqual([{ class_id: 900002 }]);
-    expect((await pg.query('SELECT account_id FROM student_portal.published_projection')).rows).toEqual([]);
     expect((await pg.query('SELECT revoked_at FROM student_portal.session')).rows).toEqual([{ revoked_at: null }]);
   });
 

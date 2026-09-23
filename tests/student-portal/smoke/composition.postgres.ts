@@ -19,6 +19,7 @@ const scope = { kind: 'class', academicYear: 2026, classId: 970001 };
 const directory = mkdtempSync(join(tmpdir(), 'portal-composition-715-'));
 let runtime: Miniflare;
 let caller: Awaited<ReturnType<Miniflare['getWorker']>>;
+let scopedBefore: boolean | undefined;
 async function call(path: string, input?: unknown, cookie?: string, anonymous = false, origin?: string) {
   return caller.fetch('http://test.invalid/', { method: 'POST', body: JSON.stringify({ path, input, cookie, anonymous, origin }) });
 }
@@ -39,6 +40,9 @@ beforeAll(async () => {
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES(970001,2026,'SYNTHETIC COMPOSITION ACCOUNT');
     INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES(2026,970001,1,970001);
     SELECT * FROM student_portal.synchronize_profiles_v1(true);`);
+  // Production serves Self only from scoped V2 editions; restore the shared chain's state afterwards.
+  scopedBefore = (await sql.unsafe('SELECT enabled FROM student_portal.publication_control_v2 WHERE academic_year=2026'))[0]!.enabled === true;
+  if (!scopedBefore) await sql.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
   for (const config of ['wrangler.student-portal.jsonc', 'tests/student-portal/smoke/wrangler.caller.jsonc']) {
     await promisify(execFile)(process.execPath, [resolve('node_modules/wrangler/bin/wrangler.js'), 'deploy', '--config', config,
       ...(config.startsWith('wrangler.') ? ['--env', 'preview'] : []), '--dry-run', '--outdir', directory],
@@ -49,7 +53,7 @@ beforeAll(async () => {
     script: readFileSync(join(directory, 'index.js'), 'utf8'), compatibilityDate: '2026-09-11', compatibilityFlags: ['nodejs_compat'],
     hyperdrives: { PORTAL_DB: restricted.toString() }, bindings: { PORTAL_ENVIRONMENT: 'production',
       PORTAL_ORIGIN: 'https://aluno.escolaieda.com', PORTAL_ADMIN_TENANT_ID: '22222222-2222-4222-8222-222222222222',
-      PORTAL_SERVING_ENABLED: 'true', PASSWORD_PEPPER: JSON.stringify({ 1: Buffer.alloc(32, 71).toString('base64') }),
+      PORTAL_SERVING_ENABLED: 'true', PORTAL_PUBLICATION_MODE: 'scoped-v2', PASSWORD_PEPPER: JSON.stringify({ 1: Buffer.alloc(32, 71).toString('base64') }),
       QR_HMAC_KEYS: JSON.stringify({ 1: Buffer.alloc(32, 72).toString('base64') }),
       TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' },
     ratelimits: { PORTAL_AUTH_GLOBAL: { namespace_id: '100715', simple: { limit: 600, period: 60 } },
@@ -61,6 +65,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await runtime?.dispose();
+  if (scopedBefore === false) await sql.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
   await sql.end();
   if (resolve(directory).startsWith(resolve(tmpdir())) && basename(directory).startsWith('portal-composition-715-')) rmSync(directory, { recursive: true, force: true });
 });

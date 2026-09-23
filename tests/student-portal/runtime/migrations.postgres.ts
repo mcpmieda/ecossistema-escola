@@ -2,7 +2,6 @@ import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
 import { proveWorkerLockTimeoutV1 } from '../load/lock-timeout-harness-v1';
 import { pausedPortalQueryV1 } from '../load/paused-query-v1';
 import { accountTransactionV1 } from '../../../server/student-portal/auth/transaction-v1';
-import { PublicationReconcilerV1 } from '../../../server/student-portal/jobs/reconcile-v1';
 import { proveWorkerPublicationV1 } from '../load/publication-harness-v1';
 import { quarantineSyntheticRestoreV1 } from '../recovery/quarantine-synthetic-v1';
 import { runPortalHarnessScenariosV1 } from '../load/harness-scenarios-v1';
@@ -11,10 +10,7 @@ import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-
 import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
 import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
-import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
-import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
-import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { AuthServiceV1 } from '../../../server/student-portal/auth/auth-service-v1';
 import { QrServiceV1 } from '../../../server/student-portal/auth/qr-service-v1';
 import { SessionServiceV1 } from '../../../server/student-portal/auth/session-service-v1';
@@ -158,7 +154,14 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0005_year_reset_protocol_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0006_gradebook_revision_year_range_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0007_lifecycle_integration_v1.sql', 'utf8'));
+  // Scoped V2 editions are the only published source Self reads; the legacy projection is removed.
+  // These also index/trigger Gradebook tables, so the schema owner applies them (as in production).
+  for (const name of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0010_incremental_publication_v3.sql'])
+    await admin.unsafe(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0014_year_reset_full_cleanup_v1.sql', 'utf8'));
+  await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=true WHERE academic_year=2026');
+  await admin.unsafe(readFileSync('migrations/student-portal/0019_remove_legacy_projection_v1.sql', 'utf8'));
+  await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -225,14 +228,12 @@ describe('native PostgreSQL migrations and runtime role isolation', () => {
     expect((await portal`SELECT blocked FROM student_portal.account WHERE id=${ACCOUNT}`)[0]?.blocked).toBe(false);
   });
 
-  it('stores verifier and projection JSON objects through postgres.js without double encoding', async () => {
+  it('stores verifier JSON objects through postgres.js without double encoding', async () => {
     const verifier={algorithm:'synthetic-kdf',parameters:{cost:1},salt:'synthetic-salt',pepperVersion:1,digest:'synthetic-digest'};
     await persistence.transaction(async(tx)=>{
       await tx.saveCredentials({accountId:ACCOUNT,credentialId:'s'.repeat(32),keyVersion:1,state:'active',pin:verifier,password:verifier,pinVersion:0});
-      expect(await tx.swapProjection(ACCOUNT,{...SYNTHETIC_SELF_V1,profile:{...SYNTHETIC_SELF_V1.profile,link:{academicYear:2026,studentId:1}}},SYNTHETIC_SELF_V1.revisions)).toBe(true);
     });
     expect((await portal`SELECT jsonb_typeof(pin_verifier) AS kind FROM student_portal.password_credential WHERE account_id=${ACCOUNT}`)[0]?.kind).toBe('object');
-    expect((await portal`SELECT jsonb_typeof(payload_json) AS kind FROM student_portal.published_projection WHERE account_id=${ACCOUNT}`)[0]?.kind).toBe('object');
     expect(await persistence.transaction((tx)=>tx.readCredentials(ACCOUNT))).toMatchObject({pin:verifier,password:verifier});
   });
 
@@ -950,27 +951,6 @@ describe('native authentication locks with real scrypt and separate connections'
     }
   }, 30_000);
 
-  it('does not serialize authentication behind the cron reconciliation snapshot', async () => {
-    const data = await fixture();
-    await auth.activate(data.activate, crypto.randomUUID());
-    const stopped = new Error('Synthetic stop after reconciliation snapshot');
-    const snapshotOnly: StudentPortalPostgresSqlV1 = {
-      unsafe: (query, parameters) => primary.unsafe(query, parameters),
-      begin: (operation) => primary.begin(async (tx) => { await operation(tx); throw stopped; }),
-    };
-    const pause = pausedPortalQueryV1(snapshotOnly, (query) => query.includes('FROM student_portal.academic_revision') && query.includes('FOR SHARE'));
-    const pending = new PublicationReconcilerV1(pause.sql).run(1);
-    try {
-      await pause.entered(pending);
-      await connection.unsafe("SET lock_timeout='1500ms'");
-      expect(await other.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID())).toHaveProperty('token');
-    } finally {
-      pause.release();
-      await expect(pending).rejects.toBe(stopped);
-      await connection.unsafe('RESET lock_timeout');
-    }
-  });
-
   it('only one concurrent activation commits its single-use proof and session', async () => {
     const fixtureData = await fixture();
     const results = await Promise.all([auth.activate(fixtureData.activate, crypto.randomUUID()), other.activate(fixtureData.activate, crypto.randomUUID())]);
@@ -1038,129 +1018,6 @@ describe('native authentication locks with real scrypt and separate connections'
     await sessions.revoke(actor, { contractVersion: 1, operation: 'sessions-revoke', scope: classScope,
       expectedVersion: scopeSnapshot.version, confirmed: true, idempotencyKey: crypto.randomUUID() });
     expect(await sessions.read(second.token, crypto.randomUUID())).toBeNull();
-  });
-});
-
-
-describe('native publication targets and competing job leases', () => {
-  const actor = '99999999-9999-4999-8999-999999999999';
-  const primary = portal as unknown as StudentPortalPostgresSqlV1;
-  const secondary = asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
-  const publications = new PublicationServiceV1(primary);
-  const jobs = new PublicationJobsV1(primary);
-  const other = new PublicationJobsV1(secondary);
-  const reader = new SelfProjectionReaderV1(primary);
-  const policy = new PolicyServiceV1(secondary);
-  const reconciler = new PublicationReconcilerV1(primary);
-  let accountId: string;
-  const scope = () => ({ kind: 'account', academicYear: 2026, accountId } as const);
-  async function command(operation = 'publish', period = 'T1') {
-    const target = String((await portal`SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026`)[0]!.revision);
-    return { contractVersion: 1, operation, scope: scope(), period, expectedVersion: (await publications.read(scope())).version,
-      idempotencyKey: crypto.randomUUID(), ...(operation === 'unpublish' ? { confirmed: true } : { targetDataVersion: target }) };
-  }
-  const self = () => reader.read(accountId, crypto.randomUUID());
-  const t1 = async () => (await self())?.subjects.flatMap((subject) => subject.periods).filter((period) => period.period === 'T1');
-  async function makeT1Pending() {
-    await gradebook`UPDATE gradebook.fechamento
-      SET am1_fonte=COALESCE(am1_fonte,0)+1
-      WHERE oferta_id=910001 AND aluno_id=910001`;
-    await gradebook.unsafe(
-      `SELECT * FROM student_portal.record_gradebook_change_v1(
-        $1::uuid,2026::smallint,'marks'::text,true,ARRAY[910001]::integer[],statement_timestamp()
-      )`,
-      [crypto.randomUUID()],
-    );
-    expect((await reconciler.run()).failed).toBe(0);
-    expect((await publications.read(scope())).items.find((item) => item.period === 'T1'))
-      .toMatchObject({ state: 'update-pending' });
-  }
-  async function claimOwn(jobber: PublicationJobsV1) {
-    // This suite shares one database across many synthetic accounts. Keep the
-    // concurrency assertion scoped to the account whose publication we just changed.
-    await admin`UPDATE student_portal.publication_job
-      SET state='failed',lease_until=NULL,updated_at=statement_timestamp()
-      WHERE account_id<>${accountId}::uuid AND state IN ('queued','running')`;
-    const claimed = await jobber.claim();
-    expect(claimed).not.toBeNull();
-    expect(claimed!.accountId).toBe(accountId);
-    return claimed!;
-  }
-
-  it('claims once across real connections and commits only the exact approved target', async () => {
-    await openSyntheticSchoolV1(primary);
-    await admin`UPDATE gradebook.vinculo SET situacao=NULL,turma_id=910001 WHERE aluno_id=910001`;
-    await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
-    accountId = String((await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=910001`)[0]!.id);
-    await portal`UPDATE student_portal.account SET auth_state='active',blocked=false WHERE id=${accountId}`;
-    const current = await policy.read(scope());
-    const clock = Math.floor(Date.now() / 1000) * 1000;
-    const at = (days: number) => new Date(clock + days * 86400_000).toISOString();
-    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
-      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { accessEnabled: true, allowedPeriods: ['T1','T2','T3'],
-        calendar: { ...current.value.calendar, yearStartsAt: at(-60),t1EndsAt:at(-50),t2EndsAt:at(-40),t3EndsAt:at(-30),
-          recoveriesStartAt:at(-20),yearEndsAt:at(30),finalDisclosureAt:at(-10),disclosure:{mode:'single',at:at(-10),periods:['T1','T2','T3']} } } });
-    const request = await command();
-    const [first, replay] = await Promise.all([publications.command(actor, request), new PublicationServiceV1(secondary).command(actor, request)]);
-    expect(replay).toEqual(first);
-    const claimed = (await Promise.all([jobs.claim(), other.claim()])).filter((job) => job !== null);
-    expect(claimed).toHaveLength(1);
-    const pause = pausedPortalQueryV1(secondary, (query) => query.includes('SELECT id FROM student_portal.account') && query.includes('FOR UPDATE'));
-    const pending = new PublicationJobsV1(pause.sql).perform(claimed[0]!);
-    try {
-      await pause.entered(pending);
-      await portal.unsafe("SET lock_timeout='1500ms'");
-      await accountTransactionV1(primary, async (_tx, store) => {
-        await store.lockAccounts([ACCOUNT]);
-        expect(await store.findAccount(ACCOUNT)).not.toBeNull();
-      });
-    } finally {
-      pause.release();
-      await portal.unsafe('RESET lock_timeout');
-    }
-    expect(await pending).toBe('done');
-    expect((await t1())!.length).toBeGreaterThan(0);
-    expect(await jobs.perform(claimed[0]!)).toBe('stale');
-  });
-
-  it('unpublish wins over an already claimed job on another Portal connection', async () => {
-    await makeT1Pending();
-    await publications.command(actor, await command('publish-update'));
-    const claimed = await claimOwn(other);
-    await publications.command(actor, await command('unpublish'));
-    expect(await other.perform(claimed)).toBe('stale');
-    expect(await t1()).toHaveLength(0);
-    await publications.command(actor, await command());
-    expect(await t1()).toHaveLength(0);
-    await jobs.run();
-    expect((await t1())!.length).toBeGreaterThan(0);
-  });
-
-  it('a changed policy fences pending work and filters the committed copy immediately', async () => {
-    await makeT1Pending();
-    await publications.command(actor, await command('publish-update'));
-    const claimed = await claimOwn(jobs);
-    const before = await self();
-    const current = await policy.read(scope());
-    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
-      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { allowedPeriods: [] } });
-    expect(await other.perform(claimed)).toBe('stale');
-    expect(await t1()).toHaveLength(0);
-    expect(await reader.readAuthorized(accountId, before!.revisions)).toBeNull();
-  });
-
-  it('a restarted claimant fences the expired worker with a new attempt generation', async () => {
-    const current = await policy.read(scope());
-    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
-      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { allowedPeriods: ['T1'] } });
-    await publications.command(actor, await command());
-    const first = await jobs.claim();
-    await portal`UPDATE student_portal.publication_job SET lease_until=statement_timestamp()-interval '1 second' WHERE id=${first!.id}`;
-    const second = await other.claim();
-    expect(second!.attempts).toBe(first!.attempts + 1);
-    expect(await jobs.perform(first!)).toBe('stale');
-    expect(await other.perform(second!)).toBe('done');
-    expect((await t1())!.length).toBeGreaterThan(0);
   });
 });
 
@@ -1357,7 +1214,7 @@ it('quarantines an old synthetic security snapshot before reopening and preserve
 }, 90_000);
 
 
-it('materializes approved BN data and unpublishes it through actual workerd and PostgreSQL', async () => {
+it('releases approved BN data and unpublishes it through actual workerd and PostgreSQL', async () => {
   await admin.unsafe(ACADEMIC_FIXTURE_SQL_V1.replaceAll('910', '960').replaceAll('S710', 'H714A').replaceAll('S712', 'H714B')
     .replaceAll('SYNTHETIC PRIVATE TEACHER', 'SYNTHETIC H WORKER TEACHER').replaceAll('MATEMATICA', 'SYNTHETIC WORKER MATH').replaceAll('PORTUGUES', 'SYNTHETIC WORKER LANGUAGE'));
   const account = (await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=960001`)[0]!;
@@ -1367,6 +1224,9 @@ it('materializes approved BN data and unpublishes it through actual workerd and 
   await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
     VALUES(gen_random_uuid(),${account.id},${await cryptography.hashOpaqueToken(token)},0,statement_timestamp()+interval '1 day',true)`;
   const connection = new URL(target); connection.username = 'student_portal_app';
+  // Like a real import, the recorded change prepares the V2 edition that the release will approve.
+  await admin.unsafe("SELECT * FROM student_portal.record_gradebook_change_v1(gen_random_uuid(),2026::smallint,'marks',true,ARRAY[960001],statement_timestamp())");
+  await admin.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
   await proveWorkerPublicationV1(connection.toString(), String(account.id), token);
 }, 90_000);
 

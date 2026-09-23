@@ -48,7 +48,7 @@ function notes(first = 2000, final = 8000, professor = 'SYNTHETIC IMPORT TEACHER
       trimestres: [term(1), term(2), term(3)], recuperacao: null }] };
 }
 const importer = () => createGradebookRelationalImportServiceV11(gradebook);
-const self = (account = own) => new SelfProjectionReaderV1(portal, true).read(account, crypto.randomUUID());
+const self = (account = own) => new SelfProjectionReaderV1(portal).read(account, crypto.randomUUID());
 const ownTerm = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1');
 const preparation = async () => (await owner.unsafe('SELECT mode,scanned_students,written_sources FROM student_portal.publication_preparation_metrics_v3'))[0]!;
 async function policy(autoUpdate: boolean) {

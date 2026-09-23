@@ -164,4 +164,13 @@ describe('student_portal additive schema and ACL', () => {
   it('fails closed on migration replay instead of dropping or resetting the schema', async () => {
     await expect(pg.exec(readFileSync(`${portalRoot}0001_identity_credentials_acl_v1.sql`, 'utf8'))).rejects.toMatchObject({ code: '42P06' });
   });
+
+  it('refuses to remove the legacy projection before scoped V2 exists', async () => {
+    await expect(pg.exec(readFileSync(`${portalRoot}0019_remove_legacy_projection_v1.sql`, 'utf8')))
+      .rejects.toThrow();
+    await pg.exec('ROLLBACK');
+    expect((await pg.query<{ name: string | null }>(
+      "SELECT to_regclass('student_portal.published_projection')::text AS name",
+    )).rows[0]?.name).toBe('student_portal.published_projection');
+  });
 });

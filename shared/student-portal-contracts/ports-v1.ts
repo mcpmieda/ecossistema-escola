@@ -66,7 +66,6 @@ export interface PortalTransactionV1 {
   saveIdempotency(record: IdempotencyRecordV1): Promise<void>;
   appendAudit(event: z.infer<typeof auditEventV1>): Promise<void>;
   compareAndSetSettings(settings: EffectiveSettingsV1, expectedVersion: number): Promise<boolean>;
-  swapProjection(accountId: string, projection: SelfResponseV1, expected: RevisionsV1): Promise<boolean>;
   closeAcademicLinks(year: 2026, expectedCount: number, closedAt: string): Promise<number>;
   appendRevision(event: RevisionEventV1): Promise<void>;
   enqueuePublication(job: PublicationJobV1): Promise<'created' | 'existing'>;

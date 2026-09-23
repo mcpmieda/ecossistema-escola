@@ -1,5 +1,7 @@
 # Arquitetura e contratos V1
 
+Na PR #1122, Self passa a ler somente edições preparadas V2 e falha fechado sem V2 ativa. A migração destrutiva `0019_remove_legacy_projection_v1.sql` remove a antiga tabela de cópias por aluno somente após o deploy do Worker; sua aplicação em produção ainda está pendente.
+
 ## Concorrência de contas — #782
 
 `accountTransactionV1` usa global compartilhado(613,0) → ano compartilhado(613,2026) → revisão `FOR SHARE`; contas continuam `FOR UPDATE` antes de credenciais/sessões/jobs. Auth individual, sessão própria/Self (inclusive leitura aninhada), cron/reconciliação e execução/claim de jobs usam esse modo. `authTransactionV1` conserva o padrão exclusivo para demais operações. Escritores BN, políticas, reset e comandos administrativos continuam excluindo os consumidores. O adapter impede upgrade e escritas acadêmicas/de vínculo no modo compartilhado. Ver PA-DEC-008 e o delta em `docs/gradebook/YEAR_RESET_SETTINGS.md`; essa exceção substitui somente a exclusividade dos consumidores rotineiros no inventário histórico abaixo. Sem DDL, cache, retry cego ou mudança de autorização.
@@ -113,7 +115,6 @@ Proposta de locks a ratificar exclusivamente #703: ordem ano→tabelas acadêmic
 | session | UUID PK, tokenHash único, account/securityVersion, expires/revoked/persistent; índices hash, conta, expiração |
 | setting | scope+field key única, valor validado e versão; índice escopo |
 | publication | scope/período, revisão aprovada/disponível, estado e versão; chave única escopo/período |
-| published_projection | conta/ano única, payload sanitizado e data/policy/publicationVersion, generatedAt; troca atômica |
 | auth_attempt / auth_challenge | conta/credencial+janela/counter/bloqueio; tokenHash único, expires/consumed e security/pinVersion; índices expiry |
 | publication_job | unique conta/revisões/ação, lease/estado/tentativas/nextAt; índice estado/nextAt |
 | academic_revision / revision_event | revisão durável e evento idempotente na mesma transação de produtor BN; não readAt |

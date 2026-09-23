@@ -1,10 +1,8 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { authTransactionV1 } from '../../../server/student-portal/auth/transaction-v1';
-import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
-import { currentRevisionV1 } from '../../../server/student-portal/publication/state-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
-import { installAdminReadFixtureV2, readApiV2, readContextV2, READ_ACTOR_V2, READ_CLASS_V2 } from './read-fixture-v2';
+import { installAdminReadFixtureV2, readApiV2, readContextV2, READ_CLASS_V2 } from './read-fixture-v2';
 
 // Destructive synthetic fixture: reject every production or non-local target before opening SQL.
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
@@ -84,30 +82,4 @@ it('keeps writer/reset barriers effective for publication readers', async () => 
     });
     expect(result.state).toBe('unavailable');
   });
-});
-it('keeps administrative publication exclusive, then locks a whole class in one ordered query', async () => {
-  const service = new PublicationServiceV1(portal);
-  const before = await service.read(READ_CLASS_V2);
-  expect(before.count).toBe(105);
-  const command = {
-    contractVersion: 1, operation: 'publish', scope: READ_CLASS_V2, period: 'T1',
-    expectedVersion: before.version, targetDataVersion: await currentRevisionV1(portal),
-    idempotencyKey: crypto.randomUUID(),
-  };
-  await withYearHeld('shared', async () => {
-    await expect(service.command(READ_ACTOR_V2, command)).rejects.toMatchObject({ code: '55P03' });
-  });
-  queries.length = 0;
-  const committed = await service.command(READ_ACTOR_V2, command);
-  const accountLocks = queries.filter(({ query }) => /SELECT id FROM student_portal\.account[\s\S]*FOR UPDATE/u.test(query));
-  expect(accountLocks).toHaveLength(1);
-  expect(accountLocks[0]!.query).toMatch(/ORDER BY id FOR UPDATE/u);
-  expect(JSON.parse(String(accountLocks[0]!.values[0]))).toHaveLength(105);
-  expect(Number((await portal.unsafe('SELECT count(*) AS count FROM student_portal.publication_job'))[0]!.count)).toBe(105);
-  queries.length = 0;
-  expect(await service.command(READ_ACTOR_V2, command)).toEqual(committed);
-  expect(queries.some(({ query }) => /SELECT id FROM student_portal\.account[\s\S]*FOR UPDATE/u.test(query))).toBe(false);
-  expect(Number((await portal.unsafe('SELECT count(*) AS count FROM student_portal.publication_job'))[0]!.count)).toBe(105);
-  await expect(service.command(READ_ACTOR_V2, { ...command, period: 'T2' }))
-    .rejects.toThrow('student-portal-publication-idempotency-conflict');
 });
