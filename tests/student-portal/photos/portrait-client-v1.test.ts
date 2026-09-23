@@ -11,7 +11,7 @@ afterEach(() => vi.useRealTimers());
 
 it('uses only two own-origin bounded reads and one disposable object, never source URLs or credentials', async () => {
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json()).mockResolvedValueOnce(image());
-  const create = vi.fn(() => src), revoke = vi.fn(), decode = vi.fn(async () => true);
+  const create = vi.fn<(blob: Blob) => string>().mockReturnValue(src), revoke = vi.fn(), decode = vi.fn(async () => true);
   const load = createPortraitClientV1({ fetch: send, createObjectURL: create, revokeObjectURL: revoke, decode });
   const result = await load(photoAccountV1, signal());
   expect(result?.src).toBe(src);
