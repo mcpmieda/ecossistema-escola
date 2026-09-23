@@ -1,4 +1,5 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { TextDecoder as NodeTextDecoder } from 'node:util';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createPortraitClientV1 } from '../../../src/features/student-portal/photos/portrait-client-v1';
 import { portraitMetadataV1 } from '../../../shared/student-photos/portrait-v1';
 import { photoAccountV1, otherPhotoAccountV1, photoMetadataFixtureV1 as metadata,
@@ -8,7 +9,9 @@ const json = (value: unknown = metadata) => new Response(JSON.stringify(value), 
 const image = () => new Response(new Uint8Array(syntheticWebpV1()).buffer, { headers: { 'Content-Type': 'image/webp' } });
 const signal = () => new AbortController().signal;
 const src = 'blob:https://aluno.escolaieda.com/synthetic-photo';
-afterEach(() => vi.useRealTimers());
+// jsdom omits this browser API. Use the real UTF-8 implementation, not a parsing mock.
+beforeEach(() => vi.stubGlobal('TextDecoder', NodeTextDecoder));
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 it('preserves the synthetic metadata and binary fixture through the same platform stream and decoding primitives', async () => {
   const cancellation = signal(); cancellation.throwIfAborted();
