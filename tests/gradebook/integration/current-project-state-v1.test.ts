@@ -28,7 +28,7 @@ const projectionStateSchema = z.object({
     production_migration_version: z.literal(20260923164053),
     validated_source_head: z.literal('f01a410a8dd3e58ff1ee664ba3ee2e5b424aa20c'),
     evidence: z.literal('docs/student-portal/POSTFLIGHT_0019.md'),
-    authenticated_grade_display_after_migration: z.literal('pending-owner-confirmation'),
+    authenticated_grade_display_after_migration: z.literal('confirmed-by-owner-2026-09-23'),
   }),
 });
 
