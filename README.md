@@ -20,6 +20,12 @@ npm run verify
 
 O fluxo verifica lint, tipos, testes e build. PRs passam pelo workflow de qualidade; publicação oficial ocorre pela `main`, após autorização de integração.
 
+## Forma de entrega e validação
+
+Diretriz do responsável em 23/09/2026 (#1128): **estratégia e escopo final → implementação completa → produto integrado e pronto → teste de uso no ambiente real**. Quando o escopo for toda a escola, não criar uma versão limitada a uma turma ou um modo piloto que depois precise ser ampliado/refeito. O responsável controla externamente os participantes e o momento do teste real, após receber o produto completo; não se exige validação manual de cada etapa intermediária.
+
+Evitar ambientes paralelos e baterias sintéticas extensas que dupliquem trabalho. Reutilizar verificações técnicas essenciais e gates existentes, sem remover controles de segurança ou testar destrutivamente em dados reais. **Implementação concluída e validação real concluída são registros separados.** A orientação completa está em [`AGENTS.md`](AGENTS.md#entrega-completa-e-validação-real).
+
 ## Banco de Notas — programa final
 
 Mesmo repositório, shell, identidade e autorização do Centro. A #613 concluiu a reconstrução e o cutover da persistência simplificada; isso não equivale a homologar todos os painéis.
