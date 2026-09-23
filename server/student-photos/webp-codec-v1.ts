@@ -84,7 +84,7 @@ export class StudentWebpCodecV1 {
     let api: CodecExportsV1 | undefined;
     try {
       const size = preflight(bytes, variant);
-      const instance = await WebAssembly.instantiate(this.module, {
+      const instance = new WebAssembly.Instance(this.module, {
         wasi_snapshot_preview1: { proc_exit: () => { throw new WebpCodecErrorV1('unavailable'); } },
       });
       signal.throwIfAborted();

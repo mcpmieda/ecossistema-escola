@@ -20,7 +20,7 @@ interface Confirmation {
   portraitUrl?: string;
   avatarUrl?: string;
 }
-export interface StudentPhotoPanelPropsV1 { subject: PhotoAdminSubjectV1; canWrite?: boolean }
+export interface StudentPhotoPanelPropsV1 { subject: PhotoAdminSubjectV1; canWrite?: boolean; showAvatar?: boolean }
 function dispose(value: Confirmation | null) {
   if (!value) return;
   clearPhotoBytesV1(value.source);
@@ -39,9 +39,9 @@ function messageFor(error: unknown) {
 
 /** Shared controls for real administrative sheets; changing student discards the entire local draft. */
 export function StudentPhotoPanelV1(props: Readonly<StudentPhotoPanelPropsV1>) {
-  return <PhotoPanelSessionV1 key={photoSubjectKeyV1(props.subject)} {...props} />;
+  return <PhotoPanelSessionV1 key={photoSubjectKeyV1(props.subject) + ":" + (props.canWrite !== false)} {...props} />;
 }
-function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true }: Readonly<StudentPhotoPanelPropsV1>) {
+function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAvatar = true }: Readonly<StudentPhotoPanelPropsV1>) {
   const [catalog, setCatalog] = useState<PhotoCatalogStateV1>();
   const [canWrite, setCanWrite] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -161,7 +161,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true }: Read
 
   return <section className="student-photo-panel" aria-label="Foto do aluno">
     <div className="student-photo-panel__identity">
-      <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" />
+      {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
         {canWrite ? <>
           <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => openEditor('replace')}>
@@ -185,6 +185,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true }: Read
     {busy ? <output aria-live="polite">Processando foto…</output> : null}
     {message ? <p className="student-photo-panel__message" role="status">{message}</p> : null}
     {editing ? <Suspense fallback={<p role="status">Abrindo editor…</p>}>
+      {kind === 'avatar' ? <p>Este ajuste altera somente o avatar; a foto principal será preservada.</p> : null}
       <Editor ownerKey={subjectKey + ':' + kind} initialPhoto={initialPhoto} onCancel={() => { setEditing(false); setInitialPhoto(undefined); }} onPrepared={prepared} />
     </Suspense> : null}
     {confirmation ? <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) discard(); }}>

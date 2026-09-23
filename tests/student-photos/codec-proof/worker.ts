@@ -9,6 +9,17 @@ export default {
     if (url.pathname === '/edit-proof') return provePhotoEditV1(codec, request);
     try {
       const input = new Uint8Array(await request.arrayBuffer());
+      if (url.pathname === '/validate-concurrency') {
+        const original = new Uint8Array(input);
+        const results = await Promise.all([
+          codec.validate(input, 'portrait', request.signal),
+          codec.validate(input, 'portrait', request.signal),
+          codec.normalize(input, 'portrait', 92, request.signal),
+        ]);
+        const unchanged = input.every((byte, index) => byte === original[index]);
+        results[2].bytes.fill(0); input.fill(0); original.fill(0);
+        return Response.json({ unchanged, dimensions: results.map(({ width, height }) => [width, height]) });
+      }
       const result = await codec.normalize(input, url.searchParams.get('variant') as WebpPhotoVariantV1,
         Number(url.searchParams.get('quality')) as WebpPhotoQualityV1, request.signal);
       return new Response(new Uint8Array(result.bytes).buffer, {

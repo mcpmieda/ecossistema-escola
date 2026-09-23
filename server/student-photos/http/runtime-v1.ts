@@ -1,3 +1,4 @@
+import { photoFallbackHueV1 } from '../../../shared/student-photos/crop-v1';
 import { z } from 'zod';
 import type { RuntimeEnv } from '../../env';
 import { verifiedPagesContextV1 } from '../../student-portal/admin-client/pages-context-v1';
@@ -93,7 +94,17 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
     const service = createPhotoRuntimeServiceV1({ env, database: connection.database, codec, authorize });
     if (parsedImage) {
       const bytes = await service.catalog.read(context, parsedImage.variant, parsedImage.revision, request.signal);
-      if (!bytes) return new Response(null, { status: 404, headers: privateHeaders });
+      if (!bytes) {
+        await authorize(context);
+        if (parsedImage.variant === 'avatar') {
+          // A server-derived color keeps the same person's fallback identical across modules.
+          const hue = photoFallbackHueV1(context.studentUid);
+          return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="hsl(${hue},48%,44%)"/></svg>`, {
+            headers: { ...privateHeaders, 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': "default-src 'none'; sandbox" },
+          });
+        }
+        return new Response(null, { status: 404, headers: privateHeaders });
+      }
       try {
         await authorize(context);
         return new Response(new Uint8Array(bytes).buffer, { headers: { ...privateHeaders,

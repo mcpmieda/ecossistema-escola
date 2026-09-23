@@ -285,7 +285,7 @@ function AccountDetailBodyV1({
         {account && context && (
           <>
             <AccountIdentityV1 account={account} />
-            <StudentPhotoPanelV1 canWrite={canWrite}
+            <StudentPhotoPanelV1 showAvatar={false} canWrite={canWrite}
               subject={{ source: 'portal', academicYear: ownScope.academicYear, accountIds: [account.accountId] }} />
             <AccountStatusV1 account={account} />
             <dl className="pa-account-facts">

@@ -1,3 +1,4 @@
+import { PhotoLibrarySyncV1 } from '../../student-photos/photo-library-sync-v1';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Button, Card, Tooltip, Input, Label, Table, TextField } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -75,6 +76,7 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
       <header>
         <h2>Alunos</h2>
+        {props.canWrite && props.scope.kind === 'school' ? <PhotoLibrarySyncV1 reader={props.reader} /> : null}
       </header>
       <Card>
         <Card.Content className="pa-account-filters">

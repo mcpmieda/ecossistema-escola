@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PerformanceTeacherExportV6 } from './performance-teacher-export-v6';
 import { PerformanceLearningOverviewV1 } from './performance-learning-overview-v1';
 import { PerformanceStudentLearningV1 } from './performance-student-learning-v1';
-import { Alert, Avatar, Button, Chip, Label, ListBox, Select } from '@heroui/react';
+import { Alert, Button, Chip, Label, ListBox, Select } from '@heroui/react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
   AnalyticsBarsV6,
@@ -21,6 +21,7 @@ import {
   AnalyticsStudentsTableV6,
 } from './performance-analytics-tables-v6';
 import { analyticsPercentV6 as percent } from './analytics-format-v6';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 
 export type PerformancePerspectiveV6 =
   'overview' | 'notes' | 'classes' | 'students' | 'components' | 'teachers';
@@ -144,7 +145,7 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   if ((tab === 'students' && !student) || (tab === 'components' && !component) || (tab === 'teachers' && !teacher))
     return <Alert><Alert.Content><Alert.Title>Nenhum registro neste recorte.</Alert.Title></Alert.Content></Alert>;
   return <div className="grid min-w-0 gap-4" data-testid="performance-analytics-v6">
-    {tab === 'students' && student ? <div className="flex flex-wrap items-end gap-4"><Avatar size="lg"><Avatar.Fallback>{student.student.name.split(/\s+/u).map((word) => word[0]).slice(0, 2).join('')}</Avatar.Fallback></Avatar><EntitySelect id="student" label="Aluno" value={student.student.id} items={value.students.map((item) => ({ id: item.student.id, label: `${item.student.number}. ${item.student.name}` }))} onChange={(studentId) => onSelection({ studentId })} /><Chip size="sm" variant="soft">{value.classGroup.label}</Chip><Button variant="ghost" size="sm" onPress={() => onCell(student.student.id)}>Detalhe completo</Button></div> : null}
+    {tab === 'students' && student ? <div className="flex flex-wrap items-end gap-4"><LinkedStudentPhotoAvatarV1 decorative size="lg" subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [student.student.id] }} /><EntitySelect id="student" label="Aluno" value={student.student.id} items={value.students.map((item) => ({ id: item.student.id, label: `${item.student.number}. ${item.student.name}` }))} onChange={(studentId) => onSelection({ studentId })} /><Chip size="sm" variant="soft">{value.classGroup.label}</Chip><Button variant="ghost" size="sm" onPress={() => onCell(student.student.id)}>Detalhe completo</Button></div> : null}
     {tab === 'components' && component ? <div className="flex flex-wrap items-end gap-3"><EntitySelect id="component" label="Componente" value={component.offer.id} items={value.components.map((item) => ({ id: item.offer.id, label: item.offer.subject.label }))} onChange={(offerId) => onSelection({ offerId })} /><span className="pb-2 text-xs text-muted">{component.offer.teacher.label}</span></div> : null}
     {tab === 'teachers' && teacher ? <div className="flex flex-wrap items-end gap-3"><EntitySelect id="teacher" label="Professor" value={teacher.id} items={value.teachers} onChange={(teacherId) => onSelection({ teacherId })} /><span className="pb-2 text-xs text-muted">{value.classGroup.label} · {teacher.offerIds.length} componentes</span><div className="ml-auto"><PerformanceTeacherExportV6 value={value} teacherId={teacher.id} /></div></div> : null}
 
