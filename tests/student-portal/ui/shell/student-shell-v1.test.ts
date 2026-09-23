@@ -96,6 +96,19 @@ describe('student shell and canonical profile', () => {
     expect(document.querySelector('img')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
   });
+  it('frames the original photo as a card or shows the cutout, never both', () => {
+    const profile = SYNTHETIC_SELF_V1.profile;
+    const view = render(
+      createElement(StudentProfileV1, { profile, portraitSrc: 'data:image/webp;base64,AA==', portraitVariant: 'card' }),
+    );
+    expect(document.querySelector('.pa-student-hero--card')).not.toBeNull();
+    expect(document.querySelector('.pa-hero-card-photo')).not.toBeNull();
+    expect(document.querySelector('.pa-hero-photo')).toBeNull();
+    view.unmount();
+    render(createElement(StudentProfileV1, { profile, portraitSrc: 'data:image/webp;base64,AA==' }));
+    expect(document.querySelector('.pa-hero-photo')).not.toBeNull();
+    expect(document.querySelector('.pa-hero-card')).toBeNull();
+  });
   it('exposes an optional real projection timestamp with an explicit school timezone', () => {
     render(page({ showUpdatedAt: true }));
     expect(document.querySelector('time')?.dateTime).toBe('2026-09-01T12:00:00.000Z');

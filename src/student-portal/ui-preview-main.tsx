@@ -235,6 +235,7 @@ interface AdminSimulationV1 {
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
   hasPortrait: boolean;
+  portraitStyle: 'cutout' | 'card';
   situation: AnnualSituationV1 | 'none';
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
@@ -365,7 +366,16 @@ function AdminSimulatorPanelV1({
       <div style={rowStyle}>
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
-        <label>{toggle('hasPortrait')} Foto sem fundo aprovada</label>
+        <label>{toggle('hasPortrait')} Foto do aluno</label>
+        <select
+          value={value.portraitStyle}
+          onChange={(event) =>
+            onChange({ ...value, portraitStyle: event.target.value as AdminSimulationV1['portraitStyle'] })
+          }
+        >
+          <option value="cutout">Recortada (sem fundo)</option>
+          <option value="card">Cartão (foto 3×4 original)</option>
+        </select>
       </div>
       <div style={rowStyle}>
         <span style={{ opacity: 0.7 }}>Períodos liberados:</span>
@@ -417,6 +427,7 @@ function PreviewAppV1() {
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: false,
+    portraitStyle: 'card',
     situation: 'none',
   });
   const data = useMemo(() => simulateAdminV1(previewData, admin), [admin]);
@@ -427,6 +438,7 @@ function PreviewAppV1() {
         load={{ state: 'ready', data }}
         onLogout={() => undefined}
         portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
+        portraitVariant={admin.portraitStyle}
       />
     </>
   );

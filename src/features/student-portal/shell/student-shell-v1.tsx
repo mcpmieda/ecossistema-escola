@@ -98,6 +98,12 @@ export function StudentPortalShellV1({
   );
 }
 
+/**
+ * `cutout`: an approved background-free portrait standing over the cover art.
+ * `card`: the original 3×4 photo (with its background) framed as a card — no cutout needed.
+ */
+export type StudentPortraitVariantV1 = 'cutout' | 'card';
+
 export function StudentProfileV1({
   profile,
   updatedAt,
@@ -106,6 +112,7 @@ export function StudentProfileV1({
   onLogout,
   loggingOut = false,
   portraitSrc,
+  portraitVariant = 'cutout',
 }: {
   profile: SelfResponseV1['profile'];
   /** Optional projection timestamp; never an invented date or the last BN import. */
@@ -115,6 +122,7 @@ export function StudentProfileV1({
   onLogout?: () => void;
   loggingOut?: boolean;
   portraitSrc?: string;
+  portraitVariant?: StudentPortraitVariantV1;
 }) {
   const heading = useId();
   const status =
@@ -125,7 +133,13 @@ export function StudentProfileV1({
 
   return (
     <header
-      className={portraitSrc ? 'pa-student-hero' : 'pa-student-hero pa-student-hero--no-portrait'}
+      className={
+        !portraitSrc
+          ? 'pa-student-hero pa-student-hero--no-portrait'
+          : portraitVariant === 'card'
+            ? 'pa-student-hero pa-student-hero--card'
+            : 'pa-student-hero'
+      }
       aria-labelledby={heading}
     >
       <h2 id={heading} className="pa-visually-hidden">
@@ -193,9 +207,18 @@ export function StudentProfileV1({
           {/* Only an approved background-free portrait is shown. Without one there is no
               placeholder: the copy takes the space and the cover artwork stays visible. */}
           {portraitSrc ? (
-            <div className="pa-hero-portrait">
-              <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
-            </div>
+            portraitVariant === 'card' ? (
+              // The original 3×4 photo, background included, framed as a glass ID card.
+              <div className="pa-hero-portrait pa-hero-portrait--card">
+                <div className="pa-hero-card">
+                  <img className="pa-hero-card-photo" src={portraitSrc} alt="" aria-hidden="true" />
+                </div>
+              </div>
+            ) : (
+              <div className="pa-hero-portrait">
+                <img className="pa-hero-photo" src={portraitSrc} alt="" aria-hidden="true" />
+              </div>
+            )
           ) : null}
         </div>
       </div>
@@ -303,6 +326,7 @@ export interface StudentPagePropsV1
   onLogin?: () => void;
   showUpdatedAt?: boolean;
   portraitSrc?: string;
+  portraitVariant?: StudentPortraitVariantV1;
 }
 
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
@@ -313,6 +337,7 @@ export function StudentPortalPageV1({
   onLogin,
   showUpdatedAt = false,
   portraitSrc,
+  portraitVariant,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
@@ -360,6 +385,7 @@ export function StudentPortalPageV1({
         onLogout={shell.onLogout}
         loggingOut={shell.loggingOut}
         portraitSrc={portraitSrc}
+        portraitVariant={portraitVariant}
       />
     ) : undefined;
 
