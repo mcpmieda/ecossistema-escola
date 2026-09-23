@@ -1,0 +1,94 @@
+import { z } from 'zod';
+import { studentUidV1 } from '../../shared/student-identity/student-identity-v1';
+import { photoAdminSubjectV1, type PhotoAdminSubjectV1 } from '../../shared/student-photos/admin-http-v1';
+import { photoAssetsV1, photoAssetV1, photoWriteReceiptV1, PhotoWriteErrorV1,
+  type PhotoAssetV1, type PhotoWriteContextV1 } from '../../shared/student-photos/write-v1';
+import { photoCatalogStateV1, type PhotoCatalogStateV1 } from '../../shared/student-photos/catalog-v1';
+import type { PhotoWriteDatabaseV1, PhotoWriteQueryV1 } from './write-repository-v1';
+
+export const legacyPhotoReferenceV1 = z.object({
+  accountId: studentUidV1,driveId: z.string().min(1),itemId: z.string().min(1),etag: z.string().nullable(),
+  byteSize: z.number().int().positive().max(131072),version: z.number().int().positive(),contentType: z.literal('image/webp'),
+}).strict();
+export type LegacyPhotoReferenceV1 = z.infer<typeof legacyPhotoReferenceV1>;
+export function photoBytesHexV1(bytes: Uint8Array): string {
+  return Array.from(bytes, byte => byte.toString(16).padStart(2,'0')).join('');
+}
+export function photoBytesFromHexV1(input: unknown): Uint8Array {
+  if (typeof input !== 'string' || input.length < 40 || input.length > 262144 || !/^(?:[a-f0-9]{2})+$/u.test(input))
+    throw new PhotoWriteErrorV1('invalid');
+  return Uint8Array.from(input.match(/../gu)!, byte => Number.parseInt(byte,16));
+}
+/** Internal catalog. All public callers must have a currently verified ADM session. */
+export class PhotoCatalogRepositoryV1 {
+  constructor(readonly database: PhotoWriteDatabaseV1) {}
+  private transaction<T>(work: (tx: PhotoWriteQueryV1) => Promise<T>) {
+    return this.database.transaction(async tx => {
+      await tx.query("SET LOCAL lock_timeout='3s'");
+      await tx.query("SET LOCAL statement_timeout='10s'");
+      return work(tx);
+    });
+  }
+  async resolve(input: PhotoAdminSubjectV1): Promise<string> {
+    const subject = photoAdminSubjectV1.parse(input);
+    return this.transaction(async tx => {
+      const rows = await tx.query('SELECT student_photos.resolve_student_v1($1,$2::integer,$3)::text AS uid',
+        [subject.source,subject.academicYear,String(subject.source === 'portal' ? subject.accountIds[0] : subject.studentIds[0])]);
+      if (!rows[0]?.uid) throw new PhotoWriteErrorV1('not-found');
+      return studentUidV1.parse(rows[0].uid);
+    });
+  }
+  async legacy(uid: string): Promise<LegacyPhotoReferenceV1 | null> {
+    return this.transaction(async tx => {
+      const rows = await tx.query('SELECT student_photos.legacy_reference_v1($1::uuid) AS data',[studentUidV1.parse(uid)]);
+      return rows[0]?.data == null ? null : legacyPhotoReferenceV1.parse(rows[0].data);
+    });
+  }
+  async family(uid: string) {
+    return this.transaction(async tx => {
+      const rows = await tx.query('SELECT revision::text,pending_request::text,assets FROM student_photos.photo_family_v1 WHERE student_uid=$1::uuid',[studentUidV1.parse(uid)]);
+      if (!rows[0]) return null;
+      return { revision: studentUidV1.nullable().parse(rows[0].revision),
+        pending: studentUidV1.nullable().parse(rows[0].pending_request), assets: photoAssetsV1.parse(rows[0].assets) };
+    });
+  }
+  async initialize(context: PhotoWriteContextV1, legacy: LegacyPhotoReferenceV1 | null, asset: PhotoAssetV1 | null) {
+    await this.transaction(async tx => {
+      await tx.query('SELECT student_photos.initialize_family_v1($1::uuid,$2::uuid,$3::text::jsonb,$4::text::jsonb)',
+        [context.studentUid,context.actorId,legacy === null ? null : JSON.stringify(legacy),asset === null ? null : JSON.stringify(photoAssetV1.parse(asset))]);
+    });
+  }
+  async publish(context: PhotoWriteContextV1, variant: 'portrait' | 'avatar', asset: PhotoAssetV1, bytes: Uint8Array) {
+    await this.transaction(async tx => {
+      await tx.query('SELECT student_photos.publish_asset_v1($1::uuid,$2::uuid,$3,$4::text::jsonb,decode($5,\'hex\'))',
+        [context.studentUid,context.actorId,variant,JSON.stringify(photoAssetV1.parse(asset)),photoBytesHexV1(bytes)]);
+    });
+  }
+  async image(uid: string, variant: 'portrait' | 'avatar') {
+    return this.transaction(async tx => {
+      const rows = await tx.query(`SELECT d.revision::text,encode(d.image_webp,'hex') AS image_hex,d.source_asset
+        FROM student_photos.asset_delivery_v1 d JOIN student_photos.photo_family_v1 f USING(student_uid)
+        WHERE d.student_uid=$1::uuid AND d.variant IN ($2,'portrait') AND f.assets->d.variant=d.source_asset
+        ORDER BY (d.variant=$2) DESC LIMIT 1`,[studentUidV1.parse(uid),variant]);
+      if (!rows[0]) return null;
+      return { revision:studentUidV1.parse(rows[0].revision),asset:photoAssetV1.parse(rows[0].source_asset),bytes:photoBytesFromHexV1(rows[0].image_hex) };
+    });
+  }
+  async state(context: PhotoWriteContextV1): Promise<PhotoCatalogStateV1> {
+    const family = await this.family(context.studentUid);
+    let pending = null;
+    if (family?.pending) pending = await this.transaction(async tx => {
+      const rows = await tx.query('SELECT receipt FROM student_photos.write_operation_v1 WHERE request_id=$1::uuid AND student_uid=$2::uuid',
+        [family.pending,context.studentUid]);
+      return rows[0] ? photoWriteReceiptV1.parse(rows[0].receipt) : null;
+    });
+    const legacy = family ? null : await this.legacy(context.studentUid);
+    const rows = await this.transaction(tx => tx.query(`SELECT EXISTS(SELECT 1 FROM student_photos.asset_delivery_v1 d
+      JOIN student_photos.photo_family_v1 f USING(student_uid) WHERE d.student_uid=$1::uuid AND d.variant='portrait'
+      AND d.source_asset=f.assets->'portrait')::integer AS ready`,[context.studentUid]));
+    return photoCatalogStateV1.parse({ version:1,studentUid:context.studentUid,revision:family?.revision ?? null,
+      initialized:!!family,hasPortrait:family ? !!family.assets.portrait : !!legacy,hasAvatar:!!family?.assets.avatar,
+      pendingRequest:family?.pending ?? null,pendingKind:pending?.kind ?? null,pendingStage:pending?.phase ?? null,
+      ownPending:pending?.actorId === context.actorId,portalReady:Number(rows[0]?.ready) === 1 });
+  }
+}
