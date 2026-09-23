@@ -22,7 +22,15 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 4. **Sem evolução ou comparação entre trimestres na v1.** Isso inclui gráficos, "subiu X%" e histórico.
 5. **Classificar pelo tipo interno**: slots 1–2 são avaliações, o slot 3 é a paralela e os slots 11+ são qualitativas. Nunca pelo rótulo digitado, e o nome de uma atividade nunca aparece no texto.
 6. **Sinais relativos ao próprio aluno.** Por exemplo, o contraste entre avaliações e qualitativas **dentro do aluno**. Nada de limiares absolutos que valham para quase todos (as qualitativas ficam em ~90% para todo mundo). Os limiares são calibrados com a distribuição real antes de publicar.
-7. **Variação determinística de linguagem.** A variante de frase é escolhida por hash estável de (disciplina, trimestre, código). Não muda ao recarregar a página e não se repete idêntica em todas as disciplinas.
+7. **Variantes de frase distribuídas entre os alunos (decisão do dono, 2026-09-23).** Cada mensagem tem várias versões com o mesmo significado. Alunos da mesma turma na mesma situação não leem o mesmo texto.
+   - **Aleatória entre alunos, estável para cada aluno.** A variante é escolhida por hash de (`studentUid`, disciplina, trimestre, código da mensagem). Entre alunos, funciona como sorteio. Para o mesmo aluno, a frase não muda ao recarregar a página, em outro dispositivo ou em outra sessão.
+     - Não usar número de chamada nem posição na turma: eles mudam quando alguém entra ou sai.
+     - Não sortear a cada acesso.
+   - **Mesmo significado e mesmo peso.** As variantes de um código devem ter o mesmo tom e a mesma intensidade. Nenhuma pode soar mais dura ou mais elogiosa que as outras. Todas passam pela aprovação da escola (D6).
+   - **Quantidade.** São no mínimo 3 variantes por código de mensagem. As mensagens mais frequentes ("fechou bem" e as linhas de reconhecimento) precisam de mais variedade.
+   - **Sem repetição na tela do aluno.** Quando o mesmo código aparece em mais de uma disciplina do mesmo aluno, as variantes são distribuídas para não repetir o texto, enquanto houver alternativas. A escolha continua determinística.
+   - **Suporte.** A resposta carrega o código da mensagem e o índice da variante, sem texto. Assim a coordenação consegue identificar exatamente o que o aluno leu.
+   - **Testes.** Os testes verificam a estabilidade (mesma entrada, mesma variante), a distribuição aproximadamente uniforme numa turma sintética e a ausência de repetição dentro da tela de um aluno.
 8. **Parciais ocultas podem ser usadas.** Se a escola mostra só o total, o fechamento continua completo, porque é calculado no servidor a partir dos registros acadêmicos, e não do que está desenhado na tela. Isso segue a decisão do dono.
 9. **Nenhum texto pode permitir deduzir uma nota que não está exibida.** Proibido: "faltaram X pontos", "menos de 40%", "sua última avaliação foi a pior".
 10. **Prova paralela.** Quando o aluno é elegível e ainda não fez a paralela, a ação é "faça a prova paralela". É o sinal mais concreto e justo, e já é visível para o aluno.
