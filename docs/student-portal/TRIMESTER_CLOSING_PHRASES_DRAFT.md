@@ -137,7 +137,7 @@ Os marcadores `{lista}` e `{trimestre}` são preenchidos pelo sistema. `{lista}`
 
 ## 7. Acompanhamento do trimestre em andamento (política "Usar termos de conclusão" desligada)
 
-Mesmo motor, frases no presente e rótulo **"Acompanhamento do Nº trimestre"**. O código está em `shared/student-portal-contracts/term-closing-v1.ts` (prefixo `progress.`):
+Mesmo motor, frases no presente e rótulo **"Acompanhamento do Nº trimestre"**. O código está em `shared/student-portal-contracts/term-closing-catalog-v1.ts` (prefixo `progress.`):
 
 - **Conclusão:** "Até agora, esta disciplina pede sua atenção." · "Você está indo bem, mas há um ponto para cuidar." · linha: "Até aqui, tudo certo nesta disciplina."
 - **O que mais pesa:** "Até agora, as avaliações são o principal ponto de atenção." · "Há atividades não realizadas neste trimestre." · "As atividades do dia a dia estão sendo um desafio para você."
