@@ -220,12 +220,14 @@ const previewData = selfResponseV1.parse({
 });
 
 /*
- * Production-shaped scenario (checked against the published 2026 projections on 2026-09-23).
+ * Production-shaped scenario (checked against the scoped v2 editions served in 2026-09).
  * Marks and names are invented; only the structure and catalog mirror production:
  * - Fundamental II classes (6º–9º ANO) with the 12 real subjects, upper-case, in the real order;
  * - only T1 is published; term maximum 30 = AV1 8,5 + AV2 5 + JOGOS 3 + PARTICIPAÇÃO 4,5 + activities;
+ * - T1 AV1/AV2 carry the school's configured names (1ª AVALIAÇÃO, SIMULADO);
  * - 6–9 activities per subject with the teachers' own upper-case, abbreviated labels;
- * - "Recuperação paralela" (and a few others) come as a plain absent mark, never notDone;
+ * - "Prova paralela" (no maximum) appears only when eligible (BN-DEC-035: AV1+AV2 and the total
+ *   before it both below 60%) or already scored; a higher score replaces AV1+AV2 in the final;
  * - a few scores have no maximum (meetsMinimum null), and a few are zero.
  */
 type RealActivityV1 = readonly [label: string, maximum: number | null, value: number | null];
@@ -245,124 +247,122 @@ const realSubject = (
           ? { kind: 'score' as const, value, maximum: null, meetsMinimum: null }
           : score(value, maximum),
   }));
-  const final = activities.reduce((sum, [, , value]) => sum + (value ?? 0), 0);
+  const valueOf = (name: string) => activities.find(([activity]) => activity === name)?.[2] ?? null;
+  const quantitative = (valueOf(AV1_LABEL) ?? 0) + (valueOf(AV2_LABEL) ?? 0);
+  const parallel = valueOf(PARALLEL_LABEL);
+  const beforeParallel = activities.reduce(
+    (sum, [activity, , value]) => (activity === PARALLEL_LABEL ? sum : sum + (value ?? 0)),
+    0,
+  );
+  const final = parallel !== null && parallel > quantitative ? beforeParallel - quantitative + parallel : beforeParallel;
   return { subjectId, label, order, periods: [{ period: 'T1' as const, final: score(final, 30), partials }] };
 };
-const REC_PARALELA: RealActivityV1 = ['Recuperação paralela', null, null];
+const AV1_LABEL = '1ª AVALIAÇÃO';
+const AV2_LABEL = 'SIMULADO';
+const PARALLEL_LABEL = 'Prova paralela';
 const realPreviewData = selfResponseV1.parse({
   ...previewData,
   profile: { ...previewData.profile, classLabel: '7º ANO B' },
   subjects: [
     realSubject(910001, 'PORTUGUÊS', 0, [
-      ['Avaliação 1', 8.5, 4],
-      ['Avaliação 2', 5, 2.5],
+      [AV1_LABEL, 8.5, 4],
+      [AV2_LABEL, 5, 2.5],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 3],
       ['1ª ATIVIDADE AVALIATIVA', 6, null],
       ['PRODUÇÃO DE TEXTO', 3, 1.5],
-      REC_PARALELA,
+      [PARALLEL_LABEL, null, null],
     ]),
     realSubject(910002, 'MATEMÁTICA', 1, [
-      ['Avaliação 1', 8.5, 7.5],
-      ['Avaliação 2', 5, 4],
+      [AV1_LABEL, 8.5, 7.5],
+      [AV2_LABEL, 5, 4],
       ['JOGOS', 3, 3],
       ['PART', 4.5, 4.5],
       ['I ATIV', 6, 5],
       ['II ATIV', 3, 2.5],
-      REC_PARALELA,
     ]),
     realSubject(910003, 'HISTÓRIA', 2, [
-      ['Avaliação 1', 8.5, 3],
-      ['Avaliação 2', 5, 2],
+      [AV1_LABEL, 8.5, 3],
+      [AV2_LABEL, 5, 2],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 2],
       ['1ª ATIVIDADE', 6, 3],
       ['2ª ATIVIDADE', 3, 0],
-      ['EX', null, null],
-      REC_PARALELA,
+      [PARALLEL_LABEL, null, 7],
     ]),
     realSubject(910004, 'GEOGRAFIA', 3, [
-      ['Avaliação 1', 8.5, 6],
-      ['Avaliação 2', 5, 3.5],
+      [AV1_LABEL, 8.5, 6],
+      [AV2_LABEL, 5, 3.5],
       ['JOGOS', 3, 3],
       ['PARTI', 4.5, 4],
       ['CAED', 6, 4.5],
       ['MAPA-MENTAL', 3, 2],
-      REC_PARALELA,
     ]),
     realSubject(910005, 'CIÊNCIAS', 4, [
-      ['Avaliação 1', 8.5, 8],
-      ['Avaliação 2', 5, 4.5],
+      [AV1_LABEL, 8.5, 8],
+      [AV2_LABEL, 5, 4.5],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 4],
       ['ATIVIDADE INVESTIGATIVA', 6, 5.5],
       ['LAPBOOK', 3, 3],
-      REC_PARALELA,
     ]),
     realSubject(910006, 'ARTE', 5, [
-      ['Avaliação 1', 8.5, 5],
-      ['Avaliação 2', 5, 3],
+      [AV1_LABEL, 8.5, 5],
+      [AV2_LABEL, 5, 3],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 3.5],
       ['RELEITURA - ABAPORU (INDIVIDUAL)', 3, 2.5],
       ['CARTAZ (MPB, BOSSA NOVA E ROCK)', 3, 2],
       ['VÍDEO HOMENAGEM MEDEIROS NETO', 3, null],
       ['P.D.', null, 1],
-      REC_PARALELA,
     ]),
     realSubject(910007, 'RELIGIÃO', 6, [
-      ['Avaliação 1', 8.5, 7],
-      ['Avaliação 2', 5, 4],
+      [AV1_LABEL, 8.5, 7],
+      [AV2_LABEL, 5, 4],
       ['JOGOS', 3, 3],
       ['PRT', 4.5, 4],
       ['LÍDERES RELIGIOSOS', 3, 3],
       ['LIVROS SAGRADOS', 6, 5],
-      REC_PARALELA,
     ]),
     realSubject(910008, 'REDAÇÃO', 7, [
-      ['Avaliação 1', 8.5, 6.5],
-      ['Avaliação 2', 5, 3],
+      [AV1_LABEL, 8.5, 6.5],
+      [AV2_LABEL, 5, 3],
       ['JOGOS', 3, 3],
       ['PARTIC.', 4.5, 3.5],
       ['PRODUÇÃO DE TEXTO', 6, 4],
       ['2ª ATIVIDADE', 3, 2],
-      REC_PARALELA,
     ]),
     realSubject(910009, 'ED. FÍSICA', 8, [
-      ['Avaliação 1', 8.5, 8.5],
-      ['Avaliação 2', 5, 5],
+      [AV1_LABEL, 8.5, 8.5],
+      [AV2_LABEL, 5, 5],
       ['Jogos interclasse', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 4.5],
       ['GINCANA', 6, 6],
       ['PESQUISA', 3, 2.5],
-      REC_PARALELA,
     ]),
     realSubject(910010, 'ÉTICA', 9, [
-      ['Avaliação 1', 8.5, 7],
-      ['Avaliação 2', 5, 4.5],
+      [AV1_LABEL, 8.5, 7],
+      [AV2_LABEL, 5, 4.5],
       ['JOGOS', 3, 3],
       ['PART', 4.5, 4],
       ['ÁRVORE DE VALORES', 6, 5],
       ['2ª PARTICIPAÇÃO', 3, 2.5],
-      REC_PARALELA,
     ]),
     realSubject(910011, 'INGLÊS', 10, [
-      ['Avaliação 1', 8.5, 7.5],
-      ['Avaliação 2', 5, 4],
+      [AV1_LABEL, 8.5, 7.5],
+      [AV2_LABEL, 5, 4],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 4],
       ['1ª ATIV', 6, 5],
       ['2ª ATIV', 3, 3],
-      REC_PARALELA,
     ]),
     realSubject(910012, 'COMPUTAÇÃO', 11, [
-      ['Avaliação 1', 8.5, 6],
-      ['Avaliação 2', 5, 4],
+      [AV1_LABEL, 8.5, 6],
+      [AV2_LABEL, 5, 4],
       ['JOGOS', 3, 3],
       ['PARTICIPAÇÃO', 4.5, 4.5],
       ['A. COMP.', 6, 5],
       ['TRAB', 3, 3],
-      REC_PARALELA,
     ]),
   ],
 });
