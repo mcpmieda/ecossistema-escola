@@ -105,9 +105,10 @@ export class PhotoWriteCoordinatorV1 {
     let receipt = initial;
     for (const asset of initial.cleanup) {
       if (signal.aborted) return resultOf(receipt.requestId,true);
-      await this.ports.authorize(context);
-      if (signal.aborted) return resultOf(receipt.requestId,true);
       try {
+        // Permission loss stops deletions, but cannot undo an already confirmed commit.
+        await this.ports.authorize(context);
+        if (signal.aborted) return resultOf(receipt.requestId,true);
         const outcome = await this.ports.remove(asset, signal);
         receipt = await this.repository.acknowledgeCleanup(context, receipt.requestId, asset, outcome);
       } catch { return resultOf(receipt.requestId,true); }
