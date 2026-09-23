@@ -26,9 +26,12 @@ export type PhotoWriteResultV1 =
   | { state: 'committed'; requestId: string; revision: string; cleanupPending: boolean };
 
 async function metadataOf(value: ValidatedPhotoBytesV1): Promise<PhotoVariantMetadataV1> {
-  const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(value.bytes).buffer)),
-    byte => byte.toString(16).padStart(2, '0')).join('');
-  return { width: value.width, height: value.height, byteSize: value.bytes.length, sha256 };
+  const copy = new Uint8Array(value.bytes);
+  try {
+    const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', copy.buffer)),
+      byte => byte.toString(16).padStart(2, '0')).join('');
+    return { width: value.width, height: value.height, byteSize: value.bytes.length, sha256 };
+  } finally { copy.fill(0); }
 }
 const resultOf = (requestId: string, cleanupPending: boolean): PhotoWriteResultV1 =>
   ({ state: 'committed', requestId, revision: requestId, cleanupPending });
