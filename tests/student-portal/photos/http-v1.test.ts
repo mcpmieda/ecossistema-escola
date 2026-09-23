@@ -26,7 +26,8 @@ describe('private photo route', () => {
     const disabled = { ...env, PORTAL_PHOTOS_ENABLED: undefined };
     const response = await servePortalSelfV1(request(), disabled);
     expect(response.status).toBe(204); privateResponse(response);
-    expect((await servePortalSelfV1(request(portraitContentPathV1(revision)), disabled)).status).toBe(404);
+    const content = await servePortalSelfV1(request(portraitContentPathV1(revision)), disabled);
+    expect(content.status).toBe(404); privateResponse(content);
   });
   it('returns only minimal metadata and a versioned own-origin path', async () => {
     const read = vi.fn<OwnPortraitReaderV1>().mockResolvedValue({ state: 'metadata', metadata });
@@ -49,12 +50,13 @@ describe('private photo route', () => {
     expect(read.mock.calls[0]?.[1]).toBe(revision);
   });
   it.each([
-    ['/api/student/photo?studentUid=123', 'GET', 400],
-    ['/api/student/photo?accountId=123', 'GET', 400],
+    // Disallowed queries are refused by the outer security boundary, before routing.
+    ['/api/student/photo?studentUid=123', 'GET', 403],
+    ['/api/student/photo?accountId=123', 'GET', 403],
     ['/api/student/photo/content', 'GET', 400],
-    ['/api/student/photo/content?v=bad', 'GET', 400],
-    [portraitContentPathV1(revision) + '&v=' + revision, 'GET', 400],
-    [portraitContentPathV1(revision) + '&studentUid=123', 'GET', 400],
+    ['/api/student/photo/content?v=bad', 'GET', 403],
+    [portraitContentPathV1(revision) + '&v=' + revision, 'GET', 403],
+    [portraitContentPathV1(revision) + '&studentUid=123', 'GET', 403],
     ['/api/student/photo', 'POST', 405],
     ['/api/student/photo', 'HEAD', 405],
     ['/api/student/photo/other', 'GET', 404],

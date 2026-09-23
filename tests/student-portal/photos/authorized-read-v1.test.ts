@@ -85,8 +85,12 @@ it.each([
   "UPDATE student_portal.account SET blocked=true",
   "UPDATE student_portal.account SET security_version=security_version+1",
   "UPDATE student_portal.session SET revoked_at=statement_timestamp()",
-  "UPDATE student_portal.session SET expires_at=statement_timestamp()-interval '1 second'",
-  "UPDATE gradebook.vinculo SET situacao=6",
+  // Keep created_at < expires_at so this tests authorization, not invalid fixture DML.
+  "UPDATE student_portal.session SET created_at=statement_timestamp()-interval '2 hours', expires_at=statement_timestamp()-interval '1 second'",
+  // 3/4/5 are actual exit states; status 6 is transfer history and needs a related class.
+  "UPDATE gradebook.vinculo SET situacao=3",
+  "UPDATE gradebook.vinculo SET situacao=4",
+  "UPDATE gradebook.vinculo SET situacao=5",
 ])('refuses delivery after %s, before selecting photo data', async statement => {
   await pg.exec(statement);
   expect(await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1)).toBeNull();
