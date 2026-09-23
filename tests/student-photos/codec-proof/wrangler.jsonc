@@ -1,0 +1,8 @@
+{
+  // Dry-run packaging only; no bindings, credentials or production routes.
+  "name": "student-photo-codec-proof-local",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-11",
+  "workers_dev": false,
+  "preview_urls": false
+}
