@@ -77,8 +77,20 @@ export class SharePointPhotoTransportV1 {
     signal.throwIfAborted();
     return { ...operation, token };
   }
+  /** The shared Graph client may retry a 429. Check authority at the actual I/O
+   * boundary on every POST/DELETE, including after its Retry-After wait. */
+  private guardedDependencies(operation: Operation): GraphDependencies {
+    return { ...this.dependencies, fetch: async (input, init) => {
+      if (init?.method === 'POST' || init?.method === 'DELETE') {
+        init.signal?.throwIfAborted();
+        await this.authorize(operation);
+        init.signal?.throwIfAborted();
+      }
+      return this.dependencies.fetch(input, init);
+    } };
+  }
   private async json(path: string, operation: Operation, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<unknown> {
-    return (await graphRequest<unknown>({ env: this.options.env, dependencies: this.dependencies,
+    return (await graphRequest<unknown>({ env: this.options.env, dependencies: this.guardedDependencies(operation),
       token: operation.token, signal: operation.signal, correlationId: operation.correlationId, path, method, body })).data;
   }
   private async parent(operation: Operation): Promise<void> {
@@ -200,7 +212,7 @@ export class SharePointPhotoTransportV1 {
       if (current.eTag !== asset.etag) throw new GraphError(412, correlationId);
       await this.authorize(operation);
       try {
-        const response = await graphFetchV1({ url: graphUrlV1(path), dependencies: this.dependencies, correlationId, signal,
+        const response = await graphFetchV1({ url: graphUrlV1(path), dependencies: this.guardedDependencies(operation), correlationId, signal,
           init: { method: 'DELETE', headers: { Authorization: `Bearer ${operation.token}`, 'If-Match': asset.etag,
             Accept: 'application/json', 'client-request-id': correlationId } } });
         await response.body?.cancel().catch(() => undefined);
