@@ -1,7 +1,12 @@
 import { assertPhotoSizeV1, PHOTO_SOURCE_MAX_BYTES_V1, PhotoPreparationErrorV1, type PhotoSizeV1 } from './crop-v1';
-export interface PhotoProbeV1 extends PhotoSizeV1 { type: 'image/jpeg' | 'image/png' | 'image/webp'; privateMetadata: boolean }
+export interface PhotoProbeV1 extends PhotoSizeV1 {
+  type: 'image/jpeg' | 'image/png' | 'image/webp';
+  privateMetadata: boolean;
+  /** Presence only; the native decoder, not this header probe, interprets EXIF orientation. */
+  exifMetadata?: boolean;
+}
 const invalid = (): never => { throw new PhotoPreparationErrorV1('format'); };
-const tag = (bytes: Uint8Array, offset: number) => String.fromCharCode(...bytes.subarray(offset, offset + 4));
+const tag = (bytes: Uint8Array, offset: number) => String.fromCodePoint(...bytes.subarray(offset, offset + 4));
 const uint24 = (bytes: Uint8Array, offset: number) => bytes[offset]! + bytes[offset + 1]! * 256 + bytes[offset + 2]! * 65536;
 function webpCanvas(bytes: Uint8Array, body: number, length: number, offset: number, previous?: PhotoSizeV1): PhotoSizeV1 {
   if (previous || offset !== 12 || length !== 10 || (bytes[body]! & 2)) return invalid();
@@ -45,16 +50,23 @@ function png(bytes: Uint8Array, view: DataView): PhotoProbeV1 {
     const end = offset + 12 + length;
     if (end > bytes.length || kind === 'acTL') return invalid();
     if (['eXIf', 'tEXt', 'zTXt', 'iTXt'].includes(kind)) result.privateMetadata = true;
+    if (kind === 'eXIf') result.exifMetadata = true;
     offset = end;
-    if (kind === 'IEND') { if (length !== 0 || offset !== bytes.length) return invalid(); return result; }
+    if (kind === 'IEND') {
+      if (length !== 0 || offset !== bytes.length) return invalid();
+      return result;
+    }
   }
   return invalid();
 }
 function jpeg(bytes: Uint8Array, view: DataView): PhotoProbeV1 {
-  let offset = 2;
-  while (offset + 4 <= bytes.length) {
+  let offset = 2, count = 0, fillBytes = 0;
+  while (offset + 4 <= bytes.length && ++count <= 8192) {
     if (bytes[offset++] !== 0xff) return invalid();
-    while (bytes[offset] === 0xff) offset++;
+    while (bytes[offset] === 0xff) {
+      if (++fillBytes > 8192) return invalid();
+      offset++;
+    }
     const marker = bytes[offset++];
     if (marker === 0xd9 || marker === 0xda || offset + 2 > bytes.length) return invalid();
     const length = view.getUint16(offset);
@@ -72,8 +84,11 @@ export function probePhotoSourceV1(bytes: Uint8Array): PhotoProbeV1 {
   if (bytes.length > PHOTO_SOURCE_MAX_BYTES_V1) throw new PhotoPreparationErrorV1('size');
   if (bytes.length < 20) return invalid();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const result = tag(bytes, 0) === 'RIFF' && tag(bytes, 8) === 'WEBP' ? webp(bytes, view)
-    : bytes[0] === 0x89 ? png(bytes, view) : bytes[0] === 0xff && bytes[1] === 0xd8 ? jpeg(bytes, view) : invalid();
+  let result: PhotoProbeV1;
+  if (tag(bytes, 0) === 'RIFF' && tag(bytes, 8) === 'WEBP') result = webp(bytes, view);
+  else if (bytes[0] === 0x89) result = png(bytes, view);
+  else if (bytes[0] === 0xff && bytes[1] === 0xd8) result = jpeg(bytes, view);
+  else return invalid();
   assertPhotoSizeV1(result);
   return result;
 }

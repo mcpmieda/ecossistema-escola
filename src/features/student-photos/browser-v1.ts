@@ -1,6 +1,6 @@
 import { PHOTO_AVATAR_MAX_BYTES_V1, PHOTO_SOURCE_MAX_BYTES_V1, PhotoPreparationErrorV1,
   photoGeometryV1, type CropControlsV1, type PhotoGeometryV1, type PhotoSizeV1 } from '../../../shared/student-photos/crop-v1';
-import { probePhotoSourceV1 } from '../../../shared/student-photos/source-probe-v1';
+import { probePhotoSourceV1, type PhotoProbeV1 } from '../../../shared/student-photos/source-probe-v1';
 import { STUDENT_PHOTO_MAX_BYTES_V1 } from '../../../shared/student-photos/portrait-v1';
 
 export interface PhotoSourceV1 extends PhotoSizeV1 { image: CanvasImageSource; src: string; dispose(): void }
@@ -26,6 +26,12 @@ const defaultBrowser: PhotoBrowserV1 = {
   createObjectURL: blob => URL.createObjectURL(blob), revokeObjectURL: src => URL.revokeObjectURL(src),
   canvas: () => document.createElement('canvas'),
 };
+function decodedSizeMatches(probe: PhotoProbeV1, decoded: PhotoSizeV1): boolean {
+  if (decoded.width === probe.width && decoded.height === probe.height) return true;
+  // PNG eXIf can rotate the native bitmap just like JPEG. Text/XMP alone does not permit a swap.
+  const nativeOrientation = probe.type === 'image/jpeg' || (probe.type === 'image/png' && probe.exifMetadata === true);
+  return nativeOrientation && decoded.width === probe.height && decoded.height === probe.width;
+}
 /** Native EXIF orientation is applied exactly once. No upload, persistence or external service. */
 export async function loadPhotoSourceV1(file: Blob, signal: AbortSignal, browser: PhotoBrowserV1 = defaultBrowser): Promise<PhotoSourceV1> {
   signal.throwIfAborted();
@@ -37,19 +43,25 @@ export async function loadPhotoSourceV1(file: Blob, signal: AbortSignal, browser
   const cleanType = new Blob([new Uint8Array(bytes).buffer], { type: probe.type });
   let image: ImageBitmap;
   try { image = await browser.decode(cleanType); }
-  catch (error) { signal.throwIfAborted(); if (error instanceof PhotoPreparationErrorV1) throw error; throw new PhotoPreparationErrorV1('decode'); }
+  catch (error) {
+    signal.throwIfAborted();
+    if (error instanceof PhotoPreparationErrorV1) throw error;
+    throw new PhotoPreparationErrorV1('decode');
+  }
   let src: string | undefined;
   try {
     signal.throwIfAborted();
-    if (!((image.width === probe.width && image.height === probe.height)
-      || (probe.type === 'image/jpeg' && image.width === probe.height && image.height === probe.width)))
-      throw new PhotoPreparationErrorV1('dimensions');
+    if (!decodedSizeMatches(probe, image)) throw new PhotoPreparationErrorV1('dimensions');
     src = browser.createObjectURL(cleanType);
     const preview = src;
     let disposed = false;
     return { image, src: preview, width: image.width, height: image.height,
       dispose() { if (!disposed) { disposed = true; image.close(); browser.revokeObjectURL(preview); } } };
-  } catch (error) { image.close(); if (src) browser.revokeObjectURL(src); throw error; }
+  } catch (error) {
+    image.close();
+    if (src) browser.revokeObjectURL(src);
+    throw error;
+  }
 }
 function canvasBlob(canvas: PhotoCanvasV1, quality: number, signal: AbortSignal): Promise<Blob> {
   return new Promise((resolve, reject) => {
