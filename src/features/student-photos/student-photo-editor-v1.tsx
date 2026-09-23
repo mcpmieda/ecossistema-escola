@@ -11,6 +11,7 @@ export interface StudentPhotoEditorPropsV1 {
   onCancel(): void;
   /** Receives a local draft only. The caller owns server validation, CAS and persistence. */
   onPrepared(draft: PhotoDraftV1): void;
+  initialPhoto?: Blob;
   media?: PhotoEditorMediaV1;
 }
 const errorText = {
@@ -27,11 +28,14 @@ const errorText = {
 export function StudentPhotoEditorV1({ ownerKey, ...session }: Readonly<StudentPhotoEditorPropsV1>) {
   return <PhotoEditorSessionV1 key={ownerKey} {...session} />;
 }
-function PhotoEditorSessionV1({ onCancel, onPrepared, media }: Readonly<Omit<StudentPhotoEditorPropsV1, 'ownerKey'>>) {
+function PhotoEditorSessionV1({ onCancel, onPrepared, initialPhoto, media }: Readonly<Omit<StudentPhotoEditorPropsV1, 'ownerKey'>>) {
   const controller = useMemo(() => createPhotoEditorControllerV1(media), [media]);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const inputId = useId();
-  useEffect(() => () => controller.reset(), [controller]);
+  useEffect(() => {
+    if (initialPhoto) void controller.select(initialPhoto);
+    return () => controller.reset();
+  }, [controller, initialPhoto]);
   const busy = state.status === 'loading' || state.status === 'preparing';
   const cancel = () => { controller.reset(); onCancel(); };
   return <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open) cancel(); }}>
