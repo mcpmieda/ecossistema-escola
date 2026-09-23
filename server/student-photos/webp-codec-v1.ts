@@ -18,14 +18,14 @@ interface CodecExportsV1 {
   photo_decoder_version(): number;
   photo_encoder_version(): number;
   photo_normalize(length: number, variant: number, quality: number): number;
+  photo_validate(length: number, variant: number): number;
   photo_clear(): void;
 }
 const memoryBytes = 32 * 1024 * 1024;
 const codecVersion = 0x010600;
 const functions = ['photo_input_ptr','photo_output_ptr','photo_output_size','photo_width','photo_height',
-  'photo_decoder_version','photo_encoder_version','photo_normalize','photo_clear'] as const;
+  'photo_decoder_version','photo_encoder_version','photo_normalize','photo_validate','photo_clear'] as const;
 const statuses: readonly WebpCodecFailureV1[] = ['unavailable','input','dimensions','decode','alpha','encode','output-size','unavailable'];
-
 function maxBytes(variant: WebpPhotoVariantV1): number {
   return variant === 'portrait' ? STUDENT_PHOTO_MAX_BYTES_V1 : 64 * 1024;
 }
@@ -38,8 +38,6 @@ function preflight(bytes: Uint8Array, variant: WebpPhotoVariantV1) {
   if (variant === 'portrait'
     ? width > STUDENT_PHOTO_MAX_WIDTH_V1 || height > STUDENT_PHOTO_MAX_HEIGHT_V1 || width * 4 !== height * 3
     : width > 320 || height > 320 || width !== height) throw new WebpCodecErrorV1('dimensions');
-  // The editor supplies already oriented, opaque pixels. Reject rather than silently
-  // ignoring EXIF/ICC or forwarding extra/private chunks. This is not a decoder.
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let offset = 12; offset < bytes.length;) {
     const tag = String.fromCharCode(...bytes.subarray(offset, offset + 4));
@@ -66,10 +64,8 @@ function memoryRange(api: CodecExportsV1, pointer: number, length: number): Uint
   return new Uint8Array(api.memory.buffer, pointer, length);
 }
 
-/** Candidate private adapter, not mounted in an upload route. Module must be the
- * source-built, provenance-checked artifact, imported statically by the Worker.
- * Instantiate this adapter once per isolate (not per request) to enforce admission.
- * Cancellation is checked between stages; synchronous native work is not preempted. */
+/** One adapter per administrative isolate. The module is statically imported from
+ * the source-built, hash-checked production artifact; never fetched during a request. */
 export class StudentWebpCodecV1 {
   private busy = false;
   constructor(private readonly module: WebAssembly.Module) {
@@ -77,13 +73,11 @@ export class StudentWebpCodecV1 {
     if (imports.some(item => item.module !== 'wasi_snapshot_preview1' || item.name !== 'proc_exit' || item.kind !== 'function'))
       throw new WebpCodecErrorV1('unavailable');
   }
-
-  async normalize(input: Uint8Array, variant: WebpPhotoVariantV1, quality: WebpPhotoQualityV1, signal: AbortSignal):
-    Promise<{ bytes: Uint8Array; width: number; height: number }> {
+  private async run<T>(input: Uint8Array, variant: WebpPhotoVariantV1, signal: AbortSignal,
+    work: (api: CodecExportsV1, bytes: Uint8Array, size: { width: number; height: number }) => T): Promise<T> {
     signal.throwIfAborted();
-    if (!['portrait','avatar'].includes(variant) || ![92,86,80].includes(quality)
-      || !(input instanceof Uint8Array) || input.length < 20 || input.length > maxBytes(variant))
-      throw new WebpCodecErrorV1('input');
+    if (!['portrait','avatar'].includes(variant) || !(input instanceof Uint8Array)
+      || input.length < 20 || input.length > maxBytes(variant)) throw new WebpCodecErrorV1('input');
     if (this.busy) throw new WebpCodecErrorV1('unavailable');
     const bytes = new Uint8Array(input);
     this.busy = true;
@@ -96,25 +90,43 @@ export class StudentWebpCodecV1 {
       signal.throwIfAborted();
       api = checkedExports(instance);
       memoryRange(api, api.photo_input_ptr(), bytes.length).set(bytes);
-      const status = api.photo_normalize(bytes.length, variant === 'portrait' ? 0 : 1, quality);
+      const result = work(api, bytes, size);
       signal.throwIfAborted();
-      if (status !== 0) throw new WebpCodecErrorV1(statuses[status] ?? 'unavailable');
-      const length = api.photo_output_size();
-      if (length < 20 || length > maxBytes(variant)) throw new WebpCodecErrorV1('output-size');
-      if (api.photo_width() !== size.width || api.photo_height() !== size.height)
-        throw new WebpCodecErrorV1('dimensions');
-      const output = new Uint8Array(memoryRange(api, api.photo_output_ptr(), length));
-      const checked = preflight(output, variant);
-      if (checked.width !== size.width || checked.height !== size.height) throw new WebpCodecErrorV1('dimensions');
-      return { bytes: output, ...size };
+      return result;
     } catch (error) {
       signal.throwIfAborted();
       if (error instanceof WebpCodecErrorV1) throw error;
       throw new WebpCodecErrorV1('unavailable');
     } finally {
       bytes.fill(0);
-      try { api?.photo_clear(); }
-      finally { this.busy = false; }
+      try { api?.photo_clear(); } finally { this.busy = false; }
     }
+  }
+  /** Fully decode an already canonical original without changing or recompressing it. */
+  validate(input: Uint8Array, variant: WebpPhotoVariantV1, signal: AbortSignal): Promise<{ width: number; height: number }> {
+    return this.run(input, variant, signal, (api, bytes, size) => {
+      const status = api.photo_validate(bytes.length, variant === 'portrait' ? 0 : 1);
+      if (status !== 0) throw new WebpCodecErrorV1(statuses[status] ?? 'unavailable');
+      if (api.photo_width() !== size.width || api.photo_height() !== size.height) throw new WebpCodecErrorV1('dimensions');
+      return size;
+    });
+  }
+  /** Rebuild upload pixels at the explicit quality; never resize or silently retry. */
+  normalize(input: Uint8Array, variant: WebpPhotoVariantV1, quality: WebpPhotoQualityV1, signal: AbortSignal):
+    Promise<{ bytes: Uint8Array; width: number; height: number }> {
+    if (![92,86,80].includes(quality)) return Promise.reject(new WebpCodecErrorV1('input'));
+    return this.run(input, variant, signal, (api, bytes, size) => {
+      const status = api.photo_normalize(bytes.length, variant === 'portrait' ? 0 : 1, quality);
+      if (status !== 0) throw new WebpCodecErrorV1(statuses[status] ?? 'unavailable');
+      const length = api.photo_output_size();
+      if (length < 20 || length > maxBytes(variant)) throw new WebpCodecErrorV1('output-size');
+      if (api.photo_width() !== size.width || api.photo_height() !== size.height) throw new WebpCodecErrorV1('dimensions');
+      const output = new Uint8Array(memoryRange(api, api.photo_output_ptr(), length));
+      try {
+        const checked = preflight(output, variant);
+        if (checked.width !== size.width || checked.height !== size.height) throw new WebpCodecErrorV1('dimensions');
+        return { bytes: output, ...size };
+      } catch (error) { output.fill(0); throw error; }
+    });
   }
 }

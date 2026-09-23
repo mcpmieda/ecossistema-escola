@@ -26,7 +26,7 @@ emcc scripts/student-photos/codec-v1/bridge.c "${webp[0]}" "${yuv[0]}" \
   -I "$source_dir/src" -O2 -DNDEBUG --no-entry -s STANDALONE_WASM=1 \
   -s FILESYSTEM=0 -s MALLOC=emmalloc -s ABORTING_MALLOC=0 \
   -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=33554432 -s STACK_SIZE=262144 \
-  -s 'EXPORTED_FUNCTIONS=["_photo_clear","_photo_input_ptr","_photo_output_ptr","_photo_output_size","_photo_width","_photo_height","_photo_decoder_version","_photo_encoder_version","_photo_normalize"]' \
+  -s 'EXPORTED_FUNCTIONS=["_photo_clear","_photo_input_ptr","_photo_output_ptr","_photo_output_size","_photo_width","_photo_height","_photo_decoder_version","_photo_encoder_version","_photo_normalize","_photo_validate"]' \
   -o "$out/codec.wasm"
 cp "$source_dir/COPYING" "$source_dir/PATENTS" "$source_dir/AUTHORS" "$out/"
 SOURCE_SHA="$source_sha" node --input-type=module <<'JS'
@@ -36,8 +36,9 @@ import { execFileSync } from 'node:child_process';
 const directory = 'node_modules/.cache/student-photo-codec-v1';
 const digest = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 const applicationCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-const applicationHeadCommit = process.env.PR_HEAD_SHA ?? null;
-const applicationBaseCommit = process.env.PR_BASE_SHA ?? null;
+const applicationTree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+const applicationHeadCommit = process.env.PR_HEAD_SHA || null;
+const applicationBaseCommit = process.env.PR_BASE_SHA || null;
 const checkoutParents = execFileSync('git', ['cat-file', '-p', 'HEAD'], { encoding: 'utf8' })
   .split('\n').filter(line => line.startsWith('parent ')).map(line => line.slice(7));
 if (applicationHeadCommit !== null || applicationBaseCommit !== null || process.env.GITHUB_EVENT_NAME === 'pull_request') {
@@ -46,7 +47,7 @@ if (applicationHeadCommit !== null || applicationBaseCommit !== null || process.
     throw new Error('student-photo-codec-provenance-mismatch');
 }
 const report = {
-  kind: 'student-photo-codec-build-v1', applicationCommit, applicationHeadCommit, applicationBaseCommit, checkoutParents,
+  kind: 'student-photo-codec-build-v1', applicationCommit, applicationTree, applicationHeadCommit, applicationBaseCommit, checkoutParents,
   sourceCommit: process.env.SOURCE_SHA,
   emsdkCommit: '389a68bc35dcff7ebae4614e1615099dafda00d1',
   emscriptenVersion: '4.0.15', libwebpVersion: '1.6.0',
