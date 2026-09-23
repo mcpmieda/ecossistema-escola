@@ -47,14 +47,14 @@ describe('photo query integration in the existing Portal origin boundary', () =>
   });
 
   it.each([
-    { origin: 'https://foreign.invalid' },
-    { host: 'foreign.invalid' },
-    { 'sec-fetch-site': 'cross-site' },
-    { 'sec-fetch-site': 'same-site' },
-    { 'x-forwarded-host': 'foreign.invalid' },
-    { 'x-original-url': photoPath },
-  ])('does not weaken origin or forwarded-host protection for a valid revision: %j', headers => {
-    expect(allowed(photoPath, headers)).toBe(false);
+    ['origin', 'https://foreign.invalid'],
+    ['host', 'foreign.invalid'],
+    ['sec-fetch-site', 'cross-site'],
+    ['sec-fetch-site', 'same-site'],
+    ['x-forwarded-host', 'foreign.invalid'],
+    ['x-original-url', photoPath],
+  ])('does not weaken %s protection for a valid revision (%s)', (name, value) => {
+    expect(allowed(photoPath, { [name]: value })).toBe(false);
   });
 
   it('keeps preview environments and foreign request origins closed', () => {
