@@ -48,20 +48,28 @@ export function createPhotoRuntimeServiceV1(options: {
     } catch (error) { clearPhotoBytesV1(images); throw error; }
   }
 
+  /** Publish the committed, verified bytes independently of old-file cleanup. */
+  async function publishCommitted(context: PhotoWriteContextV1, receipt: PhotoWriteReceiptV1,
+    images: PhotoWriteInputV1, signal?: AbortSignal) {
+    if (receipt.actorId !== context.actorId || receipt.studentUid !== context.studentUid
+      || receipt.phase !== 'committed') throw new PhotoWriteErrorV1('receipt-conflict');
+    for (const variant of ['portrait', 'avatar'] as const) {
+      if (!receipt.plan[variant]) continue;
+      const asset = receipt.assets[variant], bytes = images[variant];
+      if (!asset || !bytes) throw new PhotoWriteErrorV1('conflict');
+      signal?.throwIfAborted();
+      await authorize(context);
+      signal?.throwIfAborted();
+      await catalogRepository.publish(context, variant, asset, bytes);
+    }
+  }
+
   /** Publish the durable, codec-verified bytes before the receipt becomes complete.
    * A failure retains the pending receipt/payload; it never reports a false failed commit. */
   async function publishBeforeComplete(context: PhotoWriteContextV1, requestId: string) {
     const { receipt, images } = await load(context, requestId);
     try {
-      if (receipt.actorId !== context.actorId || receipt.phase !== 'committed')
-        throw new PhotoWriteErrorV1('receipt-conflict');
-      for (const variant of ['portrait', 'avatar'] as const) {
-        if (!receipt.plan[variant]) continue;
-        const asset = receipt.assets[variant], bytes = images[variant];
-        if (!asset || !bytes) throw new PhotoWriteErrorV1('conflict');
-        await authorize(context);
-        await catalogRepository.publish(context, variant, asset, bytes);
-      }
+      await publishCommitted(context, receipt, images);
       await authorize(context);
       return await journal.complete(context, requestId);
     } finally { clearPhotoBytesV1(images); }
@@ -72,7 +80,7 @@ export function createPhotoRuntimeServiceV1(options: {
   };
   const storage = (verify: (action: SharePointPhotoActionV1) => Promise<void>) =>
     new SharePointPhotoTransportV1({ env, library, authorize: verify });
-  const edit = new PhotoEditServiceV1({ codec, repository, guard, authorize, storage });
+  const edit = new PhotoEditServiceV1({ codec, repository, guard, authorize, storage, publish: publishCommitted });
 
   /** Explicitly resume the exact saved operation, not a new upload or silent timeout takeover. */
   async function recover(contextInput: PhotoWriteContextV1, requestInput: string, signal: AbortSignal) {
@@ -115,6 +123,7 @@ export function createPhotoRuntimeServiceV1(options: {
           ...await codec.validate(bytes, variant, stageSignal), bytes: new Uint8Array(bytes),
         }),
         upload: input => transport.upload(input), remove: (asset, stageSignal) => transport.remove(asset, stageSignal),
+        publish: publishCommitted,
       });
       return await coordinator.execute(context, command, images, signal);
     } finally { clearPhotoBytesV1(images); }

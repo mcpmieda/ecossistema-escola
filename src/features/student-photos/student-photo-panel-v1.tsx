@@ -71,7 +71,14 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
     void readPhotoCatalogV1(subject, controller.signal).then(result => {
       if (controller.signal.aborted) return;
       setCatalog(result.catalog); setCanWrite(result.canWrite && allowedByParent);
-    }).catch(error => { if (!controller.signal.aborted) setMessage(messageFor(error)); });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      if (error instanceof PhotoAdminClientErrorV1 && error.code === 'forbidden') {
+        setCanWrite(false);
+        return;
+      }
+      setMessage(messageFor(error));
+    });
     return () => { controller.abort(); dispose(ownedConfirmation.current); ownedConfirmation.current = null; };
   // The keyed parent fixes the subject for the lifetime of this session.
   }, [subjectKey, allowedByParent]);
@@ -128,8 +135,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       }
     });
   }
-  function save(value: Confirmation) {
-    void run(async signal => {
+  async function persist(value: Confirmation, signal: AbortSignal) {
       const result = await client.current.save(subject, value.command, value.approval, value.source, signal);
       if (result.state === 'pending') {
         setMessage('O envio ainda não foi confirmado. Repetir a confirmação usa o mesmo pedido, sem duplicar a foto.');
@@ -138,15 +144,25 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       discard(); setRemoving(false); setEditing(false); setInitialPhoto(undefined);
       const current = await refresh(signal); announcePhotoChangeV1(subject, current);
       setMessage(result.cleanupPending ? 'Foto salva. Há uma finalização pendente; use “Concluir operação”.' : 'Foto atualizada.');
-    });
+  }
+  function save(value: Confirmation) {
+    void run(signal => persist(value, signal));
   }
   function remove() {
-    if (!catalog || working.current) return;
-    const value = ownedConfirmation.current?.command.kind === 'remove' ? ownedConfirmation.current : {
-      command: { requestId: crypto.randomUUID(), expectedRevision: catalog.revision, kind: 'remove' as const },
-      approval: null, source: { portrait: null, avatar: null },
-    };
-    ownedConfirmation.current = value; save(value);
+    void run(async signal => {
+      const retry = ownedConfirmation.current?.command.kind === 'remove' ? ownedConfirmation.current : null;
+      const current = retry ? catalog : await refresh(signal, true);
+      if (!current || (!retry && current.pendingRequest)) {
+        setMessage('Há uma alteração pendente. Use “Concluir operação” antes de remover a foto.');
+        return;
+      }
+      const value: Confirmation = retry ?? {
+        command: { requestId: crypto.randomUUID(), expectedRevision: current.revision, kind: 'remove' },
+        approval: null, source: { portrait: null, avatar: null },
+      };
+      ownedConfirmation.current = value;
+      await persist(value, signal);
+    });
   }
   function recover() {
     void run(async signal => {
@@ -163,7 +179,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
     <div className="student-photo-panel__identity">
       {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
-        {canWrite ? <>
+        {canWrite && catalog?.legacyCompatible !== false ? <>
           <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => openEditor('replace')}>
             <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Editar foto' : 'Adicionar foto'}
           </Button>
@@ -182,6 +198,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         </Button>
       </div>
     </div>
+    {catalog?.legacyCompatible === false ? <p role="status">O arquivo antigo não é um WebP compatível com este editor. A referência foi preservada no SharePoint e precisa ser regularizada antes da edição.</p> : null}
     {busy ? <output aria-live="polite">Processando foto…</output> : null}
     {message ? <p className="student-photo-panel__message" role="status">{message}</p> : null}
     {editing ? <Suspense fallback={<p role="status">Abrindo editor…</p>}>

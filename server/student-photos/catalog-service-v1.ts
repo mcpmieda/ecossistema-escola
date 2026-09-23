@@ -4,7 +4,7 @@ import { graphRequest } from '../graph/client';
 import { photoAssetV1, PhotoWriteErrorV1, type PhotoWriteContextV1, type PhotoAssetV1 } from '../../shared/student-photos/write-v1';
 import { photoLibraryV1 } from './library-v1';
 import { readSharePointPhotoV1 } from './sharepoint-download-v1';
-import { PhotoCatalogRepositoryV1, type LegacyPhotoReferenceV1 } from './catalog-repository-v1';
+import { PhotoCatalogRepositoryV1, legacyPhotoReferenceV1, type LegacyPhotoReferenceV1 } from './catalog-repository-v1';
 import type { StudentWebpCodecV1 } from './webp-codec-v1';
 
 /** Adopts only the explicitly linked original. Reads never initialize an empty
@@ -52,7 +52,11 @@ export class PhotoCatalogServiceV1 {
     if(!family){
       const reference=await this.repository.legacy(context.studentUid);
       if(reference){
-        const original=await this.legacy(context,reference,signal);
+        const supported=legacyPhotoReferenceV1.safeParse(reference);
+        // Never initialize an empty family over an unverified original. The exact
+        // legacy snapshot remains available for explicit source reconciliation.
+        if(!supported.success) throw new PhotoWriteErrorV1('conflict');
+        const original=await this.legacy(context,supported.data,signal);
         try {
           await this.authorize(context); signal.throwIfAborted();
           await this.repository.initialize(context,reference,original.asset);
@@ -94,8 +98,11 @@ export class PhotoCatalogServiceV1 {
       try{await this.authorize(context);signal.throwIfAborted();return read.bytes;}
       catch(error){read.bytes.fill(0);throw error;}
     }
+    // List requests must not download every unadopted original from SharePoint.
+    if(variant==='avatar')return null;
     const reference=await this.repository.legacy(context.studentUid);
-    if(!reference)return null;
-    return (await this.legacy(context,reference,signal)).bytes;
+    const supported=legacyPhotoReferenceV1.safeParse(reference);
+    if(!supported.success)return null;
+    return (await this.legacy(context,supported.data,signal)).bytes;
   }
 }
