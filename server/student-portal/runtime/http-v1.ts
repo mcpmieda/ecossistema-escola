@@ -1,4 +1,5 @@
 import { ERROR_HTTP_V1, type FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
+import { STUDENT_PHOTO_CONTENT_PATH_V1, photoRevisionV1 } from '../../../shared/student-photos/portrait-v1';
 
 export const PORTAL_AUTH_BODY_BYTES_V1 = 8192;
 const paths = new Map([
@@ -28,6 +29,13 @@ function failure(state: FailureV1['state']): Response {
 }
 function securityQueryAllowedV1(url: URL): boolean {
   if (!url.search) return true;
+  // This is only a freshness selector. The photo handler still authorizes the
+  // session and binds the read to its own account; it never accepts a student ID.
+  if (url.pathname === STUDENT_PHOTO_CONTENT_PATH_V1) {
+    const entries = [...url.searchParams];
+    return entries.length === 1 && entries[0]?.[0] === 'v'
+      && photoRevisionV1.safeParse(entries[0]?.[1]).success;
+  }
   const account = url.searchParams.get('accountId');
   if (!account || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(account)
     || url.searchParams.getAll('accountId').length !== 1) return false;
