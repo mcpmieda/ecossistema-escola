@@ -77,7 +77,7 @@ Só uma frase. Aparece só se houver um ponto positivo real.
 **`strength.parallel-done`**: fez a prova paralela. É reconhecimento de algo que já aconteceu, nunca um convite.
 Uma paralela elegível e deixada em branco não vira mensagem: ela não conta como "atividade não realizada", porque é avaliação, e não gera ação.
 1. Você fez a prova paralela e aproveitou a chance de recuperar.
-2. Fazer a prova paralela foi uma boa decisão.
+2. Você também fez a prova paralela deste trimestre.
 3. Você não deixou passar a prova paralela.
 
 ## 4. Próximo passo (uma única ação)

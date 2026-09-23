@@ -32,6 +32,7 @@ import { resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/
 import { resolveStudentMarkPresentationV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../gradebook/persistence/postgres/active-instrument-predicate-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
+import { evaluateTermClosingV1, type TermClosingEvaluationV1 } from './term-closing-v1';
 
 // Preserve the official predicate verbatim apart from its relation adapter. Evidence is
 // instrument-wide, but only this student's value is ever selected into the snapshot.
@@ -423,6 +424,18 @@ export class AcademicStudentReaderPostgresV1
               ? ('failed' as const)
               : undefined;
       const situation = subjectSituationV1(status, classification);
+      // Fechamento do trimestre (#1132): codes from the same official term outcomes and facts.
+      const closings = ([1, 2, 3] as const).flatMap((term) => {
+        const evaluation = evaluateTermClosingV1({
+          term,
+          outcome: terms[term - 1]!,
+          officialTotalMilli: offer.closure?.[`am${term}`] ?? null,
+          instruments: offer.instruments.filter((item) => item.term === term),
+          minimumApprovalMilli: minimum,
+          recoveryPending: classification === 'recovery-pending',
+        });
+        return evaluation ? [evaluation] : [];
+      });
       const sourceComplete =
         offer.closure?.annual !== null &&
         offer.closure?.annual !== undefined &&
@@ -442,6 +455,7 @@ export class AcademicStudentReaderPostgresV1
         recovery,
         sourceComplete,
         sourceAgrees,
+        closings,
         subject: {
           subjectId: offer.subjectId,
           label: offer.label,
@@ -492,6 +506,10 @@ export class AcademicStudentReaderPostgresV1
     return {
       student,
       accountId: z.uuid().parse(row.account_id),
+      /** Internal closing codes per subject; exposed only through the Self closing rules. */
+      closings: new Map<number, readonly TermClosingEvaluationV1[]>(
+        projections.map((item) => [item.subject.subjectId, item.closings]),
+      ),
       finalAuthority: {
         global:
           status === 1 ||

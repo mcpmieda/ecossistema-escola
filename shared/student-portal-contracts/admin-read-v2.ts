@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
 import { settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
 import { customizationsResponseV1 } from './customizations-v1';
@@ -29,7 +30,7 @@ export function adminClassCatalogRequestV2(
 /** Opt-in reads only; every existing query/response and CAS meaning remains unchanged. */
 export const adminReadQueryV2 = z.object({
   contractVersion: z.literal(2),
-  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read']),
+  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview']),
   scope: scopeV1,
   page: pageRequestV1,
   accountState: accountStateV1.optional(),
@@ -42,7 +43,11 @@ export const adminReadQueryV2 = z.object({
   .refine((value) => !['sessions-read', 'settings-overrides'].includes(value.operation) ||
     [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined), 'Session scope must match the complete revocation scope')
   .refine((value) => value.operation !== 'customizations-read' ||
-    (value.accountState === undefined && value.blocked === undefined && !value.nameSearch?.includes('\0')), 'Customization inventory accepts only scope and name search');
+    (value.accountState === undefined && value.blocked === undefined && !value.nameSearch?.includes('\0')), 'Customization inventory accepts only scope and name search')
+  // Fechamento do trimestre preview (#1132 D12): one student's record only.
+  .refine((value) => value.operation !== 'closing-preview' ||
+    (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
+  'Closing preview is read for one account');
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z.object({
   state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: scopeV1.nullable(),
@@ -70,6 +75,13 @@ export const customizedSettingsRowV1 = z.object({
 }).strict();
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
+  z.object({ ...base, state: z.literal('closing-preview'), scope: scopeV1,
+    available: z.boolean(), visibleToStudent: z.boolean(),
+    closedPeriods: z.array(z.enum(TERM_CLOSING_PERIODS_V1)).max(3),
+    subjects: z.array(z.object({ subjectId: z.number().int().positive(), label: z.string().min(1).max(120),
+      closings: z.array(termClosingV1).max(3) }).strict()).max(100),
+    summary: termClosingSummaryV1.optional(),
+  }).strict(),
   z.object({ ...base, state: z.literal('settings-overrides'), scope: scopeV1,
     items: z.array(customizedSettingsRowV1).max(100), nextCursor: opaqueV1.nullable(),
   }).strict(),

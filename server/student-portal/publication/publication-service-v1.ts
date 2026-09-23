@@ -106,7 +106,7 @@ export class PublicationServiceV1 {
           WHERE p.account_id=f.account_id`, [ids, command.period, now.toISOString()]);
       }
       const settings = await tx.unsafe("SELECT count(*)::integer AS fields,count(DISTINCT version)::integer AS epochs,min(version)::text AS epoch FROM student_portal.setting WHERE scope_key='school:2026'");
-      if (settings[0]?.fields !== 7 || settings[0]?.epochs !== 1) throw new Error('student-portal-policy-defaults-unavailable');
+      if ((settings[0]?.fields !== 7 && settings[0]?.fields !== 8) || settings[0]?.epochs !== 1) throw new Error('student-portal-policy-defaults-unavailable');
       const jobs: JobInputV1[] = [];
       const bit = publicationMaskV1(command.period);
       for (const account of accounts) {

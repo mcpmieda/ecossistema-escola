@@ -91,7 +91,8 @@ export async function startPopulationV1(
       const advanced =
         await tx.unsafe(`UPDATE student_portal.setting SET version=version+1,updated_at=statement_timestamp()
         WHERE scope_key='school:2026' RETURNING field_key`);
-      if (advanced.length !== 7) throw new Error('student-portal-policy-defaults-unavailable');
+      // 7 school fields before migration 0020 (#1132), 8 after it.
+      if (advanced.length !== 7 && advanced.length !== 8) throw new Error('student-portal-policy-defaults-unavailable');
       await tx.unsafe(
         "UPDATE student_portal.publication_job SET state='failed',lease_until=NULL,updated_at=statement_timestamp() WHERE state IN ('queued','running')",
       );

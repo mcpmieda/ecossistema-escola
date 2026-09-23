@@ -120,6 +120,8 @@ export const settingsValueV1 = z
     showPartials: z.boolean(),
     autoUpdate: z.boolean(),
     showFinalResult: z.boolean(),
+    // Fechamento do trimestre (#1132). The policy service reads a missing school row as off.
+    showTermClosing: z.boolean(),
     allowedPeriods: z
       .array(periodV1)
       .max(6)
@@ -144,6 +146,7 @@ export const effectiveSettingsV1 = z
         showPartials: scopeV1,
         autoUpdate: scopeV1,
         showFinalResult: scopeV1,
+        showTermClosing: scopeV1,
         allowedPeriods: scopeV1,
         risk: scopeV1,
         calendar: scopeV1,

@@ -32,7 +32,7 @@ export class PublicationReconcilerV1 {
           WHERE student_id=a.gradebook_student_id AND academic_year=2026 AND status IS DISTINCT FROM 6) b
           ON b.matches=1 AND b.eligible AND b.class_id=l.class_id
         CROSS JOIN (SELECT min(version)::text AS epoch,count(*)::integer AS fields FROM student_portal.setting WHERE scope_key='school:2026') s
-        WHERE a.academic_year=2026 AND a.closed_at IS NULL AND a.eligibility='eligible' AND NOT a.blocked AND s.fields=7 AND (
+        WHERE a.academic_year=2026 AND a.closed_at IS NULL AND a.eligibility='eligible' AND NOT a.blocked AND s.fields IN (7,8) AND (
           (SELECT count(*) FROM student_portal.publication p WHERE p.account_id=a.id)<6 OR
           EXISTS(SELECT 1 FROM student_portal.publication p WHERE p.account_id=a.id AND p.available_revision IS DISTINCT FROM $1) OR
           NOT EXISTS(SELECT 1 FROM student_portal.publication_job j WHERE j.account_id=a.id

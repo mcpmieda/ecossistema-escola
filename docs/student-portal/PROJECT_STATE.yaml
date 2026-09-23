@@ -19,7 +19,7 @@ runtime: production_composed_and_verified
 student_portal_schema: migrations_0001_through_0018_applied
 student_portal_schema_table_count: 28
 student_portal_schema_latest_migration: 0018_shared_student_identity_v1.sql
-student_portal_latest_migration_in_tree: 0018_shared_student_identity_v1.sql
+student_portal_latest_migration_in_tree: 0020_term_closing_policy_v1.sql
 shared_student_identity_1114:
   issue: 1114
   pull_request: 1115

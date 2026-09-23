@@ -85,7 +85,7 @@ it('keeps the selected older edition and published REC through scopedSelfV2 with
   };
   const defaults = initialPolicyDefaultsV1();
   const value = settingsValueV1.parse({ ...defaults,
-    accessEnabled: true, showPartials: true, showFinalResult: true, autoUpdate: false,
+    accessEnabled: true, showPartials: true, showFinalResult: true, showTermClosing: false, autoUpdate: false,
     allowedPeriods: [...PERIODS_V1], calendar: { ...defaults.calendar,
       yearStartsAt: '2026-01-01T00:00:00Z', t1EndsAt: '2026-04-01T00:00:00Z',
       t2StartsAt: '2026-04-02T00:00:00Z', t2EndsAt: '2026-07-01T00:00:00Z',

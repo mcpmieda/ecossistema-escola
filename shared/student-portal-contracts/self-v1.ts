@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { academicLinkV1, instantV1, periodV1, portalIdV1, revisionsV1 } from './core-v1';
+import { termClosingSummaryV1, termClosingV1 } from './term-closing-v1';
 
 export const markV1 = z.discriminatedUnion('kind', [
   z
@@ -62,6 +63,13 @@ export const subjectV1 = z
         'failed-repeat',
       ])
       .optional(),
+    // Fechamento do trimestre (#1132): codes only, one per closed trimester. A closed but not yet
+    // released trimester may carry a closing without periods (spec R2).
+    closings: z
+      .array(termClosingV1)
+      .max(3)
+      .refine((v) => new Set(v.map((c) => c.period)).size === v.length, 'Duplicate closing')
+      .optional(),
   })
   .strict();
 export const selfResponseV1 = z
@@ -105,6 +113,7 @@ export const selfResponseV1 = z
     revisions: revisionsV1,
     generatedAt: instantV1,
     subjects: z.array(subjectV1).max(100),
+    closingSummary: termClosingSummaryV1.optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

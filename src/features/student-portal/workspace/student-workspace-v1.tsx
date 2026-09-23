@@ -35,6 +35,7 @@ import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts
 import { StudentMarkV1 } from '../grades/student-mark-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
+import { TermClosingCardV1, TermClosingSummaryCardV1 } from './term-closing-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
@@ -119,6 +120,16 @@ function scoreOfV1(period?: PeriodV1): ScoreMarkV1 | null {
 function visibleMainPeriodsV1(subjects: readonly SubjectV1[]) {
   return MAIN_PERIODS_V1.filter((period) =>
     subjects.some((subject) => subject.periods.some((item) => item.period === period)),
+  );
+}
+const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
+function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
+  return subject.closings?.find((closing) => closing.period === period);
+}
+/** Released periods plus closed trimesters whose marks are not released yet (#1132 R2). */
+function subjectPeriodsV1(subject: SubjectV1): PeriodIdV1[] {
+  return ALL_PERIODS_V1.filter(
+    (period) => subjectPeriodV1(subject, period) !== undefined || closingOfV1(subject, period) !== undefined,
   );
 }
 function scoreToneV1(mark: ScoreMarkV1 | null) {
@@ -237,7 +248,11 @@ function SummaryV1({
     subject.periods.some((period) => RECOVERY_PERIODS_V1.includes(period.period)),
   );
   const available: SummaryKeyV1[] = [
-    ...visibleMainPeriodsV1(subjects),
+    ...MAIN_PERIODS_V1.filter(
+      (period) =>
+        visibleMainPeriodsV1(subjects).includes(period) ||
+        subjects.some((subject) => closingOfV1(subject, period) !== undefined),
+    ),
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const [selected, setSelected] = useState<SummaryKeyV1>(available[0] ?? 'T1');
@@ -247,7 +262,9 @@ function SummaryV1({
   const recoveryPeriodsOf = (subject: SubjectV1) =>
     subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
   const published = subjects.filter((subject) =>
-    active === 'REC' ? recoveryPeriodsOf(subject).length > 0 : subjectPeriodV1(subject, active),
+    active === 'REC'
+      ? recoveryPeriodsOf(subject).length > 0
+      : subjectPeriodV1(subject, active) || closingOfV1(subject, active),
   );
   const situation =
     data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
@@ -284,6 +301,14 @@ function SummaryV1({
               </Chip>
             </Card.Content>
           </Card>
+        ) : null}
+
+        {data.closingSummary ? (
+          <TermClosingSummaryCardV1
+            summary={data.closingSummary}
+            subjects={subjects}
+            accountId={data.profile.accountId}
+          />
         ) : null}
 
         {available.length ? (
@@ -458,13 +483,15 @@ function SubjectV1View({
   subjects,
   onSubjectChange,
   initialPeriod,
+  accountId,
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
   initialPeriod?: PeriodIdV1;
+  accountId: string;
 }) {
-  const available = subject.periods.map((period) => period.period);
+  const available = subjectPeriodsV1(subject);
   const [selected, setSelected] = useState<PeriodIdV1>(
     initialPeriod && available.includes(initialPeriod) ? initialPeriod : (available[0] ?? 'T1'),
   );
@@ -561,7 +588,9 @@ function SubjectV1View({
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id={active} key={active}>
-          {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated. */}
+          {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated.
+              A closed trimester whose marks are not released shows only its closing (#1132 R2). */}
+          {period ? (
           <Card
             className={
               'pa-score-card pa-score-card--' +
@@ -628,6 +657,14 @@ function SubjectV1View({
             </div>
             )}
           </Card>
+          ) : null}
+          {closingOfV1(subject, active) ? (
+            <TermClosingCardV1
+              closing={closingOfV1(subject, active)!}
+              subjectId={subject.subjectId}
+              accountId={accountId}
+            />
+          ) : null}
         </Tabs.Panel>
       </Tabs>
     </div>
@@ -783,6 +820,7 @@ export function StudentPortalWorkspaceV1({
               subjects={subjects}
               onSubjectChange={selectSubject}
               initialPeriod={openPeriod}
+              accountId={data.profile.accountId}
             />
           </div>
         ) : null}

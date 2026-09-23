@@ -13,6 +13,7 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   showPartials: 'Notas parciais',
   autoUpdate: 'Atualizar notas já publicadas',
   showFinalResult: 'Resultado final',
+  showTermClosing: 'Fechamento do trimestre',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
   calendar: 'Datas',

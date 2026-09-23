@@ -1,0 +1,176 @@
+import { describe, expect, it } from 'vitest';
+import {
+  assignTermClosingVariantsV1,
+  evaluateTermClosingV1,
+  termClosingSummaryV1,
+  type TermClosingEvaluationV1,
+} from '../../../server/student-portal/academic/term-closing-v1';
+import {
+  resolveSimplifiedTermV1,
+  type SimplifiedInstrumentSlotV1,
+} from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
+import {
+  renderTermClosingMessageV1,
+  subjectSentenceLabelV1,
+  TERM_CLOSING_CATALOG_V1,
+  termClosingV1,
+} from '../../../shared/student-portal-contracts/term-closing-v1';
+
+// Synthetic T1 shaped like production: AV1 8.5 + AV2 5 (45%) and qualitative 16.5 (55%).
+type FactV1 = readonly [slot: number, maximum: number | null, value: number | null, observed?: boolean];
+function term1(facts: readonly FactV1[], extra: { official?: number | null; recoveryPending?: boolean; term?: 1 | 3 } = {}) {
+  const term = extra.term ?? 1;
+  const outcome = resolveSimplifiedTermV1({
+    term,
+    instruments: facts.map(([slot, maximum, value]) => ({
+      slot: slot as SimplifiedInstrumentSlotV1,
+      maximumMilli: maximum,
+      valueMilli: value,
+    })),
+  });
+  return evaluateTermClosingV1({
+    term,
+    outcome,
+    officialTotalMilli: extra.official === undefined ? null : extra.official,
+    instruments: facts.map(([slot, , value, observed]) => ({ slot, value, observed: observed ?? true })),
+    minimumApprovalMilli: 60_000,
+    recoveryPending: extra.recoveryPending ?? false,
+  });
+}
+const qualitative = (values: readonly (number | null)[]): FactV1[] =>
+  [4500, 3000, 6000, 3000].map((maximum, index) => [11 + index, maximum, values[index] ?? null] as const);
+
+describe('Fechamento do trimestre engine (#1132)', () => {
+  it('reads a clean, clearly-above-minimum term as a recognition line only (D5, D14)', () => {
+    expect(term1([[1, 8500, 7500], [2, 5000, 4500], ...qualitative([4500, 3000, 5500, 3000])])).toEqual({
+      period: 'T1',
+      level: 'good',
+      conclusion: 'line.good',
+    });
+  });
+
+  it('marks a total just above the minimum as a point to care, always with a weight (R10)', () => {
+    const result = term1([[1, 8500, 5500], [2, 5000, 3000], ...qualitative([2500, 2000, 3000, 2000])]);
+    expect(result?.level).toBe('point');
+    expect(result?.conclusion).toBe('conclusion.good-with-point');
+    expect(result?.weight).toBeDefined();
+  });
+
+  it('puts a blank ("não fez") above weak assessments and points to the next activities (D1, R4)', () => {
+    // Production always records the official term total (am1) alongside a blank.
+    const result = term1([[1, 8500, 3000], [2, 5000, 2000], ...qualitative([4500, 3000, null, 3000])], { official: 15_500 });
+    expect(result).toMatchObject({ level: 'attention', conclusion: 'conclusion.attention', weight: 'weight.not-done', action: 'action.catch-up' });
+  });
+
+  it('recognizes activities only with a real contrast to the student\'s own assessments', () => {
+    const result = term1([[1, 8500, 3500], [2, 5000, 2000], ...qualitative([4500, 3000, 6000, 3000])]);
+    expect(result).toMatchObject({ weight: 'weight.assessments', strength: 'strength.activities', action: 'action.assessments' });
+  });
+
+  it('recognizes a parallel exam that was taken, never invites to take one, and ignores a blank one', () => {
+    const took = term1([[1, 8500, 2000], [2, 5000, 1000], [3, null, 7000], ...qualitative([2000, 1500, 3000, 1500])]);
+    expect(took?.strength).toBe('strength.parallel-done');
+    const blank = term1([[1, 8500, 2000], [2, 5000, 1000], [3, null, null], ...qualitative([2000, 1500, 3000, 1500])]);
+    expect(blank?.strength).not.toBe('strength.parallel-done');
+    expect(blank?.weight).not.toBe('weight.not-done');
+    for (const code of Object.keys(TERM_CLOSING_CATALOG_V1)) expect(code).not.toMatch(/action\.parallel/);
+  });
+
+  it('gives no reading without both assessments or a term total (decision 12)', () => {
+    expect(term1([[1, 8500, 7000], [2, 5000, null], ...qualitative([4500, 3000, 6000, 3000])])).toBeNull();
+  });
+
+  it('closes T3 toward recovery or the end of the year, with no "next assessments" (decision 15)', () => {
+    const t3 = (values: number[], recoveryPending: boolean) =>
+      term1([[1, 13000, values[0]!], [2, 5000, values[1]!], ...[6000, 4000, 12000].map((max, i) => [11 + i, max, values[2 + i]!] as const)], { term: 3, recoveryPending });
+    expect(t3([4000, 2000, 3000, 2000, 5000], true)).toMatchObject({ conclusion: 'conclusion.recovery', action: 'action.recovery' });
+    expect(t3([12000, 4500, 6000, 4000, 11000], false)).toEqual({ period: 'T3', level: 'good', conclusion: 'line.year-good' });
+    const weak = t3([6000, 3000, 6000, 4000, 12000], false);
+    expect(weak?.level).not.toBe('good');
+    expect(weak?.action).toBeUndefined();
+  });
+
+  it('never carries numbers in the catalog, and renders only names and the trimester (R1)', () => {
+    for (const variants of Object.values(TERM_CLOSING_CATALOG_V1)) {
+      expect(variants.length).toBeGreaterThanOrEqual(3);
+      for (const text of variants) expect(text.replace(/\{[a-z]+\}/g, '')).not.toMatch(/\d|%/);
+    }
+    expect(TERM_CLOSING_CATALOG_V1['line.good'].length).toBeGreaterThanOrEqual(6);
+    expect(renderTermClosingMessageV1({ code: 'summary.few-attention', variant: 0 }, { period: 'T1', subjects: ['PORTUGUÊS', 'ED. FÍSICA'] }))
+      .toBe('Você fechou bem o 1º trimestre na maior parte das disciplinas. Português e Ed. Física pedem sua atenção.');
+    expect(subjectSentenceLabelV1('COMPUTAÇÃO')).toBe('Computação');
+  });
+});
+
+describe('variants and summary (decision 7, D4)', () => {
+  const evaluation = (level: TermClosingEvaluationV1['level']): TermClosingEvaluationV1 =>
+    level === 'good'
+      ? { period: 'T1', level, conclusion: 'line.good' }
+      : { period: 'T1', level, conclusion: 'conclusion.attention', weight: 'weight.assessments', action: 'action.assessments' };
+  const subjects = (level: TermClosingEvaluationV1['level'], count = 12) =>
+    new Map(Array.from({ length: count }, (_, index) => [900 + index, [evaluation(level)]]));
+
+  it('is stable for one student and valid for the contract', () => {
+    const first = assignTermClosingVariantsV1('uid-a', subjects('good'));
+    expect(assignTermClosingVariantsV1('uid-a', subjects('good'))).toEqual(first);
+    for (const list of first.values()) for (const closing of list) expect(termClosingV1.parse(closing)).toEqual(closing);
+  });
+
+  it('does not repeat a recognition line on one student\'s page while alternatives exist', () => {
+    const lines = [...assignTermClosingVariantsV1('uid-b', subjects('good', 6)).values()].map((list) => list[0]!.conclusion.variant);
+    expect(new Set(lines).size).toBe(6);
+  });
+
+  it('spreads variants roughly evenly across a synthetic class', () => {
+    const counts = [0, 0, 0];
+    for (let student = 0; student < 300; student++) {
+      const assigned = assignTermClosingVariantsV1(`uid-${student}`, subjects('attention', 1));
+      counts[assigned.get(900)![0]!.weight!.variant]! += 1;
+    }
+    for (const count of counts) expect(count).toBeGreaterThan(60);
+  });
+
+  it('summarizes the trimester by the subjects below the minimum', () => {
+    const closings = assignTermClosingVariantsV1('uid-c', new Map([
+      [1, [evaluation('good')]], [2, [evaluation('attention')]], [3, [evaluation('point')]],
+    ]));
+    expect(termClosingSummaryV1('uid-c', 'T1', closings)).toMatchObject({ message: { code: 'summary.few-attention' }, attentionSubjectIds: [2] });
+    expect(termClosingSummaryV1('uid-c', 'T2', closings)).toBeUndefined();
+  });
+});
+
+describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
+  const { attachTermClosingsV1, closedTermClosingPeriodsV1 } = await import('../../../server/student-portal/publication/term-closing-self-v1');
+  const { initialPolicyDefaultsV1 } = await import('../../../server/student-portal/policies/defaults-v1');
+  const { SYNTHETIC_SELF_V1 } = await import('../../../shared/student-portal-contracts/fixtures-v1');
+  const now = new Date('2026-06-01T12:00:00Z');
+  const policy = (patch: Record<string, unknown> = {}, calendar: Record<string, unknown> = {}) => {
+    const value = initialPolicyDefaultsV1();
+    return { ...value, accessEnabled: true, showTermClosing: true, ...patch,
+      calendar: { ...value.calendar, t1EndsAt: '2026-05-15T03:00:00.000Z', ...calendar } };
+  };
+
+  it('opens only closed trimesters, and only with the policy, access and a regular student', () => {
+    expect(closedTermClosingPeriodsV1(policy(), 'regular', now)).toEqual(['T1']);
+    expect(closedTermClosingPeriodsV1(policy({ showTermClosing: false }), 'regular', now)).toEqual([]);
+    expect(closedTermClosingPeriodsV1(policy({ accessEnabled: false }), 'regular', now)).toEqual([]);
+    expect(closedTermClosingPeriodsV1(policy(), 'special', now)).toEqual([]);
+    expect(closedTermClosingPeriodsV1(policy(), 'assisted', now)).toEqual([]);
+    expect(closedTermClosingPeriodsV1(policy({}, { t1EndsAt: null }), 'regular', now)).toEqual([]);
+    expect(closedTermClosingPeriodsV1(policy({}, { t1EndsAt: '2026-07-01T03:00:00.000Z' }), 'regular', now)).toEqual([]);
+  });
+
+  it('shows a closing for a closed but unreleased trimester without any marks (R2)', () => {
+    const projection = { ...SYNTHETIC_SELF_V1, state: 'no-publication' as const, subjects: [] };
+    const result = attachTermClosingsV1({
+      projection,
+      closedPeriods: ['T1'],
+      evaluations: new Map([[77, [{ period: 'T1' as const, level: 'good' as const, conclusion: 'line.good' as const }]]]),
+      sourceSubjects: [{ subjectId: 77, label: 'MATEMÁTICA' }],
+      studentKey: 'uid-r2',
+    });
+    expect(result.state).toBe('ready');
+    expect(result.subjects).toEqual([expect.objectContaining({ subjectId: 77, periods: [], closings: [expect.objectContaining({ period: 'T1', level: 'good' })] })]);
+    expect(result.closingSummary).toMatchObject({ period: 'T1', message: { code: 'summary.all-good' } });
+  });
+});

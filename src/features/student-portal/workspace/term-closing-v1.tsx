@@ -1,0 +1,141 @@
+import { useEffect, useState } from 'react';
+import { Chip } from '@heroui/react/chip';
+import { CircleCheck, Compass, Flag, Sparkles } from 'lucide-react';
+import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
+import {
+  renderTermClosingMessageV1,
+  termClosingLabelV1,
+  type TermClosingSummaryV1,
+  type TermClosingV1,
+} from '../../../../shared/student-portal-contracts/term-closing-v1';
+import './term-closing-v1.css';
+
+/*
+ * Fechamento do trimestre (#1132). The server sends codes only; wording comes from the shared,
+ * versioned catalog. Nothing here computes or shows a number (R1).
+ */
+const SEEN_KEY_V1 = 'studentPortalTermClosingSeenV1';
+
+function readSeenV1(): Set<string> {
+  try {
+    const raw = globalThis.localStorage?.getItem(SEEN_KEY_V1);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** "Novo" until first opened on this browser (D13, R8). No server state or personal data. */
+export function useTermClosingNewV1(key: string): boolean {
+  const [isNew] = useState(() => !readSeenV1().has(key));
+  useEffect(() => {
+    try {
+      const seen = readSeenV1();
+      if (seen.has(key)) return;
+      seen.add(key);
+      globalThis.localStorage?.setItem(SEEN_KEY_V1, JSON.stringify([...seen].slice(-200)));
+    } catch {
+      /* Private mode or blocked storage: the badge may simply show again. */
+    }
+  }, [key]);
+  return isNew;
+}
+
+function NewBadgeV1() {
+  return (
+    <Chip size="sm" variant="soft" color="accent" className="pa-closing-new">
+      Novo
+    </Chip>
+  );
+}
+
+/** Subject closing inside its trimester tab (D10, D11). `good` is a single recognition line (D5). */
+export function TermClosingCardV1({
+  closing,
+  subjectId,
+  accountId,
+}: {
+  closing: TermClosingV1;
+  subjectId: number;
+  accountId: string;
+}) {
+  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}`);
+  const text = (message: TermClosingV1['conclusion'] | undefined) =>
+    message ? renderTermClosingMessageV1(message, { period: closing.period }) : null;
+  if (closing.level === 'good')
+    return (
+      <section className="pa-closing pa-closing--good" aria-label={termClosingLabelV1(closing.period)}>
+        <CircleCheck className="pa-closing-line-icon" size={18} aria-hidden="true" />
+        <div>
+          <p className="pa-closing-eyebrow">{termClosingLabelV1(closing.period)}</p>
+          <p className="pa-closing-line">{text(closing.conclusion)}</p>
+        </div>
+        {isNew ? <NewBadgeV1 /> : null}
+      </section>
+    );
+  const action = text(closing.action);
+  return (
+    <section
+      className={'pa-closing pa-closing--' + closing.level}
+      aria-label={termClosingLabelV1(closing.period)}
+    >
+      <header className="pa-closing-header">
+        <p className="pa-closing-eyebrow">{termClosingLabelV1(closing.period)}</p>
+        {isNew ? <NewBadgeV1 /> : null}
+      </header>
+      <h3 className="pa-closing-title">{text(closing.conclusion)}</h3>
+      <ul className="pa-closing-pieces">
+        <li>
+          <Flag size={16} aria-hidden="true" />
+          <span>{text(closing.weight)}</span>
+        </li>
+        {closing.strength ? (
+          <li>
+            <Sparkles size={16} aria-hidden="true" />
+            <span>{text(closing.strength)}</span>
+          </li>
+        ) : null}
+      </ul>
+      {action ? (
+        <p className="pa-closing-action">
+          <Compass size={16} aria-hidden="true" />
+          <span>
+            <strong>Agora:</strong> {action.replace(/^Agora:\s*/u, '').replace(/^\p{Ll}/u, (letter) => letter.toLocaleUpperCase('pt-BR'))}
+          </span>
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/** Boletim summary of the most recent closed trimester (D4). */
+export function TermClosingSummaryCardV1({
+  summary,
+  subjects,
+  accountId,
+}: {
+  summary: TermClosingSummaryV1;
+  subjects: readonly SelfResponseV1['subjects'][number][];
+  accountId: string;
+}) {
+  const isNew = useTermClosingNewV1(`${accountId}|summary|${summary.period}`);
+  const names = summary.attentionSubjectIds
+    .map((id) => subjects.find((subject) => subject.subjectId === id)?.label)
+    .filter((label): label is string => Boolean(label));
+  const attention = summary.attentionSubjectIds.length > 0;
+  return (
+    <section
+      className={'pa-closing-summary pa-closing-summary--' + (attention ? 'attention' : 'good')}
+      aria-label={termClosingLabelV1(summary.period)}
+    >
+      <header className="pa-closing-header">
+        <p className="pa-closing-eyebrow">{termClosingLabelV1(summary.period)}</p>
+        {isNew ? <NewBadgeV1 /> : null}
+      </header>
+      <p className="pa-closing-summary-text">
+        {renderTermClosingMessageV1(summary.message, { period: summary.period, subjects: names })}
+      </p>
+    </section>
+  );
+}

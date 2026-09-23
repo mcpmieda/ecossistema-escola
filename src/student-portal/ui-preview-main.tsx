@@ -246,6 +246,8 @@ const realSubject = (
         : maximum === null
           ? { kind: 'score' as const, value, maximum: null, meetsMinimum: null }
           : score(value, maximum),
+    // A blank activity is an observed "não fez" (D1); a pending parallel exam is not.
+    ...(value === null && activity !== PARALLEL_LABEL ? { notDone: true as const } : {}),
   }));
   const valueOf = (name: string) => activities.find(([activity]) => activity === name)?.[2] ?? null;
   const quantitative = (valueOf(AV1_LABEL) ?? 0) + (valueOf(AV2_LABEL) ?? 0);
@@ -368,6 +370,53 @@ const realPreviewData = selfResponseV1.parse({
 });
 
 /*
+ * Fechamento do trimestre (#1132), preview only. The browser bundle may not import the server
+ * engine, so these are the codes that engine produces for the production-shaped T1 above
+ * (attention: PORTUGUÊS with a blank, HISTÓRIA with the parallel exam; point: ARTE; the rest good),
+ * with variants spread as the server would (no repeated line on one page).
+ */
+type ClosingV1 = NonNullable<SelfResponseV1['subjects'][number]['closings']>[number];
+const goodLine = (variant: number): ClosingV1 => ({
+  period: 'T1',
+  level: 'good',
+  conclusion: { code: 'line.good', variant },
+});
+const REAL_CLOSINGS_V1: Record<number, ClosingV1> = {
+  910001: {
+    period: 'T1',
+    level: 'attention',
+    conclusion: { code: 'conclusion.attention', variant: 1 },
+    weight: { code: 'weight.not-done', variant: 1 },
+    action: { code: 'action.catch-up', variant: 0 },
+  },
+  910003: {
+    period: 'T1',
+    level: 'attention',
+    conclusion: { code: 'conclusion.attention', variant: 0 },
+    weight: { code: 'weight.assessments', variant: 0 },
+    strength: { code: 'strength.parallel-done', variant: 1 },
+    action: { code: 'action.assessments', variant: 2 },
+  },
+  910006: {
+    period: 'T1',
+    level: 'point',
+    conclusion: { code: 'conclusion.good-with-point', variant: 2 },
+    weight: { code: 'weight.assessments', variant: 1 },
+    strength: { code: 'strength.activities', variant: 0 },
+    action: { code: 'action.assessments', variant: 0 },
+  },
+  910002: goodLine(0),
+  910004: goodLine(1),
+  910005: goodLine(2),
+  910007: goodLine(3),
+  910008: goodLine(4),
+  910009: goodLine(5),
+  910010: goodLine(0),
+  910011: goodLine(1),
+  910012: goodLine(2),
+};
+
+/*
  * Admin simulator (preview only). The browser bundle may not import server code, so this
  * restates server/student-portal/policies/calendar-v1.ts#applyPublishedVisibilityV1 over the
  * invented data: unreleased periods are dropped, partials are removed when showPartials is off,
@@ -380,6 +429,8 @@ type SubjectSituationV1 = NonNullable<SelfResponseV1['subjects'][number]['annual
 interface AdminSimulationV1 {
   accessEnabled: boolean;
   showPartials: boolean;
+  /** Policy `showTermClosing` (#1132); the preview treats T1 as already closed. */
+  showTermClosing: boolean;
   periods: readonly PeriodIdV1[];
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
@@ -487,9 +538,28 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
         })
         .filter((subject) => subject.periods.length > 0)
     : [];
+  // Closings follow the policy, access and a regular student (D8, D9); a closed but unreleased
+  // T1 keeps its subject with only the closing (R2).
+  const closingsOn = admin.accessEnabled && admin.showTermClosing && admin.academicState === 'regular';
+  const withClosings: SelfResponseV1['subjects'] = closingsOn
+    ? data.subjects
+        .filter((subject) => REAL_CLOSINGS_V1[subject.subjectId])
+        .map((subject): SelfResponseV1['subjects'][number] => {
+          const shown = subjects.find((item) => item.subjectId === subject.subjectId);
+          return { ...(shown ?? { subjectId: subject.subjectId, label: subject.label, order: subject.order, periods: [] }),
+            closings: [REAL_CLOSINGS_V1[subject.subjectId]!] };
+        })
+        .concat(subjects.filter((subject) => !REAL_CLOSINGS_V1[subject.subjectId]) as SelfResponseV1['subjects'])
+        .sort((a, b) => a.order - b.order)
+    : subjects;
+  const attention = withClosings.filter((subject) => subject.closings?.[0]?.level === 'attention');
   return selfResponseV1.parse({
     ...data,
-    state: subjects.length > 0 ? 'ready' : 'no-publication',
+    state: withClosings.length > 0 ? 'ready' : 'no-publication',
+    ...(closingsOn && withClosings.some((subject) => subject.closings)
+      ? { closingSummary: { period: 'T1', message: { code: attention.length ? 'summary.few-attention' : 'summary.all-good', variant: 0 },
+          attentionSubjectIds: attention.map((subject) => subject.subjectId) } }
+      : {}),
     profile: {
       ...data.profile,
       name: admin.studentName,
@@ -497,7 +567,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
       result: assisted ? 'not-applicable' : final ? coarseResultV1(admin.situation) : 'in-progress',
       ...(visible(situation, 'in-recovery') ? { annualSituation: situation } : {}),
     },
-    subjects,
+    subjects: withClosings,
   });
 }
 
@@ -523,7 +593,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -556,6 +626,7 @@ function AdminSimulatorPanelV1({
       <div style={rowStyle}>
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
+        <label>{toggle('showTermClosing')} Fechamento do trimestre</label>
         <label>{toggle('hasPortrait')} Foto do aluno</label>
       </div>
       <div style={rowStyle}>
@@ -642,6 +713,7 @@ function PreviewAppV1() {
   const [admin, setAdmin] = useState<AdminSimulationV1>({
     accessEnabled: true,
     showPartials: true,
+    showTermClosing: true,
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: true,
