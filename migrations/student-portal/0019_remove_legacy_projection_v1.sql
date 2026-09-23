@@ -9,10 +9,12 @@ SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 DO $$
 BEGIN
-  -- Nested so the inner query is planned only when the V2 control exists.
-  IF to_regclass('student_portal.publication_control_v2') IS NOT NULL THEN
-    IF NOT EXISTS(SELECT 1 FROM student_portal.publication_control_v2 WHERE academic_year=2026 AND enabled)
-      THEN RAISE EXCEPTION 'student-portal-legacy-projection-removal-requires-scoped-v2'; END IF;
+  -- The inner query is planned only after confirming the V2 control exists.
+  IF to_regclass('student_portal.publication_control_v2') IS NULL THEN
+    RAISE EXCEPTION 'student-portal-legacy-projection-removal-requires-scoped-v2';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM student_portal.publication_control_v2 WHERE academic_year=2026 AND enabled) THEN
+    RAISE EXCEPTION 'student-portal-legacy-projection-removal-requires-scoped-v2';
   END IF;
 END
 $$;

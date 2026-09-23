@@ -491,7 +491,7 @@ describe('private administrative API with real persistence', () => {
       const extra =
         operation === 'unpublish'
           ? { confirmed: true }
-          : { targetDataVersion: t1.availableRevision };
+          : { targetDataVersion: t1.availableRevision ?? 'synthetic:1' };
       const result = await api.command(
         context(),
         command(operation, t1.version, { scope: accountScope(), period: 'T1', ...extra }),
