@@ -17,7 +17,8 @@ export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) 
     return portalJsonV1(portalFailureV1('forbidden'), 403);
   const url = new URL(request.url);
   const document = url.pathname === '/' || url.pathname === '/access';
-  const asset = /^\/assets\/[A-Za-z0-9_.-]+\.(?:js|css|woff2?|png|svg)$/u.test(url.pathname);
+  // Every extension Vite emits for the Portal must be listed here (cover art and logo are WebP).
+  const asset = /^\/assets\/[A-Za-z0-9_.-]+\.(?:js|css|woff2?|png|svg|webp)$/u.test(url.pathname);
   if (document || asset) {
     if (request.method !== 'GET' && request.method !== 'HEAD')
       return portalJsonV1(portalFailureV1('invalid-request'), 400);

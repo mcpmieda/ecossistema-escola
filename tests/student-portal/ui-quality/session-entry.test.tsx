@@ -74,7 +74,7 @@ it.each(['focus', 'pageshow', 'popstate'])(
 );
 
 it.each([false, true])(
-  'clears protected history and reauthorizes only on explicit retry (persisted=%s)',
+  'clears protected history, reverifies on return and sends a revoked session straight to login (persisted=%s)',
   async (persisted) => {
     const restoredSession = deferredResponse();
     let restoring = false;
@@ -101,13 +101,15 @@ it.each([false, true])(
     const show = new Event('pageshow');
     Object.defineProperty(show, 'persisted', { value: persisted });
     await act(async () => { fireEvent(window, show); });
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' })); });
+    // Stable login: the return re-verifies on its own; no retry button, no protected content yet.
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await act(async () => restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)));
+    // Revoked: straight to the login form, without any error message.
     await screen.findByRole('button', { name: 'Escolher imagem' });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Sessão expirada')).toBeNull();
     expect(fetcher.mock.calls.filter(([path]) => path === '/api/student/me')).toHaveLength(1);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
   },

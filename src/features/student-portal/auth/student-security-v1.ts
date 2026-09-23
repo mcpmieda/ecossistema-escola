@@ -10,8 +10,8 @@ export interface StudentSecuritySocketV1 {
 /** Security leases never request or invalidate the academic snapshot. */
 export function createStudentSecurityV1(options: {
   connect: () => StudentSecuritySocketV1;
+  /** Session-only check. Must publish and throw on revocation; throws on network uncertainty. */
   authorize: (signal: AbortSignal) => Promise<void>;
-  unavailable: () => void;
 }) {
   let disposed = false;
   let socket: StudentSecuritySocketV1 | undefined;
@@ -44,13 +44,32 @@ export function createStudentSecurityV1(options: {
   };
   const renew = (verifiedAt = Date.now()) => {
     clearTimeout(lease);
-    lease = setTimeout(
-      () => {
-        dispose();
-        options.unavailable();
-      },
-      Math.max(0, 60_000 - (Date.now() - verifiedAt)),
-    );
+    lease = setTimeout(() => void verifyBeforeExpiry(), Math.max(0, 60_000 - (Date.now() - verifiedAt)));
+  };
+  // Stable login (owner decision, 22/09/2026): when the lease is due, re-check the session over
+  // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
+  // the session hook disposes this channel. Network uncertainty (socket blocked, tab resumed
+  // after the OS suspended it, flaky mobile data) keeps the content and retries shortly.
+  const verifyBeforeExpiry = async () => {
+    if (disposed) return;
+    const startedAt = Date.now();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        options.authorize(controller.signal),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('security-verification-timeout')), 10_000);
+        }),
+      ]);
+      if (!disposed) renew(startedAt);
+    } catch {
+      if (disposed) return;
+      clearTimeout(lease);
+      lease = setTimeout(() => void verifyBeforeExpiry(), 15_000);
+      if (!socket) schedule();
+    } finally {
+      clearTimeout(timeout);
+    }
   };
   const authorize = async (repeat = false) => {
     if (disposed) return;
