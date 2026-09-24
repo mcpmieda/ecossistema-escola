@@ -125,11 +125,12 @@ const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2',
 function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
   return subject.closings?.find((closing) => closing.period === period);
 }
-/** Released periods plus closed trimesters whose marks are not released yet (#1132 R2). */
+/**
+ * Released periods only: a trimester's closing shows together with its marks, never alone
+ * (owner decision 2026-09-24, replacing #1132 R2).
+ */
 function subjectPeriodsV1(subject: SubjectV1): PeriodIdV1[] {
-  return ALL_PERIODS_V1.filter(
-    (period) => subjectPeriodV1(subject, period) !== undefined || closingOfV1(subject, period) !== undefined,
-  );
+  return ALL_PERIODS_V1.filter((period) => subjectPeriodV1(subject, period) !== undefined);
 }
 function scoreToneV1(mark: ScoreMarkV1 | null) {
   if (mark?.meetsMinimum === true) return 'positive' as const;
@@ -276,11 +277,7 @@ function SummaryV1({
     subject.periods.some((period) => RECOVERY_PERIODS_V1.includes(period.period)),
   );
   const available: SummaryKeyV1[] = [
-    ...MAIN_PERIODS_V1.filter(
-      (period) =>
-        visibleMainPeriodsV1(subjects).includes(period) ||
-        subjects.some((subject) => closingOfV1(subject, period) !== undefined),
-    ),
+    ...visibleMainPeriodsV1(subjects),
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const [selected, setSelected] = useState<SummaryKeyV1>(available[0] ?? 'T1');
@@ -292,7 +289,7 @@ function SummaryV1({
   const published = subjects.filter((subject) =>
     active === 'REC'
       ? recoveryPeriodsOf(subject).length > 0
-      : subjectPeriodV1(subject, active) || closingOfV1(subject, active),
+      : subjectPeriodV1(subject, active),
   );
   const situation =
     data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
@@ -617,7 +614,7 @@ function SubjectV1View({
         </Tabs.ListContainer>
         <Tabs.Panel id={active} key={active}>
           {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated.
-              A closed trimester whose marks are not released shows only its closing (#1132 R2). */}
+              The closing follows the marks and never shows without them. */}
           {period ? (
           <Card
             className={
@@ -692,7 +689,7 @@ function SubjectV1View({
           </Card>
           ) : null}
           {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} /> : null}
-          {closingOfV1(subject, active) ? (
+          {period && closingOfV1(subject, active) ? (
             <TermClosingCardV1
               closing={closingOfV1(subject, active)!}
               subjectId={subject.subjectId}

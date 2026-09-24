@@ -197,8 +197,12 @@ describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
   const now = new Date('2026-06-01T12:00:00Z');
   const policy = (patch: Record<string, unknown> = {}, calendar: Record<string, unknown> = {}) => {
     const value = initialPolicyDefaultsV1();
-    return { ...value, accessEnabled: true, showTermClosing: true, termClosingConclusive: true, ...patch,
-      calendar: { ...value.calendar, t1EndsAt: '2026-05-15T03:00:00.000Z', ...calendar } };
+    return { ...value, accessEnabled: true, showTermClosing: true, termClosingConclusive: true,
+      allowedPeriods: ['T1', 'T2', 'T3'], ...patch,
+      calendar: { ...value.calendar, yearStartsAt: '2026-02-23T03:00:00.000Z', t2StartsAt: '2026-05-18T03:00:00.000Z',
+        t3StartsAt: '2026-09-01T03:00:00.000Z', t1EndsAt: '2026-05-15T03:00:00.000Z',
+        disclosure: { mode: 'single', at: '2026-02-23T03:00:00.000Z', periods: ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] },
+        ...calendar } };
   };
 
   it('opens only closed trimesters, and only with the policy, access and a regular student', () => {
@@ -209,7 +213,19 @@ describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
     expect(periods(policy(), 'special', now)).toEqual([]);
     expect(periods(policy(), 'assisted', now)).toEqual([]);
     expect(periods(policy({}, { t1EndsAt: null }), 'regular', now)).toEqual([]);
-    expect(periods(policy({}, { t1EndsAt: '2026-07-01T03:00:00.000Z' }), 'regular', now)).toEqual([]);
+    expect(periods(policy({}, { t1EndsAt: '2026-07-01T03:00:00.000Z', t2StartsAt: '2026-07-02T03:00:00.000Z' }), 'regular', now)).toEqual([]);
+  });
+
+  it('reads only trimesters whose marks are released for the class (owner, 2026-09-24)', () => {
+    const ended = { t2EndsAt: '2026-05-30T03:00:00.000Z' };
+    expect(termClosingTargetsV1(policy({}, ended), 'regular', now).periods).toEqual(['T1', 'T2']);
+    // 8A-like: only T1 allowed; T2 has ended but its marks are not released, so no T2 reading.
+    expect(termClosingTargetsV1(policy({ allowedPeriods: ['T1'] }, ended), 'regular', now).periods).toEqual(['T1']);
+    // Marks released later than today: no reading yet either.
+    const later = { disclosure: { mode: 'single', at: '2026-07-01T03:00:00.000Z', periods: ['T1', 'T2'] } };
+    expect(termClosingTargetsV1(policy({}, { ...ended, ...later }), 'regular', now).periods).toEqual([]);
+    const progress = policy({ termClosingConclusive: false, allowedPeriods: ['T1'] }, { t2EndsAt: '2026-09-01T03:00:00.000Z' });
+    expect(termClosingTargetsV1(progress, 'regular', now)).toEqual({ mode: 'progress', periods: [] });
   });
 
   it('with conclusive terms off, reads only the trimester in progress', () => {
@@ -219,7 +235,7 @@ describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
     expect(termClosingTargetsV1(progress, 'regular', new Date('2026-10-01T12:00:00Z'))).toEqual({ mode: 'progress', periods: [] });
   });
 
-  it('shows a closing for a closed but unreleased trimester without any marks (R2)', () => {
+  it('attaches closings to subjects, adding one the projection lacks', () => {
     const projection = { ...SYNTHETIC_SELF_V1, state: 'no-publication' as const, subjects: [] };
     const result = attachTermClosingsV1({
       projection,

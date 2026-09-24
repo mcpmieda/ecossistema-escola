@@ -608,21 +608,21 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     admin.dataset === 'real'
       ? REAL_CLOSINGS_V1[subjectId] && [REAL_CLOSINGS_V1[subjectId]]
       : EXAMPLE_CLOSINGS_V1[subjectId];
+  // A closing shows together with its trimester's released marks, never alone (owner, 2026-09-24).
   const withClosings: SelfResponseV1['subjects'] = closingsOn
-    ? data.subjects
-        .slice(0, admin.singleSubject ? 1 : undefined)
-        .filter((subject) => closingsOf(subject.subjectId))
-        .map((subject): SelfResponseV1['subjects'][number] => {
-          const shown = subjects.find((item) => item.subjectId === subject.subjectId);
-          return { ...(shown ?? { subjectId: subject.subjectId, label: subject.label, order: subject.order, periods: [] }),
-            closings: closingsOf(subject.subjectId)!.map((closing) =>
-              admin.termClosingConclusive ? closing : asProgressV1(closing)) };
-        })
-        .concat(subjects.filter((subject) => !closingsOf(subject.subjectId)) as SelfResponseV1['subjects'])
-        .sort((a, b) => a.order - b.order)
+    ? subjects.map((subject): SelfResponseV1['subjects'][number] => {
+        const released = closingsOf(subject.subjectId)?.filter((closing) =>
+          subject.periods.some((period) => period.period === closing.period),
+        );
+        return released?.length
+          ? { ...subject, closings: released.map((closing) => (admin.termClosingConclusive ? closing : asProgressV1(closing))) }
+          : (subject as SelfResponseV1['subjects'][number]);
+      })
     : subjects;
   // One Boletim summary per closed trimester, as the server sends them (closingSummaries).
-  const summaryPeriods: ClosingV1['period'][] = admin.dataset === 'real' ? ['T1'] : ['T1', 'T2'];
+  const summaryPeriods = (admin.dataset === 'real' ? ['T1'] : ['T1', 'T2']).filter((period) =>
+    withClosings.some((subject) => subject.closings?.some((closing) => closing.period === period)),
+  ) as ClosingV1['period'][];
   const summaries = summaryPeriods.map((period) => {
     const attention = withClosings.filter(
       (subject) => subject.closings?.find((closing) => closing.period === period)?.level === 'attention',

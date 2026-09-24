@@ -1,5 +1,6 @@
 import { compareSourceSubjectPresentationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import { periodDisclosureV1 } from '../policies/calendar-v1';
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import {
   TERM_CLOSING_PERIODS_V1,
@@ -27,6 +28,9 @@ export interface TermClosingTargetsV1 {
  * student is assisted/special (D9). `termClosingConclusive` on: every trimester whose official end
  * date has passed (D2, R3; retroactive, D15). Off: only the trimester in progress (its end date not
  * reached, its start reached or the previous trimester ended).
+ * Owner decision 2026-09-24 (replaces R2): a trimester whose marks are not released for the class
+ * (allowed periods + disclosure dates, the same rule as the marks) gets no reading at all, so an
+ * unreleased trimester never shows up as a tab of its own.
  */
 export function termClosingTargetsV1(
   policy: PolicyValueV1,
@@ -41,14 +45,16 @@ export function termClosingTargetsV1(
     const end = at(value.calendar[END_FIELD_V1[period]]);
     return end !== null && now.getTime() >= end;
   };
-  if (mode === 'conclusion') return { mode, periods: TERM_CLOSING_PERIODS_V1.filter(ended) };
+  const released = (period: TermClosingPeriodV1) => periodDisclosureV1(value, period, now) === 'allowed';
+  if (mode === 'conclusion')
+    return { mode, periods: TERM_CLOSING_PERIODS_V1.filter((period) => ended(period) && released(period)) };
   const current = TERM_CLOSING_PERIODS_V1.find((period) => {
     if (at(value.calendar[END_FIELD_V1[period]]) === null || ended(period)) return false;
     const start = at(value.calendar[START_FIELD_V1[period]]);
     const previous = PREVIOUS_V1[period];
     return start !== null ? now.getTime() >= start : previous === undefined || ended(previous);
   });
-  return { mode, periods: current ? [current] : [] };
+  return { mode, periods: current && released(current) ? [current] : [] };
 }
 
 /** Shared by the student page and the admin preview so both show the same codes and variants. */
