@@ -131,10 +131,9 @@
   gap: 0.55rem;
   margin-top: auto;
   padding-top: 1.1rem;
-  border-top: 1px solid #e2e8f0;
-  color: #64748b;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 .pa-entry-foot p {

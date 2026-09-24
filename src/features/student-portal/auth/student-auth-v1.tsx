@@ -63,7 +63,7 @@ function NumericCredentialV1({
   );
   return (
     <div className="pa-credential-field" data-secret={secret || undefined}>
-      <label htmlFor={id}>{label}</label>
+      <Label htmlFor={id}>{label}</Label>
       <InputOTP
         ref={(node: HTMLInputElement | null) => {
           own.current = node;
@@ -274,12 +274,14 @@ function CredentialFieldsV1({
   const length = state.step === 'pin' ? 4 : 6;
   return (
     <>
-      {state.step === 'pin' ? <p>Para confirmar que é você, digite o ano em que você nasceu.</p> : null}
+      {state.step === 'pin' ? (
+        <Card.Description>Para confirmar que é você, digite o ano em que você nasceu.</Card.Description>
+      ) : null}
       {state.step === 'create' ? (
-        <p>
+        <Card.Description>
           Escolha 6 números fáceis de lembrar para você e difíceis para os outros. Evite 123456 e a
           sua data de nascimento.
-        </p>
+        </Card.Description>
       ) : null}
       {showCredential ? (
         <NumericCredentialV1
@@ -407,6 +409,7 @@ function CredentialFormV1({
       {blocked ? <RetryCountdownV1 retryAt={state.retryAt!} /> : null}
       <Button
         type="submit"
+        size="lg"
         className="pa-auth-submit"
         data-pending={state.pending || undefined}
         isDisabled={state.pending || !valid || blocked || (needsRisk && !riskToken)}
@@ -489,8 +492,8 @@ export function StudentAuthenticationV1({
   return (
     <Card className="pa-auth-card" data-step={state.step}>
       <Card.Header className="pa-auth-header">
-        {step ? <p className="pa-auth-eyebrow">{step.eyebrow}</p> : null}
-        <h2 className="pa-auth-title">{titles[state.step]}</h2>
+        {step ? <Card.Description className="pa-auth-eyebrow">{step.eyebrow}</Card.Description> : null}
+        <Card.Title className="pa-auth-title">{titles[state.step]}</Card.Title>
         {step?.index ? (
           <div className="pa-auth-progress" aria-hidden="true">
             {[1, 2, 3].map((item) => (
@@ -513,10 +516,10 @@ export function StudentAuthenticationV1({
             <span className="pa-risk-shield" aria-hidden="true">
               <ShieldCheck size={30} />
             </span>
-            <p>
+            <Card.Description>
               Para proteger sua conta, precisamos confirmar que é você mesmo usando o portal. Leva
               só alguns segundos.
-            </p>
+            </Card.Description>
           </div>
         ) : null}
         {state.step === 'scan' ? (

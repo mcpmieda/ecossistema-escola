@@ -58,8 +58,10 @@ function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
           <CameraOff size={20} />
         </span>
         <div>
-          <h3>Você bloqueou a câmera</h3>
-          <p>Sem problema. Você pode entrar agora com uma foto do cartão ou liberar a câmera.</p>
+          <h3 className="card__title">Você bloqueou a câmera</h3>
+          <p className="card__description">
+            Sem problema. Você pode entrar agora com uma foto do cartão ou liberar a câmera.
+          </p>
         </div>
       </div>
       <p className="pa-camera-blocked-tip">
@@ -268,7 +270,7 @@ export function StudentQrReaderV1({
       ) : state === 'idle' ? (
         <>
           <AccessCardV1 />
-          <p>
+          <p className="card__description">
             Use o QR do seu cartão de acesso. É só apontar a câmera ou selecionar uma foto dele na
             galeria.
           </p>
@@ -289,6 +291,7 @@ export function StudentQrReaderV1({
       <div className="pa-auth-actions">
         {state === 'idle' && !blocked ? (
           <Button
+            size="lg"
             onPress={() => {
               void camera('environment');
             }}
@@ -318,6 +321,7 @@ export function StudentQrReaderV1({
           </Button>
         ) : null}
         <Button
+          size="lg"
           variant={blocked ? 'primary' : 'secondary'}
           onPress={() => {
             stop();

@@ -15,19 +15,9 @@
 }
 .pa-auth-card .pa-auth-eyebrow {
   margin: 0 0 0.55rem;
-  color: #2563eb;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 .pa-auth-title {
   margin: 0;
-  color: #0b2a5b;
-  font-size: 1.55rem;
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
 }
 .pa-auth-progress {
   display: flex;
@@ -52,8 +42,6 @@
   border-radius: 999px;
   background: #ecfdf5;
   color: #047857;
-  font-size: 0.78rem;
-  font-weight: 650;
   box-shadow: inset 0 0 0 1px #a7f3d0;
 }
 .pa-auth-card .card__content,
@@ -66,9 +54,6 @@
 }
 .pa-auth-card p {
   margin: 0;
-  color: #475569;
-  font-size: 0.95rem;
-  line-height: 1.45;
 }
 
 /* Buttons keep HeroUI's own look; they only take the full width of the sheet. */
@@ -102,11 +87,6 @@
   min-width: 0;
   text-align: center;
 }
-.pa-credential-field > label {
-  color: #0b2a5b;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
 .pa-credential-field [data-input-otp-container] {
   justify-content: center;
 }
@@ -118,8 +98,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0;
-  line-height: 0;
 }
 /* A drawn asterisk, so it sits exactly in the middle of the box (a text '*' rides high). */
 .pa-credential-field [data-masked] [data-slot='input-otp-slot-value']::after {
@@ -146,9 +124,6 @@
 }
 .pa-auth-card .pa-keep-connected p {
   padding-left: 1.75rem;
-  color: #64748b;
-  font-size: 0.76rem;
-  line-height: 1.35;
 }
 
 /* Notices: one short title and one calm sentence. */
@@ -171,13 +146,6 @@
 .pa-auth-notice b {
   display: block;
   margin-bottom: 0.15rem;
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1.25;
-}
-.pa-auth-notice span {
-  font-size: 0.85rem;
-  line-height: 1.45;
 }
 .pa-auth-notice--wrong {
   background: #fff1f2;
@@ -223,7 +191,6 @@
 }
 .pa-auth-validation {
   color: #9f1239 !important;
-  font-weight: 600;
 }
 
 .pa-auth-countdown {
@@ -234,8 +201,6 @@
   border-radius: 1rem;
   background: #fff;
   color: #92400e;
-  font-size: 0.9rem;
-  font-weight: 600;
   box-shadow: inset 0 0 0 1px #fde68a;
 }
 .pa-auth-countdown-ring {
@@ -347,8 +312,6 @@
 .pa-qr-read {
   display: block;
   color: #047857;
-  font-size: 0.9rem;
-  font-weight: 650;
   text-align: center;
 }
 .pa-qr-video {
@@ -389,14 +352,9 @@
 }
 .pa-camera-blocked h3 {
   margin: 0;
-  color: #0b2a5b;
-  font-size: 1.1rem;
-  font-weight: 800;
-  line-height: 1.25;
 }
 .pa-auth-card .pa-camera-blocked-head p {
   margin-top: 0.2rem;
-  font-size: 0.9rem;
 }
 .pa-auth-card .pa-camera-blocked-tip {
   display: flex;
@@ -406,8 +364,6 @@
   border-radius: 1rem;
   background: #eff6ff;
   color: #1e3a8a;
-  font-size: 0.86rem;
-  line-height: 1.4;
   box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 .pa-camera-blocked-tip svg {
@@ -427,11 +383,6 @@
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
-.pa-camera-blocked-how-top strong {
-  color: #0b2a5b;
-  font-size: 0.92rem;
-  font-weight: 750;
-}
 .pa-camera-blocked-platforms {
   display: inline-flex;
   padding: 3px;
@@ -444,9 +395,6 @@
   border-radius: 999px;
   background: transparent;
   color: #64748b;
-  font: inherit;
-  font-size: 0.74rem;
-  font-weight: 650;
   cursor: pointer;
 }
 .pa-camera-blocked-platforms button[aria-pressed='true'] {
@@ -466,9 +414,6 @@
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
-  color: #334155;
-  font-size: 0.88rem;
-  line-height: 1.5;
   counter-increment: pa-step;
 }
 .pa-camera-blocked-steps li::before {
@@ -480,9 +425,6 @@
   place-items: center;
   border-radius: 50%;
   background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 0.75rem;
-  font-weight: 800;
 }
 .pa-camera-blocked-steps kbd {
   display: inline-flex;
@@ -491,8 +433,6 @@
   border-radius: 0.4rem;
   background: #f1f5f9;
   color: #0f172a;
-  font: inherit;
-  font-weight: 700;
   white-space: nowrap;
   box-shadow: inset 0 0 0 1px #cbd5e1;
 }
@@ -539,13 +479,10 @@
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  color: #64748b;
-  font-size: 0.8rem;
 }
 .pa-risk-note svg {
   flex: none;
   margin-top: 0.15rem;
-  color: #94a3b8;
 }
 
 @keyframes pa-auth-in {
@@ -602,4 +539,48 @@
   .pa-auth-submit[data-pending]::before {
     animation-duration: 2.4s;
   }
+}
+
+/*
+ * Type scale on HeroUI's tokens, by priority: step title (2xl) > step eyebrow (xs caps, accent)
+ * > explanation (sm, muted) > field labels (sm, medium) > hints and footer (xs, muted).
+ */
+.pa-auth-card .pa-auth-title {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.pa-auth-card .pa-auth-eyebrow {
+  margin-bottom: 0.35rem;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pa-auth-card .card__description:not(.pa-auth-eyebrow) {
+  font-size: var(--text-sm);
+}
+.pa-credential-field .label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.pa-auth-card .pa-keep-connected p,
+.pa-auth-card .pa-risk-note,
+.pa-auth-notice span {
+  font-size: var(--text-xs);
+}
+.pa-auth-notice b,
+.pa-camera-blocked-how-top strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.pa-camera-blocked .card__title {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.pa-camera-blocked-steps li,
+.pa-auth-card .pa-camera-blocked-tip {
+  font-size: var(--text-sm);
 }
