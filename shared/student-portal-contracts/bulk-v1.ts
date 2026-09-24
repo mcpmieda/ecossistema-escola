@@ -42,6 +42,7 @@ export const bulkPreviewItemV1 = z
     classId: z.number().int().positive().safe(),
     name: z.string().max(200),
     classLabel: z.string().max(80),
+    ineligibility: z.enum(['recovery-unavailable', 'already-blocked']).nullable(),
   })
   .strict();
 export const bulkPreviewResponseV1 = z
