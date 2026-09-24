@@ -98,7 +98,8 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
         <span className="pa-annual-goal-marker" />
       </div>
       <div className="pa-annual-goal-scale" aria-hidden="true">
-        <span>60</span>
+        <span className="pa-annual-goal-scale-goal">60</span>
+        <span className="pa-annual-goal-scale-end">100</span>
       </div>
 
       <p className="pa-annual-goal-text">

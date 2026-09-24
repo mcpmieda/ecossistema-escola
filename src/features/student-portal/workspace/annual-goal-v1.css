@@ -111,8 +111,14 @@
 }
 .pa-annual-goal-scale > span {
   position: absolute;
+}
+.pa-annual-goal-scale-goal {
   left: 60%;
   transform: translateX(-50%);
+}
+/* The year's total, at the end of the track. */
+.pa-annual-goal-scale-end {
+  right: 0;
 }
 .pa-annual-goal-text {
   margin: 0.55rem 0 0;
