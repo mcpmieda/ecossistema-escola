@@ -5,6 +5,7 @@ import { Card } from '@heroui/react/card';
 import { Checkbox } from '@heroui/react/checkbox';
 import { InputOTP } from '@heroui/react/input-otp';
 import { Label } from '@heroui/react/label';
+import { Spinner } from '@heroui/react/spinner';
 import { Check, CircleX, Info, ShieldCheck, TimerReset, WifiOff, CloudOff } from 'lucide-react';
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import {
@@ -133,7 +134,7 @@ function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text:
     return {
       tone: 'wait',
       title: 'Muitas tentativas seguidas',
-      text: 'Por segurança, o portal pausou as tentativas por alguns segundos. Assim que o tempo acabar, é só tentar de novo.',
+      text: 'Por segurança, o portal pausou as tentativas por um tempo. Quando a contagem terminar, é só tentar de novo.',
     };
   if (message.startsWith('O serviço de acesso'))
     return {
@@ -185,6 +186,10 @@ function RetryCountdownV1({ retryAt }: { retryAt: number }) {
   }, [retryAt]);
   if (retryAt <= now) return null;
   const seconds = Math.max(1, Math.ceil((retryAt - now) / 1000));
+  // The server's block lasts minutes (15 by default): read it as a clock, say it in minutes.
+  const minutes = Math.ceil(seconds / 60);
+  const clock =
+    seconds >= 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : `${seconds}s`;
   return (
     <output className="pa-auth-countdown">
       <span
@@ -192,9 +197,13 @@ function RetryCountdownV1({ retryAt }: { retryAt: number }) {
         style={{ '--pa-countdown': `${Math.round((100 * seconds) / total)}%` } as CSSProperties}
         aria-hidden="true"
       >
-        <i>{seconds}s</i>
+        <i>{clock}</i>
       </span>
-      <span>Tente novamente em {seconds} segundos.</span>
+      <span>
+        {seconds >= 60
+          ? `Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`
+          : `Tente novamente em ${seconds} segundos.`}
+      </span>
     </output>
   );
 }
@@ -411,9 +420,14 @@ function CredentialFormV1({
         type="submit"
         size="lg"
         className="pa-auth-submit"
-        data-pending={state.pending || undefined}
+        isPending={state.pending}
         isDisabled={state.pending || !valid || blocked || (needsRisk && !riskToken)}
       >
+        {state.pending ? (
+          <span aria-hidden="true" className="pa-auth-spinner">
+            <Spinner size="sm" color="current" />
+          </span>
+        ) : null}
         {submitLabelV1(state)}
       </Button>
       {state.step === 'risk' ? (

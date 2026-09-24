@@ -1,4 +1,4 @@
-import { StrictMode, useMemo, useState, type CSSProperties } from 'react';
+import { StrictMode, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import type { RiskMountV1 } from '../features/student-portal/auth/turnstile-widget-v1';
@@ -11,22 +11,93 @@ import { PORTAL_ORIGIN_V1 } from '../../shared/student-portal-contracts/core-v1'
 import '../features/student-portal/shared/styles.css';
 
 /*
- * Login preview only. The real auth screen and flow run against an invented in-browser server
- * (no network, no real account, no Turnstile), so each step can be seen and changed:
- * QR → PIN (first access) → create password, QR → password, security check, and failures.
+ * Login preview only. The real sign-in screens and flow run against an invented in-browser
+ * server (no network, no real account, no Turnstile). Every screen is listed so it can be
+ * reviewed one by one; screens that only appear after typing are reached by filling the form
+ * automatically. Nothing here ships in the Portal bundle (index.html never loads it).
  */
-type ScenarioV1 = 'first' | 'returning' | 'risk' | 'rate-limited' | 'unavailable';
-const SCENARIOS_V1: readonly [ScenarioV1, string][] = [
-  ['first', 'Primeiro acesso (PIN → criar senha)'],
-  ['returning', 'Já tem senha'],
-  ['risk', 'Verificação de segurança antes da senha'],
-  ['rate-limited', 'Muitas tentativas (aguardar)'],
-  ['unavailable', 'Serviço fora do ar'],
-];
-const PREVIEW_PIN_V1 = '2012';
-const PREVIEW_PASSWORD_V1 = '123456';
 const PREVIEW_QR_V1 = `${PORTAL_ORIGIN_V1}/access#v1.${'A'.repeat(32)}.1.${'B'.repeat(43)}`;
 const requestId = '11111111-1111-4111-8111-111111111111';
+
+type ChallengeV1 =
+  | 'pin'
+  | 'password'
+  | 'risk'
+  | 'create'
+  | 'create-expiring'
+  | 'unauthenticated'
+  | 'rate-limited'
+  | 'unavailable'
+  | 'network'
+  | 'slow';
+type LoginV1 = 'ok' | 'unauthenticated' | 'rate-limited' | 'slow';
+interface ScreenV1 {
+  label: string;
+  /** What the invented server answers to the QR (challenge) and to the password (login). */
+  challenge?: ChallengeV1;
+  login?: LoginV1;
+  /** Start as if this QR had just been read (undefined: start on the card screen). */
+  qr?: string;
+  camera?: 'allowed' | 'denied';
+  /** Digits typed and submitted by the preview itself, to reach screens after a try. */
+  type?: readonly string[];
+  submit?: boolean;
+  splash?: 'checking' | 'entered';
+}
+const SCREENS_V1: readonly ScreenV1[] = [
+  { label: 'Cartão: ler o QR', camera: 'allowed' },
+  { label: 'Cartão: câmera bloqueada', camera: 'denied' },
+  { label: 'Cartão: lendo o QR (carregando)', challenge: 'slow', qr: PREVIEW_QR_V1 },
+  { label: 'Cartão: QR inválido', qr: `${PORTAL_ORIGIN_V1}/access#invalido` },
+  { label: 'Primeiro acesso: ano de nascimento', challenge: 'pin', qr: PREVIEW_QR_V1 },
+  {
+    label: 'Primeiro acesso: ano errado',
+    challenge: 'pin',
+    qr: PREVIEW_QR_V1,
+    type: ['1999'],
+    submit: true,
+  },
+  { label: 'Criar senha', challenge: 'create', qr: PREVIEW_QR_V1 },
+  {
+    label: 'Criar senha: senhas diferentes',
+    challenge: 'create',
+    qr: PREVIEW_QR_V1,
+    type: ['123456', '123450'],
+    submit: true,
+  },
+  { label: 'Criar senha: prazo terminou', challenge: 'create-expiring', qr: PREVIEW_QR_V1 },
+  { label: 'Senha: digitar a senha', challenge: 'password', qr: PREVIEW_QR_V1 },
+  {
+    label: 'Senha: entrando (carregando)',
+    challenge: 'password',
+    login: 'slow',
+    qr: PREVIEW_QR_V1,
+    type: ['123456'],
+    submit: true,
+  },
+  {
+    label: 'Senha: não deu certo',
+    challenge: 'password',
+    login: 'unauthenticated',
+    qr: PREVIEW_QR_V1,
+    type: ['999999'],
+    submit: true,
+  },
+  {
+    label: 'Senha: muitas tentativas (contagem)',
+    challenge: 'password',
+    login: 'rate-limited',
+    qr: PREVIEW_QR_V1,
+    type: ['999999'],
+    submit: true,
+  },
+  { label: 'Verificação rápida', challenge: 'risk', qr: PREVIEW_QR_V1 },
+  { label: 'Cartão: muitas tentativas (contagem)', challenge: 'rate-limited', qr: PREVIEW_QR_V1 },
+  { label: 'Cartão: portal fora do ar', challenge: 'unavailable', qr: PREVIEW_QR_V1 },
+  { label: 'Cartão: sem internet', challenge: 'network', qr: PREVIEW_QR_V1 },
+  { label: 'Abertura: verificando acesso', splash: 'checking' },
+  { label: 'Depois de entrar: Tudo certo!', splash: 'entered' },
+];
 
 function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify({ contractVersion: 1, requestId, ...body }), {
@@ -45,31 +116,52 @@ const session = () =>
     expiresAt: new Date(Date.now() + 8 * 3600_000).toISOString(),
     persistent: true,
   });
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Invented server: the same responses the Worker sends, decided by the chosen scenario. */
-function previewFetchV1(scenario: ScenarioV1): typeof fetch {
+/** Invented server: the same responses the Worker sends, chosen by the screen under review. */
+function previewFetchV1(screen: ScreenV1): typeof fetch {
+  let riskPassed = false;
   return async (input, init) => {
-    await new Promise((resolve) => setTimeout(resolve, 650));
     const path = String(input);
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-    if (scenario === 'unavailable') return failure('unavailable');
-    if (scenario === 'rate-limited') return failure('rate-limited', 30);
     if (path === '/api/student/auth/challenge') {
-      if (scenario === 'risk' && !body.riskToken) return reply(200, { state: 'credential-required', next: 'risk' });
-      if (scenario === 'first') {
+      const challenge = screen.challenge ?? 'password';
+      await wait(challenge === 'slow' ? 10 * 60_000 : 500);
+      if (challenge === 'network') throw new TypeError('Failed to fetch');
+      if (challenge === 'unavailable' || challenge === 'unauthenticated') return failure(challenge);
+      if (challenge === 'rate-limited') return failure('rate-limited', 900);
+      if (challenge === 'risk' && !body.riskToken && !riskPassed)
+        return reply(200, { state: 'credential-required', next: 'risk' });
+      if (challenge === 'risk') riskPassed = true;
+      if (challenge === 'pin') {
         if (body.pin === undefined) return reply(200, { state: 'credential-required', next: 'pin' });
-        if (body.pin !== PREVIEW_PIN_V1) return failure('unauthenticated');
+        return body.pin === '2012'
+          ? reply(200, {
+              state: 'password-creation',
+              challenge: 'C'.repeat(43),
+              expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+            })
+          : failure('unauthenticated');
+      }
+      if (challenge === 'create' || challenge === 'create-expiring')
         return reply(200, {
           state: 'password-creation',
           challenge: 'C'.repeat(43),
-          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          expiresAt: new Date(Date.now() + (challenge === 'create' ? 10 * 60_000 : 2500)).toISOString(),
         });
-      }
       return reply(200, { state: 'credential-required', next: 'password' });
     }
-    if (path === '/api/student/auth/login')
-      return body.password === PREVIEW_PASSWORD_V1 ? session() : failure('unauthenticated');
-    if (path === '/api/student/auth/activate') return session();
+    if (path === '/api/student/auth/login') {
+      const login = screen.login ?? 'ok';
+      await wait(login === 'slow' ? 10 * 60_000 : 500);
+      if (login === 'unauthenticated') return failure('unauthenticated');
+      if (login === 'rate-limited') return failure('rate-limited', 900);
+      return body.password === '123456' ? session() : failure('unauthenticated');
+    }
+    if (path === '/api/student/auth/activate') {
+      await wait(500);
+      return session();
+    }
     return failure('unauthenticated');
   };
 }
@@ -90,6 +182,37 @@ const previewRiskMountV1: RiskMountV1 = (container, _sitekey, callbacks) => {
   return () => button.remove();
 };
 
+/**
+ * The pane blocks cameras, so the preview tells the page what the browser would report for each
+ * screen. Set before the screen mounts, since the card screen asks on mount.
+ */
+function applyCameraPermissionV1(state: ScreenV1['camera']) {
+  Object.defineProperty(navigator, 'permissions', {
+    configurable: true,
+    value: { query: async () => ({ state: state === 'denied' ? 'denied' : 'prompt' }) },
+  });
+}
+
+/** Types the given digits into the visible fields and presses the main button. */
+async function playV1(screen: ScreenV1, run: number, current: () => number) {
+  if (!screen.type?.length) return;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  for (let attempt = 0; attempt < 40 && current() === run; attempt++) {
+    const inputs = document.querySelectorAll<HTMLInputElement>('.pa-credential-field input');
+    if (inputs.length >= screen.type.length) {
+      screen.type.forEach((digits, index) => {
+        setValue.call(inputs[index], digits);
+        inputs[index]!.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await wait(300);
+      if (screen.submit && current() === run)
+        document.querySelector<HTMLButtonElement>('.pa-auth-submit')?.click();
+      return;
+    }
+    await wait(150);
+  }
+}
+
 const panelStyle: CSSProperties = {
   position: 'fixed',
   bottom: 8,
@@ -103,65 +226,70 @@ const panelStyle: CSSProperties = {
   font: '12px/1.4 system-ui, sans-serif',
   boxShadow: '0 10px 30px rgb(0 0 0 / 0.3)',
 };
-const rowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', margin: '6px 0' };
+const rowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', margin: '6px 0' };
+
+let runCounter = 0;
 
 function LoginPreviewV1() {
-  const [scenario, setScenario] = useState<ScenarioV1>('first');
+  const [index, setIndex] = useState(0);
   const [run, setRun] = useState(0);
-  const [qr, setQr] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const screen = SCREENS_V1[index]!;
   const client = useMemo(
-    () => createPortalSelfClientV1({ respectRetryAfter: true, fetch: previewFetchV1(scenario) }),
-    // A new client per run also clears the transport's rate-limit cooldown.
-    [scenario, run],
+    () => createPortalSelfClientV1({ respectRetryAfter: true, fetch: previewFetchV1(screen) }),
+    // A new client per visit also clears the transport's rate-limit cooldown.
+    [screen, run],
   );
-  const restart = (withQr: boolean) => {
+  useEffect(() => {
+    runCounter += 1;
+    const mine = runCounter;
+    void playV1(screen, mine, () => runCounter);
+  }, [screen, run]);
+  const go = (next: number) => {
+    const target = (next + SCREENS_V1.length) % SCREENS_V1.length;
+    applyCameraPermissionV1(SCREENS_V1[target]!.camera);
     setAuthenticated(false);
-    setQr(withQr ? PREVIEW_QR_V1 : null);
+    setIndex(target);
     setRun((value) => value + 1);
   };
   return (
     <>
       <details open style={panelStyle}>
-        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Simular login</summary>
+        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
+          Telas do login ({index + 1}/{SCREENS_V1.length})
+        </summary>
         <div style={rowStyle}>
-          <span style={{ opacity: 0.7 }}>Situação:</span>
-          <select
-            value={scenario}
-            onChange={(event) => {
-              setScenario(event.target.value as ScenarioV1);
-              restart(false);
-            }}
-          >
-            {SCENARIOS_V1.map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
+          <button type="button" onClick={() => go(index - 1)}>
+            ◀ Anterior
+          </button>
+          <select value={index} onChange={(event) => go(Number(event.target.value))}>
+            {SCREENS_V1.map((item, position) => (
+              <option key={item.label} value={position}>
+                {position + 1}. {item.label}
               </option>
             ))}
           </select>
+          <button type="button" onClick={() => go(index + 1)}>
+            Próxima ▶
+          </button>
         </div>
         <div style={rowStyle}>
-          <button type="button" onClick={() => restart(true)}>
-            Ler QR do cartão (simulado)
+          <button type="button" onClick={() => go(index)}>
+            Recomeçar esta tela
           </button>
-          <button type="button" onClick={() => restart(false)}>
-            Recomeçar
-          </button>
-        </div>
-        <div style={{ opacity: 0.75 }}>
-          PIN (ano de nascimento): {PREVIEW_PIN_V1} · Senha: {PREVIEW_PASSWORD_V1}
+          <span style={{ opacity: 0.75 }}>Ano: 2012 · Senha: 123456</span>
         </div>
       </details>
-      {authenticated ? (
-        // What the portal shows while the marks load right after a sign-in.
+      {screen.splash ? (
+        <StudentSplashV1 entered={screen.splash === 'entered'} />
+      ) : authenticated ? (
         <StudentSplashV1 entered />
       ) : (
         <StudentEntryLayoutV1>
           <StudentAuthenticationV1
-            key={run}
+            key={`${index}-${run}`}
             client={client}
-            initialQr={qr}
-            onQrDiscarded={() => setQr(null)}
+            initialQr={screen.qr ?? null}
             onAuthenticated={() => setAuthenticated(true)}
             sitekey="preview"
             riskMount={previewRiskMountV1}
@@ -172,6 +300,7 @@ function LoginPreviewV1() {
   );
 }
 
+applyCameraPermissionV1(SCREENS_V1[0]!.camera);
 const root = document.getElementById('root');
 if (!root) throw new Error('Preview root missing');
 createRoot(root).render(

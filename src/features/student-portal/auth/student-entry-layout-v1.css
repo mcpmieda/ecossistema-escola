@@ -1,33 +1,32 @@
 /* Entry (sign-in) and opening screens: the school's cover in the portal's blue, with a white
    sheet rising over it like the signed-in portal. */
+/* One continuous background: the portal's cover art spans the whole page under a blue veil, so
+   there is no seam between the art and the rest. */
 .pa-entry {
   min-height: 100dvh;
   color: var(--foreground);
-  background:
-    radial-gradient(40rem 22rem at 110% -10%, rgb(34 211 238 / 0.35), transparent 70%),
-    radial-gradient(36rem 24rem at -20% 10%, rgb(59 130 246 / 0.45), transparent 70%),
-    linear-gradient(170deg, #0a3c9a 0%, #062a6b 45%, #041b47 100%);
+  background-color: #062a6b;
+  background-image:
+    linear-gradient(180deg, rgb(4 27 71 / 0.25) 0%, rgb(4 27 71 / 0.45) 55%, rgb(4 27 71 / 0.7) 100%),
+    url('../../../student-portal/assets/hero-cover-mobile.webp');
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+@media (min-width: 760px) {
+  .pa-entry {
+    background-image:
+      linear-gradient(180deg, rgb(4 27 71 / 0.2) 0%, rgb(4 27 71 / 0.45) 60%, rgb(4 27 71 / 0.65) 100%),
+      url('../../../student-portal/assets/hero-cover.webp');
+  }
 }
 
 .pa-entry-cover {
   position: relative;
   z-index: 1;
-  overflow: hidden;
   padding: 2.6rem 1.5rem 3.6rem;
   color: #fff;
   text-align: center;
-}
-
-.pa-entry-cover::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: url('../../../student-portal/assets/hero-cover-mobile.webp') center / cover no-repeat;
-  opacity: 0.22;
-  mix-blend-mode: screen;
-  -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
-  mask-image: linear-gradient(180deg, #000 30%, transparent);
 }
 
 .pa-entry-crest {
@@ -39,30 +38,26 @@
   animation: pa-entry-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Cover type on HeroUI's scale: a quiet label, then the school's name. */
 .pa-entry-eyebrow {
-  margin: 0 0 0.6rem;
-  color: #93c5fd;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
+  margin: 0 0 0.35rem;
+  color: rgb(219 234 254 / 0.9);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .pa-entry-school {
   margin: 0;
-  font-size: clamp(1.55rem, 6vw, 2.2rem);
-  font-weight: 800;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.25;
   text-wrap: balance;
 }
 
 .pa-entry-sub {
-  margin: 0.55rem 0 0;
+  margin: 0.5rem 0 0;
   color: rgb(219 234 254 / 0.85);
-  font-size: 0.86rem;
-  font-weight: 500;
-  line-height: 1.4;
+  font-size: var(--text-sm);
 }
 
 .pa-entry-year {
@@ -73,8 +68,8 @@
   border-radius: 999px;
   background: rgb(255 255 255 / 0.08);
   color: #e0f2fe;
-  font-size: 0.72rem;
-  font-weight: 650;
+  font-size: var(--text-xs);
+  font-weight: 500;
   backdrop-filter: blur(6px);
 }
 
@@ -158,10 +153,6 @@
 .pa-entry--splash .pa-entry-cover {
   width: min(100%, 30rem);
   padding-block: 2rem;
-}
-
-.pa-entry--splash .pa-entry-cover::before {
-  display: none;
 }
 
 .pa-entry--splash .pa-entry-crest {
@@ -259,6 +250,10 @@
   .pa-entry:not(.pa-entry--splash) .pa-entry-cover {
     padding: 4rem;
     text-align: left;
+  }
+
+  .pa-entry-school {
+    font-size: var(--text-3xl);
   }
 
   .pa-entry:not(.pa-entry--splash) .pa-entry-crest {
