@@ -64,10 +64,12 @@ export function buildTermClosingsV1(input: {
     if (kept.length) inScope.set(subjectId, kept);
   }
   const closings = assignTermClosingVariantsV1(input.studentKey, inScope);
-  const latest = [...periods].reverse().find((period) =>
-    [...closings.values()].some((list) => list.some((closing) => closing.period === period)),
-  );
-  return { closings, summary: latest ? termClosingSummaryV1(input.studentKey, latest, closings, mode) : undefined };
+  // One summary per trimester that has closings, oldest first; `summary` stays the most recent
+  // for pages that only know the single field.
+  const summaries = periods
+    .map((period) => termClosingSummaryV1(input.studentKey, period, closings, mode))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined);
+  return { closings, summary: summaries.at(-1), summaries };
 }
 
 /**
@@ -83,7 +85,7 @@ export function attachTermClosingsV1(input: {
 }): SelfResponseV1 {
   const { projection } = input;
   if (input.targets.periods.length === 0) return projection;
-  const { closings, summary } = buildTermClosingsV1(input);
+  const { closings, summary, summaries } = buildTermClosingsV1(input);
   if (closings.size === 0) return projection;
 
   const bySubject = new Map(projection.subjects.map((subject) => [subject.subjectId, subject]));
@@ -101,5 +103,6 @@ export function attachTermClosingsV1(input: {
     state: subjects.length ? 'ready' : 'no-publication',
     subjects,
     ...(summary ? { closingSummary: summary } : {}),
+    ...(summaries.length ? { closingSummaries: summaries } : {}),
   });
 }
