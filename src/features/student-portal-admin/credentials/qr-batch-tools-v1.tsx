@@ -185,16 +185,21 @@ export function QrBatchToolsV1({
           size="sm"
           isDisabled={
             !canWrite ||
-            working ||
-            unresolved ||
-            pendingBirth ||
-            !chosen.length ||
-            chosen.length > 100
+            (state.state !== 'ready' && (
+              working || unresolved || pendingBirth || !chosen.length || chosen.length > 100
+            ))
           }
-          onPress={generate}
+          onPress={state.state === 'ready'
+            ? () => operation.download(capture.current.filename)
+            : generate}
         >
-          Baixar PDF
+          {state.state === 'ready' ? 'Baixar PDF pronto' : 'Baixar PDF'}
         </Button>
+        {state.state === 'ready' ? (
+          <Button size="sm" variant="secondary" onPress={() => operation.clear()}>
+            Preparar outro PDF
+          </Button>
+        ) : null}
       </div>
       {chosen.length > 100 ? <p role="alert">Selecione até 100 alunos por PDF.</p> : null}
       {working ? (
@@ -205,12 +210,7 @@ export function QrBatchToolsV1({
         </p>
       ) : null}
       {state.state === 'ready' && state.downloadFailed ? (
-        <div role="alert">
-          O PDF está pronto, mas o download não começou.
-          <Button size="sm" onPress={() => operation.download(capture.current.filename)}>
-            Tentar baixar novamente
-          </Button>
-        </div>
+        <p role="alert">O PDF está pronto, mas o download não começou.</p>
       ) : null}
       {state.state === 'error' ? (
         <div role="alert">
