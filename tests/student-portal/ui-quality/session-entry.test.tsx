@@ -25,7 +25,7 @@ function deferredResponse() {
 it('keeps the anonymous file input mounted when the native picker returns focus', async () => {
   const fetcher = vi.fn(async () => json({ ...meta, state: 'unauthenticated' }, 401));
   render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
-  await screen.findByRole('button', { name: 'Escolher imagem' });
+  await screen.findByRole('button', { name: 'Selecionar QR da galeria' });
   const input = document.querySelector('input[type="file"]');
   expect(input).toBeTruthy();
   await act(async () => {
@@ -66,7 +66,7 @@ it.each(['focus', 'pageshow', 'popstate'])(
     view.unmount();
     render(<StudentPortalApp client={client} />);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
-    await screen.findByRole('button', { name: 'Escolher imagem' });
+    await screen.findByRole('button', { name: 'Selecionar QR da galeria' });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls.filter(([path]) => path === '/api/student/me')).toHaveLength(1);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
@@ -107,7 +107,7 @@ it.each([false, true])(
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await act(async () => restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)));
     // Revoked: straight to the login form, without any error message.
-    await screen.findByRole('button', { name: 'Escolher imagem' });
+    await screen.findByRole('button', { name: 'Selecionar QR da galeria' });
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText('Sessão expirada')).toBeNull();
     expect(fetcher.mock.calls.filter(([path]) => path === '/api/student/me')).toHaveLength(1);

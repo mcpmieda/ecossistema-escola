@@ -81,34 +81,28 @@ describe('student portal grade workspace', () => {
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
   });
 
-  it('marks each activity from the server classification only, flagging observed blanks', async () => {
+  it('tags each activity with Foi bem / Não foi muito bem from the server classification only', async () => {
     const data = gradesFixtureV1(true);
     const first = data.subjects.find((subject) => subject.order === 1)!;
-    first.periods.find((p) => p.period === 'T1')!.partials![1] = {
-      assessmentId: 900002,
-      label: 'AV2 SYNTHETIC',
-      notDone: true,
-      mark: { kind: 'absent' },
+    const partials = first.periods.find((p) => p.period === 'T1')!.partials!;
+    partials[1] = { assessmentId: 900002, label: 'AV2 SYNTHETIC', notDone: true, mark: { kind: 'absent' } };
+    partials[6] = {
+      assessmentId: 900009,
+      label: 'Atividade abaixo',
+      mark: { kind: 'score', value: 0.5, maximum: 2, meetsMinimum: false },
     };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
     const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
-    const status = (label: string | RegExp) => {
-      const row = rows.find((item) => within(item).queryByText(label))!;
-      const icon = row.querySelector('.pa-partial-status')!;
-      return icon.classList.contains('pa-partial-status--met')
-        ? 'met'
-        : icon.classList.contains('pa-partial-status--attention')
-          ? 'attention'
-          : 'none';
-    };
-    expect(status('I AVALIAÇÃO')).toBe('attention'); // numeric zero, below the minimum
-    expect(status('AV2 SYNTHETIC')).toBe('attention'); // observed blank ("Não fez")
-    expect(status('Atividade 3')).toBe('none'); // no maximum → no classification to show
-    expect(status('Atividade 4')).toBe('met');
-    expect(status('Atividade 2')).toBe('none'); // not yet recorded
-    expect(status(/descrição oficial extensa/u)).toBe('none'); // R/R marker
+    const tag = (label: string) =>
+      rows.find((item) => within(item).queryByText(label))!.querySelector('.pa-partial-feedback')?.textContent ?? null;
+    expect(tag('Atividade 4')).toBe('Foi bem');
+    expect(tag('Atividade abaixo')).toBe('Não foi muito bem');
+    expect(tag('I AVALIAÇÃO')).toBeNull(); // Tirou zero already says it
+    expect(tag('AV2 SYNTHETIC')).toBeNull(); // Não fez already says it
+    expect(tag('Atividade 3')).toBeNull(); // no maximum → no classification
+    expect(tag('Atividade 2')).toBeNull(); // not yet recorded
   });
 
   it('clamps an overflowing activity description to two lines and reveals it on demand', async () => {
@@ -165,7 +159,7 @@ describe('student portal grade workspace', () => {
     const first = data.subjects.find((subject) => subject.order === 1)!;
     const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
-    expect(screen.queryByText('Detalhamento')).toBeNull();
+    expect(screen.queryByText('Como você foi em cada atividade')).toBeNull();
     expect(screen.queryByText('Nenhuma avaliação parcial publicada.')).toBeNull();
     unmount();
     window.history.replaceState(null, '', window.location.href);
@@ -234,6 +228,43 @@ describe('student portal grade workspace', () => {
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     expect(screen.getByText('Resultado final 2026')).toBeTruthy();
     expect(screen.getAllByText('Aprovado pela recuperação')).toHaveLength(2);
+  });
+
+  it('shows the Meta do ano only on the 2º tri tab, from marks already on screen', async () => {
+    const data = gradesFixtureV1(false);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    const scoreOf = (value: number, maximum: number) =>
+      ({ kind: 'score', value, maximum, meetsMinimum: true }) as const;
+    first.periods = [
+      { period: 'T1', final: scoreOf(18.5, 30) },
+      { period: 'T2', final: scoreOf(17.3, 30) },
+      { period: 'T3', final: { kind: 'absent' } },
+    ];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const periods = screen.getByRole('tablist', { name: 'Períodos de ' + first.label });
+
+    expect(screen.queryByRole('heading', { name: /Faltam/u })).toBeNull();
+    await user.click(within(periods).getAllByRole('tab')[1]!);
+    // 60 − (18,5 + 17,3) = 24,2 in the 3º tri.
+    expect(screen.getByRole('heading', { name: 'Faltam 24,2 pontos' })).toBeTruthy();
+    expect(screen.queryByText(/2º tri:/u)).toBeNull();
+    await user.click(within(periods).getAllByRole('tab')[2]!);
+    expect(screen.queryByRole('heading', { name: /Faltam/u })).toBeNull();
+  });
+
+  it('animates the discipline icon with its own motion when the discipline opens', async () => {
+    const data = gradesFixtureV1(false);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    first.label = 'GEOGRAFIA';
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const list = screen.getByRole('listbox', { name: 'Disciplinas publicadas' });
+    expect(list.querySelector('.pa-subject-icon--animated')).toBeNull();
+
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const icon = document.querySelector('.pa-workspace-intro .pa-subject-icon--animated');
+    expect(icon?.getAttribute('data-motion')).toBe('spin');
   });
 
   it('restores Boletim with browser back after opening a discipline', async () => {

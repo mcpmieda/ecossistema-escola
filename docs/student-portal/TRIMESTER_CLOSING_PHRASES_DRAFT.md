@@ -45,10 +45,17 @@ Só uma frase, escolhida pela prioridade do motor.
 2. O que mais pesou neste trimestre foram as avaliações.
 3. As avaliações foram a parte mais difícil deste trimestre.
 
-**`weight.not-done`**: houve atividades não realizadas (R4: sem dizer quantas nem quais).
+**`weight.not-done`**: houve duas ou mais atividades não realizadas (R4: sem dizer quantas nem quais).
 1. Algumas atividades ficaram sem ser feitas, e isso pesou.
 2. Houve atividades não realizadas neste trimestre, e elas fizeram falta.
 3. Atividades que ficaram para trás pesaram no seu resultado.
+
+**`weight.not-done-one`**: exatamente uma atividade não realizada. Decisão do responsável em 2026-09-24: com uma só, a frase não fica no plural (ajuste a R4: o singular indica que foi uma; continua sem dizer qual).
+1. Uma atividade ficou sem ser feita, e isso pesou.
+2. Houve uma atividade não realizada neste trimestre, e ela fez falta.
+3. Uma atividade que ficou para trás pesou no seu resultado.
+
+Em andamento (`progress.weight.not-done-one`): "Há uma atividade não realizada neste trimestre." / "Uma atividade ficou sem ser feita até agora." / "Uma atividade não realizada está pesando no seu andamento."
 
 **`weight.activities`**: as atividades do dia a dia ficaram abaixo do esperado (raro; as qualitativas costumam ir bem).
 1. As atividades do dia a dia foram um desafio para você.

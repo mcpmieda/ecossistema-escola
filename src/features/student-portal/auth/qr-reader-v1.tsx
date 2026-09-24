@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react/button';
+import { CameraOff, ImageIcon, SlidersHorizontal } from 'lucide-react';
+import { SchoolMarkV1 } from '../../../shared/brand/school-mark-v1';
 import {
   createCameraLeaseV1,
   decodeQrFrameV1,
@@ -25,6 +27,105 @@ const qrMessage = (error: unknown) => {
   return 'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.';
 };
 
+type PlatformV1 = 'android' | 'iphone';
+const platformOfV1 = (): PlatformV1 =>
+  typeof navigator !== 'undefined' && /iPhone|iPad|iPod/u.test(navigator.userAgent) ? 'iphone' : 'android';
+
+/** Decorative access card with a scan line, so the student knows at once what to use. */
+function AccessCardV1() {
+  return (
+    <div className="pa-access-card" aria-hidden="true">
+      <SchoolMarkV1 size={32} shine={false} className="pa-access-card-crest" />
+      <span className="pa-access-card-qr" />
+      <span className="pa-access-card-text">
+        Cartão de acesso
+        <b>Portal do Aluno</b>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A denied camera cannot be asked for again by the page: only the browser's site settings can
+ * lift it. Explain how for the student's phone and make the gallery the main way in meanwhile.
+ */
+function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
+  const [platform, setPlatform] = useState<PlatformV1>(platformOfV1);
+  return (
+    <div className="pa-camera-blocked" role="alert">
+      <div className="pa-camera-blocked-head">
+        <span className="pa-camera-blocked-icon" aria-hidden="true">
+          <CameraOff size={20} />
+        </span>
+        <div>
+          <h3 className="card__title">Você bloqueou a câmera</h3>
+          <p className="card__description">
+            Sem problema. Você pode entrar agora com uma foto do cartão ou liberar a câmera.
+          </p>
+        </div>
+      </div>
+      <p className="pa-camera-blocked-tip">
+        <ImageIcon size={18} aria-hidden="true" />
+        <span>
+          <b>Mais rápido:</b> tire uma foto do QR do cartão com a câmera do celular e selecione a
+          foto abaixo.
+        </span>
+      </p>
+      <div className="pa-camera-blocked-how">
+        <div className="pa-camera-blocked-how-top">
+          <strong>Liberar a câmera</strong>
+          <span className="pa-camera-blocked-platforms" role="group" aria-label="Tipo de celular">
+            {(['android', 'iphone'] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={platform === item}
+                onClick={() => setPlatform(item)}
+              >
+                {item === 'android' ? 'Android' : 'iPhone'}
+              </button>
+            ))}
+          </span>
+        </div>
+        <ol className="pa-camera-blocked-steps">
+          {platform === 'android' ? (
+            <>
+              <li>
+                No topo da tela, toque no ícone{' '}
+                <kbd aria-label="de ajustes">
+                  <SlidersHorizontal size={13} aria-hidden="true" />
+                </kbd>{' '}
+                ao lado do endereço do site.
+              </li>
+              <li>
+                Toque em <kbd>Permissões</kbd> e depois em <kbd>Câmera</kbd>.
+              </li>
+              <li>
+                Escolha <kbd>Permitir</kbd> e volte aqui.
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                Na barra de endereço, toque em <kbd>aA</kbd> (ou no ícone de ajustes).
+              </li>
+              <li>
+                Toque em <kbd>Ajustes do Site</kbd> e depois em <kbd>Câmera</kbd>.
+              </li>
+              <li>
+                Escolha <kbd>Permitir</kbd> e volte aqui.
+              </li>
+            </>
+          )}
+        </ol>
+        <Button variant="secondary" className="pa-camera-blocked-retry" onPress={onRetry}>
+          Tentar de novo com a câmera
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function StudentQrReaderV1({
   onQr,
   decode = decodeQrFrameV1,
@@ -41,6 +142,7 @@ export function StudentQrReaderV1({
   const [state, setState] = useState<'idle' | 'opening' | 'camera' | 'image'>('idle');
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [message, setMessage] = useState<string>();
+  const [blocked, setBlocked] = useState(false);
   const stop = () => {
     operation.current?.abort();
     operation.current = null;
@@ -60,7 +162,17 @@ export function StudentQrReaderV1({
     };
     document.addEventListener('visibilitychange', hidden);
     window.addEventListener('pagehide', leave);
+    // Where the browser already reports the camera as denied, show how to lift it up front
+    // instead of letting the student tap a button that silently fails.
+    let alive = true;
+    void navigator.permissions
+      ?.query({ name: 'camera' as PermissionName })
+      .then((status) => {
+        if (alive && status.state === 'denied') setBlocked(true);
+      })
+      .catch(() => undefined);
     return () => {
+      alive = false;
       stop();
       document.removeEventListener('visibilitychange', hidden);
       window.removeEventListener('pagehide', leave);
@@ -69,6 +181,7 @@ export function StudentQrReaderV1({
   const camera = async (direction: 'environment' | 'user') => {
     stop();
     setMessage(undefined);
+    setBlocked(false);
     setState('opening');
     setFacing(direction);
     const controller = new AbortController();
@@ -124,7 +237,8 @@ export function StudentQrReaderV1({
       if (!controller.signal.aborted) {
         stop();
         setState('idle');
-        setMessage(qrMessage(error));
+        if (error instanceof DOMException && error.name === 'NotAllowedError') setBlocked(true);
+        else setMessage(qrMessage(error));
       }
     }
   };
@@ -150,8 +264,18 @@ export function StudentQrReaderV1({
     }
   };
   return (
-    <div className="pa-qr-reader">
-      <p>Aponte a câmera para o QR de acesso ou escolha uma imagem.</p>
+    <div className="pa-qr-reader" data-blocked={blocked || undefined}>
+      {blocked ? (
+        <CameraBlockedV1 onRetry={() => void camera('environment')} />
+      ) : state === 'idle' ? (
+        <>
+          <AccessCardV1 />
+          <p className="card__description">
+            Use o QR do seu cartão de acesso. É só apontar a câmera ou selecionar uma foto dele na
+            galeria.
+          </p>
+        </>
+      ) : null}
       <video
         ref={video}
         muted
@@ -165,8 +289,9 @@ export function StudentQrReaderV1({
         <p role="status">{state === 'image' ? 'Lendo imagem…' : 'Abrindo câmera…'}</p>
       ) : null}
       <div className="pa-auth-actions">
-        {state === 'idle' ? (
+        {state === 'idle' && !blocked ? (
           <Button
+            size="lg"
             onPress={() => {
               void camera('environment');
             }}
@@ -196,7 +321,8 @@ export function StudentQrReaderV1({
           </Button>
         ) : null}
         <Button
-          variant="secondary"
+          size="lg"
+          variant={blocked ? 'primary' : 'secondary'}
           onPress={() => {
             stop();
             setState('idle');
@@ -204,7 +330,7 @@ export function StudentQrReaderV1({
           }}
           isDisabled={state === 'image'}
         >
-          Escolher imagem
+          Selecionar QR da galeria
         </Button>
         <input
           ref={input}

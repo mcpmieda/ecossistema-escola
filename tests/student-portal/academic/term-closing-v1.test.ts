@@ -61,7 +61,16 @@ describe('Fechamento do trimestre engine (#1132)', () => {
   it('puts a blank ("não fez") above weak assessments and points to the next activities (D1, R4)', () => {
     // Production always records the official term total (am1) alongside a blank.
     const result = term1([[1, 8500, 3000], [2, 5000, 2000], ...qualitative([4500, 3000, null, 3000])], { official: 15_500 });
-    expect(result).toMatchObject({ level: 'attention', conclusion: 'conclusion.attention', weight: 'weight.not-done', action: 'action.catch-up' });
+    expect(result).toMatchObject({ level: 'attention', conclusion: 'conclusion.attention', weight: 'weight.not-done-one', action: 'action.catch-up' });
+  });
+
+  it('reads one missing activity in the singular and several in the plural (owner, 2026-09-24)', () => {
+    const one = term1([[1, 8500, 3000], [2, 5000, 2000], ...qualitative([4500, 3000, null, 3000])], { official: 15_500 });
+    const two = term1([[1, 8500, 3000], [2, 5000, 2000], ...qualitative([null, 3000, null, 3000])], { official: 11_000 });
+    expect(one?.weight).toBe('weight.not-done-one');
+    expect(two?.weight).toBe('weight.not-done');
+    for (const text of TERM_CLOSING_CATALOG_V1['weight.not-done-one']) expect(text).toMatch(/^(Uma|Houve uma) atividade/u);
+    for (const text of TERM_CLOSING_CATALOG_V1['progress.weight.not-done-one']) expect(text).not.toMatch(/atividades/u);
   });
 
   it('recognizes activities only with a real contrast to the student\'s own assessments', () => {
@@ -74,7 +83,7 @@ describe('Fechamento do trimestre engine (#1132)', () => {
     expect(took?.strength).toBe('strength.parallel-done');
     const blank = term1([[1, 8500, 2000], [2, 5000, 1000], [3, null, null], ...qualitative([2000, 1500, 3000, 1500])]);
     expect(blank?.strength).not.toBe('strength.parallel-done');
-    expect(blank?.weight).not.toBe('weight.not-done');
+    expect(blank?.weight ?? '').not.toMatch(/^weight\.not-done/u);
     for (const code of Object.keys(TERM_CLOSING_CATALOG_V1)) expect(code).not.toMatch(/action\.parallel/);
   });
 

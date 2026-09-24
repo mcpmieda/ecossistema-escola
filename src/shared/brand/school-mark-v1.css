@@ -1,0 +1,94 @@
+/* School crest. White disc so the crest reads on any background; a soft sheen crosses it now
+   and then (and on hover), and the opening screen gives it a slow pulse with a halo. */
+.school-mark {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  width: var(--school-mark-size, 40px);
+  height: var(--school-mark-size, 40px);
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1.5px rgb(255 255 255 / 0.7),
+    0 4px 12px -4px rgb(15 46 101 / 0.45);
+  isolation: isolate;
+}
+
+.school-mark > img {
+  display: block;
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.school-mark--shine::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgb(255 255 255 / 0.15) 44%,
+    rgb(255 255 255 / 0.85) 50%,
+    rgb(255 255 255 / 0.15) 56%,
+    transparent 64%
+  );
+  transform: translateX(-130%);
+  animation: school-mark-shine 8s cubic-bezier(0.45, 0, 0.2, 1) 1.2s infinite;
+  pointer-events: none;
+}
+
+.school-mark--shine:hover::after,
+:hover > .school-mark--shine::after {
+  animation: school-mark-shine-once 900ms cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.school-mark--pulse {
+  animation: school-mark-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes school-mark-shine {
+  0% {
+    transform: translateX(-130%);
+  }
+  12%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes school-mark-shine-once {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes school-mark-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 0 rgb(255 255 255 / 0.55),
+      0 10px 30px -8px rgb(2 20 60 / 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 0 0 16px rgb(255 255 255 / 0),
+      0 14px 36px -8px rgb(2 20 60 / 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .school-mark--shine::after,
+  .school-mark--pulse {
+    animation: none;
+  }
+}

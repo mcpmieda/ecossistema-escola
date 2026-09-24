@@ -85,7 +85,7 @@ it('composes QR, password, session, profile and real grades under StrictMode wit
       <StudentPortalApp client={api.client} entry={entry} />
     </StrictMode>,
   );
-  await user.type(await screen.findByLabelText('Senha'), '012345');
+  await user.type(await screen.findByLabelText('Senha de 6 números'), '012345');
   await user.click(screen.getByRole('button', { name: 'Entrar' }));
   expect(await screen.findByText(SYNTHETIC_SELF_V1.profile.name)).toBeTruthy();
   expect(await screen.findByText('Disciplina de exemplo')).toBeTruthy();
@@ -96,7 +96,8 @@ it('composes QR, password, session, profile and real grades under StrictMode wit
   expect(document.body.innerHTML).not.toContain('012345');
   const login = api.calls.find((call) => call.path.endsWith('/login'))!;
   expect(JSON.parse(String(login.init.body))).toMatchObject({
-    keepConnected: true,
+    // "Manter conectado" starts off (owner decision).
+    keepConnected: false,
     password: '012345',
     qr: SYNTHETIC_QR_V1,
   });
@@ -114,8 +115,8 @@ it('discards the parent QR when the internal authentication is cancelled or hidd
   const api = transport();
   const entry: StudentEntryV1 = { qr: SYNTHETIC_QR_V1, invalidQr: false, route: 'access' };
   render(<StudentPortalApp client={api.client} entry={entry} />);
-  await screen.findByLabelText('Senha');
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelar' }));
+  await screen.findByLabelText('Senha de 6 números');
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Usar outro cartão' }));
   expect(entry.qr).toBeNull();
   expect(await screen.findByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   const count = api.calls.filter((call) => call.path.endsWith('/challenge')).length;

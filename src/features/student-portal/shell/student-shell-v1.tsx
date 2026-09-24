@@ -8,9 +8,10 @@ import { GraduationCap, LogOut } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
+import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
 
-export const STUDENT_SCHOOL_NAME_V1 = 'Escola Iêda Alves de Oliveira MCPM';
+export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
   dateStyle: 'short',

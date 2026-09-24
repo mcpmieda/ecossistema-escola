@@ -376,8 +376,8 @@ const realPreviewData = selfResponseV1.parse({
  * with variants spread as the server would (no repeated line on one page).
  */
 type ClosingV1 = NonNullable<SelfResponseV1['subjects'][number]['closings']>[number];
-const goodLine = (variant: number): ClosingV1 => ({
-  period: 'T1',
+const goodLine = (variant: number, period: ClosingV1['period'] = 'T1'): ClosingV1 => ({
+  period,
   mode: 'conclusion',
   level: 'good',
   conclusion: { code: 'line.good', variant },
@@ -435,6 +435,46 @@ const REAL_CLOSINGS_V1: Record<number, ClosingV1> = {
   910010: goodLine(0),
   910011: goodLine(1),
   910012: goodLine(2),
+};
+
+/*
+ * "Exemplo completo": a closing for each closed trimester (T1 and T2) of every subject, chosen to
+ * match the invented marks above (below the minimum = attention, just above or with a blank =
+ * point, clearly above = one line), so every discipline shows its report.
+ */
+const reading = (
+  period: ClosingV1['period'],
+  level: 'attention' | 'point',
+  variant: number,
+  weight: string,
+  action: string,
+  strength?: string,
+): ClosingV1 =>
+  selfResponseV1.shape.subjects.element.shape.closings.unwrap().element.parse({
+    period,
+    mode: 'conclusion',
+    level,
+    conclusion: { code: level === 'attention' ? 'conclusion.attention' : 'conclusion.good-with-point', variant },
+    weight: { code: weight, variant },
+    ...(strength ? { strength: { code: strength, variant } } : {}),
+    action: { code: action, variant },
+  });
+const EXAMPLE_CLOSINGS_V1: Record<number, ClosingV1[]> = {
+  900001: [
+    reading('T1', 'attention', 0, 'weight.assessments', 'action.assessments', 'strength.activities'),
+    reading('T2', 'point', 1, 'weight.not-done', 'action.catch-up', 'strength.assessments'),
+  ],
+  900002: [goodLine(0), reading('T2', 'attention', 2, 'weight.not-done', 'action.catch-up', 'strength.activities')],
+  900003: [goodLine(1), reading('T2', 'attention', 1, 'weight.assessments', 'action.assessments')],
+  900004: [
+    reading('T1', 'attention', 2, 'weight.not-done', 'action.catch-up'),
+    reading('T2', 'point', 0, 'weight.assessments', 'action.assessments', 'strength.all-done'),
+  ],
+  900005: [
+    reading('T1', 'point', 2, 'weight.activities', 'action.keep', 'strength.assessments'),
+    reading('T2', 'attention', 0, 'weight.assessments', 'action.assessments'),
+  ],
+  900006: [goodLine(2), goodLine(0, 'T2')],
 };
 
 /*
@@ -564,23 +604,33 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
   // Closings follow the policy, access and a regular student (D8, D9); a closed but unreleased
   // T1 keeps its subject with only the closing (R2).
   const closingsOn = admin.accessEnabled && admin.showTermClosing && admin.academicState === 'regular';
+  const closingsOf = (subjectId: number): ClosingV1[] | undefined =>
+    admin.dataset === 'real'
+      ? REAL_CLOSINGS_V1[subjectId] && [REAL_CLOSINGS_V1[subjectId]]
+      : EXAMPLE_CLOSINGS_V1[subjectId];
   const withClosings: SelfResponseV1['subjects'] = closingsOn
     ? data.subjects
-        .filter((subject) => REAL_CLOSINGS_V1[subject.subjectId])
+        .slice(0, admin.singleSubject ? 1 : undefined)
+        .filter((subject) => closingsOf(subject.subjectId))
         .map((subject): SelfResponseV1['subjects'][number] => {
           const shown = subjects.find((item) => item.subjectId === subject.subjectId);
           return { ...(shown ?? { subjectId: subject.subjectId, label: subject.label, order: subject.order, periods: [] }),
-            closings: [admin.termClosingConclusive ? REAL_CLOSINGS_V1[subject.subjectId]! : asProgressV1(REAL_CLOSINGS_V1[subject.subjectId]!)] };
+            closings: closingsOf(subject.subjectId)!.map((closing) =>
+              admin.termClosingConclusive ? closing : asProgressV1(closing)) };
         })
-        .concat(subjects.filter((subject) => !REAL_CLOSINGS_V1[subject.subjectId]) as SelfResponseV1['subjects'])
+        .concat(subjects.filter((subject) => !closingsOf(subject.subjectId)) as SelfResponseV1['subjects'])
         .sort((a, b) => a.order - b.order)
     : subjects;
-  const attention = withClosings.filter((subject) => subject.closings?.[0]?.level === 'attention');
+  // The Boletim summary reads the most recent closed trimester.
+  const summaryPeriod: ClosingV1['period'] = admin.dataset === 'real' ? 'T1' : 'T2';
+  const latestOf = (subject: SelfResponseV1['subjects'][number]) =>
+    subject.closings?.find((closing) => closing.period === summaryPeriod);
+  const attention = withClosings.filter((subject) => latestOf(subject)?.level === 'attention');
   return selfResponseV1.parse({
     ...data,
     state: withClosings.length > 0 ? 'ready' : 'no-publication',
     ...(closingsOn && withClosings.some((subject) => subject.closings)
-      ? { closingSummary: { period: 'T1', mode: admin.termClosingConclusive ? 'conclusion' : 'progress',
+      ? { closingSummary: { period: summaryPeriod, mode: admin.termClosingConclusive ? 'conclusion' : 'progress',
           message: { code: `${admin.termClosingConclusive ? '' : 'progress.'}${attention.length ? 'summary.few-attention' : 'summary.all-good'}`, variant: 0 },
           attentionSubjectIds: attention.map((subject) => subject.subjectId) } }
       : {}),

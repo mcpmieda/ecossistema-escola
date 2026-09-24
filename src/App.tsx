@@ -9,6 +9,7 @@ import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../sh
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
+import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 import { withStudentPortalModule } from './platform/student-portal-module';
@@ -42,7 +43,7 @@ function MicrosoftMark() {
 }
 function SessionCheckExperience() {
   return <main className="platform-shell grid min-h-svh place-items-center p-6" aria-busy="true" aria-label="Carregando Centro de Administração">
-    <div className="flex items-center gap-3 text-muted"><BrandMark compact /><Spinner size="sm" color="accent" /></div>
+    <div className="grid justify-items-center gap-4 text-muted"><BrandMark pulse /><Spinner size="sm" color="accent" /></div>
   </main>;
 }
 function LoginExperience({ loading }: { loading: boolean }) {
@@ -52,7 +53,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
         <Surface variant="secondary" className="login-intro hidden min-h-[600px] flex-col justify-between rounded-none border-0 p-10 shadow-none lg:flex">
           <div>
             <BrandMark />
-            <Chip className="mt-10" variant="soft" color="accent" size="sm">Escola Iêda Alves de Oliveira MCPM</Chip>
+            <Chip className="mt-10" variant="soft" color="accent" size="sm">{SCHOOL_NAME_V1}</Chip>
             <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.05em]">Centro de Administração</h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted">
               Uma plataforma administrativa modular e protegida para operar os sistemas da escola em uma única experiência.
@@ -72,7 +73,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-10 flex items-center gap-3 lg:hidden">
               <BrandMark compact />
-              <div><p className="text-sm font-semibold">Centro de Administração</p><p className="text-xs text-muted">Escola Iêda Alves de Oliveira</p></div>
+              <div><p className="text-sm font-semibold">Centro de Administração</p><p className="text-xs text-muted">{SCHOOL_NAME_V1}</p></div>
             </div>
             <Chip color="accent" variant="soft" size="sm">Acesso institucional</Chip>
             <h2 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">{loading ? 'Preparando seu acesso' : 'Entre para continuar'}</h2>
@@ -192,7 +193,7 @@ function AdminShell({ identity }: { identity: Identity }) {
             {route === 'visao-geral' && <Chip color="accent" variant="soft" className="mb-5"><ShieldCheck className="size-4" />Olá, {firstName}. O Centro de Administração está disponível.</Chip>}
             <PageContent route={route} snapshot={snapshot ?? loadState.snapshot} />
             <Separator className="mt-8" />
-            <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · Escola Iêda Alves de Oliveira</span><span className="sm:text-right">Atualizado em {formatDate(loadState.snapshot.generatedAt)}</span></footer>
+            <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><span className="sm:text-right">Atualizado em {formatDate(loadState.snapshot.generatedAt)}</span></footer>
           </div>}
         </main>
       </div>

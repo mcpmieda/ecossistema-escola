@@ -2,6 +2,7 @@ import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react'
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { withNotesModule } from './notes-module';
 import { BrandMark } from './presentation';
+import { SCHOOL_NAME_V1 } from '../shared/brand/school-mark-v1';
 import { platformHref, routeIcons } from './routes';
 
 function Navigation({
@@ -88,7 +89,7 @@ export function SidebarContent({
           <p className="truncate text-sm font-semibold tracking-[-0.025em]">
             Centro de Administração
           </p>
-          <p className="mt-0.5 truncate text-xs text-muted">Escola Iêda Alves de Oliveira</p>
+          <p className="mt-0.5 truncate text-xs text-muted">{SCHOOL_NAME_V1}</p>
         </div>
       </a>
 
