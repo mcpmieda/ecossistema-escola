@@ -124,6 +124,11 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
       && writeContext.tenantId === initial.tenantId;
     return json({ version: 1, state: 'catalog', traceId, canWrite, catalog });
   } catch (error) {
+    if (image && error instanceof Error) {
+      const reason = /^student-photo-storage-[a-z-]+(?:-[0-9]{3})?$/u.test(error.message)
+        ? error.message : error.name;
+      console.error('student-photo-image-unavailable', reason);
+    }
     if (error instanceof AccessDenied) return json({ state: error.status === 401 ? 'unauthenticated' : 'forbidden', traceId }, error.status);
     if (error instanceof PhotoTransportReadErrorV1) return json({ state: error.code, traceId }, error.code === 'too-large' ? 413 : 400);
     if (error instanceof PhotoWriteErrorV1) return json({ state: error.code, traceId }, error.code === 'not-found' ? 404 : 409);
