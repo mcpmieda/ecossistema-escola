@@ -8,6 +8,26 @@ const base = 'https://knzzyqgafdkwzjmdrfea.supabase.co/storage/v1/object';
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), value => value.toString(16).padStart(2, '0')).join('');
 const sha256 = async (bytes: Uint8Array) => hex(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes).buffer));
 class PhotoStorageAbsentV1 extends Error {}
+async function missingObject(response: Response): Promise<boolean> {
+  if (response.status === 404) { await response.body?.cancel(); return true; }
+  if (response.status !== 400) { await response.body?.cancel(); return false; }
+  const reader = response.body?.getReader();
+  if (!reader) return false;
+  const decoder = new TextDecoder();
+  let json = '', size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 512) { await reader.cancel(); return false; }
+      json += decoder.decode(value, { stream: true });
+    }
+    const body = JSON.parse(json + decoder.decode()) as Record<string, unknown>;
+    return body?.code === 'NoSuchKey' && body?.error === 'not_found'
+      && (body?.statusCode === '404' || body?.statusCode === 404);
+  } catch { await reader.cancel().catch(() => undefined); return false; }
+}
 
 export type PhotoStorageActionV1 =
   | { kind: 'upload'; context: PhotoWriteContextV1; requestId: string; variant: PhotoVariantV1; metadata: PhotoVariantMetadataV1 }
@@ -45,8 +65,7 @@ export class PhotoStorageV1 {
       throw new PhotoWriteErrorV1('invalid');
     const response = await this.request(this.objectUrl(asset.itemId, true), 'GET', signal);
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 131072) {
-      await response.body?.cancel();
-      if (response.status === 404) throw new PhotoStorageAbsentV1('student-photo-storage-absent');
+      if (await missingObject(response)) throw new PhotoStorageAbsentV1('student-photo-storage-absent');
       throw new Error(`student-photo-storage-read-${response.status}`);
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
