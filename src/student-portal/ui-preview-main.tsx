@@ -621,18 +621,27 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
         .concat(subjects.filter((subject) => !closingsOf(subject.subjectId)) as SelfResponseV1['subjects'])
         .sort((a, b) => a.order - b.order)
     : subjects;
-  // The Boletim summary reads the most recent closed trimester.
-  const summaryPeriod: ClosingV1['period'] = admin.dataset === 'real' ? 'T1' : 'T2';
-  const latestOf = (subject: SelfResponseV1['subjects'][number]) =>
-    subject.closings?.find((closing) => closing.period === summaryPeriod);
-  const attention = withClosings.filter((subject) => latestOf(subject)?.level === 'attention');
+  // One Boletim summary per closed trimester, as the server sends them (closingSummaries).
+  const summaryPeriods: ClosingV1['period'][] = admin.dataset === 'real' ? ['T1'] : ['T1', 'T2'];
+  const summaries = summaryPeriods.map((period) => {
+    const attention = withClosings.filter(
+      (subject) => subject.closings?.find((closing) => closing.period === period)?.level === 'attention',
+    );
+    return {
+      period,
+      mode: admin.termClosingConclusive ? ('conclusion' as const) : ('progress' as const),
+      message: {
+        code: `${admin.termClosingConclusive ? '' : 'progress.'}${attention.length ? 'summary.few-attention' : 'summary.all-good'}`,
+        variant: 0,
+      },
+      attentionSubjectIds: attention.map((subject) => subject.subjectId),
+    };
+  });
   return selfResponseV1.parse({
     ...data,
     state: withClosings.length > 0 ? 'ready' : 'no-publication',
     ...(closingsOn && withClosings.some((subject) => subject.closings)
-      ? { closingSummary: { period: summaryPeriod, mode: admin.termClosingConclusive ? 'conclusion' : 'progress',
-          message: { code: `${admin.termClosingConclusive ? '' : 'progress.'}${attention.length ? 'summary.few-attention' : 'summary.all-good'}`, variant: 0 },
-          attentionSubjectIds: attention.map((subject) => subject.subjectId) } }
+      ? { closingSummary: summaries.at(-1), closingSummaries: summaries }
       : {}),
     profile: {
       ...data.profile,

@@ -231,5 +231,32 @@ describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
     expect(result.state).toBe('ready');
     expect(result.subjects).toEqual([expect.objectContaining({ subjectId: 77, periods: [], closings: [expect.objectContaining({ period: 'T1', level: 'good' })] })]);
     expect(result.closingSummary).toMatchObject({ period: 'T1', message: { code: 'summary.all-good' } });
+    expect(result.closingSummaries).toEqual([result.closingSummary]);
+  });
+
+  it('sends one summary per closed trimester, each about its own closings (owner, 2026-09-24)', () => {
+    const projection = { ...SYNTHETIC_SELF_V1, state: 'no-publication' as const, subjects: [] };
+    const good = { mode: 'conclusion' as const, level: 'good' as const, conclusion: 'line.good' as const };
+    const attention = {
+      mode: 'conclusion' as const,
+      level: 'attention' as const,
+      conclusion: 'conclusion.attention' as const,
+      weight: 'weight.assessments' as const,
+      action: 'action.assessments' as const,
+    };
+    const result = attachTermClosingsV1({
+      projection,
+      targets: { mode: 'conclusion', periods: ['T1', 'T2'] },
+      evaluations: new Map([[77, [{ period: 'T1' as const, ...attention }, { period: 'T2' as const, ...good }]]]),
+      sourceSubjects: [{ subjectId: 77, label: 'MATEMÁTICA' }],
+      studentKey: 'uid-per-term',
+    });
+    expect(result.closingSummaries?.map((summary) => [summary.period, summary.message.code])).toEqual([
+      ['T1', 'summary.few-attention'],
+      ['T2', 'summary.all-good'],
+    ]);
+    expect(result.closingSummaries?.[0]?.attentionSubjectIds).toEqual([77]);
+    // The single field keeps the most recent one for pages that only know it.
+    expect(result.closingSummary).toEqual(result.closingSummaries?.[1]);
   });
 });
