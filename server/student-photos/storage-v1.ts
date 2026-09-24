@@ -31,7 +31,8 @@ export class PhotoStorageV1 {
   }
   private async request(url: string, method: string, signal: AbortSignal,
     body?: BodyInit, extra?: Record<string, string>): Promise<Response> {
-    const response = await this.fetcher(url, { method, headers: this.headers(extra), body,
+    const fetcher = this.fetcher;
+    const response = await fetcher(url, { method, headers: this.headers(extra), body,
       redirect: 'manual', credentials: 'omit', signal });
     if (response.redirected || response.status >= 300 && response.status < 400) {
       await response.body?.cancel(); throw new Error('student-photo-storage-redirect');
