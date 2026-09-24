@@ -63,6 +63,14 @@ it('preserves a stable colored fallback and rejects media from another owner or 
   view.rerender(<StudentPhotoAvatarV1 identityKey="synthetic-a" photo={{ identityKey: 'synthetic-a', src: 'https://other.invalid/file' }} />);
   expect(view.container.querySelector('img')).toBeNull();
 });
+it('uses the Portal gradient fallback without an overriding solid color', () => {
+  render(<StudentPhotoAvatarV1 identityKey="synthetic-a" className="pa-student-avatar" fallbackTone={3} />);
+  const circle = screen.getByRole('img', { name: 'Foto do aluno' });
+  const fallback = circle.querySelector<HTMLElement>('[data-slot="avatar-fallback"]');
+  expect(fallback?.dataset.tone).toBe('3');
+  expect(circle.style.backgroundColor).toBe('');
+  expect(fallback?.style.backgroundColor).toBe('');
+});
 it('exercises a loaded HeroUI image, then an actual error, then a new source without a conditional assertion', async () => {
   const preloaders: HTMLImageElement[] = [];
   vi.stubGlobal('Image', class SyntheticImage {

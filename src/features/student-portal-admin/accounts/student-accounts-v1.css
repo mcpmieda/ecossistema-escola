@@ -199,6 +199,10 @@
   box-shadow: none;
   border: 0;
 }
+.pa-student-drawer .pa-account-identity .pa-student-avatar {
+  width: 5rem;
+  height: 5rem;
+}
 /* An implicit auto column grows to the tab strip's min-content and clips the drawer on phones. */
 .pa-student-drawer .pa-account-detail > .card__content {
   grid-template-columns: minmax(0, 1fr);
