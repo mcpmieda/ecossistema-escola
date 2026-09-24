@@ -94,10 +94,12 @@ export function adminReadCasesV2(
       try {
         const first = await read({ page: { limit: 2 } });
         const second = await read({ page: { limit: 2, cursor: first.nextCursor } });
+        const third = await read({ page: { limit: 2, cursor: second.nextCursor } });
         expect([...first.items, ...second.items].map((item) => item.accountId)).toEqual([
           readAccountIdV2(1), readAccountIdV2(2), readAccountIdV2(3), readAccountIdV2(4),
         ]);
         expect(second.nextCursor).not.toBeNull();
+        expect(third.items[0]?.accountId).toBe(readAccountIdV2(5));
         const birth = async (cursor?: string) => {
           const result = await readApiV2(get().sql).query(readContextV2(), {
             contractVersion: 1, operation: 'birth-years', scope: READ_CLASS_V2,
@@ -109,8 +111,12 @@ export function adminReadCasesV2(
         };
         const birthFirst = await birth();
         const birthSecond = await birth(birthFirst.nextCursor ?? undefined);
+        const birthThird = await birth(birthSecond.nextCursor ?? undefined);
         expect([...birthFirst.items, ...birthSecond.items].map((item) => item.accountId)).toEqual(
           [...first.items, ...second.items].map((item) => item.accountId),
+        );
+        expect(birthThird.items.map((item) => item.accountId)).toEqual(
+          third.items.map((item) => item.accountId),
         );
       } finally {
         await get().admin.unsafe(`UPDATE gradebook.aluno
