@@ -29,7 +29,8 @@ export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) 
       if (upstream.status !== 200 || (asset && upstream.headers.get('Content-Type')?.includes('text/html')))
         return portalJsonV1(portalFailureV1('unavailable'), 404);
       const response = new Response(upstream.body, upstream);
-      response.headers.set('Content-Security-Policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; worker-src 'self' blob:");
+      // style-src allows only React Aria's pressable rule by hash (see react-aria-style-csp test).
+      response.headers.set('Content-Security-Policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; worker-src 'self' blob:");
       response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
       response.headers.set('Referrer-Policy', 'no-referrer');
       response.headers.set('X-Content-Type-Options', 'nosniff');
