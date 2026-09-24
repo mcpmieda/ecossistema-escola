@@ -132,6 +132,19 @@ export const settingsValueV1 = z
     calendar: calendarV1,
   })
   .strict();
+/**
+ * Fields added after the first school seed (#1132, migration 0020). A school snapshot stored before
+ * that migration reads them with these values; every reader of stored school rows must use
+ * `completeStoredPolicyValueV1` so no screen depends on deploy/migration order.
+ */
+export const OPTIONAL_STORED_POLICY_DEFAULTS_V1 = {
+  showTermClosing: false,
+  termClosingConclusive: true,
+} as const;
+export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
+  stored !== null && typeof stored === 'object' && !Array.isArray(stored)
+    ? { ...OPTIONAL_STORED_POLICY_DEFAULTS_V1, ...stored }
+    : stored;
 // Complete value per scope: partial field inheritance is expressed by explicit keys.
 export const settingsOverrideV1 = settingsValueV1
   .partial()

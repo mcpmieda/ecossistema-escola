@@ -6,7 +6,9 @@ import {
 } from '../../../shared/student-portal-contracts/admin-v1';
 import { scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import {
+  completeStoredPolicyValueV1,
   effectiveSettingsV1,
+  OPTIONAL_STORED_POLICY_DEFAULTS_V1,
   settingsValueV1,
   type EffectiveSettingsV1,
 } from '../../../shared/student-portal-contracts/policy-v1';
@@ -40,14 +42,9 @@ const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.lengt
 const schoolFieldCountValidV1 = (count: number) =>
   count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
 /** Before migration 0020 the school row may be absent: the feature then reads as off. */
-const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = {
-  showTermClosing: false,
-  termClosingConclusive: true,
-};
-const schoolValueV1 = (school: readonly StoredRowV1[]) => ({
-  ...OPTIONAL_SCHOOL_DEFAULTS_V1,
-  ...Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
-});
+const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = OPTIONAL_STORED_POLICY_DEFAULTS_V1;
+const schoolValueV1 = (school: readonly StoredRowV1[]) =>
+  completeStoredPolicyValueV1(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
 const storedRow = z.object({
   scope_key: z.string(),

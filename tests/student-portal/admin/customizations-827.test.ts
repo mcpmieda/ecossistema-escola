@@ -50,6 +50,20 @@ async function option(scope: ScopeV1, value: Record<string, unknown>) {
 }
 const approved = async (period = 'T2') => (await readScopedSourcesV2(sql, account.accountId, 746001, 746001)).find((item) => item.period === period)?.approved_revision;
 
+it('still reads when the school snapshot predates the Fechamento policy fields (migration 0020, #1132)', async () => {
+  const removed = await sql.unsafe(`DELETE FROM student_portal.setting WHERE scope_key='school:2026'
+    AND field_key IN ('showTermClosing','termClosingConclusive') RETURNING field_key,value_json,source_scope_json,version`);
+  try {
+    expect(removed).toHaveLength(2);
+    const page = await read();
+    expect(page.state).toBe('customizations-read');
+  } finally {
+    for (const row of removed)
+      await sql.unsafe(`INSERT INTO student_portal.setting(scope_key,field_key,scope_kind,academic_year,value_json,source_scope_json,version)
+        VALUES('school:2026',$1,'school',2026,$2::text::jsonb,$3::text::jsonb,$4)`,
+      [row.field_key, JSON.stringify(row.value_json), JSON.stringify(row.source_scope_json), row.version]);
+  }
+});
 it('lists a current individual T2 release against the school T1 default, not the school aggregate', async () => {
   await release(sql, READ_SCHOOL_V2, 'T1');
   await release(sql, account, 'T2');
