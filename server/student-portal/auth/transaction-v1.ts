@@ -31,15 +31,16 @@ export async function authNowV1(tx: StudentPortalPostgresQueryV1): Promise<Date>
 }
 /** Caller holds the common year lock and this account lock until the response data commits. */
 export async function accessContextV1(sql: StudentPortalPostgresSqlV1, tx: StudentPortalPostgresQueryV1,
-  store: PortalTransactionV1, accountId: string) {
+  store: PortalTransactionV1, accountId: string, includeClosed = false) {
   const account = await store.findAccount(accountId);
   if (!account?.link || account.closedAt !== null || account.blocked || account.eligibility !== 'eligible') return null;
   const eligibility = await new AcademicEligibilityReaderPostgresV1(tx).readInTransaction(tx, account.link);
   if (eligibility.state !== 'eligible') return null;
   const policy = await new PolicyServiceV1(sql).readSnapshotInTransaction(tx, accountScopeV1(accountId));
   const now = await authNowV1(tx);
-  if (!sessionExpiryV1(policy.enforcedValue, now, false)) return null;
-  return { account, policy, eligibility, now };
+  const accessOpen = sessionExpiryV1(policy.enforcedValue, now, false) !== null;
+  if (!accessOpen && !includeClosed) return null;
+  return { account, policy, eligibility, now, accessOpen };
 }
 export type AccessContextV1 = NonNullable<Awaited<ReturnType<typeof accessContextV1>>>;
 export async function authAuditV1(store: PortalTransactionV1, account: AccountRecordV1,

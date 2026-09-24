@@ -11,6 +11,7 @@ import { useStudentSessionV1 } from '../../../../src/features/student-portal/aut
 import { StudentQrReaderV1 } from '../../../../src/features/student-portal/auth/qr-reader-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { clientFixtureV1, NOW, PROOF, REQUIRED, SESSION } from './fixtures-v1';
+import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
 beforeEach(() => {
   vi.spyOn(Date, 'now').mockReturnValue(NOW);
   vi.stubGlobal('matchMedia', () => ({
@@ -47,6 +48,13 @@ function view(client = clientFixtureV1()) {
   return { client, success, user: userEvent.setup() };
 }
 describe('student authentication forms', () => {
+  it('shows access closed after the QR is checked without blaming the student credentials', async () => {
+    const client = clientFixtureV1();
+    client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('access-closed', 403));
+    view(client);
+    expect((await screen.findByRole('alert')).textContent).toContain('Acesso ao Portal fechado');
+    expect(screen.queryByText('Não deu certo')).toBeNull();
+  });
   it.each([
     ['NotAllowedError', 'Você bloqueou a câmera'],
     ['NotFoundError', 'Nenhuma câmera disponível'],

@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { ACCESS_CLOSED_ACCEPT_HEADER_V1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import {
   ERROR_HTTP_V1,
   failureV1,
@@ -31,6 +32,7 @@ export interface PortalTransportOptionsV1 {
   fetch?: PortalFetchV1;
   onUnauthorized?: () => void;
   respectRetryAfter?: boolean;
+  acceptAccessClosed?: boolean;
 }
 
 /** Pages adds private/no-cache directives; require the exact no-store directive, not header equality. */
@@ -82,6 +84,10 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
         signal,
         headers: {
           Accept: 'application/json',
+          ...(options.acceptAccessClosed &&
+          (path === '/api/student/auth/challenge' || path === '/api/student/auth/login' || path.startsWith('/api/student/session'))
+            ? { [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' }
+            : {}),
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
         ...(body === undefined ? {} : { body }),

@@ -10,6 +10,7 @@ import {
   type PortalFetchV1,
 } from '../../../src/features/student-portal/shared/transport-v1';
 import { sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
+import { ACCESS_CLOSED_ACCEPT_HEADER_V1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { SYNTHETIC_QR_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 
 const id = '11111111-1111-4111-8111-111111111111';
@@ -37,6 +38,7 @@ it('uses fixed same-origin paths and rejects unexpected versions, fields and res
       method: 'GET',
     }),
   );
+  expect((fetch.mock.calls[0]?.[1]?.headers as Record<string, string>)[ACCESS_CLOSED_ACCEPT_HEADER_V1]).toBe('v1');
   for (const body of [
     { ...session, contractVersion: 2 },
     { ...session, secret: 'synthetic' },
@@ -60,6 +62,8 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
   expect(unauthorized).toHaveBeenCalledOnce();
   fetch.mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'forbidden' }, 403));
   await expect(client.session()).rejects.toMatchObject({ state: 'forbidden' });
+  fetch.mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'access-closed' }, 403));
+  await expect(client.session()).rejects.toMatchObject({ state: 'access-closed' });
   fetch.mockResolvedValueOnce(
     json({ contractVersion: 1, requestId: id, state: 'rate-limited', retryAfterSeconds: 10 }, 429, {
       'Retry-After': '30',
@@ -69,7 +73,7 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
     state: 'rate-limited',
     retryAfterSeconds: 30,
   });
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(fetch).toHaveBeenCalledTimes(4);
   fetch.mockResolvedValueOnce(new Response('<html>sign in</html>', { status: 401 }));
   await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response', status: 401 });
   expect(unauthorized).toHaveBeenCalledTimes(2);

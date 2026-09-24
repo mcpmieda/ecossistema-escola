@@ -82,6 +82,15 @@ describe('student session revalidation and data clearing', () => {
     expect(s.state().state).toBe('error');
     s.session.dispose();
   });
+  it('drops protected data and preserves an access closure received during reauthorization', async () => {
+    const s = setup();
+    await s.session.refresh();
+    s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('access-closed', 403));
+    await expect(s.session.authorizeSecurity(new AbortController().signal)).rejects.toMatchObject({ state: 'access-closed' });
+    expect(s.state()).toMatchObject({ state: 'error', error: { state: 'access-closed' } });
+    expect(s.client.me).toHaveBeenCalledTimes(1);
+    s.session.dispose();
+  });
   it('clears immediately on logout and cannot restore a late self response', async () => {
     const s = setup();
     let resolve!: (v: SelfResponseV1) => void;

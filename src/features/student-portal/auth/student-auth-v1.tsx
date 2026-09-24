@@ -162,6 +162,8 @@ function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text:
       title: 'Muitas tentativas seguidas',
       text: 'Por segurança, o portal pausou as tentativas por um tempo. Quando a contagem terminar, é só tentar de novo.',
     };
+  if (message === 'Acesso ao Portal fechado.')
+    return { tone: 'info', title: 'Acesso ao Portal fechado', text: '' };
   if (message.startsWith('O serviço de acesso'))
     return {
       tone: 'down',

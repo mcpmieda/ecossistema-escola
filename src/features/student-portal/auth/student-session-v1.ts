@@ -64,12 +64,15 @@ export function createStudentSessionV1(
       if (
         error instanceof PortalClientErrorV1 &&
         (error.state === 'unauthenticated' ||
+          error.state === 'access-closed' ||
           error.state === 'forbidden' ||
           error.status === 401 ||
           error.status === 403)
       ) {
         clear();
-        publish({ state: 'error', error: new PortalClientErrorV1('unauthenticated', 401) });
+        publish({ state: 'error', error: error.state === 'access-closed'
+          ? error
+          : new PortalClientErrorV1('unauthenticated', 401) });
       }
       throw error;
     }

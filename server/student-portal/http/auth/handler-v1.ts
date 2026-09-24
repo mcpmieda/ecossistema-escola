@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { AUTH_BODY_BYTES_V1, SESSION_COOKIE_V1, logoutRequestV1, logoutResponseV1 } from '../../../../shared/student-portal-contracts/auth-v1';
+import { ACCESS_CLOSED_ACCEPT_HEADER_V1, AUTH_BODY_BYTES_V1, SESSION_COOKIE_V1, logoutRequestV1, logoutResponseV1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import { ERROR_HTTP_V1, type FailureV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { portalJsonV1, portalRequestOriginAllowedV1 } from '../../runtime/http-v1';
 import type { AuthServiceV1 } from '../../auth/auth-service-v1';
@@ -52,13 +52,15 @@ export async function servePortalAuthV1(request: Request, environment: string, o
   const route = routes.get(new URL(request.url).pathname as Parameters<typeof routes.get>[0]);
   if (!route) return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
   if (request.method !== (route === 'session' ? 'GET' : 'POST')) return fail('invalid-request');
+  const acceptAccessClosed = request.headers.get(ACCESS_CLOSED_ACCEPT_HEADER_V1) === 'v1';
   try {
     if (route === 'session') {
       const search = new URL(request.url).searchParams;
       if (search.getAll('accountId').length > 1) return fail('invalid-request');
       const expected = search.get('accountId');
       if (expected !== null && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(expected)) return fail('invalid-request');
-      const result = await sessions.read(sessionCookieTokenV1(request), requestId, expected ?? undefined);
+      const result = await sessions.read(sessionCookieTokenV1(request), requestId, expected ?? undefined, acceptAccessClosed);
+      if (result?.state === 'access-closed') return acceptAccessClosed ? portalJsonV1(result, 403) : fail('unauthenticated');
       return result ? portalJsonV1(result, 200) : fail('unauthenticated');
     }
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return fail('invalid-request');
@@ -76,6 +78,7 @@ export async function servePortalAuthV1(request: Request, environment: string, o
       response.headers.set('Set-Cookie', cookie(result.token, result.body.expiresAt, result.body.persistent));
       return response;
     }
+    if (result.state === 'access-closed' && !acceptAccessClosed) return fail('unauthenticated');
     if (result.state in ERROR_HTTP_V1) {
       const response = portalJsonV1(result, ERROR_HTTP_V1[result.state as FailureV1['state']]);
       if ('retryAfterSeconds' in result && result.retryAfterSeconds) response.headers.set('Retry-After', String(result.retryAfterSeconds));

@@ -92,8 +92,10 @@ export class SessionServiceV1 {
   }
 
   /** In snapshot mode the consumer must be read-only; its authorization and data cannot tear. */
-  async withAuthorized<T>(token: string, operation: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
-    session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>): Promise<T | null> {
+  private async withSession<T>(token: string, includeClosed: boolean, expectedAccountId: string | undefined,
+    operation: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
+      session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>):
+    Promise<{ state: 'ready'; value: T } | { state: 'access-closed' } | null> {
     if (!opaqueV1.safeParse(token).success) return null;
     const hash = await this.cryptoPort.hashOpaqueToken(token);
     const transact = this.snapshotReads ? readPortalSnapshotV2 : accountTransactionV1;
@@ -101,8 +103,9 @@ export class SessionServiceV1 {
       const located = await tx.unsafe('SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
       if (located.length !== 1) return null;
       const accountId = z.uuid().parse(located[0]!.account_id);
+      if (expectedAccountId !== undefined && accountId !== expectedAccountId.toLowerCase()) return null;
       if (!this.snapshotReads) await store.lockAccounts([accountId]);
-      const context = await accessContextV1(this.sql, tx, store, accountId);
+      const context = await accessContextV1(this.sql, tx, store, accountId, includeClosed);
       if (!context || context.account.state !== 'active') return null;
       const rows = await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
         FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid${this.snapshotReads ? '' : ' FOR UPDATE'}`, [hash, accountId]);
@@ -110,17 +113,28 @@ export class SessionServiceV1 {
       if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
       const persistent = z.boolean().parse(row.persistent);
       const ttl = persistent ? context.policy.enforcedValue.risk.persistentSeconds : context.policy.enforcedValue.risk.shortSeconds;
-      const end = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000,
+      const tokenEnd = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000);
+      if (tokenEnd <= context.now.getTime()) return null;
+      if (!context.accessOpen) return { state: 'access-closed' };
+      const end = Math.min(tokenEnd,
         Date.parse((context.policy.enforcedValue.calendar.accessEndsAt ?? context.policy.enforcedValue.calendar.yearEndsAt)!));
       if (end <= context.now.getTime()) return null;
-      return operation(context, tx, { id: z.uuid().parse(row.id), expiresAt: new Date(end).toISOString(), persistent });
+      return { state: 'ready', value: await operation(context, tx, { id: z.uuid().parse(row.id), expiresAt: new Date(end).toISOString(), persistent }) };
     });
   }
 
-  async read(token: string, requestId: string, expectedAccountId?: string) {
-    return this.withAuthorized(token, async (context, _tx, session) => expectedAccountId !== undefined && context.account.id !== expectedAccountId.toLowerCase() ? null : sessionResponseV1.parse({
+  async withAuthorized<T>(token: string, operation: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
+    session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>): Promise<T | null> {
+    const result = await this.withSession(token, false, undefined, operation);
+    return result?.state === 'ready' ? result.value : null;
+  }
+
+  async read(token: string, requestId: string, expectedAccountId?: string, includeClosed = false) {
+    const result = await this.withSession(token, includeClosed, expectedAccountId, async (_context, _tx, session) => sessionResponseV1.parse({
       contractVersion: 1, requestId, state: 'authenticated', expiresAt: session.expiresAt, persistent: session.persistent,
     }));
+    if (result?.state === 'access-closed') return { contractVersion: 1 as const, requestId, state: 'access-closed' as const };
+    return result?.state === 'ready' ? result.value : null;
   }
 
   async logout(token: string, requestId: string): Promise<void> {

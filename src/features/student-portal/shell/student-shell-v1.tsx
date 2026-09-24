@@ -225,9 +225,10 @@ export function StudentProfileV1({
   );
 }
 
-export type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'maintenance' | 'unavailable';
+export type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
 const messages = {
   empty: { title: 'Notas ainda não publicadas', description: '', status: 'default', action: '' },
+  closed: { title: 'Acesso ao Portal fechado', description: '', status: 'warning', action: 'Tentar novamente' },
   error: {
     title: 'Não foi possível carregar seus dados',
     description: '',
@@ -327,6 +328,13 @@ export interface StudentPagePropsV1
   portraitSrc?: string;
 }
 
+function errorMessageKindV1(state: string): StudentMessageKindV1 {
+  if (state === 'unauthenticated') return 'expired';
+  if (state === 'access-closed') return 'closed';
+  if (state === 'unavailable' || state === 'forbidden') return 'unavailable';
+  return 'error';
+}
+
 /** Consumes the foundation's load state. Error/loading transitions cannot retain old profile/grades. */
 export function StudentPortalPageV1({
   load,
@@ -342,12 +350,7 @@ export function StudentPortalPageV1({
   if (load.state === 'maintenance')
     content = <StudentPortalMessageV1 kind="maintenance" onAction={onRetry} />;
   else if (load.state === 'error') {
-    const kind =
-      load.error.state === 'unauthenticated'
-        ? 'expired'
-        : load.error.state === 'unavailable' || load.error.state === 'forbidden'
-          ? 'unavailable'
-          : 'error';
+    const kind = errorMessageKindV1(load.error.state);
     content = (
       <StudentPortalMessageV1 kind={kind} onAction={kind === 'expired' ? onLogin : onRetry} />
     );

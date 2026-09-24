@@ -18,7 +18,7 @@ import {
 } from './transport-v1';
 
 export function createPortalSelfClientV1(options: PortalTransportOptionsV1 = {}) {
-  const send = createPortalTransportV1(options);
+  const send = createPortalTransportV1({ ...options, acceptAccessClosed: true });
   const confirmOnce = async <T>(request: () => Promise<T>, signal?: AbortSignal): Promise<T> => {
     try {
       return await request();
