@@ -13,7 +13,6 @@ import {
   BookOpenCheck,
   BookOpenText,
   Calculator,
-  Check,
   Dumbbell,
   FlaskConical,
   Globe2,
@@ -29,13 +28,13 @@ import {
   Scale,
   TrendingDown,
   TrendingUp,
-  TriangleAlert,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
 import { TermClosingCardV1, TermClosingSummaryCardV1 } from './term-closing-v1';
+import { AnnualGoalCardV1, annualGoalV1 } from './annual-goal-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
@@ -171,39 +170,68 @@ function TrendIndicatorV1({ trend, reference }: { trend: TrendV1; reference: Per
   );
 }
 
-function SubjectIconV1({ label, size = 18 }: { label: string; size?: number }) {
+type SubjectMotionV1 =
+  | 'press'
+  | 'page'
+  | 'rise'
+  | 'spin'
+  | 'chat'
+  | 'lift'
+  | 'write'
+  | 'beat'
+  | 'balance'
+  | 'swirl'
+  | 'bounce'
+  | 'glow'
+  | 'orbit'
+  | 'shake'
+  | 'pop';
+
+function subjectIconOfV1(label: string): { Icon: typeof BookOpenCheck; motion: SubjectMotionV1 } {
   const normalized = label
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/gu, '')
     .toLocaleLowerCase('pt-BR');
 
-  let Icon = BookOpenCheck;
-  if (normalized.includes('matematica')) Icon = Calculator;
-  else if (normalized.includes('portugues')) Icon = BookOpenText;
-  else if (normalized.includes('historia')) Icon = Landmark;
-  else if (normalized.includes('geografia')) Icon = Globe2;
-  else if (normalized.includes('ingles')) Icon = Languages;
+  if (normalized.includes('matematica')) return { Icon: Calculator, motion: 'press' };
+  if (normalized.includes('portugues')) return { Icon: BookOpenText, motion: 'page' };
+  if (normalized.includes('historia')) return { Icon: Landmark, motion: 'rise' };
+  if (normalized.includes('geografia')) return { Icon: Globe2, motion: 'spin' };
+  if (normalized.includes('ingles')) return { Icon: Languages, motion: 'chat' };
   // Production labels are upper-case abbreviations (ED. FÍSICA, COMPUTAÇÃO, REDAÇÃO...).
-  else if (normalized.includes('educacao fisica') || normalized.startsWith('ed. fisica')) Icon = Dumbbell;
-  else if (normalized.includes('redacao')) Icon = PenLine;
-  else if (normalized.includes('religiao') || normalized.includes('ensino religioso')) Icon = HandHeart;
-  else if (normalized.includes('etica')) Icon = Scale;
-  else if (normalized.includes('arte')) Icon = Palette;
-  else if (normalized.includes('musica')) Icon = Music2;
-  else if (
+  if (normalized.includes('educacao fisica') || normalized.startsWith('ed. fisica'))
+    return { Icon: Dumbbell, motion: 'lift' };
+  if (normalized.includes('redacao')) return { Icon: PenLine, motion: 'write' };
+  if (normalized.includes('religiao') || normalized.includes('ensino religioso'))
+    return { Icon: HandHeart, motion: 'beat' };
+  if (normalized.includes('etica')) return { Icon: Scale, motion: 'balance' };
+  if (normalized.includes('arte')) return { Icon: Palette, motion: 'swirl' };
+  if (normalized.includes('musica')) return { Icon: Music2, motion: 'bounce' };
+  if (
     normalized.includes('informatica') ||
     normalized.includes('computacao') ||
     normalized.includes('tecnologia')
-  ) Icon = Monitor;
-  else if (normalized === 'fisica' || normalized.includes('fisica ')) Icon = Atom;
-  else if (
+  )
+    return { Icon: Monitor, motion: 'glow' };
+  if (normalized === 'fisica' || normalized.includes('fisica ')) return { Icon: Atom, motion: 'orbit' };
+  if (
     normalized.includes('ciencia') ||
     normalized.includes('quimica') ||
     normalized.includes('biologia')
-  ) Icon = FlaskConical;
+  )
+    return { Icon: FlaskConical, motion: 'shake' };
+  return { Icon: BookOpenCheck, motion: 'pop' };
+}
 
+/** `animated` plays the subject's own motion once on mount (the discipline view remounts per subject). */
+function SubjectIconV1({ label, size = 18, animated = false }: { label: string; size?: number; animated?: boolean }) {
+  const { Icon, motion } = subjectIconOfV1(label);
   return (
-    <span className="pa-subject-icon" aria-hidden="true">
+    <span
+      className={'pa-subject-icon' + (animated ? ' pa-subject-icon--animated' : '')}
+      data-motion={motion}
+      aria-hidden="true"
+    >
       <Icon size={size} strokeWidth={1.8} />
     </span>
   );
@@ -406,36 +434,11 @@ function SummaryV1({
 type PartialV1 = NonNullable<PeriodV1['partials']>[number];
 
 /**
- * Leading status mark per activity. It only restates the server's `meetsMinimum` (a mark without
- * a maximum has none, so no icon is invented); an observed blank ("Não fez") is flagged too.
- * Decorative: the mark's own accessible label already states the classification.
- */
-function PartialStatusV1({ partial }: { partial: PartialV1 }) {
-  const met = partial.mark.kind === 'score' ? partial.mark.meetsMinimum : null;
-  const attention = met === false || partial.notDone === true;
-  if (met !== true && !attention) return <span className="pa-partial-status" aria-hidden="true" />;
-  const title = met === true ? 'Atingiu o mínimo' : partial.notDone ? 'Não fez' : 'Abaixo do mínimo';
-  return (
-    <span
-      className={'pa-partial-status ' + (met === true ? 'pa-partial-status--met' : 'pa-partial-status--attention')}
-      aria-hidden="true"
-      title={title}
-    >
-      {met === true ? (
-        <Check size={14} strokeWidth={3} />
-      ) : (
-        <TriangleAlert size={15} strokeWidth={2.4} />
-      )}
-    </span>
-  );
-}
-
-/**
  * Activity descriptions reach 120 characters. Show two lines and offer "Ver tudo" only when the
  * text really overflows at the current width (measured, not guessed from its length), so a wide
  * screen that fits the whole description shows no toggle. Nothing is ever permanently hidden.
  */
-function PartialLabelV1({ label }: { label: string }) {
+function PartialLabelV1({ label, feedback }: { label: string; feedback?: ReactNode }) {
   const text = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -464,7 +467,24 @@ function PartialLabelV1({ label }: { label: string }) {
           {expanded ? 'Ver menos' : 'Ver tudo'}
         </button>
       ) : null}
+      {feedback}
     </div>
+  );
+}
+
+/**
+ * Small tag under each activity, restating the server's `meetsMinimum` in the student's words.
+ * Não fez / Tirou zero already speak for themselves on the right, and a mark without a
+ * classification gets nothing.
+ */
+function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
+  if (partial.notDone || partial.mark.kind !== 'score' || partial.mark.value === 0) return null;
+  if (partial.mark.meetsMinimum === null) return null;
+  const met = partial.mark.meetsMinimum;
+  return (
+    <span className={'pa-partial-feedback pa-partial-feedback--' + (met ? 'met' : 'attention')}>
+      {met ? 'Foi bem' : 'Não foi muito bem'}
+    </span>
   );
 }
 
@@ -484,12 +504,14 @@ function SubjectV1View({
   onSubjectChange,
   initialPeriod,
   accountId,
+  academicState,
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
   initialPeriod?: PeriodIdV1;
   accountId: string;
+  academicState: SelfResponseV1['profile']['academicState'];
 }) {
   const available = subjectPeriodsV1(subject);
   const [selected, setSelected] = useState<PeriodIdV1>(
@@ -529,6 +551,8 @@ function SubjectV1View({
   const trend = trendReference
     ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
     : null;
+  // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
+  const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
   const official = subjectSituationV1(subject);
   const result = official?.label ?? 'Em curso';
   const resultColor = official?.tone ?? 'default';
@@ -536,7 +560,7 @@ function SubjectV1View({
   return (
     <div className="pa-workspace-view">
       <PageIntroV1
-        icon={<SubjectIconV1 label={subject.label} size={20} />}
+        icon={<SubjectIconV1 label={subject.label} size={20} animated />}
         eyebrow="Disciplina"
         title={subject.label}
         aside={
@@ -603,8 +627,9 @@ function SubjectV1View({
                 <span className="pa-score-card-label">
                   {recoveryOf ? `Recuperação do ${recoveryOf}` : 'Nota do trimestre'}
                 </span>
-                <span className="pa-score-card-status">{periodStatusV1(period, Boolean(recoveryOf))}</span>
               </div>
+              {/* The status (Parabéns, Abaixo do esperado...) sits right under the mark it describes. */}
+              <div className="pa-score-card-result">
               <div className="pa-score-card-value" aria-label="Nota do período">
                 {mark ? (
                   <>
@@ -620,6 +645,8 @@ function SubjectV1View({
                   <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
                 )}
               </div>
+              <span className="pa-score-card-status">{periodStatusV1(period, Boolean(recoveryOf))}</span>
+              </div>
             </Card.Content>
             {/* No `partials` key means the admin did not release the breakdown (showPartials off):
                 render nothing rather than claiming there are no activities. */}
@@ -627,7 +654,7 @@ function SubjectV1View({
             <div className="pa-score-card-partials">
               {period.partials.length ? (
                 <>
-                  <p className="pa-score-card-partials-title">Detalhamento</p>
+                  <p className="pa-score-card-partials-title">Como você foi em cada atividade</p>
                   {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
                   <ul aria-label="Avaliações publicadas" className="pa-partials-list">
                     {period.partials.map((partial) => {
@@ -635,8 +662,10 @@ function SubjectV1View({
                       const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
                       return (
                         <li key={partial.assessmentId}>
-                          <PartialStatusV1 partial={partial} />
-                          <PartialLabelV1 label={partial.label} />
+                          <PartialLabelV1
+                            label={partial.label}
+                            feedback={<PartialFeedbackV1 partial={partial} />}
+                          />
                           <strong>
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
@@ -658,6 +687,7 @@ function SubjectV1View({
             )}
           </Card>
           ) : null}
+          {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} /> : null}
           {closingOfV1(subject, active) ? (
             <TermClosingCardV1
               closing={closingOfV1(subject, active)!}
@@ -821,6 +851,7 @@ export function StudentPortalWorkspaceV1({
               onSubjectChange={selectSubject}
               initialPeriod={openPeriod}
               accountId={data.profile.accountId}
+              academicState={data.profile.academicState}
             />
           </div>
         ) : null}
