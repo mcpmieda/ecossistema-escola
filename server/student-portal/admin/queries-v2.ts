@@ -12,7 +12,7 @@ import {
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1 } from './common-v1';
-import { ACCOUNT_JOIN_V1, readAdminHealthV1 } from './queries-v1';
+import { ACCOUNT_JOIN_V1, readAdminHealthV1, studentNameOrderSqlV1 } from './queries-v1';
 import type { AdminCursorV1 } from './cursor-v1';
 
 /** Fixed query count: one bounded account/policy batch, one session aggregate.
@@ -35,6 +35,9 @@ export async function readAdminV2(
     return readSessionsV2(tx, query, actor, requestId, now, cursor);
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
+  const alphabetical = query.operation === 'accounts-read';
+  if (alphabetical && after && after.name === undefined)
+    throw new Error('student-portal-cursor-invalid-request');
   const values: unknown[] = [];
   const bind = (value: unknown) => {
     values.push(value);
@@ -47,7 +50,10 @@ export async function readAdminV2(
   if (query.blocked !== undefined) where.push(`a.blocked=${bind(query.blocked)}`);
   if (query.nameSearch !== undefined)
     where.push(`position(lower(${bind(query.nameSearch)}) in lower(COALESCE(s.name,'')))>0`);
-  if (after) where.push(`a.id>${bind(after.id)}::uuid`);
+  const nameOrder = studentNameOrderSqlV1("COALESCE(s.name,'')");
+  if (after) where.push(alphabetical
+    ? `(${nameOrder},a.id)>(${studentNameOrderSqlV1(`${bind(after.name)}::text`)},${bind(after.id)}::uuid)`
+    : `a.id>${bind(after.id)}::uuid`);
   const clock = bind(now.toISOString());
   const limit = query.operation === 'overview' ? ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 : query.page.limit;
   const rows = await tx.unsafe(
@@ -56,7 +62,7 @@ export async function readAdminV2(
       AND e.kind IN ('login','activated') AND e.result='success'
       AND e.occurred_at>${clock}::timestamptz-interval '12 months'
       AND e.occurred_at<=${clock}::timestamptz) AS last_authentication
-    ${ACCOUNT_JOIN_V1} WHERE ${where.join(' AND ')} ORDER BY a.id LIMIT ${bind(limit + 1)}`,
+    ${ACCOUNT_JOIN_V1} WHERE ${where.join(' AND ')} ORDER BY ${alphabetical ? `${nameOrder},a.id` : 'a.id'} LIMIT ${bind(limit + 1)}`,
     values,
   );
   if (query.operation === 'overview' && rows.length > limit)
@@ -112,7 +118,8 @@ export async function readAdminV2(
       state: 'accounts-read',
       items,
       nextCursor:
-        rows.length > limit ? await cursor.next(query, actor, now, items.at(-1)!.accountId) : null,
+        rows.length > limit ? await cursor.next(query, actor, now, items.at(-1)!.accountId, undefined,
+          String(selected.at(-1)!.name)) : null,
       lastAuthenticationWindowMonths: 12,
     });
   const count = (predicate: (item: (typeof items)[number]) => boolean) =>

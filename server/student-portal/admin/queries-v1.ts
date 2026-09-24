@@ -11,6 +11,8 @@ export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
   LEFT JOIN LATERAL (SELECT min(class_id) AS class_id,min(class_name) AS class_name,count(*)::integer AS matches
     FROM student_portal.academic_binding_v1 WHERE student_id=a.gradebook_student_id AND academic_year=a.academic_year
       AND status IS DISTINCT FROM 6) b ON b.matches=1`;
+export const studentNameOrderSqlV1 = (value: string) =>
+  `translate(lower(${value}),'áàâãäéèêëíìîïóòôõöúùûüç','aaaaaeeeeiiiiooooouuuuc') COLLATE "C"`;
 function accountFilter(query: AdminQueryV1, parameters: unknown[]): string {
   const bind = (value: unknown) => { parameters.push(value); return `$${parameters.length}`; };
   const predicates = ['a.academic_year=2026'];
@@ -26,22 +28,38 @@ export async function readAccountListV1(tx: StudentPortalPostgresQueryV1, query:
   actor: string, now: Date, cursor: AdminCursorV1) {
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
+  const alphabetical = query.operation === 'birth-years';
+  if (alphabetical && after && after.name === undefined)
+    throw new Error('student-portal-cursor-invalid-request');
   const parameters: unknown[] = [];
   const filter = accountFilter(query, parameters);
-  parameters.push(after?.id ?? null, query.page.limit + 1);
   const key = query.operation === 'sessions' ? 'ss.id' : 'a.id';
+  const nameOrder = studentNameOrderSqlV1("COALESCE(s.name,'')");
+  let cursorClause: string;
+  if (alphabetical) {
+    if (after) {
+      parameters.push(after.name, after.id);
+      cursorClause = `(${nameOrder},a.id)>(${studentNameOrderSqlV1(`$${parameters.length - 1}::text`)},$${parameters.length}::uuid)`;
+    } else cursorClause = 'TRUE';
+  } else {
+    parameters.push(after?.id ?? null);
+    cursorClause = `($${parameters.length}::uuid IS NULL OR ${key}>$${parameters.length}::uuid)`;
+  }
+  parameters.push(query.page.limit + 1);
   const extraJoin = query.operation === 'birth-years' ? 'LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id'
     : query.operation === 'sessions' ? 'JOIN student_portal.session ss ON ss.account_id=a.id' : '';
   const fields = query.operation === 'sessions' ? 'ss.id,ss.account_id,ss.expires_at,ss.revoked_at'
-    : query.operation === 'birth-years' ? 'a.id,a.version::text AS account_version,d.birth_year,d.confirmation,COALESCE(d.version,0)::text AS birth_version'
+    : query.operation === 'birth-years' ? "a.id,a.version::text AS account_version,d.birth_year,d.confirmation,COALESCE(d.version,0)::text AS birth_version,COALESCE(s.name,'') AS name"
       : `a.id,a.gradebook_student_id,a.auth_state,a.eligibility,a.blocked,a.version::text,
         COALESCE(s.name,'') AS name,COALESCE(b.class_name,'') AS class_name`;
   const rows = await tx.unsafe(`SELECT ${fields} ${ACCOUNT_JOIN_V1} ${extraJoin} WHERE ${filter}
     ${query.operation === 'birth-years' ? 'AND a.closed_at IS NULL' : ''}
-    AND ($${parameters.length - 1}::uuid IS NULL OR ${key}>$${parameters.length - 1}::uuid)
-    ORDER BY ${key} LIMIT $${parameters.length}`, parameters);
+    AND ${cursorClause}
+    ORDER BY ${alphabetical ? `${nameOrder},a.id` : key} LIMIT $${parameters.length}`, parameters);
   const selected = rows.slice(0, query.page.limit);
-  const nextCursor = rows.length > query.page.limit ? await cursor.next(query, actor, now, z.uuid().parse(selected.at(-1)!.id)) : null;
+  const nextCursor = rows.length > query.page.limit ? await cursor.next(query, actor, now,
+    z.uuid().parse(selected.at(-1)!.id), undefined,
+    alphabetical ? String(selected.at(-1)!.name) : undefined) : null;
   if (query.operation === 'sessions') return { items: selected.map((row) => ({ sessionId: row.id, accountId: row.account_id,
     expiresAt: adminInstantV1(row.expires_at), revokedAt: row.revoked_at === null ? null : adminInstantV1(row.revoked_at) })), nextCursor };
   if (query.operation === 'birth-years') {

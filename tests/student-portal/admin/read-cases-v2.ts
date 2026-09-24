@@ -86,6 +86,38 @@ export function adminReadCasesV2(
       expect(adminResponseV1.safeParse(legacy).success).toBe(true);
       expect(adminReadResponseV2.safeParse(legacy).success).toBe(false);
     });
+    it('orders accented names and homonyms across account pages with a stable cursor', async () => {
+      await get().admin.unsafe(`UPDATE gradebook.aluno SET nome=CASE id
+        WHEN 746001 THEN 'ÁGATA' WHEN 746002 THEN 'ANA'
+        WHEN 746003 THEN 'ANA' WHEN 746004 THEN 'BIA' END
+        WHERE id BETWEEN 746001 AND 746004`);
+      try {
+        const first = await read({ page: { limit: 2 } });
+        const second = await read({ page: { limit: 2, cursor: first.nextCursor } });
+        expect([...first.items, ...second.items].map((item) => item.accountId)).toEqual([
+          readAccountIdV2(1), readAccountIdV2(2), readAccountIdV2(3), readAccountIdV2(4),
+        ]);
+        expect(second.nextCursor).not.toBeNull();
+        const birth = async (cursor?: string) => {
+          const result = await readApiV2(get().sql).query(readContextV2(), {
+            contractVersion: 1, operation: 'birth-years', scope: READ_CLASS_V2,
+            page: { limit: 2, ...(cursor ? { cursor } : {}) },
+          });
+          expect(result.state).toBe('birth-years');
+          if (result.state !== 'birth-years') throw new Error('Birth page unavailable');
+          return result;
+        };
+        const birthFirst = await birth();
+        const birthSecond = await birth(birthFirst.nextCursor ?? undefined);
+        expect([...birthFirst.items, ...birthSecond.items].map((item) => item.accountId)).toEqual(
+          [...first.items, ...second.items].map((item) => item.accountId),
+        );
+      } finally {
+        await get().admin.unsafe(`UPDATE gradebook.aluno
+          SET nome='SYNTHETIC READ STUDENT '||lpad((id-746000)::text,3,'0')
+          WHERE id BETWEEN 746001 AND 746004`);
+      }
+    });
     it('reuses the complete BN catalog including empty classes and ignores the BN global year', async () => {
       const database = createGradebookPostgresDatabaseFromSqlV1(
         get().gradebook as unknown as GradebookPostgresSqlV1,
