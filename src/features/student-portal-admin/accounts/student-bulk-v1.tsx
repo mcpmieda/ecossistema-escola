@@ -17,6 +17,11 @@ const results = {
   committed: 'Concluído',
   failed: 'Não realizado',
   unknown: 'Resultado não confirmado',
+  skipped: 'Não elegível',
+} as const;
+const ineligibility = {
+  'recovery-unavailable': 'Ano de nascimento e PIN ainda não confirmados.',
+  'already-blocked': 'Acesso já bloqueado.',
 } as const;
 const errors: Record<string, string> = {
   conflict: 'Conflito; conta preservada.',
@@ -63,7 +68,9 @@ export function StudentBulkV1({
   }, [state.retryAt]);
   const locked = ['loading', 'review', 'running', 'paused', 'unknown'].includes(state.phase);
   useDraftNavigationGuardV1(locked);
-  const required = action === 'account-reset' ? 'REDEFINIR CONTAS' : String(state.total);
+  const eligible = state.items.filter((item) => !item.ineligibility).length;
+  const skipped = state.items.length - eligible;
+  const required = action === 'account-reset' ? 'REDEFINIR CONTAS' : String(eligible);
   const completed = state.items.filter((item) => item.result === 'committed').length;
   const failed = state.items.filter((item) => item.result === 'failed').length;
   return (
@@ -119,7 +126,7 @@ export function StudentBulkV1({
         )}
         {state.phase === 'review' && (
           <>
-            <p role="status">{state.total} contas na prévia completa.</p>
+            <p role="status">{eligible} contas disponíveis · {skipped} não elegíveis · {state.total} na prévia completa.</p>
             <Button variant="secondary" onPress={() => controller.current?.cancel()}>
               Descartar prévia
             </Button>
@@ -132,7 +139,7 @@ export function StudentBulkV1({
                     ? 'Os QR anteriores deixarão de funcionar e as sessões atuais serão encerradas.'
                     : 'O acesso será bloqueado e as sessões atuais encerradas.'}
             </p>
-            {state.total > 0 && (
+            {eligible > 0 && (
               <>
                 <TextField value={confirmation} onChange={setConfirmation}>
                   <Label>Digite {required} para confirmar</Label>
@@ -196,7 +203,7 @@ export function StudentBulkV1({
           <>
             {state.phase !== 'review' && (
               <p role="status">
-                {completed} concluídos · {failed} não realizados · {state.total} contas
+                {completed} concluídos · {failed} não realizados · {skipped} não elegíveis · {state.total} contas
               </p>
             )}
             <ul aria-label="Resultados por conta" className="divide-y">
@@ -209,6 +216,7 @@ export function StudentBulkV1({
                     {' '}
                     — {results[item.result]}
                     {item.error ? ` · ${errors[item.error] ?? 'Solicitação recusada.'}` : ''}
+                    {item.ineligibility ? ` · ${ineligibility[item.ineligibility]}` : ''}
                   </span>
                 </li>
               ))}

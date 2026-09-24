@@ -12,7 +12,7 @@ import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 
 type Preview = z.infer<typeof bulkPreviewResponseV1>;
 export type BulkItemV1 = Preview['items'][number] & {
-  result: 'pending' | 'committed' | 'failed' | 'unknown';
+  result: 'pending' | 'committed' | 'failed' | 'unknown' | 'skipped';
   error?: string;
 };
 export type BulkStateV1 = {
@@ -31,7 +31,7 @@ export function createStudentBulkControllerV1(
   let disposed = false,
     stop = false;
   let active: AbortController | undefined;
-  let prepared: ReturnType<PortalAdminClientV1['prepareCommand']>[] = [];
+  let prepared: { index: number; command: ReturnType<PortalAdminClientV1['prepareCommand']> }[] = [];
   let position = 0;
   const emit = (next: BulkStateV1) => {
     state = next;
@@ -85,7 +85,7 @@ export function createStudentBulkControllerV1(
           )
             throw new PortalClientErrorV1('invalid-response');
           ids.add(item.accountId);
-          all.push({ item: { ...item, result: 'pending' }, proof: response.proof });
+          all.push({ item: { ...item, result: item.ineligibility ? 'skipped' : 'pending' }, proof: response.proof });
         }
         if (
           all.length > first.totalCount ||
@@ -98,8 +98,9 @@ export function createStudentBulkControllerV1(
       } while (cursor);
       if (!first || all.length !== first.totalCount)
         throw new PortalClientErrorV1('invalid-response');
-      prepared = all.map(({ item, proof }) =>
-        client.prepareCommand({
+      prepared = all.flatMap(({ item, proof }, index) => item.ineligibility ? [] : [{
+        index,
+        command: client.prepareCommand({
           contractVersion: 1,
           operation: 'bulk-execute',
           action: query.action,
@@ -109,7 +110,7 @@ export function createStudentBulkControllerV1(
           idempotencyKey: crypto.randomUUID(),
           confirmed: true,
         }),
-      );
+      }]);
       emit({ phase: 'review', items: all.map(({ item }) => item), total: first.totalCount });
     } catch (error) {
       if (controller.signal.aborted || disposed) return;
@@ -134,10 +135,11 @@ export function createStudentBulkControllerV1(
     emit({ ...state, phase: 'running', error: undefined });
     while (!disposed && position < prepared.length && !stop) {
       try {
-        await prepared[position]!.execute(controller.signal);
+        await prepared[position]!.command.execute(controller.signal);
         controller.signal.throwIfAborted();
         const items = state.items.slice();
-        items[position] = { ...items[position]!, result: 'committed', error: undefined };
+        const index = prepared[position]!.index;
+        items[index] = { ...items[index]!, result: 'committed', error: undefined };
         emit({ ...state, items });
         position += 1;
       } catch (error) {
@@ -148,8 +150,9 @@ export function createStudentBulkControllerV1(
           issue.state === 'unavailable' ||
           isAmbiguousPortalResponseV1(issue);
         const items = state.items.slice();
-        items[position] = {
-          ...items[position]!,
+        const index = prepared[position]!.index;
+        items[index] = {
+          ...items[index]!,
           result: uncertain ? 'unknown' : 'failed',
           error: issue.state,
         };

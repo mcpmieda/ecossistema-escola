@@ -23,7 +23,9 @@ it('keeps objects private, immutable, verified and guarded through upload, read 
     if (method === 'GET') {
       const value = objects.get(path);
       return value ? new Response(new Uint8Array(value).buffer,
-        { status: 200, headers: { 'content-length': String(value.length) } }) : new Response(null, { status: 404 });
+        { status: 200, headers: { 'content-length': String(value.length) } })
+        : Response.json({ statusCode: '404', error: 'not_found', code: 'NoSuchKey', message: 'Object not found' },
+          { status: 400 });
     }
     if (method === 'POST') {
       if (objects.has(path)) return new Response(null, { status: 400 });
@@ -61,4 +63,26 @@ it('does not reach Storage when the current application permission is revoked', 
   await expect(storage.upload({ context: { studentUid: uid, actorId }, requestId,
     variant: 'portrait', bytes, metadata, signal })).rejects.toThrow('revoked');
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('calls the platform fetch without an object receiver', async () => {
+  const fetcher = function (this: unknown): Promise<Response> {
+    expect(this).toBeUndefined();
+    return Promise.resolve(new Response(null, { status: 404 }));
+  };
+  const storage = new PhotoStorageV1('k'.repeat(40), async () => undefined,
+    fetcher as typeof fetch);
+  await expect(storage.read({ ...metadata, driveId: 'student-photos',
+    itemId: `write/${uid}/${requestId}/portrait-${sha256}.webp`, etag: sha256 }, signal))
+    .rejects.toThrow('student-photo-storage-absent');
+});
+
+it('does not interpret other Storage 400 responses as an absent object', async () => {
+  const fetcher = vi.fn(async () => Response.json({ statusCode: '400', error: 'invalid_request', code: 'InvalidKey' },
+    { status: 400 }));
+  const storage = new PhotoStorageV1('k'.repeat(40), async () => undefined,
+    fetcher as unknown as typeof fetch);
+  await expect(storage.upload({ context: { studentUid: uid, actorId }, requestId,
+    variant: 'portrait', bytes, metadata, signal })).rejects.toThrow('student-photo-storage-read-400');
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });

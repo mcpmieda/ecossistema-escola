@@ -35,13 +35,18 @@ it('rejects geometry and trailing bytes without a decoder, and releases the admi
   expect(instantiate).toHaveBeenCalledTimes(1);
 });
 
-it('rejects extra private chunks before allocating the decoder', async () => {
+it('rejects unknown chunks but admits standard metadata only for normalization', async () => {
   const instantiate = vi.spyOn(WebAssembly, 'Instance'), codec = new StudentWebpCodecV1(emptyModule);
   const bytes = new Uint8Array(40), view = new DataView(bytes.buffer);
   bytes.set(plausibleHeader()); view.setUint32(4, 32, true);
-  bytes.set(new TextEncoder().encode('EXIF'), 30); view.setUint32(34, 2, true);
+  bytes.set(new TextEncoder().encode('JUNK'), 30); view.setUint32(34, 2, true);
   await expect(codec.normalize(bytes, 'portrait', 92, signal())).rejects.toMatchObject({ code: 'metadata' });
   expect(instantiate).not.toHaveBeenCalled();
+  bytes.set(new TextEncoder().encode('EXIF'), 30);
+  await expect(codec.validate(bytes, 'portrait', signal())).rejects.toMatchObject({ code: 'metadata' });
+  expect(instantiate).not.toHaveBeenCalled();
+  await expect(codec.normalize(bytes, 'portrait', 92, signal())).rejects.toMatchObject({ code: 'unavailable' });
+  expect(instantiate).toHaveBeenCalledTimes(1);
 });
 
 it('does no WASM work for an already cancelled operation', async () => {

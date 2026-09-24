@@ -136,8 +136,14 @@ export class BulkAdminV1 {
         parameters,
       );
       const rows = await tx.unsafe(
-        `SELECT a.id,a.version::text,b.class_id,COALESCE(s.name,'') AS name,COALESCE(b.class_name,'') AS class_label
-        ${ACCOUNT_JOIN_V1} WHERE ${filter} AND ($2::uuid IS NULL OR a.id>$2::uuid) ORDER BY a.id LIMIT $3`,
+        `SELECT a.id,a.version::text,b.class_id,COALESCE(s.name,'') AS name,COALESCE(b.class_name,'') AS class_label,
+          a.auth_state,a.blocked,
+          COALESCE(d.birth_year IS NOT NULL AND d.confirmation='confirmed'
+            AND p.pin_verifier IS NOT NULL AND p.pin_version=a.pin_version,false) AS recovery_ready
+        ${ACCOUNT_JOIN_V1}
+        LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id
+        LEFT JOIN student_portal.password_credential p ON p.account_id=a.id
+        WHERE ${filter} AND ($2::uuid IS NULL OR a.id>$2::uuid) ORDER BY a.id LIMIT $3`,
         [...parameters, last, query.page.limit + 1],
       );
       const items = rows.slice(0, query.page.limit).map((row) => ({
@@ -146,6 +152,10 @@ export class BulkAdminV1 {
         classId: z.number().int().positive().safe().parse(row.class_id),
         name: row.name,
         classLabel: row.class_label,
+        ineligibility: query.action === 'block'
+          ? row.blocked ? 'already-blocked' : null
+          : (query.action !== 'qr-regenerate' || row.auth_state !== 'active') && !row.recovery_ready
+            ? 'recovery-unavailable' : null,
       }));
       const proof = bulkProofTokenV1.parse(
         await seal(

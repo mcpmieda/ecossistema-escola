@@ -118,6 +118,19 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     expect(empty.items).toEqual([]);
   });
 
+  it('marks accounts that the individual operation cannot execute without weakening its guard', async () => {
+    const first = await service.preview(context, { ...query, action: 'qr-regenerate' });
+    const id = first.items[0]!.accountId;
+    await pg.query("UPDATE student_portal.account SET auth_state='pending-activation' WHERE id=$1", [id]);
+    const qr = await service.preview(context, { ...query, action: 'qr-regenerate' });
+    expect(qr.items.find((item) => item.accountId === id)?.ineligibility).toBe('recovery-unavailable');
+    const reset = await service.preview(context, { ...query, action: 'password-reset' });
+    expect(reset.items.find((item) => item.accountId === id)?.ineligibility).toBe('recovery-unavailable');
+    await pg.query('UPDATE student_portal.account SET blocked=true WHERE id=$1', [id]);
+    const block = await service.preview(context, query);
+    expect(block.items.find((item) => item.accountId === id)?.ineligibility).toBe('already-blocked');
+  });
+
   it('binds cursors to the actor, action, scope, limit and revision', async () => {
     const first = await service.preview(context, query);
     const next = { ...query, page: { ...query.page, cursor: first.nextCursor } };

@@ -21,6 +21,7 @@ const item = (id: number) => ({
   classId: OP_CLASS_V1.classId,
   name: 'SYNTHETIC BULK ' + id,
   classLabel: 'SYNTHETIC CLASS',
+  ineligibility: null,
 });
 const preview = (ids: number[], total = ids.length, extra = {}) => ({
   ...OP_META_V1,
@@ -104,6 +105,24 @@ describe('bulk preview and execution', () => {
     expect(s.state()).toMatchObject({ phase: 'error', items: [] });
     await s.controller.run();
     expect(commands).toBe(0);
+    s.controller.dispose();
+  });
+  it('shows unavailable accounts without sending commands for them', async () => {
+    const bodies: string[] = [];
+    const s = setup(async (_path, init) => {
+      const body = JSON.parse(init.body as string);
+      if (body.operation === 'bulk-preview') return opJsonV1(preview([1, 2], 2, {
+        items: [{ ...item(1), ineligibility: 'recovery-unavailable' }, item(2)],
+      }));
+      bodies.push(init.body as string);
+      return committed();
+    });
+    await s.controller.preview(query);
+    expect(s.state().items.map((entry) => entry.result)).toEqual(['skipped', 'pending']);
+    await s.controller.run();
+    expect(bodies).toHaveLength(1);
+    expect(JSON.parse(bodies[0]!).accountId).toBe(item(2).accountId);
+    expect(s.state().items.map((entry) => entry.result)).toEqual(['skipped', 'committed']);
     s.controller.dispose();
   });
   it('preserves exact intent and bytes after a lost response; retries never regenerate versions or proofs', async () => {
