@@ -16,7 +16,9 @@ it('serves real student HTML and hashed assets on root and access without exposi
   expect(access.status).toBe(200);
   expect(await access.text()).toBe(html);
   const paths = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/gu)].map((m) => m[1]!);
-  expect(paths).toHaveLength(2);
+  // Script, stylesheet, and the crest favicon + home-screen icon (hashed PNGs).
+  expect(paths).toHaveLength(4);
+  expect(paths.filter((path) => path.endsWith('.png'))).toHaveLength(2);
   for (const path of paths) {
     const asset = await harness.fetch(origin + path);
     expect(asset.status).toBe(200);
