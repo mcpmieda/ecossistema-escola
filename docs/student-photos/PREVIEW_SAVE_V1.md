@@ -1,5 +1,7 @@
 # Prévia final e salvamento — #1119
 
+> O protocolo de prévia e revisão continua; as referências ao transporte SharePoint abaixo são históricas. O adaptador vigente é o Supabase Storage privado descrito em [FINAL_INTEGRATION_V1.md](FINAL_INTEGRATION_V1.md).
+
 Esta composição conecta o codec ao protocolo de gravação e à autorização das
 transferências. Ainda não monta rotas ou lápis, aplica migrations, adota fotos
 reais, configura Graph ou autoriza publicação no Portal. A entrega depende do

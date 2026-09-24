@@ -4,7 +4,7 @@ import { PhotoEditServiceV1, type PhotoEditServiceOptionsV1 } from '../../server
 import { PhotoWriteErrorV1, photoWriteFingerprintV1, type PhotoWriteReceiptV1, type PhotoWritePlanV1 } from '../../shared/student-photos/write-v1';
 import type { PhotoWriteRepositoryV1 } from '../../server/student-photos/write-repository-v1';
 import { probePhotoSourceV1 } from '../../shared/student-photos/source-probe-v1';
-import type { SharePointPhotoActionV1 } from '../../server/student-photos/sharepoint-write-v1';
+import type { PhotoStorageActionV1 } from '../../server/student-photos/storage-v1';
 
 const context = { actorId: '10000000-0000-4000-8000-000000000001', studentUid: '20000000-0000-4000-8000-000000000001' };
 const command = { requestId: '30000000-0000-4000-8000-000000000001', expectedRevision: null, kind: 'replace' as const };
@@ -23,7 +23,7 @@ function harness() {
   const receipts = new Map<string, PhotoWriteReceiptV1>();
   const originalInputs: Uint8Array[] = [], outputs: Uint8Array[] = [], uploadReferences: Uint8Array[] = [];
   const sent: { variant: string; bytes: Uint8Array }[] = [];
-  let transfer: ((action: SharePointPhotoActionV1) => Promise<void>) | undefined;
+  let transfer: ((action: PhotoStorageActionV1) => Promise<void>) | undefined;
   const codec = { normalize: vi.fn<PhotoEditServiceOptionsV1['codec']['normalize']>(async (b, _variant, quality) => {
     originalInputs.push(new Uint8Array(b));
     const out = new Uint8Array(b); out[22] = quality; outputs.push(out);
@@ -159,7 +159,7 @@ describe('final preview and confirmed photo save', () => {
   it('binds storage callbacks to the resolved scope and current authority', async () => {
     const f = harness(), preview = await f.service.preview(context, command, qualities, f.inputs, signal());
     await f.service.save(context, command, preview.approval, f.inputs, signal());
-    const action: SharePointPhotoActionV1 = { kind: 'upload', context: { ...context }, requestId: command.requestId,
+    const action: PhotoStorageActionV1 = { kind: 'upload', context: { ...context }, requestId: command.requestId,
       variant: 'avatar', metadata: preview.approval.output.avatar! };
     action.context.studentUid = '40000000-0000-4000-8000-000000000001';
     await expect(f.transfer()(action)).rejects.toMatchObject({ code: 'receipt-conflict' });

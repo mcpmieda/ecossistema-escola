@@ -17,9 +17,9 @@ const uid = '20000000-0000-4000-8000-000000000001';
 const revision = '30000000-0000-4000-8000-000000000001';
 function catalog(overrides: Record<string, unknown> = {}) {
   return { version: 1 as const, state: 'catalog' as const, traceId: uid, canWrite: true, catalog: photoCatalogStateV1.parse({
-    version: 1, studentUid: uid, revision: null, initialized: false, hasPortrait: true, hasAvatar: false,
+    version: 1, studentUid: uid, revision, initialized: true, hasPortrait: true, hasAvatar: false,
     pendingRequest: null, pendingKind: null, pendingStage: null, ownPending: false, portalReady: false,
-    legacyCompatible: true, ...overrides,
+    ...overrides,
   }) };
 }
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -31,17 +31,17 @@ it('keeps a forbidden initial read neutral instead of claiming an edit failed', 
   expect(screen.queryByRole('button', { name: 'Adicionar foto' })).toBeNull();
   expect(spies.save).not.toHaveBeenCalled();
 });
-it('presents an incompatible original as preserved, not as an empty photo', async () => {
-  vi.mocked(readPhotoCatalogV1).mockResolvedValueOnce(catalog({ legacyCompatible: false }));
+it('shows an imported portrait as editable without the old synchronization notice', async () => {
+  vi.mocked(readPhotoCatalogV1).mockResolvedValueOnce(catalog());
   render(<StudentPhotoPanelV1 subject={subject} />);
-  expect(await screen.findByText(/A referência foi preservada no SharePoint/)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Adicionar foto' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Remover' })).toBeNull();
+  expect(await screen.findByRole('button', { name: 'Editar foto' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Remover' })).toBeTruthy();
+  expect(screen.queryByText(/SharePoint/)).toBeNull();
 });
-it('adopts the exact original and uses its fresh revision for direct removal before any bulk sync', async () => {
+it('uses the imported revision for direct removal', async () => {
   const user = userEvent.setup();
   vi.mocked(readPhotoCatalogV1).mockResolvedValueOnce(catalog())
-    .mockResolvedValueOnce(catalog({ initialized: true, revision }))
+    .mockResolvedValueOnce(catalog())
     .mockResolvedValueOnce(catalog({ initialized: true, revision, hasPortrait: false }));
   spies.save.mockImplementationOnce(async (_subject, cmd) => ({ state: 'committed', requestId: cmd.requestId, revision: cmd.requestId, cleanupPending: false }));
   render(<StudentPhotoPanelV1 subject={subject} />);

@@ -41,14 +41,20 @@ beforeAll(async () => {
   INSERT INTO student_portal.account VALUES ('${photoAccountV1}','${photoUidV1}'),('${otherPhotoAccountV1}','${otherPhotoUidV1}');`);
   const before = await native().unsafe('SELECT * FROM student_portal.account ORDER BY id');
   await exec(readFileSync('migrations/student-photos/0001_private_delivery_v1.sql', 'utf8'));
+  await exec(`ALTER TABLE student_photos.portal_delivery_v1 ADD COLUMN storage_path text;
+    ALTER TABLE student_photos.portal_delivery_v1 ADD COLUMN byte_size integer;
+    ALTER TABLE student_photos.portal_delivery_v1 ADD CONSTRAINT photo_revoked_storage_test CHECK(revoked_at IS NULL OR storage_path IS NULL);
+    DROP POLICY portal_delivery_runtime_read_v1 ON student_photos.portal_delivery_v1;
+    CREATE POLICY portal_delivery_runtime_read_v1 ON student_photos.portal_delivery_v1 FOR SELECT TO student_portal_app
+      USING(image_use_authorized AND approved_at IS NOT NULL AND revoked_at IS NULL AND storage_path IS NOT NULL);`);
   expect(await native().unsafe('SELECT * FROM student_portal.account ORDER BY id')).toEqual(before);
   for (const [uid, revision, authorized] of [[photoUidV1,photoRevisionFixtureV1,true],[otherPhotoUidV1,otherPhotoRevisionV1,false]] as const) {
     await native().unsafe(`INSERT INTO student_photos.portal_delivery_v1
-      (student_uid,revision,source_revision,approved_source_revision,source_sha256,portrait_sha256,width,height,image_webp,
+      (student_uid,revision,source_revision,approved_source_revision,source_sha256,portrait_sha256,width,height,storage_path,byte_size,
         image_use_authorized,authorized_by,authorized_at,authorization_reference,approved_by,approved_at)
-      VALUES ($1::uuid,$2::uuid,$3::uuid,$3::uuid,$4,$4,3,4,decode($5,'base64'),$6,$7::uuid,
+      VALUES ($1::uuid,$2::uuid,$3::uuid,$3::uuid,$4,$4,3,4,$5,$8,$6,$7::uuid,
         statement_timestamp(),'synthetic-private-reference',$7::uuid,statement_timestamp())`,
-    [uid,revision,photoSourceV1,syntheticPhotoHashV1,Buffer.from(syntheticWebpV1()).toString('base64'),authorized,photoActorV1]);
+    [uid,revision,photoSourceV1,syntheticPhotoHashV1,`legacy/${uid}/${syntheticPhotoHashV1}.webp`,authorized,photoActorV1,syntheticWebpV1().length]);
   }
 });
 
@@ -62,7 +68,7 @@ it('maps account to permanent UID even when those UUIDs are different', async ()
   expect(photoAccountV1).not.toBe(photoUidV1);
   const result = await native().begin(async tx => {
     await tx.unsafe('SET LOCAL ROLE student_portal_app');
-    return readPublishedPortraitV1(adapter(tx), photoAccountV1, photoRevisionFixtureV1);
+    return readPublishedPortraitV1(adapter(tx), photoAccountV1, photoRevisionFixtureV1, async () => syntheticWebpV1());
   });
   expect(result.state).toBe('content');
   if (result.state === 'content') expect(result.bytes).toEqual(syntheticWebpV1());

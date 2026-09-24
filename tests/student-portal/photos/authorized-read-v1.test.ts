@@ -16,6 +16,7 @@ let statements: string[] = [];
 const cryptography = new PortalCryptoV1(new Map([[1,new Uint8Array(32).fill(11)]]),new Map([[1,new Uint8Array(32).fill(22)]]));
 const tokenA = cryptography.randomToken(32), tokenB = cryptography.randomToken(32);
 const school = { kind: 'school', academicYear: 2026 } as const;
+const storageRead = async () => syntheticWebpV1();
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -23,6 +24,7 @@ beforeAll(async () => {
   await installResetSchemaFixtureV1(pg);
   await pg.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql','utf8'));
   await pg.exec(readFileSync('migrations/student-photos/0001_private_delivery_v1.sql','utf8'));
+  await pg.exec('ALTER TABLE student_photos.portal_delivery_v1 ADD COLUMN storage_path text; ALTER TABLE student_photos.portal_delivery_v1 ADD COLUMN byte_size integer;');
   await pg.exec(`INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES (901,2026,'PHOTO','SYNTHETIC PHOTO CLASS',6,'TEST');
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES (901,2026,'SYNTHETIC PHOTO A'),(902,2026,'SYNTHETIC PHOTO B');
@@ -53,12 +55,12 @@ beforeEach(async () => {
       VALUES ($1::uuid,$2::uuid,$3,0,statement_timestamp()+interval '1 hour',false)`,
     [crypto.randomUUID(),owner.id,await cryptography.hashOpaqueToken(index===0?tokenA:tokenB)]);
     await pg.query(`INSERT INTO student_photos.portal_delivery_v1
-      (student_uid,revision,source_revision,approved_source_revision,source_sha256,portrait_sha256,width,height,image_webp,
+      (student_uid,revision,source_revision,approved_source_revision,source_sha256,portrait_sha256,width,height,storage_path,byte_size,
       image_use_authorized,authorized_by,authorized_at,authorization_reference,approved_by,approved_at)
-      VALUES ($1::uuid,$2::uuid,$3::uuid,$3::uuid,$4,$4,3,4,decode($5,'base64'),true,$6::uuid,statement_timestamp(),
+      VALUES ($1::uuid,$2::uuid,$3::uuid,$3::uuid,$4,$4,3,4,$5,$7,true,$6::uuid,statement_timestamp(),
       'synthetic-school-authorization',$6::uuid,statement_timestamp())`,
     [owner.student_uid,index===0?photoRevisionFixtureV1:otherPhotoRevisionV1,photoSourceV1,syntheticPhotoHashV1,
-      Buffer.from(syntheticWebpV1()).toString('base64'),photoActorV1]);
+      `legacy/${owner.student_uid}/${syntheticPhotoHashV1}.webp`,photoActorV1,syntheticWebpV1().length]);
   }
   statements=[];
 }, 30_000);
@@ -70,15 +72,15 @@ it('uses the real SessionService for metadata and content, with independent acco
   expect(meta).toMatchObject({state:'metadata',metadata:{accountId:owners[0]!.id,revision:photoRevisionFixtureV1}});
   const selection=statements.find(query=>query.includes('JOIN student_photos.portal_delivery_v1'))!.split('FROM')[0]!;
   expect(selection).not.toContain('image_webp'); expect(selection).not.toContain('authorization_reference');
-  const image=await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1);
+  const image=await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1,storageRead);
   expect(image?.state).toBe('content');
   if(image?.state==='content') expect(image.bytes).toEqual(syntheticWebpV1());
 });
 
 it('does not authorize another student by UID knowledge or another valid photo revision', async () => {
-  expect(await readOwnPortraitV1(sql,cryptography,tokenA,otherPhotoRevisionV1)).toEqual({state:'absent'});
-  expect(await readOwnPortraitV1(sql,cryptography,tokenB,photoRevisionFixtureV1)).toEqual({state:'absent'});
-  expect(await readOwnPortraitV1(sql,cryptography,cryptography.randomToken(32),photoRevisionFixtureV1)).toBeNull();
+  expect(await readOwnPortraitV1(sql,cryptography,tokenA,otherPhotoRevisionV1,storageRead)).toEqual({state:'absent'});
+  expect(await readOwnPortraitV1(sql,cryptography,tokenB,photoRevisionFixtureV1,storageRead)).toEqual({state:'absent'});
+  expect(await readOwnPortraitV1(sql,cryptography,cryptography.randomToken(32),photoRevisionFixtureV1,storageRead)).toBeNull();
 });
 
 it.each([
@@ -93,7 +95,7 @@ it.each([
   "UPDATE gradebook.vinculo SET situacao=5",
 ])('refuses delivery after %s, before selecting photo data', async statement => {
   await pg.exec(statement);
-  expect(await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1)).toBeNull();
+  expect(await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1,storageRead)).toBeNull();
   expect(statements.some(query=>query.includes('JOIN student_photos.portal_delivery_v1'))).toBe(false);
 });
 
@@ -102,14 +104,14 @@ it('refuses accessEnabled=false with the existing policy service, not a separate
   await policy.mutate(photoActorV1,{contractVersion:1,operation:'settings-set',scope:school,expectedVersion:current.version,
     idempotencyKey:crypto.randomUUID(),acknowledgeImmediateEffect:true,value:{accessEnabled:false}});
   statements=[];
-  expect(await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1)).toBeNull();
+  expect(await readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1,storageRead)).toBeNull();
   expect(statements.some(query=>query.includes('JOIN student_photos.portal_delivery_v1'))).toBe(false);
 });
 
 it.each([
   'image_use_authorized=false',
   'approved_at=NULL,approved_by=NULL,approved_source_revision=NULL',
-  'revoked_at=statement_timestamp(),image_webp=NULL',
+  'revoked_at=statement_timestamp(),storage_path=NULL',
 ])('withholds delivery for %s without revoking the student session', async change => {
   await pg.exec('UPDATE student_photos.portal_delivery_v1 SET '+change);
   expect(await readOwnPortraitV1(sql,cryptography,tokenA,null)).toEqual({state:'absent'});
@@ -117,5 +119,5 @@ it.each([
 
 it('rejects corrupt stored bytes without returning them as an image', async () => {
   await pg.exec("UPDATE student_photos.portal_delivery_v1 SET portrait_sha256=repeat('0',64)");
-  await expect(readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1)).rejects.toThrow('student-photo-content-invalid');
+  await expect(readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1,storageRead)).rejects.toThrow('student-photo-content-invalid');
 });
