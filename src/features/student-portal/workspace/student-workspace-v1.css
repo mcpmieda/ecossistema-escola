@@ -155,6 +155,19 @@
   place-items: center;
 }
 
+/* Arrow after each mark in the Boletim: the row opens its discipline. */
+.pa-workspace-list .pa-list-chevron {
+  flex: none;
+  margin-left: -0.35rem;
+  color: #94a3b8;
+  transition: transform 150ms ease-out, color 150ms ease-out;
+}
+.pa-workspace-list [data-hovered='true'] .pa-list-chevron,
+.pa-workspace-list [data-pressed='true'] .pa-list-chevron {
+  color: #1d4ed8;
+  transform: translateX(2px);
+}
+
 /* Back to the Boletim, just before the subject's icon. */
 .pa-workspace-intro .pa-workspace-back {
   flex: none;

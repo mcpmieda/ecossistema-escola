@@ -15,6 +15,7 @@ import {
   BookOpenText,
   Calculator,
   ChevronLeft,
+  ChevronRight,
   Dumbbell,
   FlaskConical,
   Globe2,
@@ -430,6 +431,8 @@ function SummaryV1({
                     <StudentMarkV1 mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }} />
                   </strong>
                 )}
+                {/* Each row opens its discipline. */}
+                <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
               </ListBox.Item>
             );
           })}
