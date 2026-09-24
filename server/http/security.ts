@@ -2,9 +2,11 @@ import type { RuntimeEnv } from '../env';
 
 type BoundedBodyRequest = Pick<Request, 'body' | 'headers'>;
 
+// style-src allows exactly one inline <style>: React Aria's pressable touch-action rule, by its
+// sha256 (tests/frontend-security/react-aria-style-csp.test.ts keeps it in sync); no unsafe-inline.
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy':
-    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self' https://cdn.sheetjs.com; connect-src 'self'",
+    "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; script-src 'self' https://cdn.sheetjs.com; connect-src 'self'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
