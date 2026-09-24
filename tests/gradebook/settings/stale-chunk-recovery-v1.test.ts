@@ -22,3 +22,16 @@ it('keeps the isolated error when navigation state cannot be updated', () => {
   };
   expect(shouldReloadFailedModuleV1(new TypeError('Importing a module script failed'), navigation, 1_000_000)).toBe(false);
 });
+
+it('recovers an equivalent module load error after navigating to another area', () => {
+  let state: unknown = null;
+  const navigation = {
+    get state() { return state; },
+    replaceState: (next: unknown) => { state = next; },
+  };
+  const missing = new TypeError('error loading dynamically imported module');
+  expect(shouldReloadFailedModuleV1(missing, navigation, 1_000_000)).toBe(true);
+  expect(shouldReloadFailedModuleV1(missing, navigation, 1_000_001)).toBe(false);
+  state = null;
+  expect(shouldReloadFailedModuleV1(missing, navigation, 1_000_002)).toBe(true);
+});
