@@ -1,5 +1,7 @@
 # Codec WebP — prova isolada v1 (#1119)
 
+> A prova do codec permanece. As referências de composição com Graph registram a arquitetura anterior; a composição atual está em [FINAL_INTEGRATION_V1.md](FINAL_INTEGRATION_V1.md).
+
 ## Estado e fronteira
 
 Candidato independente da #1123, baseado na main 14043e91. Não monta uma rota de

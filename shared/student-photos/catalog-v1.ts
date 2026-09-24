@@ -5,7 +5,6 @@ import { photoAdminSubjectV1, type PhotoAdminSubjectV1 } from './admin-http-v1';
 export const photoCatalogRequestV1 = z.object({ version: z.literal(1), subject: photoAdminSubjectV1 }).strict();
 export const photoCatalogStateV1 = z.object({
   version: z.literal(1), studentUid: studentUidV1, revision: studentUidV1.nullable(),
-  legacyCompatible: z.boolean().optional(),
   initialized: z.boolean(), hasPortrait: z.boolean(), hasAvatar: z.boolean(),
   pendingRequest: studentUidV1.nullable(), pendingKind: z.enum(['replace','avatar','remove']).nullable(),
   pendingStage: z.enum(['prepared','committed','complete']).nullable(),

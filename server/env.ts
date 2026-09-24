@@ -8,6 +8,7 @@ export type RuntimeSecrets = {
   WEB_CREDENTIAL_B?: string;
   GRAPH_CREDENTIAL_A?: string;
   GRAPH_CREDENTIAL_B?: string;
+  PHOTO_STORAGE_SERVICE_KEY?: string;
   SESSION_SECRET: string;
 };
 
@@ -51,6 +52,7 @@ const envSchema = z
     WEB_CREDENTIAL_B: z.string().min(256).optional(),
     GRAPH_CREDENTIAL_A: z.string().min(256).optional(),
     GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
+    PHOTO_STORAGE_SERVICE_KEY: z.string().min(40).optional(),
     SESSION_SECRET: z.string().min(43),
     GRADEBOOK_PRODUCTION_ENABLED: z.enum(['true', 'false']).optional(),
     GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).optional(),

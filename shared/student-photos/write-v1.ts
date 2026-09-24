@@ -8,7 +8,7 @@ export const photoWriteCommandV1 = z.object({
   kind: z.enum(['replace', 'avatar', 'remove']),
 }).strict();
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
-const locator = z.string().min(1).max(256).regex(/^[A-Za-z0-9!_-]+$/u);
+const locator = z.string().min(1).max(256).regex(/^[A-Za-z0-9!_./-]+$/u);
 export const photoVariantMetadataV1 = z.object({
   sha256: digest, byteSize: z.number().int().min(20).max(131072),
   width: z.number().int().min(1).max(900), height: z.number().int().min(1).max(1200),

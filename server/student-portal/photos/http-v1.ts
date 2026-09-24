@@ -5,6 +5,7 @@ import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from '../composition/config-v1';
 import { portalDatabaseV1 } from '../composition/database-v1';
 import { readOwnPortraitV1, type PortraitReadV1 } from './read-v1';
+import { PhotoStorageV1, PHOTO_BUCKET_V1 } from '../../student-photos/storage-v1';
 
 type PhotoEnvV1 = PortalCompositionEnvV1 & { PORTAL_PHOTOS_ENABLED?: string };
 export type OwnPortraitReaderV1 = (token: string, revision: string | null) => Promise<PortraitReadV1 | null>;
@@ -51,7 +52,13 @@ function photoReadResponseV1(result: PortraitReadV1 | null, target: PhotoTargetV
 /** No redirect, conditional 304, range request or caller-selected student. Every success is authorized. */
 export async function servePortalPhotoV1(request: Request, env: PhotoEnvV1,
   read: OwnPortraitReaderV1 = (token, revision) => portalDatabaseV1(env, 'self', sql =>
-    readOwnPortraitV1(sql, portalKeysV1(env).cryptoPort, token, revision))): Promise<Response> {
+    readOwnPortraitV1(sql, portalKeysV1(env).cryptoPort, token, revision, async object => {
+      const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => {
+        throw new Error('student-photo-storage-write-forbidden');
+      });
+      return storage.read({ driveId: PHOTO_BUCKET_V1, itemId: object.path, etag: object.sha256,
+        sha256: object.sha256, byteSize: object.byteSize, width: object.width, height: object.height }, request.signal);
+    }))): Promise<Response> {
   const validation = validatePhotoRequestV1(request, env);
   if ('error' in validation) return validation.error;
   if (env.PORTAL_SERVING_ENABLED !== 'true') return reply(503);

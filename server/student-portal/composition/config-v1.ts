@@ -10,6 +10,7 @@ export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
   PORTAL_SERVING_ENABLED?: string;
   PORTAL_PUBLICATION_MODE?: string;
   PORTAL_DB?: Pick<Hyperdrive, 'connectionString'>;
+  PHOTO_STORAGE_SERVICE_KEY?: string;
   QR_HMAC_KEYS?: string;
   PASSWORD_PEPPER?: string;
   TURNSTILE_SECRET_KEY?: string;

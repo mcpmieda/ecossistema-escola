@@ -11,14 +11,7 @@ export const legacyPhotoSnapshotV1 = z.object({
   byteSize: z.number().int().positive().max(5242880),version: z.number().int().positive(),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 }).strict();
-export const legacyPhotoReferenceV1 = legacyPhotoSnapshotV1.extend({
-  byteSize: z.number().int().positive().max(131072), contentType: z.literal('image/webp'),
-});
 export type LegacyPhotoSnapshotV1 = z.infer<typeof legacyPhotoSnapshotV1>;
-export type LegacyPhotoReferenceV1 = z.infer<typeof legacyPhotoReferenceV1>;
-export function photoBytesHexV1(bytes: Uint8Array): string {
-  return Array.from(bytes, byte => byte.toString(16).padStart(2,'0')).join('');
-}
 export function photoBytesFromHexV1(input: unknown): Uint8Array {
   if (typeof input !== 'string' || input.length < 40 || input.length > 262144 || !/^(?:[a-f0-9]{2})+$/u.test(input))
     throw new PhotoWriteErrorV1('invalid');
@@ -63,20 +56,10 @@ export class PhotoCatalogRepositoryV1 {
         [context.studentUid,context.actorId,legacy === null ? null : JSON.stringify(legacy),asset === null ? null : JSON.stringify(photoAssetV1.parse(asset))]);
     });
   }
-  async publish(context: PhotoWriteContextV1, variant: 'portrait' | 'avatar', asset: PhotoAssetV1, bytes: Uint8Array) {
+  async publish(context: PhotoWriteContextV1, variant: 'portrait' | 'avatar', asset: PhotoAssetV1) {
     await this.transaction(async tx => {
-      await tx.query('SELECT student_photos.publish_asset_v1($1::uuid,$2::uuid,$3,$4::text::jsonb,decode($5,\'hex\'))',
-        [context.studentUid,context.actorId,variant,JSON.stringify(photoAssetV1.parse(asset)),photoBytesHexV1(bytes)]);
-    });
-  }
-  async image(uid: string, variant: 'portrait' | 'avatar') {
-    return this.transaction(async tx => {
-      const rows = await tx.query(`SELECT d.revision::text,encode(d.image_webp,'hex') AS image_hex,d.source_asset
-        FROM student_photos.asset_delivery_v1 d JOIN student_photos.photo_family_v1 f USING(student_uid)
-        WHERE d.student_uid=$1::uuid AND d.variant IN ($2,'portrait') AND f.assets->d.variant=d.source_asset
-        ORDER BY (d.variant=$2) DESC LIMIT 1`,[studentUidV1.parse(uid),variant]);
-      if (!rows[0]) return null;
-      return { revision:studentUidV1.parse(rows[0].revision),asset:photoAssetV1.parse(rows[0].source_asset),bytes:photoBytesFromHexV1(rows[0].image_hex) };
+      await tx.query('SELECT student_photos.publish_storage_asset_v1($1::uuid,$2::uuid,$3,$4::text::jsonb)',
+        [context.studentUid,context.actorId,variant,JSON.stringify(photoAssetV1.parse(asset))]);
     });
   }
   async state(context: PhotoWriteContextV1): Promise<PhotoCatalogStateV1> {
@@ -90,9 +73,8 @@ export class PhotoCatalogRepositoryV1 {
     const legacy = family ? null : await this.legacy(context.studentUid);
     const rows = await this.transaction(tx => tx.query(`SELECT EXISTS(SELECT 1 FROM student_photos.asset_delivery_v1 d
       JOIN student_photos.photo_family_v1 f USING(student_uid) WHERE d.student_uid=$1::uuid AND d.variant='portrait'
-      AND d.source_asset=f.assets->'portrait')::integer AS ready`,[context.studentUid]));
+      AND d.source_asset=f.assets->'portrait' AND d.storage_path IS NOT NULL)::integer AS ready`,[context.studentUid]));
     return photoCatalogStateV1.parse({ version:1,studentUid:context.studentUid,revision:family?.revision ?? null,
-      legacyCompatible:legacy === null || legacyPhotoReferenceV1.safeParse(legacy).success,
       initialized:!!family,hasPortrait:family ? !!family.assets.portrait : !!legacy,hasAvatar:!!family?.assets.avatar,
       pendingRequest:family?.pending ?? null,pendingKind:pending?.kind ?? null,pendingStage:pending?.phase ?? null,
       ownPending:pending?.actorId === context.actorId,portalReady:Number(rows[0]?.ready) === 1 });

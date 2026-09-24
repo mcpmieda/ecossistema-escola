@@ -1,5 +1,7 @@
 # Fronteira HTTP administrativa de fotos — #1119
 
+> Os trechos que citam Graph e adoção do acervo registram a implementação anterior. A operação atual usa Supabase Storage privado conforme [FINAL_INTEGRATION_V1.md](FINAL_INTEGRATION_V1.md).
+
 Complementa a composição #1126, integrada à main. O handler e o cliente são
 implementados e verificáveis isoladamente; **não estão montados em rotas
 produtivas** enquanto faltarem codec no pacote oficial, configuração/permissões

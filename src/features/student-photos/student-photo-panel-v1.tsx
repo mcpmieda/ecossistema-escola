@@ -179,7 +179,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
     <div className="student-photo-panel__identity">
       {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
-        {canWrite && catalog?.legacyCompatible !== false ? <>
+        {canWrite ? <>
           <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => openEditor('replace')}>
             <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Editar foto' : 'Adicionar foto'}
           </Button>
@@ -198,7 +198,6 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         </Button>
       </div>
     </div>
-    {catalog?.legacyCompatible === false ? <p role="status">O arquivo antigo não é um WebP compatível com este editor. A referência foi preservada no SharePoint e precisa ser regularizada antes da edição.</p> : null}
     {busy ? <output aria-live="polite">Processando foto…</output> : null}
     {message ? <p className="student-photo-panel__message" role="status">{message}</p> : null}
     {editing ? <Suspense fallback={<p role="status">Abrindo editor…</p>}>
@@ -223,7 +222,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
     {removing ? <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) { setRemoving(false); discard(); } }}>
       <Modal.Container size="sm"><Modal.Dialog aria-label="Remover foto do aluno">
         <Modal.Header><Modal.Heading>Remover foto?</Modal.Heading></Modal.Header>
-        <Modal.Body><p>A foto principal e o avatar deixarão de aparecer no sistema e serão excluídos da biblioteca do SharePoint. A lixeira e a retenção institucional seguem as regras do SharePoint.</p>
+        <Modal.Body><p>A foto principal e o avatar deixarão de aparecer no sistema. Os arquivos salvos no Portal serão excluídos permanentemente.</p>
           {message ? <p role="status">{message}</p> : null}</Modal.Body>
         <Modal.Footer><Button variant="secondary" isDisabled={busy} onPress={() => { setRemoving(false); discard(); }}>Cancelar</Button>
           <Button isDisabled={busy} onPress={remove}>{busy ? 'Removendo…' : 'Remover foto'}</Button></Modal.Footer>
