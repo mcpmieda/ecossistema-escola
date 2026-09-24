@@ -63,6 +63,8 @@ export function subjectInSentenceV1(label: string): string {
     .replace(/(^|[\s.(/-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toLocaleUpperCase('pt-BR'));
 }
 const percentOfYear = (value: number) => `${value / 1000}%`;
+// A label centred on a point of the track, kept inside it near the ends.
+const labelAt = (milli: number) => `${Math.min(92, Math.max(8, milli / 1000))}%`;
 
 export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; subjectLabel: string }) {
   const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
@@ -88,6 +90,15 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
         </div>
       </header>
 
+      {/* How much is missing sits above the striped part it refers to. */}
+      <div className="pa-annual-goal-above" aria-hidden="true">
+        {goal.state === 'reached' ? null : (
+          <span className="pa-annual-goal-label pa-annual-goal-label--need" style={{ left: labelAt(goal.soFarMilli + needed / 2) }}>
+            <small>faltam</small>
+            <b>{points(goal.neededMilli)}</b>
+          </span>
+        )}
+      </div>
       {/* 100 points across the year: 1º and 2º tri filled, the 3º tri share still needed striped. */}
       <div className="pa-annual-goal-track" aria-hidden="true">
         <span className="pa-annual-goal-fill pa-annual-goal-fill--t1" style={{ width: percentOfYear(goal.t1Milli) }} />
@@ -98,8 +109,18 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
         <span className="pa-annual-goal-marker" />
       </div>
       <div className="pa-annual-goal-scale" aria-hidden="true">
-        <span className="pa-annual-goal-scale-goal">60</span>
-        <span className="pa-annual-goal-scale-end">100</span>
+        <span className="pa-annual-goal-label pa-annual-goal-label--have" style={{ left: labelAt(goal.soFarMilli / 2) }}>
+          <b>{points(goal.soFarMilli)}</b>
+          <small>você tem</small>
+        </span>
+        <span className="pa-annual-goal-label pa-annual-goal-scale-goal">
+          <b>60</b>
+          <small>meta</small>
+        </span>
+        <span className="pa-annual-goal-label pa-annual-goal-scale-end">
+          <b>100</b>
+          <small>total</small>
+        </span>
       </div>
 
       <p className="pa-annual-goal-text">
