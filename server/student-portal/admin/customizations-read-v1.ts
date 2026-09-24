@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { customizationsResponseV1 } from '../../../shared/student-portal-contracts/customizations-v1';
-import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import { completeStoredPolicyValueV1, settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
@@ -38,7 +38,8 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   if (metadata.length !== 1 || metadata[0]!.enabled !== true || metadata[0]!.epochs !== 1)
     throw new Error('student-portal-preparation-unavailable');
   const meta = metadata[0]!;
-  settingsValueV1.parse(meta.defaults);
+  // Tolerates a school snapshot stored before migration 0020 (#1132): missing optional fields read as defaults.
+  settingsValueV1.parse(completeStoredPolicyValueV1(meta.defaults));
   const publicationVersion = versionV1.parse(Number(meta.version));
   const epoch = versionV1.parse(Number(meta.epoch));
   const generation = z.string().regex(/^[a-f0-9]{32}$/u).parse(meta.generation);

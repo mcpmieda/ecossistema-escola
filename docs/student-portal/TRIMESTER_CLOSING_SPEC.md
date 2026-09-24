@@ -2,7 +2,7 @@
 
 Acompanhamento: issue #1132.
 
-Status: **implementada no PR da issue #1132, desligada por padrão**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Existe um único portão antes de ligar em produção: a escola aprovar o catálogo de frases (D6). A migração `0020` precisa ser aplicada depois do deploy do Worker.
+Status: **implementada no PR da issue #1132, desligada por padrão**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Existe um único portão antes de ligar em produção: a escola aprovar o catálogo de frases (D6). A migração `0020` foi aplicada em produção em 23/09/2026 (versão `20260923193137`, ver `POSTFLIGHT_0020.md`); o recurso segue desligado até a escola ligar a política.
 
 ## Objetivo
 
