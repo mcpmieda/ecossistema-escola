@@ -143,20 +143,24 @@ type SurfaceBoundaryProps = {
 
 type SurfaceBoundaryState = { readonly failed: boolean };
 
-const STALE_MODULE_RELOAD_KEY = 'gradebook-stale-module-reload-v1';
+const STALE_MODULE_RELOAD_KEY = '__gradebookStaleModuleReloadAt';
 const STALE_MODULE_RELOAD_WINDOW_MS = 60_000;
 
 export function shouldReloadFailedModuleV1(
   error: unknown,
-  storage: Pick<Storage, 'getItem' | 'setItem'>,
+  navigation: Pick<History, 'state' | 'replaceState'>,
   now: number,
 ): boolean {
   const message = error instanceof Error ? error.message : String(error);
   if (!/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(message)) return false;
   try {
-    const last = Number(storage.getItem(STALE_MODULE_RELOAD_KEY));
+    const previousState = navigation.state;
+    const state: Record<string, unknown> = previousState && typeof previousState === 'object' && !Array.isArray(previousState)
+      ? previousState as Record<string, unknown>
+      : {};
+    const last = Number(state[STALE_MODULE_RELOAD_KEY]);
     if (last > 0 && now - last >= 0 && now - last < STALE_MODULE_RELOAD_WINDOW_MS) return false;
-    storage.setItem(STALE_MODULE_RELOAD_KEY, String(now));
+    navigation.replaceState({ ...state, [STALE_MODULE_RELOAD_KEY]: now }, '');
     return true;
   } catch {
     return false;
@@ -172,9 +176,9 @@ class GradebookSurfaceBoundary extends Component<SurfaceBoundaryProps, SurfaceBo
 
   override componentDidCatch(error: Error): void {
     try {
-      if (shouldReloadFailedModuleV1(error, window.sessionStorage, Date.now())) window.location.reload();
+      if (shouldReloadFailedModuleV1(error, window.history, Date.now())) window.location.reload();
     } catch {
-      // The existing area error remains available if storage or navigation is blocked.
+      // The existing area error remains available if navigation is blocked.
     }
   }
 
