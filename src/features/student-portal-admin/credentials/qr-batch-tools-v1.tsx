@@ -98,7 +98,7 @@ export function QrBatchToolsV1({
     .map((row) => row.record.account)
     .filter((account) => selected.has(account.accountId) && accountCredentialPreparableV1(account));
   const selectionKey = JSON.stringify([
-    chosen.map((account) => account.accountId).sort(), mode,
+    chosen.map((account) => account.accountId).sort((left, right) => left.localeCompare(right)), mode,
     withInstruction ? instruction.trim().slice(0, 240) : '',
   ]);
   const readyForSelection = state.state === 'ready' && capture.current.selectionKey === selectionKey;
