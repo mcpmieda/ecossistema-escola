@@ -84,6 +84,20 @@ function extraChunk(bytes, kind) {
   const result = Buffer.concat([bytes, chunk]); result.writeUInt32LE(result.length - 8, 4);
   return result;
 }
+function extendedWithMetadata(bytes, kind, width, height) {
+  const flags = { ICCP: 0x20, EXIF: 0x08, 'XMP ': 0x04 };
+  const canvas = Buffer.alloc(18);
+  canvas.write('VP8X', 0, 4, 'ascii'); canvas.writeUInt32LE(10, 4);
+  canvas[8] = flags[kind];
+  canvas.writeUIntLE(width - 1, 12, 3); canvas.writeUIntLE(height - 1, 15, 3);
+  const data = Buffer.from('synthetic');
+  const chunk = Buffer.alloc(8 + data.length + data.length % 2);
+  chunk.write(kind, 0, 4, 'ascii'); chunk.writeUInt32LE(data.length, 4); data.copy(chunk, 8);
+  const payload = kind === 'ICCP' ? [canvas, chunk, bytes.subarray(12)] : [canvas, bytes.subarray(12), chunk];
+  const result = Buffer.concat([bytes.subarray(0, 12), ...payload]);
+  result.writeUInt32LE(result.length - 8, 4);
+  return result;
+}
 async function normalized(bytes, variant, width, height, quality = 92) {
   const response = await request(bytes, variant, quality);
   assert.equal(response.status, 200, `normalize ${width}x${height}: ${response.status}`);
@@ -131,8 +145,10 @@ try {
     await rejected(await fixture(321, 321), 'avatar', 92, 'dimensions');
     await rejected(await fixture(903, 1204), 'portrait', 92, 'dimensions');
   });
-  await check('reject-private-and-color-metadata', async () => {
-    for (const tag of ['EXIF', 'XMP ', 'ICCP', 'JUNK']) await rejected(extraChunk(portrait, tag), 'portrait', 92, 'metadata');
+  await check('strip-standard-input-metadata-and-reject-unknown-chunks', async () => {
+    for (const tag of ['EXIF', 'XMP ', 'ICCP'])
+      await normalized(extendedWithMetadata(portrait, tag, 30, 40), 'portrait', 30, 40);
+    await rejected(extraChunk(portrait, 'JUNK'), 'portrait', 92, 'metadata');
   });
   await check('reject-alpha-and-animation', async () => {
     await rejected(await fixture(30, 40, 120), 'portrait', 92, 'alpha');

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const requiredCases = [
   'full-lossless-decode-and-lossy-reencode', 'explicit-qualities', 'avatar-and-no-resize', 'maximum-dimensions',
-  'reject-invalid-geometry', 'reject-private-and-color-metadata', 'reject-alpha-and-animation',
+  'reject-invalid-geometry', 'strip-standard-input-metadata-and-reject-unknown-chunks', 'reject-alpha-and-animation',
   'real-decoder-rejects-plausible-header', 'reject-size-format-and-trailing-data',
   'output-budget-no-silent-quality-fallback', 'recovery-after-rejection-and-repeated-isolation',
   'final-preview-save-byte-equality-and-idempotency', 'simultaneous-canonical-validation-and-normalization',
