@@ -384,7 +384,12 @@ function SummaryV1({
         </div>
 
         {/* Keyed by period so the list slides in from the side of the tab that was chosen. */}
-        <div key={active} className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : undefined}>
+        {/* Entering the Boletim: the subjects rise in one after another; switching trimesters
+            keeps the sideways slide. */}
+        <div
+          key={active}
+          className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : 'pa-list-enter'}
+        >
         <ListBox
           aria-label="Disciplinas publicadas"
           selectionMode="none"
