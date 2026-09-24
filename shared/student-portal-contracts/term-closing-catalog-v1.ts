@@ -30,6 +30,12 @@ export const TERM_CLOSING_CATALOG_V1 = {
     'Houve atividades não realizadas neste trimestre, e elas fizeram falta.',
     'Atividades que ficaram para trás pesaram no seu resultado.',
   ],
+  // Exactly one activity not done (owner decision 2026-09-24: no plural for a single one).
+  'weight.not-done-one': [
+    'Uma atividade ficou sem ser feita, e isso pesou.',
+    'Houve uma atividade não realizada neste trimestre, e ela fez falta.',
+    'Uma atividade que ficou para trás pesou no seu resultado.',
+  ],
   'weight.activities': [
     'As atividades do dia a dia foram um desafio para você.',
     'As atividades ao longo do trimestre foram o principal ponto de atenção.',
@@ -127,6 +133,11 @@ export const TERM_CLOSING_CATALOG_V1 = {
     'Há atividades não realizadas neste trimestre.',
     'Algumas atividades ficaram sem ser feitas até agora.',
     'Atividades não realizadas estão pesando no seu andamento.',
+  ],
+  'progress.weight.not-done-one': [
+    'Há uma atividade não realizada neste trimestre.',
+    'Uma atividade ficou sem ser feita até agora.',
+    'Uma atividade não realizada está pesando no seu andamento.',
   ],
   'progress.weight.activities': [
     'As atividades do dia a dia estão sendo um desafio para você.',

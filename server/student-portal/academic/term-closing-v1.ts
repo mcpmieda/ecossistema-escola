@@ -75,7 +75,8 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
     ? ratio(outcome.qualitativeOperationalMilli, outcome.expectedQualitativeMaximumMilli)
     : null;
   // D1: an observed blank is "não fez"; a blank parallel exam never generates a message.
-  const notDone = input.instruments.some((item) => item.slot !== 3 && item.observed && item.value === null);
+  const notDoneCount = notDoneCountV1(input.instruments);
+  const notDone = notDoneCount > 0;
   const parallelDone = bySlot.get(3)?.value !== null && bySlot.get(3)?.value !== undefined;
   const weakAssessments = assessmentRatio < minimumRatio;
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
@@ -93,13 +94,13 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
       mode: 'conclusion',
       level: 'attention',
       conclusion: 'conclusion.recovery',
-      weight: weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio),
+      weight: weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio),
       ...strengthV1(parallelDone, notDone, hasQualitative, assessmentRatio, qualitativeRatio, weakAssessments, weakActivities),
       action: 'action.recovery',
     };
   if (level === 'good') return { period, mode: 'conclusion', level, conclusion: term === 3 ? 'line.year-good' : 'line.good' };
 
-  const weight = weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
+  const weight = weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
   return {
     period,
     mode: 'conclusion',
@@ -130,7 +131,8 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
   const assessmentRatio = sum(assessments, 'value') / sum(assessments, 'maximum');
   const qualitativeRatio = qualitative.length ? sum(qualitative, 'value') / sum(qualitative, 'maximum') : null;
   const totalRatio = sum(recorded, 'value') / sum(recorded, 'maximum');
-  const notDone = input.instruments.some((item) => item.slot !== 3 && item.observed && item.value === null);
+  const notDoneCount = notDoneCountV1(input.instruments);
+  const notDone = notDoneCount > 0;
   const parallelDone = input.instruments.some((item) => item.slot === 3 && item.value !== null);
   const weakAssessments = assessmentRatio < minimumRatio;
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
@@ -141,7 +143,7 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
         ? 'point'
         : 'good';
   if (level === 'good') return { period, mode: 'progress', level, conclusion: 'progress.line.good' };
-  const weight = weightV1(notDone, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
+  const weight = weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
   const { strength } = strengthV1(
     parallelDone,
     notDone,
@@ -163,15 +165,24 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
   };
 }
 
-/** Priority: missing work, then assessments, then activities; otherwise the weaker component (R10). */
+/** Observed blanks ("não fez"), never counting the parallel exam (D1). */
+function notDoneCountV1(instruments: readonly TermClosingInstrumentV1[]): number {
+  return instruments.filter((item) => item.slot !== 3 && item.observed && item.value === null).length;
+}
+
+/**
+ * Priority: missing work, then assessments, then activities; otherwise the weaker component (R10).
+ * A single missing activity reads in the singular (owner decision 2026-09-24).
+ */
 function weightV1(
-  notDone: boolean,
+  notDoneCount: number,
   weakAssessments: boolean,
   weakActivities: boolean,
   assessmentRatio: number,
   qualitativeRatio: number | null,
 ): TermClosingCodeV1 {
-  if (notDone) return 'weight.not-done';
+  if (notDoneCount === 1) return 'weight.not-done-one';
+  if (notDoneCount > 1) return 'weight.not-done';
   if (weakAssessments) return 'weight.assessments';
   if (weakActivities) return 'weight.activities';
   return qualitativeRatio !== null && qualitativeRatio < assessmentRatio
