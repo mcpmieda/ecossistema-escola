@@ -72,6 +72,7 @@ it('exercises a loaded HeroUI image, then an actual error, then a new source wit
   await waitFor(() => expect(preloaders).toHaveLength(1));
   fireEvent.load(preloaders[0]!);
   await waitFor(() => expect(view.container.querySelector('img')?.getAttribute('src')).toBe('blob:first'));
+  expect(view.container.querySelector('img')?.style.objectFit).toBe('cover');
   fireEvent.error(view.container.querySelector('img')!);
   await waitFor(() => expect(view.container.querySelector('img')).toBeNull());
   const circle = screen.getByRole('img', { name: 'Foto do aluno' });

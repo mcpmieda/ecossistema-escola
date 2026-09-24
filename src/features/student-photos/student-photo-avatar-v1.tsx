@@ -20,7 +20,7 @@ export function StudentPhotoAvatarV1({ identityKey, photo, label = 'Foto do alun
   const backgroundColor = `hsl(${photoFallbackHueV1(identityKey)} 48% 44%)`;
   return <Avatar key={imageKey + ':' + (src ? 'image' : 'fallback')} size={size} className={className} role={decorative ? undefined : "img"} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined}
     style={{ backgroundColor, borderRadius: '50%' }}>
-    {src ? <Avatar.Image src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(imageKey)} /> : null}
+    {src ? <Avatar.Image src={src} alt="" loading="lazy" decoding="async" style={{ objectFit: 'cover' }} onError={() => setFailed(imageKey)} /> : null}
     <Avatar.Fallback aria-hidden="true" style={{ backgroundColor }}><span /></Avatar.Fallback>
   </Avatar>;
 }
