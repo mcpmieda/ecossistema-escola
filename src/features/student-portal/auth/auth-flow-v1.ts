@@ -22,16 +22,15 @@ export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
   needsRisk: false,
   revision: 0,
 };
-const failureMessage = (error: unknown) =>
-  error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
-    ? 'Muitas tentativas. Aguarde antes de tentar novamente.'
-    : error instanceof PortalClientErrorV1 && error.state === 'access-closed'
-      ? 'Acesso ao Portal fechado.'
-    : error instanceof PortalClientErrorV1 && error.state === 'unavailable'
-      ? 'O serviço de acesso está temporariamente indisponível. Tente novamente.'
-      : error instanceof PortalClientErrorV1 && error.state === 'network-error'
-        ? 'Não foi possível conectar. Tente novamente.'
-        : 'Não foi possível entrar. Confira os dados e tente novamente.';
+function failureMessage(error: unknown): string {
+  if (error instanceof PortalClientErrorV1) {
+    if (error.state === 'rate-limited') return 'Muitas tentativas. Aguarde antes de tentar novamente.';
+    if (error.state === 'access-closed') return 'Acesso ao Portal fechado.';
+    if (error.state === 'unavailable') return 'O serviço de acesso está temporariamente indisponível. Tente novamente.';
+    if (error.state === 'network-error') return 'Não foi possível conectar. Tente novamente.';
+  }
+  return 'Não foi possível entrar. Confira os dados e tente novamente.';
+}
 
 /** Only presentation state is published. QR and one-use proof stay in this short-lived closure. */
 export function createStudentAuthFlowV1(
