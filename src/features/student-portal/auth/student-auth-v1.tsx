@@ -19,6 +19,17 @@ import './student-auth-v1.css';
 
 const SECRET_REVEAL_MS_V1 = 1200;
 
+/**
+ * After the last digit: close the number keyboard (blur) and, once it has gone, bring the main
+ * button into view only if it is hidden ('nearest' never jumps a visible button).
+ */
+function settleAfterTypingV1(input: HTMLInputElement | null) {
+  const button = input?.closest('form')?.querySelector<HTMLElement>('.pa-auth-submit');
+  input?.blur();
+  const smooth = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => button?.scrollIntoView?.({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' }), 300);
+}
+
 function NumericCredentialV1({
   label,
   length,
@@ -37,14 +48,22 @@ function NumericCredentialV1({
   secret?: boolean;
   disabled?: boolean;
   inputRef?: Ref<HTMLInputElement>;
-  onComplete?: () => void;
+  onComplete?: (input: HTMLInputElement | null) => void;
   autoFocus?: boolean;
 }>) {
   const id = useId();
+  const hint = useId();
   // The first field of each step takes the focus, so the phone opens its number keyboard at once.
+  // iOS refuses focus that does not follow a tap; then the field says to tap it.
   const own = useRef<HTMLInputElement>(null);
+  const [needsTap, setNeedsTap] = useState(false);
   useEffect(() => {
-    if (autoFocus) own.current?.focus({ preventScroll: true });
+    if (!autoFocus) return;
+    own.current?.focus({ preventScroll: true });
+    const check = setTimeout(() => {
+      if (own.current && document.activeElement !== own.current) setNeedsTap(true);
+    }, 150);
+    return () => clearTimeout(check);
   }, [autoFocus]);
   // Secret digits: only the one just typed shows, and it turns into * after a short pause, on
   // deletion or when the field loses focus.
@@ -71,11 +90,13 @@ function NumericCredentialV1({
           if (typeof inputRef === 'function') inputRef(node);
           else if (inputRef) inputRef.current = node;
         }}
-        onComplete={onComplete}
+        onComplete={() => onComplete?.(own.current)}
         id={id}
         isDisabled={disabled}
+        onFocus={() => setNeedsTap(false)}
         onBlur={() => setRevealed(null)}
         aria-label={label}
+        aria-describedby={needsTap ? hint : undefined}
         value={value}
         onChange={(next) => {
           if (!/^\d*$/u.test(next)) return;
@@ -100,6 +121,11 @@ function NumericCredentialV1({
           </>
         ) : null}
       </InputOTP>
+      {needsTap ? (
+        <p id={hint} className="pa-credential-tap">
+          Toque nos quadradinhos para digitar
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -299,7 +325,7 @@ function CredentialFieldsV1({
           value={value}
           onChange={setValue}
           onComplete={
-            state.step === 'create' ? () => confirmationInput.current?.focus() : undefined
+            state.step === 'create' ? () => confirmationInput.current?.focus() : settleAfterTypingV1
           }
           // Only the sign-in password is hidden; while creating one the student sees both
           // fields to compare them (owner decision).
@@ -315,6 +341,7 @@ function CredentialFieldsV1({
           length={6}
           value={confirmation}
           onChange={setConfirmation}
+          onComplete={settleAfterTypingV1}
           disabled={state.pending}
         />
       ) : null}
@@ -361,13 +388,16 @@ function CredentialFormV1({
   const [riskToken, setRiskToken] = useState<string | null>(null);
   const [validation, setValidation] = useState<string>();
   const confirmationInput = useRef<HTMLInputElement>(null);
-  const [now, setNow] = useState(Date.now);
+  // One timer at the end of a server block (the countdown ticks on its own), instead of
+  // re-rendering the whole form every second.
+  const [blocked, setBlocked] = useState(() => !!state.retryAt && state.retryAt > Date.now());
   useEffect(() => {
-    if (!state.retryAt || state.retryAt <= Date.now()) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const remaining = state.retryAt ? state.retryAt - Date.now() : 0;
+    setBlocked(remaining > 0);
+    if (remaining <= 0) return;
+    const timer = setTimeout(() => setBlocked(false), remaining);
+    return () => clearTimeout(timer);
   }, [state.retryAt]);
-  const blocked = !!state.retryAt && state.retryAt > now;
   const needsRisk = state.step === 'risk' || state.needsRisk;
   const valid = credentialValidV1(state, value, confirmation);
   const submit = () => {

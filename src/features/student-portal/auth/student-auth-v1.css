@@ -13,9 +13,6 @@
   display: block;
   padding: 0 0 0.35rem;
 }
-.pa-auth-card .pa-auth-eyebrow {
-  margin: 0 0 0.55rem;
-}
 .pa-auth-title {
   margin: 0;
 }
@@ -79,25 +76,75 @@
   min-width: 0;
   text-align: center;
 }
+/* The hidden input spans only the boxes, so its caret/selection never shows beside them. */
 .pa-credential-field [data-input-otp-container] {
-  justify-content: center;
+  width: fit-content;
+  margin-inline: auto;
+}
+/*
+ * input-otp injects these rules with a <style> element, which the Portal's CSP (style-src 'self')
+ * blocks; without them Android shows the native selection next to the boxes and iOS mis-sizes the
+ * hidden input. Same rules, shipped from our own stylesheet.
+ */
+[data-input-otp]::selection {
+  background: transparent !important;
+  color: transparent !important;
+}
+[data-input-otp]:autofill,
+[data-input-otp]:-webkit-autofill {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  color: transparent !important;
+  opacity: 0 !important;
+  -webkit-text-fill-color: transparent !important;
+}
+@supports (-webkit-touch-callout: none) {
+  [data-input-otp] {
+    right: 1px !important;
+    left: -1px !important;
+    font-weight: 100 !important;
+    font-stretch: ultra-condensed;
+    letter-spacing: -0.6em !important;
+    font-optical-sizing: none !important;
+  }
+}
+[data-input-otp] + * {
+  pointer-events: all !important;
+}
+.pa-auth-card .pa-credential-tap {
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  animation: pa-credential-tap 1.6s ease-in-out infinite;
+}
+@keyframes pa-credential-tap {
+  50% {
+    opacity: 0.45;
+  }
 }
 .pa-auth-form[aria-busy] .pa-credential-field {
   opacity: 0.55;
   transition: opacity 0.2s;
 }
+/*
+ * Masked digit: the real digit is made transparent (never shrunk to font-size 0, which phones with
+ * a minimum font size ignore) and a drawn asterisk sits exactly in the middle of the box.
+ */
 .pa-credential-field [data-masked] [data-slot='input-otp-slot-value'] {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
-/* A drawn asterisk, so it sits exactly in the middle of the box (a text '*' rides high). */
 .pa-credential-field [data-masked] [data-slot='input-otp-slot-value']::after {
   content: '';
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 0.95rem;
   height: 0.95rem;
-  background: currentColor;
+  margin: auto;
+  background: var(--foreground, #0f172a);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round'%3E%3Cpath d='M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round'%3E%3Cpath d='M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7'/%3E%3C/svg%3E") center / contain no-repeat;
 }
@@ -356,6 +403,7 @@
   border-radius: 1rem;
   background: #eff6ff;
   color: #1e3a8a;
+  font-size: var(--text-sm);
   box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 .pa-camera-blocked-tip svg {
@@ -520,7 +568,8 @@
   .pa-auth-notice,
   .pa-camera-blocked,
   .pa-access-card-qr::after,
-  .pa-auth-form--retry [data-slot='input-otp-group'] {
+  .pa-auth-form--retry [data-slot='input-otp-group'],
+  .pa-auth-card .pa-credential-tap {
     animation: none;
   }
 }
@@ -536,7 +585,7 @@
   letter-spacing: -0.02em;
 }
 .pa-auth-card .pa-auth-eyebrow {
-  margin-bottom: 0.35rem;
+  margin: 0 0 0.35rem;
   color: var(--accent);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -564,7 +613,6 @@
   font-size: var(--text-base);
   font-weight: 600;
 }
-.pa-camera-blocked-steps li,
-.pa-auth-card .pa-camera-blocked-tip {
+.pa-camera-blocked-steps li {
   font-size: var(--text-sm);
 }

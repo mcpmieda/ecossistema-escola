@@ -114,6 +114,9 @@ export const selfResponseV1 = z
     generatedAt: instantV1,
     subjects: z.array(subjectV1).max(100),
     closingSummary: termClosingSummaryV1.optional(),
+    // One summary per closed trimester (#1132 follow-up). Accepted first, emitted by the server in
+    // a later deploy, so a page still open with the previous bundle never sees an unknown key.
+    closingSummaries: z.array(termClosingSummaryV1).max(3).optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

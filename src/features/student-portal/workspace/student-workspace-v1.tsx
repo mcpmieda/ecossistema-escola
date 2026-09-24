@@ -302,6 +302,10 @@ function SummaryV1({
       ? finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1]
       : null;
   const inRecovery = subjects.filter((subject) => subject.annualSituation === 'recovery-pending');
+  // Each trimester tab shows its own summary, never another trimester's.
+  const activeSummary =
+    data.closingSummaries?.find((summary) => summary.period === active) ??
+    (data.closingSummary?.period === active ? data.closingSummary : undefined);
 
   return (
     <div className="pa-workspace-view">
@@ -419,9 +423,9 @@ function SummaryV1({
         </ListBox>
         </div>
         {/* Below the marks, like the subject closing under its breakdown. */}
-        {data.closingSummary ? (
+        {activeSummary ? (
           <TermClosingSummaryCardV1
-            summary={data.closingSummary}
+            summary={activeSummary}
             subjects={subjects}
             accountId={data.profile.accountId}
           />

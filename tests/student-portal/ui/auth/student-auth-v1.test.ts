@@ -212,16 +212,21 @@ it('shows only the digit just typed, then masks it after a pause, on deletion an
     );
   // Focused on arrival, so the phone opens its number keyboard at once.
   await waitFor(() => expect(document.activeElement).toBe(password));
-  await s.user.type(password, '001234');
-  expect(masks()).toEqual([true, true, true, true, true, false]);
+  await s.user.type(password, '00123');
+  expect(masks()).toEqual([true, true, true, true, false, true]);
   expect(password.getAttribute('type')).toBe('password');
   await act(() => new Promise((resolve) => setTimeout(resolve, 1300)));
   expect(masks().every(Boolean)).toBe(true);
   await s.user.keyboard('{Backspace}');
   expect(masks().every(Boolean)).toBe(true);
   await s.user.keyboard('9');
-  expect(masks()).toEqual([true, true, true, true, true, false]);
+  expect(masks()).toEqual([true, true, true, true, false, true]);
   await s.user.tab();
+  expect(masks().every(Boolean)).toBe(true);
+  // The last digit completes the field: the keyboard closes and every digit is masked.
+  await s.user.click(password);
+  await s.user.keyboard('4');
+  await waitFor(() => expect(document.activeElement).not.toBe(password));
   expect(masks().every(Boolean)).toBe(true);
 });
 
@@ -281,6 +286,44 @@ it('explains how to lift a camera the browser already reports as denied', async 
     expect(screen.getByRole('button', { name: 'Tentar de novo com a câmera' })).toBeTruthy();
     await userEvent.setup().click(screen.getByRole('button', { name: 'iPhone' }));
     expect(screen.getByText('Ajustes do Site')).toBeTruthy();
+  } finally {
+    if (descriptor) Object.defineProperty(navigator, 'permissions', descriptor);
+    else Reflect.deleteProperty(navigator, 'permissions');
+  }
+});
+
+it('closes the number keyboard after the last digit so the buttons show', async () => {
+  const s = view();
+  const pin = await screen.findByLabelText('Ano de nascimento');
+  await waitFor(() => expect(document.activeElement).toBe(pin));
+  await s.user.type(pin, '2012');
+  await waitFor(() => expect(document.activeElement).not.toBe(pin));
+  expect(screen.getByRole('button', { name: 'Continuar' })).toBeTruthy();
+});
+
+it('asks to tap the boxes when the phone refuses the automatic focus (iOS)', async () => {
+  const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => undefined);
+  view();
+  expect(await screen.findByText('Toque nos quadradinhos para digitar')).toBeTruthy();
+  focus.mockRestore();
+});
+
+it('lifts the blocked-camera help when the camera is allowed in the settings', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, 'permissions');
+  const status = Object.assign(new EventTarget(), { state: 'denied' as PermissionState });
+  Object.defineProperty(navigator, 'permissions', {
+    configurable: true,
+    value: { query: vi.fn().mockResolvedValue(status) },
+  });
+  try {
+    render(createElement(StudentQrReaderV1, { onQr: vi.fn() }));
+    expect(await screen.findByRole('heading', { name: 'Você bloqueou a câmera' })).toBeTruthy();
+    act(() => {
+      status.state = 'prompt';
+      status.dispatchEvent(new Event('change'));
+    });
+    expect(screen.queryByRole('heading', { name: 'Você bloqueou a câmera' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   } finally {
     if (descriptor) Object.defineProperty(navigator, 'permissions', descriptor);
     else Reflect.deleteProperty(navigator, 'permissions');
