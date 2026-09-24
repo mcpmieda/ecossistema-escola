@@ -106,6 +106,8 @@ describe('student authentication forms', () => {
     await s.user.keyboard('4');
     await waitFor(() => expect(document.activeElement).toBe(confirmation));
     await s.user.keyboard('001235');
+    // Creating a password shows both fields so the student can compare them.
+    expect(document.querySelectorAll('[data-masked]')).toHaveLength(0);
     await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
     expect(screen.getByRole('alert').textContent).toContain('As senhas precisam ser iguais');
     expect(s.client.activate).not.toHaveBeenCalled();
@@ -208,6 +210,8 @@ it('shows only the digit just typed, then masks it after a pause, on deletion an
     Array.from(document.querySelectorAll('[data-slot="input-otp-slot"]')).map((slot) =>
       slot.hasAttribute('data-masked'),
     );
+  // Focused on arrival, so the phone opens its number keyboard at once.
+  await waitFor(() => expect(document.activeElement).toBe(password));
   await s.user.type(password, '001234');
   expect(masks()).toEqual([true, true, true, true, true, false]);
   expect(password.getAttribute('type')).toBe('password');

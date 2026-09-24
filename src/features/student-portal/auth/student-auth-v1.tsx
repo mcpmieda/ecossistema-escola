@@ -27,6 +27,7 @@ function NumericCredentialV1({
   disabled = false,
   inputRef,
   onComplete,
+  autoFocus = false,
 }: Readonly<{
   label: string;
   length: 4 | 6;
@@ -36,8 +37,14 @@ function NumericCredentialV1({
   disabled?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   onComplete?: () => void;
+  autoFocus?: boolean;
 }>) {
   const id = useId();
+  // The first field of each step takes the focus, so the phone opens its number keyboard at once.
+  const own = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus) own.current?.focus({ preventScroll: true });
+  }, [autoFocus]);
   // Secret digits: only the one just typed shows, and it turns into * after a short pause, on
   // deletion or when the field loses focus.
   const [revealed, setRevealed] = useState<number | null>(null);
@@ -58,7 +65,11 @@ function NumericCredentialV1({
     <div className="pa-credential-field" data-secret={secret || undefined}>
       <label htmlFor={id}>{label}</label>
       <InputOTP
-        ref={inputRef}
+        ref={(node: HTMLInputElement | null) => {
+          own.current = node;
+          if (typeof inputRef === 'function') inputRef(node);
+          else if (inputRef) inputRef.current = node;
+        }}
         onComplete={onComplete}
         id={id}
         isDisabled={disabled}
@@ -140,7 +151,7 @@ function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text:
     return {
       tone: 'wrong',
       title: 'Não deu certo',
-      text: 'Confira os números e tente de novo. Se esqueceu a senha, toque em “Esqueci minha senha”.',
+      text: 'Confira os números e tente de novo.',
     };
   return { tone: 'info', title: message, text: '' };
 }
@@ -231,20 +242,6 @@ function KeepConnectedV1({
   );
 }
 
-function ForgotPasswordV1() {
-  const [open, setOpen] = useState(false);
-  return open ? (
-    <p className="pa-forgot-answer" role="status">
-      <b>Sem problema.</b> Procure a secretaria da escola com o seu cartão de acesso. Eles liberam
-      um novo primeiro acesso, e você cria uma senha nova.
-    </p>
-  ) : (
-    <button type="button" className="pa-forgot" onClick={() => setOpen(true)}>
-      Esqueci minha senha
-    </button>
-  );
-}
-
 function CredentialFieldsV1({
   state,
   value,
@@ -293,11 +290,13 @@ function CredentialFieldsV1({
           onComplete={
             state.step === 'create' ? () => confirmationInput.current?.focus() : undefined
           }
-          secret={state.step !== 'pin'}
+          // Only the sign-in password is hidden; while creating one the student sees both
+          // fields to compare them (owner decision).
+          secret={state.step === 'password'}
           disabled={state.pending}
+          autoFocus
         />
       ) : null}
-      {state.step === 'password' ? <ForgotPasswordV1 /> : null}
       {showConfirmation ? (
         <NumericCredentialV1
           label="Confirmar senha"
@@ -305,7 +304,6 @@ function CredentialFieldsV1({
           length={6}
           value={confirmation}
           onChange={setConfirmation}
-          secret
           disabled={state.pending}
         />
       ) : null}
@@ -432,7 +430,7 @@ const STEPS_V1: Partial<Record<StudentAuthStateV1['step'], { eyebrow: string; in
   scan: { eyebrow: 'Passo 1 · Seu cartão', index: 1 },
   pin: { eyebrow: 'Passo 2 · Quem é você', index: 2 },
   create: { eyebrow: 'Passo 3 · Sua senha', index: 3 },
-  password: { eyebrow: 'Bem-vindo de volta' },
+  password: { eyebrow: 'Seja bem-vindo' },
   risk: { eyebrow: 'Só um instante' },
 };
 
