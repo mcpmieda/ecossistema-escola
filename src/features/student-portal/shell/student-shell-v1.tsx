@@ -225,9 +225,10 @@ export function StudentProfileV1({
   );
 }
 
-export type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'maintenance' | 'unavailable';
+export type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
 const messages = {
   empty: { title: 'Notas ainda não publicadas', description: '', status: 'default', action: '' },
+  closed: { title: 'Acesso ao Portal fechado', description: '', status: 'warning', action: 'Tentar novamente' },
   error: {
     title: 'Não foi possível carregar seus dados',
     description: '',
@@ -345,6 +346,8 @@ export function StudentPortalPageV1({
     const kind =
       load.error.state === 'unauthenticated'
         ? 'expired'
+        : load.error.state === 'access-closed'
+          ? 'closed'
         : load.error.state === 'unavailable' || load.error.state === 'forbidden'
           ? 'unavailable'
           : 'error';

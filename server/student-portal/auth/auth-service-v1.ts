@@ -36,6 +36,11 @@ const denied = (requestId: string): FailureV1 => ({
   requestId,
   state: 'unauthenticated',
 });
+const accessClosed = (requestId: string): FailureV1 => ({
+  contractVersion: 1,
+  requestId,
+  state: 'access-closed',
+});
 function required(requestId: string, next: 'pin' | 'password' | 'risk') {
   return challengeResponseV1.parse({
     contractVersion: 1,
@@ -201,15 +206,19 @@ async function qrAuthStateV1(
   const locked = await lockedCredentialV1(store, accountId);
   if (!locked) return { result: denied(requestId) };
   const { account, credential } = locked;
-  const context = await accessContextV1(sql, tx, store, accountId);
-  if (!context)
-    return { result: await auditedDenied(store, account, await authNowV1(tx), requestId) };
   if (
     credential?.state !== 'active' ||
     credential.credentialId !== qr.credentialId ||
     credential.keyVersion !== qr.keyVersion
   )
-    return { result: await auditedDenied(store, context.account, context.now, requestId) };
+    return { result: await auditedDenied(store, account, await authNowV1(tx), requestId) };
+  const context = await accessContextV1(sql, tx, store, accountId, true);
+  if (!context)
+    return { result: await auditedDenied(store, account, await authNowV1(tx), requestId) };
+  if (!context.accessOpen) {
+    await authAuditV1(store, account, 'login-failed', context.now, requestId, account.id, 'denied');
+    return { result: accessClosed(requestId) };
+  }
   return { accountId, context, credential, attempt: await attempts(store, context) };
 }
 

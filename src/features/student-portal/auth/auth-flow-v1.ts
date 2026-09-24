@@ -25,6 +25,8 @@ export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
 const failureMessage = (error: unknown) =>
   error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
     ? 'Muitas tentativas. Aguarde antes de tentar novamente.'
+    : error instanceof PortalClientErrorV1 && error.state === 'access-closed'
+      ? 'Acesso ao Portal fechado.'
     : error instanceof PortalClientErrorV1 && error.state === 'unavailable'
       ? 'O serviço de acesso está temporariamente indisponível. Tente novamente.'
       : error instanceof PortalClientErrorV1 && error.state === 'network-error'

@@ -29,5 +29,6 @@ export const challengeResponseV1 = z.discriminatedUnion('state', [
 export const sessionResponseV1 = z.object({ ...input, requestId: portalIdV1, state: z.literal('authenticated'), expiresAt: instantV1, persistent: z.boolean() }).strict();
 export const logoutResponseV1 = z.object({ ...input, requestId: portalIdV1, state: z.literal('logged-out') }).strict();
 export const SESSION_COOKIE_V1 = { name: '__Host-student_portal_session', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' } as const;
+export const ACCESS_CLOSED_ACCEPT_HEADER_V1 = 'X-Student-Portal-Access-Status';
 export const AUTH_BODY_BYTES_V1 = 8192;
 export type ActivateRequestV1 = z.infer<typeof activateRequestV1>;

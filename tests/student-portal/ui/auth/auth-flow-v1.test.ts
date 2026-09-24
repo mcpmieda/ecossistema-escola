@@ -20,6 +20,14 @@ function setup() {
   return { client, flow, publish, success, state: () => publish.mock.lastCall![0] };
 }
 describe('student authentication state machine', () => {
+  it('shows a closed access message without treating it as a wrong credential', async () => {
+    const s = setup();
+    s.client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('access-closed', 403));
+    await s.flow.begin(SYNTHETIC_QR_V1);
+    expect(s.state()).toMatchObject({ step: 'scan', message: 'Acesso ao Portal fechado.' });
+    expect(s.success).not.toHaveBeenCalled();
+    s.flow.dispose();
+  });
   it('lets the server choose PIN, creates a one-use password and sends explicit false', async () => {
     const s = setup();
     await s.flow.begin(SYNTHETIC_QR_V1);

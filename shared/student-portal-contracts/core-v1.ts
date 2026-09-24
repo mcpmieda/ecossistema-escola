@@ -22,12 +22,12 @@ export const publicationStateV1 = z.enum(['no-data', 'available', 'published', '
 export const revisionV1 = z.string().min(1).max(128).regex(/^[A-Za-z0-9:_-]+$/u);
 export const revisionsV1 = z.object({ dataVersion: revisionV1, policyVersion: revisionV1, publicationVersion: revisionV1 }).strict();
 export const ERROR_HTTP_V1 = {
-  'invalid-request': 400, unauthenticated: 401, forbidden: 403, conflict: 409,
+  'invalid-request': 400, unauthenticated: 401, forbidden: 403, 'access-closed': 403, conflict: 409,
   'body-too-large': 413, 'rate-limited': 429, unavailable: 503,
 } as const;
 export const failureV1 = z.object({
   contractVersion: z.literal(1), requestId: portalIdV1,
-  state: z.enum(['invalid-request', 'unauthenticated', 'forbidden', 'conflict', 'body-too-large', 'rate-limited', 'unavailable']),
+  state: z.enum(['invalid-request', 'unauthenticated', 'forbidden', 'access-closed', 'conflict', 'body-too-large', 'rate-limited', 'unavailable']),
   retryAfterSeconds: z.number().int().positive().max(86400).optional(),
 }).strict();
 export const healthV1 = z.object({ contractVersion: z.literal(1), state: z.enum(['ok', 'unavailable']) }).strict();

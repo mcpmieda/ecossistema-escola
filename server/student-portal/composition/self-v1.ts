@@ -76,7 +76,7 @@ export async function servePortalSelfV1(
         ),
       );
     };
-    const read: SessionServiceV1['read'] = async (token, requestId, expectedAccountId) => {
+    const read: SessionServiceV1['read'] = async (token, requestId, expectedAccountId, includeClosed) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);
@@ -85,6 +85,7 @@ export async function servePortalSelfV1(
           token,
           requestId,
           expectedAccountId,
+          includeClosed,
         ),
       );
     };

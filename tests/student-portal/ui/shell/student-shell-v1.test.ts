@@ -78,6 +78,13 @@ describe('student shell and canonical profile', () => {
     expect(screen.getByRole('alert').textContent).toContain('Portal temporariamente indisponível');
     expect(screen.queryByText('Estudante de exemplo')).toBeNull();
   });
+  it('shows a closed access state without retaining protected content or calling it missing grades', () => {
+    const view = render(page());
+    view.rerender(page({ load: { state: 'error', error: new PortalClientErrorV1('access-closed', 403) } }));
+    expect(screen.getByRole('alert').textContent).toContain('Acesso ao Portal fechado');
+    expect(screen.queryByText('Estudante de exemplo')).toBeNull();
+    expect(screen.queryByText('Notas ainda não publicadas')).toBeNull();
+  });
   it('shows no portrait placeholder without a photo, preserves long names and suppresses a global result for ASSISTIDO', () => {
     const profile = {
       ...SYNTHETIC_SELF_V1.profile,

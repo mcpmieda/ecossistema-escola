@@ -11,6 +11,7 @@ import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { installResetSchemaFixtureV1 } from '../year-reset/schema-fixture';
 import { servePortalAuthV1 } from '../../../server/student-portal/http/auth/handler-v1';
+import { ACCESS_CLOSED_ACCEPT_HEADER_V1 } from '../../../shared/student-portal-contracts/auth-v1';
 
 const ACTOR = '11111111-1111-4111-8111-111111111111';
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
@@ -526,7 +527,58 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     expect(await sessions.read(signed.token, id())).toBeNull();
     expect(
       await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: true }, id()),
-    ).toMatchObject({ state: 'unauthenticated' });
+    ).toMatchObject({ state: 'access-closed' });
+  });
+
+  it('discloses school closure only to a proven QR or valid session and keeps legacy responses generic', async () => {
+    const signed = await activate();
+    const current = await policy.read(SCHOOL);
+    await policy.mutate(ACTOR, {
+      contractVersion: 1, operation: 'settings-set', scope: SCHOOL,
+      expectedVersion: current.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      value: { accessEnabled: false },
+    });
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'access-closed' });
+    expect(await sessions.read(signed.token, id())).toBeNull();
+    expect(await sessions.read(signed.token, id(), undefined, true)).toMatchObject({ state: 'access-closed' });
+    expect(await sessions.read(signed.token, id(), id(), true)).toBeNull();
+
+    const challenge = (headers: Record<string, string>) => servePortalAuthV1(new Request(`${ORIGIN}/api/student/auth/challenge`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ contractVersion: 1, qr }),
+    }), 'production', ORIGIN, auth, sessions);
+    expect(await (await challenge({})).json()).toMatchObject({ state: 'unauthenticated' });
+    const disclosed = await challenge({ [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' });
+    expect(disclosed.status).toBe(403);
+    expect(await disclosed.json()).toMatchObject({ state: 'access-closed' });
+    const session = (headers: Record<string, string>) => servePortalAuthV1(new Request(`${ORIGIN}/api/student/session`, {
+      headers: { cookie: `__Host-student_portal_session=${signed.token}`, ...headers },
+    }), 'production', ORIGIN, auth, sessions);
+    expect((await session({})).status).toBe(401);
+    const closedSession = await session({ [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' });
+    expect(closedSession.status).toBe(403);
+    expect(await closedSession.json()).toMatchObject({ state: 'access-closed' });
+
+    const revoked = qr;
+    qr = (await qrService.command(ACTOR, await command('qr-regenerate', { confirmed: true }))).qr!;
+    expect(await auth.challenge({ contractVersion: 1, qr: revoked }, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await sessions.read(signed.token, id(), undefined, true)).toBeNull();
+    const school = await policy.read(SCHOOL);
+    await policy.mutate(ACTOR, {
+      contractVersion: 1, operation: 'settings-set', scope: SCHOOL,
+      expectedVersion: school.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      value: { accessEnabled: true },
+    });
+    const individual = { kind: 'account', academicYear: 2026, accountId } as const;
+    const own = await policy.read(individual);
+    await policy.mutate(ACTOR, {
+      contractVersion: 1, operation: 'settings-set', scope: individual,
+      expectedVersion: own.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      value: { accessEnabled: false },
+    });
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'access-closed' });
+    await qrService.command(ACTOR, await command('block', { blocked: true, confirmed: true }));
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'unauthenticated' });
   });
 
   it('revokes all sessions in a current class with CAS and idempotent receipt', async () => {
