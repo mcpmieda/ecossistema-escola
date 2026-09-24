@@ -1,6 +1,7 @@
 import {
   portalFailureV1,
   portalJsonV1,
+  portalDocumentNavigationAllowedV1,
   portalRequestOriginAllowedV1,
 } from '../../../server/student-portal/runtime/http-v1';
 import { FRONTEND_DIAGNOSTIC_ROUTE_V1 } from '../../../shared/frontend-diagnostic-v1';
@@ -13,10 +14,13 @@ interface PortalEdgeEnv {
 }
 
 export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) => {
-  if (!portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN))
-    return portalJsonV1(portalFailureV1('forbidden'), 403);
   const url = new URL(request.url);
   const document = url.pathname === '/' || url.pathname === '/access';
+  // The page itself opens from links in other sites/apps; everything else keeps the strict check.
+  const allowed = document
+    ? portalDocumentNavigationAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN)
+    : portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN);
+  if (!allowed) return portalJsonV1(portalFailureV1('forbidden'), 403);
   // Every extension Vite emits for the Portal must be listed here (cover art and logo are WebP).
   const asset = /^\/assets\/[A-Za-z0-9_.-]+\.(?:js|css|woff2?|png|svg|webp)$/u.test(url.pathname);
   if (document || asset) {
@@ -24,7 +28,10 @@ export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) 
       return portalJsonV1(portalFailureV1('invalid-request'), 400);
     if (!env.ASSETS) return portalJsonV1(portalFailureV1('unavailable'), 503);
     try {
-      if (document) url.pathname = '/';
+      if (document) {
+        url.pathname = '/';
+        url.search = ''; // tracking parameters never reach the static asset lookup
+      }
       const upstream = await env.ASSETS.fetch(new Request(url, { method: request.method }));
       if (upstream.status !== 200 || (asset && upstream.headers.get('Content-Type')?.includes('text/html')))
         return portalJsonV1(portalFailureV1('unavailable'), 404);
