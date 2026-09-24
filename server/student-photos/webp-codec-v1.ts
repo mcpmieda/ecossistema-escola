@@ -29,7 +29,7 @@ const statuses: readonly WebpCodecFailureV1[] = ['unavailable','input','dimensio
 function maxBytes(variant: WebpPhotoVariantV1): number {
   return variant === 'portrait' ? STUDENT_PHOTO_MAX_BYTES_V1 : 64 * 1024;
 }
-function preflight(bytes: Uint8Array, variant: WebpPhotoVariantV1) {
+function preflight(bytes: Uint8Array, variant: WebpPhotoVariantV1, allowInputMetadata = false) {
   let probe;
   try { probe = probePhotoSourceV1(bytes); }
   catch { throw new WebpCodecErrorV1('input'); }
@@ -41,8 +41,10 @@ function preflight(bytes: Uint8Array, variant: WebpPhotoVariantV1) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let offset = 12; offset < bytes.length;) {
     const tag = String.fromCharCode(...bytes.subarray(offset, offset + 4));
-    if (!['VP8 ','VP8L','VP8X','ALPH'].includes(tag)) throw new WebpCodecErrorV1('metadata');
-    if (tag === 'VP8X' && (bytes[offset + 8]! & ~0x10) !== 0) throw new WebpCodecErrorV1('metadata');
+    if (!['VP8 ','VP8L','VP8X','ALPH'].includes(tag)
+      && !(allowInputMetadata && ['ICCP','EXIF','XMP '].includes(tag))) throw new WebpCodecErrorV1('metadata');
+    if (tag === 'VP8X' && (bytes[offset + 8]! & ~(allowInputMetadata ? 0x3c : 0x10)) !== 0)
+      throw new WebpCodecErrorV1('metadata');
     const length = view.getUint32(offset + 4, true);
     offset += 8 + length + (length % 2);
   }
@@ -74,7 +76,8 @@ export class StudentWebpCodecV1 {
       throw new WebpCodecErrorV1('unavailable');
   }
   private async run<T>(input: Uint8Array, variant: WebpPhotoVariantV1, signal: AbortSignal,
-    work: (api: CodecExportsV1, bytes: Uint8Array, size: { width: number; height: number }) => T): Promise<T> {
+    work: (api: CodecExportsV1, bytes: Uint8Array, size: { width: number; height: number }) => T,
+    allowInputMetadata = false): Promise<T> {
     signal.throwIfAborted();
     if (!['portrait','avatar'].includes(variant) || !(input instanceof Uint8Array)
       || input.length < 20 || input.length > maxBytes(variant)) throw new WebpCodecErrorV1('input');
@@ -83,7 +86,7 @@ export class StudentWebpCodecV1 {
     this.busy = true;
     let api: CodecExportsV1 | undefined;
     try {
-      const size = preflight(bytes, variant);
+      const size = preflight(bytes, variant, allowInputMetadata);
       const instance = new WebAssembly.Instance(this.module, {
         wasi_snapshot_preview1: { proc_exit: () => { throw new WebpCodecErrorV1('unavailable'); } },
       });
@@ -127,6 +130,6 @@ export class StudentWebpCodecV1 {
         if (checked.width !== size.width || checked.height !== size.height) throw new WebpCodecErrorV1('dimensions');
         return { bytes: output, ...size };
       } catch (error) { output.fill(0); throw error; }
-    });
+    }, true);
   }
 }
