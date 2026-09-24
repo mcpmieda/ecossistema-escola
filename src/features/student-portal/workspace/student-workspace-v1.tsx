@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  Button,
   Card,
   Chip,
   Description,
@@ -13,6 +14,8 @@ import {
   BookOpenCheck,
   BookOpenText,
   Calculator,
+  ChevronLeft,
+  ChevronRight,
   Dumbbell,
   FlaskConical,
   Globe2,
@@ -243,14 +246,28 @@ function PageIntroV1({
   eyebrow,
   title,
   aside,
+  onBack,
 }: {
   icon: ReactNode;
   eyebrow: string;
   title: string;
   aside?: ReactNode;
+  onBack?: () => void;
 }) {
   return (
     <div className="pa-workspace-intro">
+      {onBack ? (
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          className="pa-workspace-back"
+          aria-label="Voltar para o boletim"
+          onPress={onBack}
+        >
+          <ChevronLeft size={20} aria-hidden="true" />
+        </Button>
+      ) : null}
       <span aria-hidden="true">{icon}</span>
       <div>
         <p className="pa-workspace-eyebrow">{eyebrow}</p>
@@ -367,7 +384,12 @@ function SummaryV1({
         </div>
 
         {/* Keyed by period so the list slides in from the side of the tab that was chosen. */}
-        <div key={active} className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : undefined}>
+        {/* Entering the Boletim: the subjects rise in one after another; switching trimesters
+            keeps the sideways slide. */}
+        <div
+          key={active}
+          className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : 'pa-list-enter'}
+        >
         <ListBox
           aria-label="Disciplinas publicadas"
           selectionMode="none"
@@ -414,6 +436,8 @@ function SummaryV1({
                     <StudentMarkV1 mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }} />
                   </strong>
                 )}
+                {/* Each row opens its discipline. */}
+                <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
               </ListBox.Item>
             );
           })}
@@ -503,6 +527,7 @@ function SubjectV1View({
   subject,
   subjects,
   onSubjectChange,
+  onBack,
   initialPeriod,
   accountId,
   academicState,
@@ -510,6 +535,7 @@ function SubjectV1View({
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
+  onBack: () => void;
   initialPeriod?: PeriodIdV1;
   accountId: string;
   academicState: SelfResponseV1['profile']['academicState'];
@@ -562,6 +588,7 @@ function SubjectV1View({
     <div className="pa-workspace-view">
       <PageIntroV1
         icon={<SubjectIconV1 label={subject.label} size={20} animated />}
+        onBack={onBack}
         eyebrow="Disciplina"
         title={subject.label}
         aside={
@@ -688,7 +715,7 @@ function SubjectV1View({
             )}
           </Card>
           ) : null}
-          {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} /> : null}
+          {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} subjectLabel={subject.label} /> : null}
           {period && closingOfV1(subject, active) ? (
             <TermClosingCardV1
               closing={closingOfV1(subject, active)!}
@@ -850,6 +877,7 @@ export function StudentPortalWorkspaceV1({
               subject={selectedSubject}
               subjects={subjects}
               onSubjectChange={selectSubject}
+              onBack={() => pushWorkspaceState('summary', selectedSubject.subjectId)}
               initialPeriod={openPeriod}
               accountId={data.profile.accountId}
               academicState={data.profile.academicState}

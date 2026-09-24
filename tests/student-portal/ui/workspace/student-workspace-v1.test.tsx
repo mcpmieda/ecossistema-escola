@@ -249,6 +249,7 @@ describe('student portal grade workspace', () => {
     await user.click(within(periods).getAllByRole('tab')[1]!);
     // 60 − (18,5 + 17,3) = 24,2 in the 3º tri.
     expect(screen.getByRole('heading', { name: 'Faltam 24,2 pontos' })).toBeTruthy();
+    expect(screen.getByText(/para fechar o ano em /u)).toBeTruthy();
     expect(screen.queryByText(/2º tri:/u)).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[2]!);
     expect(screen.queryByRole('heading', { name: /Faltam/u })).toBeNull();
@@ -321,4 +322,15 @@ describe('Fechamento do trimestre summary on the Boletim', () => {
     expect(screen.getByText(/Fechamento do 1º trimestre/u)).toBeTruthy();
     expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
   });
+});
+
+it('goes back to the Boletim from the arrow beside the discipline icon', async () => {
+  const data = renderWorkspace();
+  const user = userEvent.setup();
+  const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
+  const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
+  await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+  await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
+  expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('heading', { name: 'Minhas notas' })).toBeTruthy();
 });

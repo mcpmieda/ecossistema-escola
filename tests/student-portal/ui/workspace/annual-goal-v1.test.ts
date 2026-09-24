@@ -45,3 +45,13 @@ describe('Meta do ano (2º trimestre)', () => {
     expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), 'regular')).toBeNull();
   });
 });
+
+describe('subject name inside the Meta do ano sentence', () => {
+  it('turns published capitals into a readable name and keeps mixed case', async () => {
+    const { subjectInSentenceV1 } = await import('../../../../src/features/student-portal/workspace/annual-goal-v1');
+    expect(subjectInSentenceV1('MATEMÁTICA')).toBe('Matemática');
+    expect(subjectInSentenceV1('ED. FÍSICA')).toBe('Ed. Física');
+    expect(subjectInSentenceV1('PORTUGUÊS')).toBe('Português');
+    expect(subjectInSentenceV1('Língua Portuguesa')).toBe('Língua Portuguesa');
+  });
+});

@@ -62,11 +62,16 @@
   color: var(--pa-goal-accent);
   font-size: 1.35rem;
 }
+.pa-annual-goal-above {
+  position: relative;
+  height: 1.35rem;
+  margin-top: 0.7rem;
+}
 .pa-annual-goal-track {
   position: relative;
   display: flex;
   height: 0.7rem;
-  margin-top: 0.85rem;
+  margin-top: 0.3rem;
   overflow: hidden;
   border-radius: 999px;
   background: rgb(15 39 71 / 0.08);
@@ -103,16 +108,63 @@
 }
 .pa-annual-goal-scale {
   position: relative;
-  height: 1rem;
+  height: 2.2rem;
   margin-top: 0.3rem;
   color: #475569;
   font-size: 0.72rem;
   font-weight: 600;
 }
-.pa-annual-goal-scale > span {
+.pa-annual-goal-label {
   position: absolute;
-  left: 60%;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  line-height: 1.15;
+  white-space: nowrap;
   transform: translateX(-50%);
+}
+.pa-annual-goal-label b {
+  color: #0f2747;
+  font-size: 0.85rem;
+}
+.pa-annual-goal-label small {
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 500;
+}
+.pa-annual-goal-label--have b {
+  color: var(--pa-goal-accent);
+}
+/* Above the striped part: what is still missing, with a tick pointing at it. */
+.pa-annual-goal-label--need {
+  top: auto;
+  bottom: 0.1rem;
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+.pa-annual-goal-label--need b,
+.pa-annual-goal-label--need small {
+  color: #b45309;
+}
+.pa-annual-goal-label--need::after {
+  content: '';
+  position: absolute;
+  bottom: -0.35rem;
+  left: 50%;
+  width: 1px;
+  height: 0.3rem;
+  background: #f59e0b;
+}
+.pa-annual-goal-scale-goal {
+  left: 60%;
+}
+/* The year's total, at the end of the track. */
+.pa-annual-goal-scale-end {
+  right: 0;
+  left: auto;
+  justify-items: end;
+  transform: none;
 }
 .pa-annual-goal-text {
   margin: 0.55rem 0 0;
