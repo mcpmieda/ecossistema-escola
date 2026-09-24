@@ -42,7 +42,7 @@ function MicrosoftMark() {
 }
 function SessionCheckExperience() {
   return <main className="platform-shell grid min-h-svh place-items-center p-6" aria-busy="true" aria-label="Carregando Centro de Administração">
-    <div className="flex items-center gap-3 text-muted"><BrandMark compact /><Spinner size="sm" color="accent" /></div>
+    <div className="grid justify-items-center gap-4 text-muted"><BrandMark pulse /><Spinner size="sm" color="accent" /></div>
   </main>;
 }
 function LoginExperience({ loading }: { loading: boolean }) {

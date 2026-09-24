@@ -1,16 +1,6 @@
-import { cn } from './utils';
+import { SchoolMarkV1 } from '../shared/brand/school-mark-v1';
 
-/** Existing institutional monogram, shared by the two browser applications. */
-export function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div
-      className={cn(
-        'grid shrink-0 place-items-center rounded-2xl bg-accent font-semibold tracking-tight text-accent-foreground shadow-sm',
-        compact ? 'size-9 text-xs' : 'size-11 text-sm',
-      )}
-      aria-hidden="true"
-    >
-      IA
-    </div>
-  );
+/** Institutional mark shared by the browser applications: the school crest (was the "IA" monogram). */
+export function BrandMark({ compact = false, pulse = false }: { compact?: boolean; pulse?: boolean }) {
+  return <SchoolMarkV1 size={compact ? 36 : 44} pulse={pulse} />;
 }

@@ -62,6 +62,40 @@
   height: 100%;
   border-radius: 50%;
   background: url('../../../student-portal/assets/school-logo.webp') center / contain no-repeat;
+  position: relative;
+  overflow: hidden;
+}
+/* Same sheen as the shared school mark (src/shared/brand): a soft light crosses the crest now
+   and then. Off under reduced motion. */
+.pa-school-logo-image::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgb(255 255 255 / 0.15) 44%,
+    rgb(255 255 255 / 0.85) 50%,
+    rgb(255 255 255 / 0.15) 56%,
+    transparent 64%
+  );
+  transform: translateX(-130%);
+  animation: pa-crest-shine 8s cubic-bezier(0.45, 0, 0.2, 1) 1.2s infinite;
+  pointer-events: none;
+}
+@keyframes pa-crest-shine {
+  0% {
+    transform: translateX(-130%);
+  }
+  12%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-school-logo-image::after {
+    animation: none;
+  }
 }
 .pa-header-title {
   min-width: 0;
