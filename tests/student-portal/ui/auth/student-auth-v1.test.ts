@@ -100,7 +100,7 @@ describe('student authentication forms', () => {
   });
   it('renders PIN4 and password6 in two groups, blocks mismatched confirmation', async () => {
     const s = view();
-    const pin = await screen.findByLabelText('Ano de nascimento');
+    const pin = await screen.findByLabelText('Ano de nascimento do aluno');
     expect(document.querySelectorAll('[data-slot="input-otp-slot"]')).toHaveLength(4);
     await s.user.type(pin, '0001');
     s.client.challenge.mockResolvedValueOnce(PROOF);
@@ -126,13 +126,13 @@ describe('student authentication forms', () => {
   });
   it('rejects non-ASCII and clears sensitive fields when cancelled or hidden', async () => {
     const s = view();
-    const pin = await screen.findByLabelText('Ano de nascimento');
+    const pin = await screen.findByLabelText('Ano de nascimento do aluno');
     await s.user.click(pin);
     await s.user.paste('１２３４');
     expect((pin as HTMLInputElement).value).toBe('');
     await s.user.type(pin, '0001');
     await s.user.click(screen.getByRole('button', { name: 'Usar outro cartão' }));
-    expect(screen.queryByLabelText('Ano de nascimento')).toBeNull();
+    expect(screen.queryByLabelText('Ano de nascimento do aluno')).toBeNull();
     expect(screen.getByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   });
   it('handles risk expiry/failure and disposes every widget on retry or unmount', async () => {
@@ -302,7 +302,7 @@ it('explains how to lift a camera the browser already reports as denied', async 
 
 it('closes the number keyboard after the last digit so the buttons show', async () => {
   const s = view();
-  const pin = await screen.findByLabelText('Ano de nascimento');
+  const pin = await screen.findByLabelText('Ano de nascimento do aluno');
   await waitFor(() => expect(document.activeElement).toBe(pin));
   await s.user.type(pin, '2012');
   await waitFor(() => expect(document.activeElement).not.toBe(pin));

@@ -100,14 +100,14 @@ it('preserves the student PIN step and draft through an ordinary tab switch', as
       entry={{ qr: SYNTHETIC_QR_V1, route: 'access', invalidQr: false }}
     />,
   );
-  const pin = await screen.findByLabelText('Ano de nascimento');
+  const pin = await screen.findByLabelText('Ano de nascimento do aluno');
   await userEvent.setup().type(pin, '20');
   await act(async () => {
     visibility('hidden');
     visibility('visible');
     window.dispatchEvent(new Event('focus'));
   });
-  expect(screen.getByLabelText('Ano de nascimento')).toBe(pin);
+  expect(screen.getByLabelText('Ano de nascimento do aluno')).toBe(pin);
   expect((pin as HTMLInputElement).value).toBe('20');
   expect(client.challenge).toHaveBeenCalledTimes(1);
 });
