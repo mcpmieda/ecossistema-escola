@@ -62,6 +62,17 @@ function failure(error: unknown, signal: AbortSignal): PhotoAdminFailureStateV1 
   if (error instanceof ZodError) return 'invalid';
   return 'unavailable';
 }
+function unavailableCategory(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown';
+  if (/^student-photo-codec-(?:input|dimensions|metadata|decode|alpha|encode|output-size|unavailable)$/u.test(error.message))
+    return error.message;
+  return error.name;
+}
+function classifiedFailure(error: unknown, signal: AbortSignal): PhotoAdminFailureStateV1 {
+  const state = failure(error, signal);
+  if (state === 'unavailable') console.error('student-photo-edit-unavailable', unavailableCategory(error));
+  return state;
+}
 async function previewResponse(result: PhotoPreviewResultV1, context: PhotoWriteContextV1,
   command: PhotoAdminPreviewRequestV1['command'], traceId: string): Promise<Response> {
   try {
@@ -116,5 +127,5 @@ export async function servePhotoAdminV1(request: Request, env: RuntimeEnv, optio
       // Do not turn an already committed write into a false failure after permission loss.
       return response({ version: 1, traceId, ...result }, result.state === 'pending' ? 202 : 200);
     } finally { clearPhotoBytesV1(images); }
-  } catch (error) { return fail(failure(error, request.signal)); }
+  } catch (error) { return fail(classifiedFailure(error, request.signal)); }
 }
