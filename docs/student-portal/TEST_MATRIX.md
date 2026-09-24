@@ -15,6 +15,16 @@
 
 G-B é aceito com essas limitações. G-P aprova a release técnica fechada por política, sem abrir a escola. Uma futura abertura deve executar apenas as provas dependentes do novo escopo e da configuração institucional então autorizada.
 
+## Estados exibidos ao aluno — #1104/#1101
+
+| Situação | Resposta e interface | Prova técnica |
+| --- | --- | --- |
+| Acesso fechado por política ou calendário, após QR ativo assinado ou sessão válida | `access-closed` (403) para o cliente opt-in; “Acesso ao Portal fechado” e descarte do conteúdo protegido | `auth/auth-service-v1.test.ts`, `frontend-foundation/transport-v1.test.ts`, `ui/auth` e `ui/shell/student-shell-v1.test.ts` |
+| QR inválido ou revogado, sessão inválida e bloqueio individual | Resposta genérica, sem revelar existência da conta ou motivo | `auth/auth-service-v1.test.ts` |
+| Acesso autorizado, sem notas publicadas | `no-publication`; “Notas ainda não publicadas”, sem confundir com falha de acesso | `admin/atomic-publication-v2.postgres.ts`, `ui/grades/student-grades-v1.test.ts` e `ui/shell/student-shell-v1.test.ts` |
+
+Os caminhos de teste nesta seção ficam sob `tests/student-portal/`. O estado de acesso fechado não exige consulta adicional a `/me` e não altera a publicação de notas.
+
 ## Publicação e autoUpdate — #1112
 
 `admin/import-auto-update.postgres.ts` prova em PostgreSQL nativo: primeira publicação explícita; revisão nova vira `update-pending` com autoUpdate desligado; ligar autoUpdate serve a revisão mais nova imediatamente; desligar congela a última revisão; update manual só é aceito quando a pendência existe; retirada explícita não é ressuscitada por importação. `publication/publication-v1.test.ts` aplica a mesma restrição ao caminho legado de compatibilidade e mantém concorrência/retirada sobre uma revisão realmente pendente. `ui/publication/student-publication-v1.test.ts` prova que a UI não oferece atualização manual com autoUpdate ligado nem republicação sem revisão nova e usa os rótulos `Publicar notas` / `Atualizar notas publicadas`.
