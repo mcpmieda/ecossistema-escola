@@ -65,6 +65,34 @@ export function portalRequestOriginAllowedV1(
   const site = request.headers.get('sec-fetch-site');
   return site === null || site === 'same-origin' || site === 'none';
 }
+/**
+ * Opening the Portal page itself (`/` or `/access`; the edge accepts only GET/HEAD there) is a plain top-level navigation
+ * with no side effects: students arrive from links in other sites and apps (Instagram, WhatsApp,
+ * Google, the school site), which send `Sec-Fetch-Site: cross-site` and often add tracking
+ * parameters such as `?fbclid=`. Those must open the page. The same host/forwarding checks still
+ * apply, and framing stays refused (clickjacking). API routes keep portalRequestOriginAllowedV1.
+ */
+export function portalDocumentNavigationAllowedV1(
+  request: Request,
+  environment: string,
+  origin: string,
+): boolean {
+  const url = new URL(request.url);
+  if (url.pathname !== '/' && url.pathname !== '/access') return false;
+  if (environment === 'production' && origin !== 'https://aluno.escolaieda.com') return false;
+  if (environment !== 'local' && environment !== 'production') return false;
+  if (environment === 'local' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    return false;
+  if (url.origin !== origin || url.username || url.password) return false;
+  const host = request.headers.get('host');
+  if (host !== null && host.toLowerCase() !== url.host.toLowerCase()) return false;
+  if (request.headers.has('x-forwarded-host') || request.headers.has('x-original-url'))
+    return false;
+  const source = request.headers.get('origin');
+  if (source !== null && source !== origin) return false;
+  const destination = request.headers.get('sec-fetch-dest');
+  return destination === null || destination === 'document';
+}
 async function bodyWithinLimit(request: Request): Promise<boolean> {
   const length = request.headers.get('content-length');
   if (length !== null && (!/^\d+$/u.test(length) || Number(length) > PORTAL_AUTH_BODY_BYTES_V1))

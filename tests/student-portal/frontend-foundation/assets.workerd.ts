@@ -49,3 +49,18 @@ it('refuses nonlocal PostgreSQL and forces the restricted role for optional comp
   const target = new URL(localPortalDatabaseV1('postgres://owner@127.0.0.1:5432/portal705_test'));
   expect(target.username).toBe('student_portal_app');
 });
+
+it('opens the page from links in other sites and apps, but never inside a frame', async () => {
+  const plain = await (await harness.fetch(origin)).text();
+  const fromLink = await harness.fetch(`${origin}/?fbclid=abc123&utm_source=whatsapp`, {
+    headers: { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' },
+  });
+  expect(fromLink.status).toBe(200);
+  expect(await fromLink.text()).toBe(plain);
+  const framed = await harness.fetch(origin, {
+    headers: { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Dest': 'iframe' },
+  });
+  expect(framed.status).toBe(403);
+  const api = await harness.fetch(`${origin}/api/student/me`, { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+  expect(api.status).toBe(403);
+});
