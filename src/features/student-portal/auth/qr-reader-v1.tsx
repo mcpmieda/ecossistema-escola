@@ -164,15 +164,23 @@ export function StudentQrReaderV1({
     window.addEventListener('pagehide', leave);
     // Where the browser already reports the camera as denied, show how to lift it up front
     // instead of letting the student tap a button that silently fails.
+    // It also follows later changes: allowing the camera in the settings lifts the notice.
     let alive = true;
+    let permission: PermissionStatus | undefined;
+    const follow = () => {
+      if (alive && permission) setBlocked(permission.state === 'denied');
+    };
     void navigator.permissions
       ?.query({ name: 'camera' as PermissionName })
       .then((status) => {
-        if (alive && status.state === 'denied') setBlocked(true);
+        permission = status;
+        follow();
+        status.addEventListener?.('change', follow);
       })
       .catch(() => undefined);
     return () => {
       alive = false;
+      permission?.removeEventListener?.('change', follow);
       stop();
       document.removeEventListener('visibilitychange', hidden);
       window.removeEventListener('pagehide', leave);

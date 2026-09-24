@@ -289,3 +289,36 @@ describe('student portal grade workspace', () => {
       .toBe('true');
   });
 });
+
+describe('Fechamento do trimestre summary on the Boletim', () => {
+  const summary = (period: 'T1' | 'T2') => ({
+    period,
+    mode: 'conclusion' as const,
+    message: { code: 'summary.all-good' as const, variant: 0 },
+    attentionSubjectIds: [] as number[],
+  });
+  const withT2 = () => {
+    const data = gradesFixtureV1(false);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    first.periods = [
+      { period: 'T1', final: { kind: 'score', value: 20, maximum: 30, meetsMinimum: true } },
+      { period: 'T2', final: { kind: 'score', value: 21, maximum: 30, meetsMinimum: true } },
+    ];
+    return data;
+  };
+
+  it('shows a trimester summary only on its own tab', async () => {
+    const data = { ...withT2(), closingSummary: summary('T2') };
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'II Trimestre' }));
+    expect(await screen.findByText(/Fechamento do 2º trimestre/u)).toBeTruthy();
+  });
+
+  it('uses the per-trimester summaries when the server sends them', async () => {
+    const data = { ...withT2(), closingSummary: summary('T2'), closingSummaries: [summary('T1'), summary('T2')] };
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    expect(screen.getByText(/Fechamento do 1º trimestre/u)).toBeTruthy();
+    expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
+  });
+});
