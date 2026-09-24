@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  Button,
   Card,
   Chip,
   Description,
@@ -13,6 +14,7 @@ import {
   BookOpenCheck,
   BookOpenText,
   Calculator,
+  ChevronLeft,
   Dumbbell,
   FlaskConical,
   Globe2,
@@ -243,14 +245,28 @@ function PageIntroV1({
   eyebrow,
   title,
   aside,
+  onBack,
 }: {
   icon: ReactNode;
   eyebrow: string;
   title: string;
   aside?: ReactNode;
+  onBack?: () => void;
 }) {
   return (
     <div className="pa-workspace-intro">
+      {onBack ? (
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          className="pa-workspace-back"
+          aria-label="Voltar para o boletim"
+          onPress={onBack}
+        >
+          <ChevronLeft size={20} aria-hidden="true" />
+        </Button>
+      ) : null}
       <span aria-hidden="true">{icon}</span>
       <div>
         <p className="pa-workspace-eyebrow">{eyebrow}</p>
@@ -503,6 +519,7 @@ function SubjectV1View({
   subject,
   subjects,
   onSubjectChange,
+  onBack,
   initialPeriod,
   accountId,
   academicState,
@@ -510,6 +527,7 @@ function SubjectV1View({
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
+  onBack: () => void;
   initialPeriod?: PeriodIdV1;
   accountId: string;
   academicState: SelfResponseV1['profile']['academicState'];
@@ -562,6 +580,7 @@ function SubjectV1View({
     <div className="pa-workspace-view">
       <PageIntroV1
         icon={<SubjectIconV1 label={subject.label} size={20} animated />}
+        onBack={onBack}
         eyebrow="Disciplina"
         title={subject.label}
         aside={
@@ -850,6 +869,7 @@ export function StudentPortalWorkspaceV1({
               subject={selectedSubject}
               subjects={subjects}
               onSubjectChange={selectSubject}
+              onBack={() => pushWorkspaceState('summary', selectedSubject.subjectId)}
               initialPeriod={openPeriod}
               accountId={data.profile.accountId}
               academicState={data.profile.academicState}

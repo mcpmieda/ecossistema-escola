@@ -322,3 +322,14 @@ describe('Fechamento do trimestre summary on the Boletim', () => {
     expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
   });
 });
+
+it('goes back to the Boletim from the arrow beside the discipline icon', async () => {
+  const data = renderWorkspace();
+  const user = userEvent.setup();
+  const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
+  const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
+  await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+  await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
+  expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('heading', { name: 'Minhas notas' })).toBeTruthy();
+});
