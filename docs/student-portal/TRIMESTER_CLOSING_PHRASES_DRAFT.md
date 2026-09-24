@@ -1,6 +1,6 @@
-# Fechamento do trimestre — rascunho do catálogo de frases
+# Fechamento do trimestre — catálogo de frases
 
-Status: **RASCUNHO para revisão do dono e aprovação da escola (D6)**. Não usar em produção antes da aprovação. A especificação está em `TRIMESTER_CLOSING_SPEC.md`.
+Status: **APROVADO pela escola em 23/09/2026 (D6)**, incluindo todas as versões e as frases do acompanhamento. O texto em uso está em `shared/student-portal-contracts/term-closing-catalog-v1.ts`; qualquer mudança de redação precisa de nova aprovação. A especificação está em `TRIMESTER_CLOSING_SPEC.md`.
 
 ## Regras que todas as frases seguem
 
@@ -147,10 +147,9 @@ Mesmo motor, frases no presente e rótulo **"Acompanhamento do Nº trimestre"**.
 
 Todas as versões (três ou mais por mensagem, seis nas linhas de "vai bem") estão no arquivo de código e também passam pela aprovação da escola (D6).
 
-## Pontos para confirmar com a escola junto com as frases
+## Pontos que estavam em aberto com a escola
 
-1. **"Recuperação" no 3º trimestre.** Confirmar se "Você vai fazer a recuperação nesta disciplina" está alinhado com a forma como a escola comunica isso às famílias.
-
-Resolvidos pelo dono em 2026-09-23:
+Resolvidos em 2026-09-23:
+- **"Recuperação" no 3º trimestre:** aprovada junto com o catálogo.
 - **Prova paralela:** não existe ação para fazê-la. O aluno só vê o fechamento com as notas já fechadas, quando não há mais oportunidade.
 - **`weight.not-done` vale para todos os casos**, inclusive faltas justificadas. Quando o registro chega como "não fez", em geral o aluno teve oportunidade de fazer em outro momento, a critério do professor.

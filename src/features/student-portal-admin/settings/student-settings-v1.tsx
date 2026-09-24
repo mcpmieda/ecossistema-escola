@@ -54,7 +54,7 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
   showFinalResult:
     'Mostra o resultado final autorizado pela escola, a partir da data de divulgação configurada.',
   showTermClosing:
-    'Mostra ao aluno uma leitura curta de cada disciplina. Ligue somente depois de a escola aprovar as frases.',
+    'Mostra ao aluno uma leitura curta de cada disciplina, com as frases aprovadas pela escola.',
   termClosingConclusive:
     'Ligado: ao fim de cada trimestre, um fechamento com frases de conclusão ("Seu trimestre foi bom…"). Desligado: acompanhamento do trimestre em andamento, com orientações para frente ("Procure fazer todas as próximas atividades").',
   allowedPeriods:

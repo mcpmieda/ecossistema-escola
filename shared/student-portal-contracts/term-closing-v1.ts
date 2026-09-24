@@ -4,8 +4,8 @@ import { TERM_CLOSING_CATALOG_V1 } from './term-closing-catalog-v1';
 /*
  * Fechamento do trimestre (#1132). Spec: docs/student-portal/TRIMESTER_CLOSING_SPEC.md.
  * The server emits only message codes and variant indices; this catalog is the single source of
- * wording for the student page and the admin preview. DRAFT pending school approval (D6): the
- * feature stays behind the `showTermClosing` policy, off by default, until the catalog is approved.
+ * wording for the student page and the admin preview. The school approved it on 2026-09-23 (D6); the
+ * feature stays behind the `showTermClosing` policy (off by default), which the school turns on.
  * R1: phrases never carry numbers, ranges or activity names; only `{disciplina}`, `{lista}` and
  * `{trimestre}` placeholders are filled at render time.
  */

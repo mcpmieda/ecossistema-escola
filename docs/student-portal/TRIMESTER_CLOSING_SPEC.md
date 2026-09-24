@@ -2,7 +2,7 @@
 
 Acompanhamento: issue #1132.
 
-Status: **implementada no PR da issue #1132, desligada por padrão**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. Existe um único portão antes de ligar em produção: a escola aprovar o catálogo de frases (D6). A migração `0020` foi aplicada em produção em 23/09/2026 (versão `20260923193137`, ver `POSTFLIGHT_0020.md`); o recurso segue desligado até a escola ligar a política.
+Status: **implementada no PR da issue #1132, desligada por padrão**. Todas as decisões de produto foram fechadas com o dono em 2026-09-23. A escola aprovou o catálogo de frases em 23/09/2026 (D6), então não há mais portão técnico. A migração `0020` foi aplicada em produção em 23/09/2026 (versão `20260923193137`, ver `POSTFLIGHT_0020.md`); o recurso segue desligado até a escola ligar a política "Fechamento do trimestre" no painel.
 
 ## Objetivo
 
@@ -52,7 +52,7 @@ Ao fim de cada trimestre, o aluno encontra em cada disciplina uma leitura curta 
 | D3 | Quais dados o motor usa | **Todos os registros acadêmicos existentes**, inclusive revisões ainda não aprovadas e parciais ocultas. |
 | D4 | Resumo geral no Boletim | **Entra na v1.** Exemplo: "Você fechou bem em 10 de 12 disciplinas. Português e História pedem sua atenção." |
 | D5 | Disciplinas que "fecharam bem" | **Uma linha de reconhecimento.** O fechamento completo (quatro peças) fica só onde há algo a dizer. |
-| D6 | Aprovação das frases | **A escola aprova o catálogo antes da produção.** |
+| D6 | Aprovação das frases | **A escola aprova o catálogo antes da produção.** Aprovado em 2026-09-23. |
 | D7 | Comparação com a turma | **Nunca.** |
 | D8 | Controle | **Chave nas políticas do Portal do Aluno no painel admin**, com os mesmos escopos das demais políticas (escola/turma/aluno). |
 | D9 | Alunos `special` | **Não recebem o fechamento** (nem o resumo). Os assistidos também não. |
