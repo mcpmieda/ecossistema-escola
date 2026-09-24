@@ -4,11 +4,11 @@ import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { accountStateLabelV1 } from './accounts-values-v1';
 
-export function AccountIdentityV1({ account }: { account: AdminAccountReadV2 }) {
+export function AccountIdentityV1({ account, detail = false }: { account: AdminAccountReadV2; detail?: boolean }) {
   const name = account.name || 'Nome indisponível';
   return (
     <div className="pa-account-identity">
-      <StudentAvatarV1 id={account.accountId} />
+      <StudentAvatarV1 id={account.accountId} detail={detail} />
       <div>
         <strong>{name}</strong>
         <span>{account.classLabel || 'Turma não resolvida'}</span>
