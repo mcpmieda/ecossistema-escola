@@ -9,8 +9,7 @@ import { PhotoCatalogServiceV1 } from './catalog-service-v1';
 import { PhotoWriteRepositoryV1, type PhotoWriteDatabaseV1 } from './write-repository-v1';
 import { PhotoWriteGuardV1 } from './write-guard-v1';
 import { PhotoWriteCoordinatorV1, type PhotoWriteInputV1 } from './write-coordinator-v1';
-import { SharePointPhotoTransportV1, type SharePointPhotoActionV1 } from './sharepoint-write-v1';
-import { photoLibraryV1 } from './library-v1';
+import { PhotoStorageV1, type PhotoStorageActionV1 } from './storage-v1';
 import type { StudentWebpCodecV1 } from './webp-codec-v1';
 
 /** Real request-scoped composition. Only the source-built codec is shared between requests. */
@@ -20,10 +19,9 @@ export function createPhotoRuntimeServiceV1(options: {
 }) {
   const { env, database, codec, authorize } = options;
   const catalogRepository = new PhotoCatalogRepositoryV1(database);
-  const catalog = new PhotoCatalogServiceV1(env, catalogRepository, codec, authorize);
+  const catalog = new PhotoCatalogServiceV1(env, catalogRepository, authorize);
   const journal = new PhotoWriteRepositoryV1(database, true);
   const guard = new PhotoWriteGuardV1(database);
-  const library = photoLibraryV1(env);
 
   async function load(context: PhotoWriteContextV1, requestId: string) {
     await authorize(context);
@@ -60,7 +58,10 @@ export function createPhotoRuntimeServiceV1(options: {
       signal?.throwIfAborted();
       await authorize(context);
       signal?.throwIfAborted();
-      await catalogRepository.publish(context, variant, asset, bytes);
+      const transport = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => authorize(context));
+      const verified = await transport.read(asset, signal ?? new AbortController().signal);
+      verified.fill(0);
+      await catalogRepository.publish(context, variant, asset);
     }
   }
 
@@ -78,8 +79,8 @@ export function createPhotoRuntimeServiceV1(options: {
     claim: journal.claim.bind(journal), commit: journal.commit.bind(journal),
     acknowledgeCleanup: journal.acknowledgeCleanup.bind(journal), complete: publishBeforeComplete,
   };
-  const storage = (verify: (action: SharePointPhotoActionV1) => Promise<void>) =>
-    new SharePointPhotoTransportV1({ env, library, authorize: verify });
+  const storage = (verify: (action: PhotoStorageActionV1) => Promise<void>) =>
+    new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, verify);
   const edit = new PhotoEditServiceV1({ codec, repository, guard, authorize, storage, publish: publishCommitted });
 
   /** Explicitly resume the exact saved operation, not a new upload or silent timeout takeover. */

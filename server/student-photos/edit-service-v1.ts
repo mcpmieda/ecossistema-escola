@@ -9,9 +9,9 @@ import {
 import { probePhotoSourceV1 } from '../../shared/student-photos/source-probe-v1';
 import { PhotoWriteCoordinatorV1, type PhotoWriteInputV1, type PhotoWritePortsV1, type PhotoWriteResultV1,
   type PhotoVariantV1, type ValidatedPhotoBytesV1 } from './write-coordinator-v1';
-import { PhotoWriteRepositoryV1, type PhotoWriteDatabaseV1 } from './write-repository-v1';
+import type { PhotoWriteRepositoryV1 } from './write-repository-v1';
 import { PhotoWriteGuardV1 } from './write-guard-v1';
-import { SharePointPhotoTransportV1, type SharePointPhotoActionV1, type SharePointPhotoOptionsV1 } from './sharepoint-write-v1';
+import type { PhotoStorageActionV1 } from './storage-v1';
 import type { StudentWebpCodecV1 } from './webp-codec-v1';
 
 export interface PhotoPreviewResultV1 { approval: PhotoPreviewApprovalV1; images: PhotoWriteInputV1 }
@@ -20,7 +20,7 @@ export interface PhotoEditServiceOptionsV1 {
   repository: Pick<PhotoWriteRepositoryV1, 'claim' | 'commit' | 'acknowledgeCleanup' | 'complete'>;
   guard: Pick<PhotoWriteGuardV1, 'assertInitialized' | 'assertTransfer'>;
   authorize(context: PhotoWriteContextV1): Promise<void>;
-  storage(authorize: (action: SharePointPhotoActionV1) => Promise<void>): Pick<PhotoWritePortsV1, 'upload' | 'remove'>;
+  storage(authorize: (action: PhotoStorageActionV1) => Promise<void>): Pick<PhotoWritePortsV1, 'upload' | 'remove'>;
   publish?: PhotoWritePortsV1['publish'];
 }
 const variants = ['portrait', 'avatar'] as const;
@@ -99,7 +99,7 @@ export class PhotoEditServiceV1 {
     } catch (error) { value.bytes.fill(0); throw error; }
   }
   private transferGuard(context: PhotoWriteContextV1, command: PhotoWriteCommandV1, signal: AbortSignal) {
-    return async (action: SharePointPhotoActionV1): Promise<void> => {
+    return async (action: PhotoStorageActionV1): Promise<void> => {
       await this.authorize(context, signal);
       if (action.kind === 'upload') {
         if (action.context.actorId !== context.actorId || action.context.studentUid !== context.studentUid
@@ -130,14 +130,4 @@ export class PhotoEditServiceV1 {
       return await coordinator.execute(context, command, copies, signal);
     } finally { clear(copies); }
   }
-}
-/** Base composition stays reusable for protocol proofs. Production MUST provide
- * publish, which also enables atomic retention of pending recovery bytes. */
-export function createSharePointPhotoEditServiceV1(options: {
-  database:PhotoWriteDatabaseV1;codec:StudentWebpCodecV1;authorize:PhotoEditServiceOptionsV1['authorize'];
-  sharepoint:Omit<SharePointPhotoOptionsV1,'authorize'>;publish?:PhotoWritePortsV1['publish'];
-}):PhotoEditServiceV1 {
-  return new PhotoEditServiceV1({codec:options.codec,authorize:options.authorize,publish:options.publish,
-    repository:new PhotoWriteRepositoryV1(options.database,options.publish!==undefined),guard:new PhotoWriteGuardV1(options.database),
-    storage:authorize=>new SharePointPhotoTransportV1({...options.sharepoint,authorize})});
 }

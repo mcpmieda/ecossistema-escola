@@ -1,58 +1,23 @@
-# Fotos: integração final — #1119 / #1135
+# Fotos: Supabase Storage privado — #1119
 
 ## Uso
 
-As fichas administrativas e de desempenho usam o mesmo painel de foto. O
-servidor resolve conta ou matrícula/ano para `studentUid`; nomes nunca são
-chave de associação. O lápis abre o editor, a prévia final mostra o WebP
-processado pelo servidor e Salvar confirma os dois enquadramentos. Ajustar
-somente o avatar preserva a principal. Remover revoga a entrega privada e
-acompanha a exclusão condicional no SharePoint; a lixeira não é apagamento
-permanente. Concluir operação retoma um pedido pendente sem criar outro.
+As fichas administrativas e de desempenho usam o mesmo painel. Conta e matrícula/ano são resolvidas para o `studentUid`; nomes não são chave de associação. O editor gera WebP 3×4 com fundo e avatar 1×1, com prévia e confirmação explícita. Ajustar apenas o avatar preserva a principal. Salvar e remover mantêm revisão, recibo idempotente e recuperação de operação pendente.
 
-Em Alunos, no escopo Escola e com permissão de escrita, **Sincronizar fotos
-existentes** percorre as contas autorizadas e prepara as cópias privadas do
-acervo. Pode ser interrompido e repetido. Adoção não recorta, renomeia nem
-reescreve originais. Ausência, publicação e pendência têm contagens separadas.
-Uma falha não é apresentada como conclusão. Não é piloto nem nova coleta de
-consentimento: o responsável confirmou autorização na matrícula.
+O aluno recebe sua foto pela rota da própria origem. A leitura confere sessão, vínculo, `accessEnabled`, aprovação e revisão no PostgreSQL antes de buscar o objeto privado. Falha da foto não encerra a sessão nem bloqueia notas. Sem foto, o Portal não mostra retrato; a interface administrativa usa o círculo de cor estável.
 
-## Entrega e limites
+## Armazenamento e segurança
 
-Principal 3×4 com fundo, avatar 1×1; sem remoção de fundo ou IA. Graph e codec
-ficam somente no backend administrativo. O Portal recebe a principal pela
-própria origem, para a sessão do próprio aluno e com `accessEnabled`/guardas
-existentes. Erro de foto não encerra sessão nem impede consultar notas.
-Sem foto, os círculos administrativos usam cor estável; o Portal não mostra
-retrato. Não há polling, URL externa de imagem ou cache público.
+O bucket `student-photos` é privado, limitado a WebP de 128 KiB. Principal e avatar têm caminhos imutáveis por UID, pedido e hash. O upload não sobrescreve objeto; reexecução confirma os bytes existentes. A leitura refaz SHA-256, tamanho e dimensões. A limpeza só alcança a chave exata do recibo aposentado, após publicar a nova referência. Remoção no Storage é permanente; originais de importação no SharePoint não são tocados.
 
-As imagens novas passam pelo codec real; arquivos canônicos existentes são
-decodificados para validação sem recompressão. O codec pré-compilado é
-instanciado sem uma pausa assíncrona que rejeitaria cargas simultâneas como
-ocupadas. A memória continua limitada e cada operação limpa seus buffers.
+O PostgreSQL conserva metadados de entrega e autorização, sem `bytea` permanente após a migração. O payload transitório de recuperação é excluído ao concluir o recibo. A chave de serviço do Supabase é segredo dos backends Pages e Worker, nunca enviada ao browser, armazenada no banco ou registrada em logs. As rotas não expõem URL pública, signed URL, localizador de objeto ou cache público.
 
-A CI compila a fonte fixada, executa a prova no Workerd, verifica hashes e a
-árvore do aplicativo e entrega o mesmo artefato ao build administrativo.
-O deploy conserva as verificações de dois pais, árvore exata e gates. Não
-compila nem baixa o modelo em requisições; o navegador do aluno não recebe
-WASM nem credenciais. O empacotamento real de Pages Functions é verificado.
+## Migração e publicação
 
-## Implantação
+1. Confirmar a base `0001`–`0004`, as 361 referências e a ausência de entregas/ativos antigos.
+2. Conferir os 361 objetos privados por contagem, bytes, tamanho, formato, dimensões e SHA-256; comparar as referências legadas antes/depois. O acervo original permanece intacto.
+3. Aplicar `0005_supabase_storage_v1.sql`, configurar `PHOTO_STORAGE_SERVICE_KEY` nos dois backends e publicar pelo workflow oficial. A migration impede a troca se houver entregas ou ativos antigos não migrados.
+4. Adotar as cópias verificadas por `studentUid` com `adopt_storage_photo_v1`, conferir 361 famílias e entregas privadas, zero blobs permanentes, RLS/ACL e ausência de pendências. Registrar SHA, CI, deploy e diagnóstico na #1119.
+5. O responsável testa no ambiente real visualização, edição, avatar, remoção e Portal com os participantes que escolher. Registrar implantação e aceite separadamente.
 
-Aplicar a sequência `migrations/student-photos/0001` a `0004` antes do deploy
-que habilita as rotas. Não reaplicar a identidade 0018. Conferir schema,
-RLS/ACL das tabelas/funções privadas, integridade das referências e preservação
-dos cadastros/270 vínculos legados antes e depois. Não alterar contas, QR,
-sessões ou notas para testar fotos. Permissões do conector Global Admin não
-são prova das permissões da aplicação Graph usada pelo servidor.
-
-A sincronização inicial usa sessão administrativa autorizada e mantém os
-originais. Seus resultados no tenant e a validação de uso são evidências
-separadas de build/CI. A issue registra exatamente o que foi aplicado,
-publicado e conferido, sem transformar teste sintético em aceite real.
-
-Roteiro de uso: abrir uma ficha com foto existente e outra sem foto; conferir
-foto e círculos; ajustar avatar sem mudar a principal; substituir e cancelar
-uma prévia; remover e conferir o Portal; testar retomada apenas se houver
-operação real pendente. O responsável define os participantes e o momento,
-sem uma versão técnica limitada por turma.
+O protocolo visual e acadêmico existente permanece: principal até 900×1200, alternativa 600×800, avatar até 320×320, sem remoção de fundo/IA e sem nova coleta de consentimento. Não alterar contas, credenciais de alunos, notas ou turmas para testar fotos.

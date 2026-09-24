@@ -18,17 +18,16 @@ vi.mock('../../server/student-photos/write-guard-v1', () => ({ PhotoWriteGuardV1
 vi.mock('../../server/student-photos/catalog-repository-v1', async importOriginal => {
   const actual = await importOriginal<typeof import('../../server/student-photos/catalog-repository-v1')>();
   return { ...actual, PhotoCatalogRepositoryV1: class {
-    async publish(_context: unknown, variant: string, _asset: unknown, bytes: Uint8Array) {
-      expect(bytes.some(value => value !== 0)).toBe(true);
+    async publish(_context: unknown, variant: string, _asset: unknown) {
       if (controls.publishFails) throw new Error('synthetic-publication-outage');
       controls.trace.push('publish-' + variant);
     }
   } };
 });
-vi.mock('../../server/student-photos/library-v1', () => ({ photoLibraryV1: () => ({ driveId: 'synthetic-drive', parentItemId: 'synthetic-root' }) }));
-vi.mock('../../server/student-photos/sharepoint-write-v1', () => ({ SharePointPhotoTransportV1: class {
-  async upload() { throw new Error('already-uploaded'); }
-  async remove() { controls.trace.push('remove'); if (controls.cleanupFails) throw new Error('synthetic-etag-conflict'); return 'deleted'; }
+vi.mock('../../server/student-photos/storage-v1', () => ({ PhotoStorageV1: class {
+    async upload() { throw new Error('already-uploaded'); }
+    async read() { return new Uint8Array(32).fill(7); }
+    async remove() { controls.trace.push('remove'); if (controls.cleanupFails) throw new Error('synthetic-etag-conflict'); return 'deleted'; }
 } }));
 const context = { actorId: ACTOR, studentUid: STUDENT };
 beforeEach(() => { controls.trace.length = 0; controls.cleanupFails = true; controls.publishFails = false; });

@@ -1,5 +1,7 @@
 # Gravação consistente das fotos — #1119
 
+> Recibos, revisão e recuperação permanecem. As referências a Graph/SharePoint abaixo são históricas; o transporte atual é Supabase Storage privado conforme [FINAL_INTEGRATION_V1.md](FINAL_INTEGRATION_V1.md).
+
 Esta entrega acrescenta o protocolo privado de escrita. Não monta endpoints, não
 ativa as fotos, não aplica migrations e não liga o lápis às fichas. O decoder
 servidor e os adaptadores Graph devem ser comprovados antes dessa composição.

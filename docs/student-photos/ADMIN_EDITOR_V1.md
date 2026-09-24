@@ -1,5 +1,7 @@
 # Editor administrativo — entrega local da #1119
 
+> Registro histórico da fase inicial. O transporte SharePoint descrito abaixo foi removido. A arquitetura vigente está em [FINAL_INTEGRATION_V1.md](FINAL_INTEGRATION_V1.md).
+
 ## Escopo entregue por este pacote
 
 Editor reutilizável `StudentPhotoEditorV1`, principal 3×4 COM fundo e avatar 1×1 com prévia circular. Controles oficiais HeroUI para zoom/posição, escolha de largura máxima (900 ou 600 px) e qualidade WebP (92%, 86% ou 80%). O tamanho efetivo aparece sob cada prévia; nunca amplia o enquadramento da fonte. Avatar limitado a 320×320; principal a 900×1200 e 128 KiB, avatar a 64 KiB.
