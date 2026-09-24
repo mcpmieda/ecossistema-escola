@@ -133,7 +133,7 @@ function NumericCredentialV1({
 type FlowV1 = ReturnType<typeof createStudentAuthFlowV1>;
 
 function credentialLabelV1(step: StudentAuthStateV1['step']) {
-  if (step === 'pin') return 'Ano de nascimento';
+  if (step === 'pin') return 'Ano de nascimento do aluno';
   if (step === 'create') return 'Nova senha';
   return 'Senha de 6 números';
 }
@@ -312,7 +312,7 @@ function CredentialFieldsV1({
   return (
     <>
       {state.step === 'pin' ? (
-        <Card.Description>Para confirmar que é você, digite o ano em que você nasceu.</Card.Description>
+        <Card.Description>Para confirmar o acesso, digite o ano de nascimento do aluno.</Card.Description>
       ) : null}
       {state.step === 'create' ? (
         <Card.Description>
