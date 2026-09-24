@@ -62,3 +62,15 @@ it('does not reach Storage when the current application permission is revoked', 
     variant: 'portrait', bytes, metadata, signal })).rejects.toThrow('revoked');
   expect(fetcher).not.toHaveBeenCalled();
 });
+
+it('calls the platform fetch without an object receiver', async () => {
+  const fetcher = function (this: unknown): Promise<Response> {
+    expect(this).toBeUndefined();
+    return Promise.resolve(new Response(null, { status: 404 }));
+  };
+  const storage = new PhotoStorageV1('k'.repeat(40), async () => undefined,
+    fetcher as typeof fetch);
+  await expect(storage.read({ ...metadata, driveId: 'student-photos',
+    itemId: `write/${uid}/${requestId}/portrait-${sha256}.webp`, etag: sha256 }, signal))
+    .rejects.toThrow('student-photo-storage-absent');
+});
