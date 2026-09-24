@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Alert, Button, Spinner } from '@heroui/react';
+import { Alert, Button } from '@heroui/react';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
 import {
   StudentPortalPageV1,
@@ -10,6 +10,10 @@ import {
   type PortalSelfClientV1,
 } from '../features/student-portal/shared/self-client-v1';
 import { useStudentPortraitV1 } from '../features/student-portal/photos/use-student-portrait-v1';
+import {
+  StudentEntryLayoutV1,
+  StudentSplashV1,
+} from '../features/student-portal/auth/student-entry-layout-v1';
 import type { PortraitClientV1 } from '../features/student-portal/photos/portrait-client-v1';
 import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
 
@@ -38,6 +42,8 @@ export function StudentPortalApp({
   const [initialQr, setInitialQr] = useState(entry.qr);
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');
+  // Right after a sign-in the opening screen says so ("Tudo certo!") while the marks load.
+  const [entered, setEntered] = useState(false);
   const session = useStudentSessionV1(client);
   const portraitSrc = useStudentPortraitV1(
     session.load.state === 'ready' && !access && entry.route !== 'unknown'
@@ -92,7 +98,7 @@ export function StudentPortalApp({
   const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
   if (access || session.logoutState === 'done' || anonymous)
     return (
-      <StudentPortalShellV1>
+      <StudentEntryLayoutV1>
         {invalidQr && (
           <Alert status="warning">
             <Alert.Content>
@@ -105,19 +111,15 @@ export function StudentPortalApp({
           <StudentAuthenticationV1 client={client} initialQr={initialQr} sitekey={PUBLIC_SITEKEY}
             onQrDiscarded={discardQr}
             onAuthenticated={() => {
-              discardQr(); setAccess(false); window.history.replaceState(null, '', '/');
+              discardQr(); setAccess(false); setEntered(true); window.history.replaceState(null, '', '/');
               void session.authenticated();
             }}
           />
         </Suspense>
-      </StudentPortalShellV1>
+      </StudentEntryLayoutV1>
     );
   if (session.load.state === 'idle' || session.load.state === 'loading')
-    return (
-      <main className="pa-access-check" aria-busy="true" aria-label="Verificando acesso ao Portal">
-        <Spinner size="sm" aria-label="Aguarde" /><p role="status">Verificando acesso…</p>
-      </main>
-    );
+    return <StudentSplashV1 entered={entered} />;
   return (
     <StudentPortalPageV1 load={session.load} portraitSrc={portraitSrc}
       onRetry={() => { void session.refresh(); }}
