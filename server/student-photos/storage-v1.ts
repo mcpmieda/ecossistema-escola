@@ -46,7 +46,7 @@ export class PhotoStorageV1 {
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 131072) {
       await response.body?.cancel();
       if (response.status === 404) throw new PhotoStorageAbsentV1('student-photo-storage-absent');
-      throw new Error('student-photo-storage-read');
+      throw new Error(`student-photo-storage-read-${response.status}`);
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
     try {
