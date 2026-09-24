@@ -27,7 +27,7 @@ describe('student shell and canonical profile', () => {
   it('renders the profile and simplified bulletin navigation from the same self object', () => {
     render(page());
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Portal do Aluno');
-    const schoolMark = screen.getByRole('img', { name: 'Escola Iêda Alves de Oliveira MCPM' });
+    const schoolMark = screen.getByRole('img', { name: 'Escola Mun. Prof.ª Iêda Alves de Oliveira MCPM' });
     expect(schoolMark.querySelector('.pa-school-logo-image')).toBeTruthy();
     const headings = screen
       .getAllByRole('heading', { level: 2 })

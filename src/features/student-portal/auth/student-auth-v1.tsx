@@ -16,6 +16,8 @@ import { StudentQrReaderV1 } from './qr-reader-v1';
 import { StudentRiskWidgetV1, type RiskMountV1 } from './turnstile-widget-v1';
 import './student-auth-v1.css';
 
+const SECRET_REVEAL_MS_V1 = 1200;
+
 function NumericCredentialV1({
   label,
   length,
@@ -36,13 +38,20 @@ function NumericCredentialV1({
   onComplete?: () => void;
 }>) {
   const id = useId();
-  const [focused, setFocused] = useState(false);
+  // Secret digits: only the one just typed shows, and it turns into * after a short pause, on
+  // deletion or when the field loses focus.
+  const [revealed, setRevealed] = useState<number | null>(null);
+  useEffect(() => {
+    if (revealed === null) return;
+    const timer = setTimeout(() => setRevealed(null), SECRET_REVEAL_MS_V1);
+    return () => clearTimeout(timer);
+  }, [revealed, value]);
   const slot = (index: number) => (
     <InputOTP.Slot
       key={index}
       index={index}
       aria-hidden={secret || undefined}
-      data-masked={(secret && (!focused || index < value.length - 2)) || undefined}
+      data-masked={(secret && index !== revealed) || undefined}
     />
   );
   return (
@@ -53,12 +62,13 @@ function NumericCredentialV1({
         onComplete={onComplete}
         id={id}
         isDisabled={disabled}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={() => setRevealed(null)}
         aria-label={label}
         value={value}
         onChange={(next) => {
-          if (/^\d*$/u.test(next)) onChange(next);
+          if (!/^\d*$/u.test(next)) return;
+          setRevealed(next.length > value.length ? next.length - 1 : null);
+          onChange(next);
         }}
         maxLength={length}
         pattern="^\d*$"

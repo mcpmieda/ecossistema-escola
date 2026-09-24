@@ -48,7 +48,7 @@ function view(client = clientFixtureV1()) {
 }
 describe('student authentication forms', () => {
   it.each([
-    ['NotAllowedError', 'A câmera está bloqueada'],
+    ['NotAllowedError', 'Você bloqueou a câmera'],
     ['NotFoundError', 'Nenhuma câmera disponível'],
     ['NotReadableError', 'Não foi possível usar a câmera'],
   ])('offers local-image fallback when camera returns %s', async (name, message) => {
@@ -199,31 +199,26 @@ it('keeps the password form mounted while the first submission is pending and se
   expect(s.success).toHaveBeenCalledOnce();
 });
 
-it('reveals only the trailing two password digits while focused and masks all on blur', async () => {
+it('shows only the digit just typed, then masks it after a pause, on deletion and on blur', async () => {
   const client = clientFixtureV1();
   client.challenge.mockResolvedValueOnce(REQUIRED('password'));
   const s = view(client);
   const password = await screen.findByLabelText('Senha de 6 números');
+  const masks = () =>
+    Array.from(document.querySelectorAll('[data-slot="input-otp-slot"]')).map((slot) =>
+      slot.hasAttribute('data-masked'),
+    );
   await s.user.type(password, '001234');
-  const slots = () => Array.from(document.querySelectorAll('[data-slot="input-otp-slot"]'));
-  expect(slots().map((slot) => slot.hasAttribute('data-masked'))).toEqual([
-    true,
-    true,
-    true,
-    true,
-    false,
-    false,
-  ]);
+  expect(masks()).toEqual([true, true, true, true, true, false]);
   expect(password.getAttribute('type')).toBe('password');
-  await s.user.tab();
-  expect(slots().every((slot) => slot.hasAttribute('data-masked'))).toBe(true);
-  await s.user.click(password);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 1300)));
+  expect(masks().every(Boolean)).toBe(true);
   await s.user.keyboard('{Backspace}');
-  expect(
-    slots()
-      .slice(0, 5)
-      .map((slot) => slot.hasAttribute('data-masked')),
-  ).toEqual([true, true, true, false, false]);
+  expect(masks().every(Boolean)).toBe(true);
+  await s.user.keyboard('9');
+  expect(masks()).toEqual([true, true, true, true, true, false]);
+  await s.user.tab();
+  expect(masks().every(Boolean)).toBe(true);
 });
 
 it('keeps QR discovery on the entry card and offers another card during password creation', async () => {
@@ -276,7 +271,7 @@ it('explains how to lift a camera the browser already reports as denied', async 
   });
   try {
     render(createElement(StudentQrReaderV1, { onQr: vi.fn() }));
-    expect(await screen.findByRole('heading', { name: 'A câmera está bloqueada' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Você bloqueou a câmera' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Ler QR com câmera' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Selecionar QR da galeria' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Tentar de novo com a câmera' })).toBeTruthy();

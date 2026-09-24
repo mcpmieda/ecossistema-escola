@@ -153,7 +153,9 @@
 }
 .pa-credential-field [data-masked] [data-slot='input-otp-slot-value']::after {
   content: '*';
-  font-size: 1rem;
+  font-size: 1.6rem;
+  line-height: 1;
+  transform: translateY(0.2rem);
 }
 /* After a failed try the fields shake once (the form remounts per attempt). */
 .pa-auth-form--retry [data-slot='input-otp-group'] {

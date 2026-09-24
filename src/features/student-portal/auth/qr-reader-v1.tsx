@@ -58,7 +58,7 @@ function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
           <CameraOff size={20} />
         </span>
         <div>
-          <h3>A câmera está bloqueada</h3>
+          <h3>Você bloqueou a câmera</h3>
           <p>Sem problema. Você pode entrar agora com uma foto do cartão ou liberar a câmera.</p>
         </div>
       </div>

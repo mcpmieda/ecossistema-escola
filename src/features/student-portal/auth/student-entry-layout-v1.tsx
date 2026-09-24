@@ -1,10 +1,9 @@
 import { useId, useRef, type ReactNode } from 'react';
 import { Check, CircleAlert, LockKeyhole } from 'lucide-react';
-import { SchoolMarkV1 } from '../../../shared/brand/school-mark-v1';
+import { SCHOOL_NAME_V1, SchoolMarkV1 } from '../../../shared/brand/school-mark-v1';
 import '../shell/student-shell-v1.css';
 import './student-entry-layout-v1.css';
 
-const SCHOOL_V1 = 'Escola Iêda Alves de Oliveira';
 // The school year matches the calendar year in the Portal's region.
 const academicYearV1 = () => new Date().getFullYear();
 
@@ -13,13 +12,8 @@ function CoverV1({ splash = false }: { splash?: boolean }) {
     <>
       <SchoolMarkV1 size={splash ? 104 : 84} pulse={splash} shine={!splash} className="pa-entry-crest" />
       <p className="pa-entry-eyebrow">Portal do Aluno</p>
-      <p className="pa-entry-school">{SCHOOL_V1}</p>
-      {splash ? null : (
-        <>
-          <p className="pa-entry-sub">MCPM · Suas notas e o seu trimestre, num só lugar.</p>
-          <span className="pa-entry-year">Ano letivo {academicYearV1()}</span>
-        </>
-      )}
+      <p className="pa-entry-school">{SCHOOL_NAME_V1}</p>
+      {splash ? null : <span className="pa-entry-year">Ano letivo {academicYearV1()}</span>}
     </>
   );
 }
@@ -41,7 +35,7 @@ export function StudentEntryLayoutV1({ children, busy = false }: { children: Rea
         Ir para o conteúdo
       </a>
       <header className="pa-entry-cover">
-        <h1 className="pa-visually-hidden">Portal do Aluno · {SCHOOL_V1} MCPM</h1>
+        <h1 className="pa-visually-hidden">Portal do Aluno · {SCHOOL_NAME_V1}</h1>
         <CoverV1 />
       </header>
       <main
