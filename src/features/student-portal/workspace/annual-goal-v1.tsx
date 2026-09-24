@@ -52,9 +52,19 @@ export function annualGoalV1(
 }
 
 const points = (value: number) => number.format(value / 1000);
+/**
+ * Subject names are published in capitals ("MATEMÁTICA", "ED. FÍSICA"); inside a sentence they
+ * read with only the first letter of each word capitalised. Mixed-case names stay as they are.
+ */
+export function subjectInSentenceV1(label: string): string {
+  if (label !== label.toLocaleUpperCase('pt-BR')) return label;
+  return label
+    .toLocaleLowerCase('pt-BR')
+    .replace(/(^|[\s.(/-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toLocaleUpperCase('pt-BR'));
+}
 const percentOfYear = (value: number) => `${value / 1000}%`;
 
-export function AnnualGoalCardV1({ goal }: { goal: AnnualGoalV1 }) {
+export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; subjectLabel: string }) {
   const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
   const Icon = goal.state === 'reached' ? PartyPopper : goal.state === 'reachable' ? Target : Flag;
   return (
@@ -95,7 +105,7 @@ export function AnnualGoalCardV1({ goal }: { goal: AnnualGoalV1 }) {
         {goal.state === 'reached'
           ? 'O 3º trimestre continua valendo para o seu boletim.'
           : goal.state === 'reachable'
-            ? `É o que você precisa no 3º trimestre, que vale 40 pontos, para fechar o ano.`
+            ? `É o que você precisa no 3º trimestre, que vale 40 pontos, para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`
             : `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`}
       </p>
     </section>

@@ -715,7 +715,7 @@ function SubjectV1View({
             )}
           </Card>
           ) : null}
-          {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} /> : null}
+          {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} subjectLabel={subject.label} /> : null}
           {period && closingOfV1(subject, active) ? (
             <TermClosingCardV1
               closing={closingOfV1(subject, active)!}

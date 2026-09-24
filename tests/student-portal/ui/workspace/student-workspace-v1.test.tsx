@@ -249,6 +249,7 @@ describe('student portal grade workspace', () => {
     await user.click(within(periods).getAllByRole('tab')[1]!);
     // 60 − (18,5 + 17,3) = 24,2 in the 3º tri.
     expect(screen.getByRole('heading', { name: 'Faltam 24,2 pontos' })).toBeTruthy();
+    expect(screen.getByText(/para fechar o ano em /u)).toBeTruthy();
     expect(screen.queryByText(/2º tri:/u)).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[2]!);
     expect(screen.queryByRole('heading', { name: /Faltam/u })).toBeNull();
