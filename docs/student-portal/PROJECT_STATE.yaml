@@ -16,9 +16,9 @@ gates:
   G-B: accepted_real_flow_with_explicit_physical_device_deferrals
   G-P: passed_technical_release_general_opening_closed_by_policy
 runtime: production_composed_and_verified
-student_portal_schema: migrations_0001_through_0019_applied
+student_portal_schema: migrations_0001_through_0020_applied
 student_portal_schema_table_count: 27
-student_portal_schema_latest_migration: 0019_remove_legacy_projection_v1.sql
+student_portal_schema_latest_migration: 0020_term_closing_policy_v1.sql
 student_portal_latest_migration_in_tree: 0020_term_closing_policy_v1.sql
 legacy_projection_removal_0019:
   pull_request: 1122
@@ -49,8 +49,8 @@ recovery_1101:
   production_migration_versions: [20260922150000, 20260922150001]
   initiative_complete: false
   evidence: docs/student-portal/RECOVERY_1101.md
-student_portal_schema_production_version: 20260923164053
-student_portal_schema_production_evidence: docs/student-portal/POSTFLIGHT_0019.md
+student_portal_schema_production_version: 20260923193137
+student_portal_schema_production_evidence: docs/student-portal/POSTFLIGHT_0020.md
 population_enabled: false
 general_school_opening: false
 accounts_last_observed: 3

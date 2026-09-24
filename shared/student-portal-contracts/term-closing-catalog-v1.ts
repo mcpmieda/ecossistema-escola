@@ -1,7 +1,8 @@
 /*
  * Phrase catalog of the Fechamento do trimestre (#1132): wording only, no logic. Every message
  * has same-meaning variants, so the lists are structurally alike by design; this file is excluded
- * from copy-paste detection in .sonarcloud.properties. DRAFT pending school approval (D6).
+ * from copy-paste detection in .sonarcloud.properties. Approved by the school on 2026-09-23 (D6);
+ * wording changes need a new approval.
  */
 export const TERM_CLOSING_CATALOG_V1 = {
   'conclusion.good-with-point': [
