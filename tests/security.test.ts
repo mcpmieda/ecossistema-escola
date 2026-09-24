@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   enforceOfficialOrigin,
@@ -57,6 +58,14 @@ describe('HTTP security', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(response.headers.get('Referrer-Policy')).toBe('same-origin');
+  });
+  it('permits local photo previews in static and API responses without widening scripts', () => {
+    const staticPolicy = readFileSync('public/_headers', 'utf8');
+    const apiPolicy = SECURITY_HEADERS['Content-Security-Policy'];
+    for (const policy of [staticPolicy, apiPolicy]) {
+      expect(policy).toContain("img-src 'self' data: blob:");
+      expect(policy).not.toMatch(/script-src[^;]*blob:/u);
+    }
   });
   it('marks protected responses no-store', () =>
     expect(withSecurityHeaders(new Response('ok'), true).headers.get('Cache-Control')).toContain(
