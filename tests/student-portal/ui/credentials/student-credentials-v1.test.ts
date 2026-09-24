@@ -93,6 +93,20 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     expect(screen.queryByRole('button', { name: 'Gerar QR individual' })).toBeNull();
     expect(document.body.textContent).not.toContain('/access#');
   });
+  it('lets the operator download a ready PDF again without another QR request', async () => {
+    const mock = qrMockV1();
+    render(createElement(StudentCredentialsV1, mock.props));
+    fireEvent.click(await first());
+    fireEvent.click(pdf());
+    const ready = await screen.findByRole('button', { name: 'Baixar PDF pronto' });
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
+    fireEvent.click(ready);
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(2);
+    expect(mock.writes).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Preparar outro PDF' }));
+    expect(pdf()).toBeTruthy();
+    expect(mock.writes).toHaveLength(1);
+  });
   it.each([
     ['qr-only', 'Somente QR'],
     ['qr-name', 'QR + nome'],

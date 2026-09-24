@@ -42,7 +42,7 @@ export function QrBatchToolsV1({
   const [withInstruction, setWithInstruction] = useState(false),
     [instruction, setInstruction] = useState('');
   const [clock, setClock] = useState(Date.now);
-  const capture = useRef({ instruction: '', filename: '', run: '' });
+  const capture = useRef({ instruction: '', filename: '', run: '', selectionKey: '' });
   const callbacks = useRef({ onAuthorizationLost, onCommitted });
   callbacks.current = { onAuthorizationLost, onCommitted };
   const render = useCallback<QrRendererV1>(
@@ -97,6 +97,11 @@ export function QrBatchToolsV1({
   const chosen = rows
     .map((row) => row.record.account)
     .filter((account) => selected.has(account.accountId) && accountCredentialPreparableV1(account));
+  const selectionKey = JSON.stringify([
+    chosen.map((account) => account.accountId).sort((left, right) => left.localeCompare(right)), mode,
+    withInstruction ? instruction.trim().slice(0, 240) : '',
+  ]);
+  const readyForSelection = state.state === 'ready' && capture.current.selectionKey === selectionKey;
   function generate() {
     if (!canWrite || working || unresolved || pendingBirth || !chosen.length || chosen.length > 100)
       return;
@@ -105,6 +110,7 @@ export function QrBatchToolsV1({
       instruction: withInstruction ? instruction.trim().slice(0, 240) : '',
       filename: qrFilenameV1(label, 'pdf'),
       run: idempotencyKey,
+      selectionKey,
     };
     operation.clear();
     void operation.submit(
@@ -185,16 +191,21 @@ export function QrBatchToolsV1({
           size="sm"
           isDisabled={
             !canWrite ||
-            working ||
-            unresolved ||
-            pendingBirth ||
-            !chosen.length ||
-            chosen.length > 100
+            (!readyForSelection && (
+              working || unresolved || pendingBirth || !chosen.length || chosen.length > 100
+            ))
           }
-          onPress={generate}
+          onPress={readyForSelection
+            ? () => operation.download(capture.current.filename)
+            : generate}
         >
-          Baixar PDF
+          {readyForSelection ? 'Baixar PDF pronto' : 'Baixar PDF'}
         </Button>
+        {state.state === 'ready' ? (
+          <Button size="sm" variant="secondary" onPress={() => operation.clear()}>
+            Preparar outro PDF
+          </Button>
+        ) : null}
       </div>
       {chosen.length > 100 ? <p role="alert">Selecione até 100 alunos por PDF.</p> : null}
       {working ? (
@@ -205,12 +216,7 @@ export function QrBatchToolsV1({
         </p>
       ) : null}
       {state.state === 'ready' && state.downloadFailed ? (
-        <div role="alert">
-          O PDF está pronto, mas o download não começou.
-          <Button size="sm" onPress={() => operation.download(capture.current.filename)}>
-            Tentar baixar novamente
-          </Button>
-        </div>
+        <p role="alert">O PDF está pronto, mas o download não começou.</p>
       ) : null}
       {state.state === 'error' ? (
         <div role="alert">
