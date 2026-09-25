@@ -320,15 +320,13 @@ function PortalWorkspace({
   else
     switch (section) {
       case 'accounts':
+      case 'credentials':
         content = (
           <StudentAccountsV1 {...common} slots={slots} onQr={qr.accept} onReprint={reprint} />
         );
         break;
       case 'birth':
         content = <StudentBirthYearsV1 {...common} />;
-        break;
-      case 'credentials':
-        content = <StudentCredentialsV1 {...common} />;
         break;
       case 'sessions':
         content = <StudentSessionsV1 {...common} />;
@@ -391,7 +389,7 @@ function PortalWorkspace({
             <RemoteLiveNoticeV1 state={liveState} />
           </header>
           <Tabs
-            selectedKey={section}
+            selectedKey={section === 'credentials' ? 'accounts' : section}
             onSelectionChange={(key) => {
               const next = studentPortalSections.find((item) => item.id === key);
               if (!next || !allowDraftNavigationV1()) return;
@@ -407,7 +405,7 @@ function PortalWorkspace({
           >
             <Tabs.ListContainer className="max-w-full overflow-x-auto">
               <Tabs.List aria-label="Áreas do Painel do Aluno">
-                {studentPortalSections.map((item) => (
+                {studentPortalSections.filter((item) => item.id !== 'credentials').map((item) => (
                   <Tabs.Tab key={item.id} id={item.id}>
                     {item.label}
                     <Tabs.Indicator />
@@ -415,7 +413,7 @@ function PortalWorkspace({
                 ))}
               </Tabs.List>
             </Tabs.ListContainer>
-            <Tabs.Panel id={section} className="pa-admin-content">
+            <Tabs.Panel id={section === 'credentials' ? 'accounts' : section} className="pa-admin-content">
               <ClassTabsV1
                 items={classItems}
                 selectedId={selectedClass?.id ?? null}

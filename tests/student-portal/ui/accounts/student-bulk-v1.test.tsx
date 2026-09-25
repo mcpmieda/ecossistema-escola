@@ -202,12 +202,13 @@ describe('bulk preview and execution', () => {
           client={s.client}
           scope={OP_CLASS_V1}
           scopeLabel="SYNTHETIC CLASS"
+          canWrite
           onAuthorizationLost={s.unauthorized}
         />
       </StrictMode>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Redefinir contas' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Preparar prévia' }));
+    expect(screen.queryByRole('button', { name: 'Preparar prévia' })).toBeNull();
     const input = await screen.findByRole('textbox', {
       name: 'Digite REDEFINIR CONTAS para confirmar',
     });
@@ -222,6 +223,40 @@ describe('bulk preview and execution', () => {
     });
     expect(writes).toBe(1);
     expect(await screen.findByText(/Concluído/)).toBeTruthy();
+    s.controller.dispose();
+  });
+  it('prepares each clicked action directly and requires its own command before writing', async () => {
+    const writes: string[] = [];
+    const s = setup(async (_path, init) => {
+      const body = JSON.parse(init.body as string);
+      if (body.operation === 'bulk-preview')
+        return opJsonV1(preview([1], 1, { action: body.action }));
+      writes.push(body.action);
+      return committed();
+    });
+    render(
+      <StudentBulkV1
+        client={s.client}
+        scope={OP_CLASS_V1}
+        scopeLabel="SYNTHETIC CLASS"
+        canWrite
+        onAuthorizationLost={s.unauthorized}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mudar QR' }));
+    expect(await screen.findByRole('textbox', { name: 'Digite MUDAR QR para confirmar' })).toBeTruthy();
+    expect(writes).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
+    const input = await screen.findByRole('textbox', {
+      name: 'Digite BLOQUEAR ACESSO para confirmar',
+    });
+    const confirm = screen.getByRole('button', { name: 'Confirmar bloquear acesso' }) as HTMLButtonElement;
+    fireEvent.change(input, { target: { value: 'MUDAR QR' } });
+    expect(confirm.disabled).toBe(true);
+    expect(writes).toHaveLength(0);
+    fireEvent.change(input, { target: { value: 'BLOQUEAR ACESSO' } });
+    await act(async () => fireEvent.click(confirm));
+    expect(writes).toEqual(['block']);
     s.controller.dispose();
   });
 });

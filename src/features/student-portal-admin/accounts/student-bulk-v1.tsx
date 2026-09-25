@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Input, Label, TextField } from '@heroui/react';
+import { Button, Input, Label, TextField } from '@heroui/react';
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import type { BulkPreviewQueryV1 } from '../../../../shared/student-portal-contracts/bulk-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -35,11 +35,13 @@ export function StudentBulkV1({
   client,
   scope,
   scopeLabel,
+  canWrite,
   onAuthorizationLost,
 }: {
   client: PortalAdminClientV1;
   scope: BulkPreviewQueryV1['scope'];
   scopeLabel: string;
+  canWrite: boolean;
   onAuthorizationLost: (error: PortalClientErrorV1) => void;
 }) {
   const [action, setAction] = useState<BulkPreviewQueryV1['action']>('qr-regenerate');
@@ -70,65 +72,56 @@ export function StudentBulkV1({
   useDraftNavigationGuardV1(locked);
   const eligible = state.items.filter((item) => !item.ineligibility).length;
   const skipped = state.items.length - eligible;
-  const required = action === 'account-reset' ? 'REDEFINIR CONTAS' : String(eligible);
+  const required = actions[action].toUpperCase();
+  const actionLocked = ['running', 'paused', 'unknown'].includes(state.phase);
   const completed = state.items.filter((item) => item.result === 'committed').length;
   const failed = state.items.filter((item) => item.result === 'failed').length;
   return (
-    <Card>
-      <Card.Header>
-        <h3>Operações em massa</h3>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-3">
+    <section className="pa-account-bulk-section" data-phase={state.phase} aria-label="Operações em massa">
+      <h3>Operações em massa</h3>
+      <div className="pa-account-bulk-content">
         <p>
-          {scopeLabel} · {scope.kind === 'school' ? 'Escola inteira' : 'Turma inteira'}
+          {scopeLabel} · Turma inteira
         </p>
         <div className="flex flex-wrap gap-2" aria-label="Operação em massa">
           {Object.entries(actions).map(([key, label]) => (
             <Button
               key={key}
               size="sm"
-              variant={action === key ? 'primary' : 'secondary'}
-              aria-pressed={action === key}
-              isDisabled={locked}
+              variant={state.phase !== 'idle' && action === key ? 'primary' : 'secondary'}
+              aria-pressed={state.phase !== 'idle' && action === key}
+              isDisabled={!canWrite || actionLocked}
               onPress={() => {
-                setAction(key as typeof action);
-                setState({ phase: 'idle', items: [], total: 0 });
+                if (!canWrite || actionLocked) return;
+                const nextAction = key as typeof action;
+                setAction(nextAction);
+                setConfirmation('');
+                setPage(0);
+                void controller.current?.preview({
+                  contractVersion: 1,
+                  operation: 'bulk-preview',
+                  scope,
+                  action: nextAction,
+                });
               }}
             >
               {label}
             </Button>
           ))}
         </div>
-        {['idle', 'error', 'done'].includes(state.phase) && (
-          <Button
-            variant="secondary"
-            onPress={() => {
-              setConfirmation('');
-              setPage(0);
-              void controller.current?.preview({
-                contractVersion: 1,
-                operation: 'bulk-preview',
-                scope,
-                action,
-              });
-            }}
-          >
-            Preparar prévia
-          </Button>
-        )}
         {state.phase === 'loading' && (
           <>
             <p role="status">
-              Carregando a prévia completa{state.total ? ` de ${state.total} contas` : ''}…
+              Carregando contas da turma{state.total ? ` · ${state.total} contas` : ''}…
             </p>
-            <Button onPress={() => controller.current?.cancel()}>Cancelar prévia</Button>
+            <Button onPress={() => controller.current?.cancel()}>Cancelar</Button>
           </>
         )}
         {state.phase === 'review' && (
           <>
-            <p role="status">{eligible} contas disponíveis · {skipped} não elegíveis · {state.total} na prévia completa.</p>
+            <p role="status">{eligible} contas disponíveis · {skipped} não elegíveis · {state.total} na turma.</p>
             <Button variant="secondary" onPress={() => controller.current?.cancel()}>
-              Descartar prévia
+              Cancelar operação
             </Button>
             <p>
               {action === 'account-reset'
@@ -195,7 +188,7 @@ export function StudentBulkV1({
         )}
         {state.phase === 'error' && (
           <p role="alert">
-            Não foi possível preparar a operação.{' '}
+            Não foi possível carregar a operação.{' '}
             {errors[state.error ?? ''] ?? 'Solicitação recusada.'}
           </p>
         )}
@@ -240,7 +233,7 @@ export function StudentBulkV1({
             )}
           </>
         )}
-      </Card.Content>
-    </Card>
+      </div>
+    </section>
   );
 }

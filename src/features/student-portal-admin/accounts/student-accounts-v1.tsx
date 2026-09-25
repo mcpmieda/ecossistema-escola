@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Button, Card, Tooltip, Input, Label, Table, TextField } from '@heroui/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Button, Card, Checkbox, Tooltip, Input, Label, Table, TextField } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -12,6 +13,8 @@ import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v
 import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
+import { accountCredentialPreparableV1 } from './accounts-values-v1';
+import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
   firstAccessLabelV1,
@@ -26,6 +29,7 @@ import {
   type AccountStateFilterV1,
 } from './account-filters-v1';
 import './student-accounts-v1.css';
+import '../credentials/student-credentials-v1.css';
 
 export interface StudentAccountsPropsV1 extends Pick<
   AccountDetailPropsV1,
@@ -52,6 +56,8 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
+  const [qrMount, setQrMount] = useState<HTMLDivElement | null>(null);
+  const [bulkMount, setBulkMount] = useState<HTMLDivElement | null>(null);
   const scope = useMemo<ScopeV1>(
     () =>
       props.scope.kind === 'school' && selectedClass
@@ -76,8 +82,9 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
       <header>
         <h2>Alunos</h2>
       </header>
-      <Card>
-        <Card.Content className="pa-account-filters">
+      <Card className={`pa-account-controls-card${scope.kind === 'class' ? ' pa-account-controls-card--class' : ''}`}>
+        <Card.Content className="pa-account-controls">
+          <div className="pa-account-filters">
           {props.scope.kind === 'school' && (
             <ClassFilterV1
               catalog={props.catalog}
@@ -88,7 +95,7 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
             />
           )}
           <TextField
-            className="min-w-48 max-w-72"
+            className="pa-account-search min-w-48 max-w-72"
             value={name}
             onChange={(value) => {
               if (allowDraftNavigationV1()) setName(value);
@@ -113,6 +120,9 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
             }}
             options={ACCOUNT_BLOCK_OPTIONS_V1}
           />
+          </div>
+          <div ref={setQrMount} className="pa-account-qr-mount" />
+          {scope.kind === 'class' && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
         </Card.Content>
       </Card>
       <AccountsResultsV1
@@ -125,6 +135,8 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         query={query}
         states={states}
         blocks={blocks}
+        qrMount={qrMount}
+        bulkMount={bulkMount}
         bulkScopeLabel={
           selectedClass?.label ?? props.scopeLabel ?? (scope.kind === 'school' ? 'Escola' : 'Turma')
         }
@@ -137,11 +149,14 @@ function AccountsResultsV1(
     query: AdminReadQueryV2;
     states: Set<string>;
     blocks: Set<string>;
+    qrMount: HTMLDivElement | null;
+    bulkMount: HTMLDivElement | null;
     bulkScopeLabel: string;
   },
 ) {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedQr, setSelectedQr] = useState<Set<string>>(() => new Set());
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
@@ -161,6 +176,11 @@ function AccountsResultsV1(
   const visibleItems =
     current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
     [];
+  const qrClass = props.query.scope.kind === 'class' ? props.query.scope : null;
+  const eligibleQr = new Set(
+    visibleItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
+  );
+  useEffect(() => setSelectedQr(new Set()), [current?.scopeVersion]);
   const protectedFailure =
     read.state.state === 'error' &&
     ['unauthenticated', 'forbidden'].includes(read.state.error.state);
@@ -177,18 +197,41 @@ function AccountsResultsV1(
   };
   return (
     <>
-      {props.canWrite &&
-        !authorizationError &&
+      {props.qrMount && createPortal(<section className="pa-account-qr-panel" aria-label="QR code">
+        <h2>QR code</h2>
+        {qrClass && current ? (
+          <QrBatchToolsV1
+            client={props.client}
+            accounts={visibleItems}
+            selected={selectedQr}
+            onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
+            classId={qrClass.classId}
+            scopeVersion={current.scopeVersion}
+            label={props.bulkScopeLabel}
+            canWrite={props.canWrite && !authorizationError && !protectedFailure}
+            pendingBirth={Boolean(read.refreshing || read.refreshError)}
+            hasMore={Boolean(current.nextCursor)}
+            onCommitted={onChanged}
+            onAuthorizationLost={onAuthorizationLost}
+          />
+        ) : (
+          <p className="text-sm text-muted">
+            {qrClass ? 'Carregando opções de QR…' : 'Selecione uma turma para gerar PDF.'}
+          </p>
+        )}
+      </section>, props.qrMount)}
+      {props.bulkMount && !authorizationError &&
         !protectedFailure &&
-        props.query.scope.kind !== 'account' && (
-          <StudentBulkV1
+        props.query.scope.kind === 'class' && (
+          createPortal(<StudentBulkV1
             client={props.client}
             scope={props.query.scope}
             scopeLabel={props.bulkScopeLabel}
+            canWrite={props.canWrite}
             onAuthorizationLost={onAuthorizationLost}
-          />
+          />, props.bulkMount)
         )}
-      <Card>
+      <Card className="pa-account-list-card">
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
             <p role="status">
@@ -225,8 +268,36 @@ function AccountsResultsV1(
                 role="region"
                 aria-label="Tabela de contas, role horizontalmente para todas as colunas"
               >
-                <Table.Content aria-label="Contas do Portal">
+                <Table.Content
+                  aria-label="Contas do Portal"
+                  selectionMode={qrClass ? 'multiple' : 'none'}
+                  selectedKeys={selectedQr}
+                  disabledBehavior="selection"
+                  disabledKeys={visibleItems
+                    .filter((account) => !props.canWrite || !eligibleQr.has(account.accountId))
+                    .map((account) => account.accountId)}
+                  onSelectionChange={(keys) =>
+                    setSelectedQr(
+                      new Set(
+                        keys === 'all'
+                          ? eligibleQr
+                          : [...keys].map(String).filter((id) => eligibleQr.has(id)),
+                      ),
+                    )
+                  }
+                >
                   <Table.Header>
+                    {qrClass ? (
+                      <Table.Column id="selection" aria-label="Selecionar alunos para QR">
+                        <Checkbox slot="selection" aria-label="Selecionar alunos disponíveis">
+                          <Checkbox.Content>
+                            <Checkbox.Control>
+                              <Checkbox.Indicator />
+                            </Checkbox.Control>
+                          </Checkbox.Content>
+                        </Checkbox>
+                      </Table.Column>
+                    ) : null}
                     <Table.Column isRowHeader>Aluno e turma</Table.Column>
                     <Table.Column>Situação</Table.Column>
                     <Table.Column>Acesso</Table.Column>
@@ -250,6 +321,17 @@ function AccountsResultsV1(
                           selectedId === account.accountId ? 'pa-account-selected' : undefined
                         }
                       >
+                        {qrClass ? (
+                          <Table.Cell>
+                            <Checkbox slot="selection" aria-label="Selecionar para QR">
+                              <Checkbox.Content>
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                              </Checkbox.Content>
+                            </Checkbox>
+                          </Table.Cell>
+                        ) : null}
                         <Table.Cell>
                           <Button
                             variant="ghost"

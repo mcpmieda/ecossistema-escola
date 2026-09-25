@@ -227,7 +227,7 @@ function BirthPageBodyV1(props: PageProps) {
               {props.qrMode && scope.kind === 'class' ? (
                 <QrBatchToolsV1
                   client={client}
-                  rows={state.rows}
+                  accounts={state.rows.map((row) => row.record.account)}
                   selected={selectedQr}
                   onSelectAll={(selected) => setSelectedQr(selected ? eligibleQr : new Set())}
                   classId={scope.classId}

@@ -14,6 +14,8 @@ coverage/
 test-results/
 playwright-report/
 *.log
+src/student-portal-admin-preview/local-data.json
+src/student-portal-admin-preview/local-photos/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db

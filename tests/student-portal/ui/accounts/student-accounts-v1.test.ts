@@ -43,6 +43,35 @@ afterEach(() => {
 const ready = () => screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' });
 const detail = () => screen.findByRole('button', { name: 'Bloquear acesso' });
 describe('account list and detail', () => {
+  it('offers bulk operations only for a selected class and keeps the read-only preview inert', async () => {
+    const mock = accountsMockV1();
+    render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));
+    await ready();
+    expect(screen.queryByRole('heading', { name: 'Operações em massa' })).toBeNull();
+    await userEvent.setup().click(await screen.findByRole('tab', { name: 'SYNTHETIC CLASS A' }));
+    expect(await screen.findByRole('heading', { name: 'Operações em massa' })).toBeTruthy();
+    const controls = document.querySelector('.pa-account-controls-card');
+    expect(controls?.contains(screen.getByRole('textbox', { name: 'Buscar aluno' }))).toBe(true);
+    expect(controls?.contains(screen.getByRole('region', { name: 'QR code' }))).toBe(true);
+    expect(controls?.contains(screen.getByRole('heading', { name: 'Operações em massa' }))).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Preparar prévia' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Mudar QR' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mock.writes).toHaveLength(0);
+  });
+  it('uses the account table selection for the QR controls and resets it with the search', async () => {
+    const mock = accountsMockV1();
+    render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
+    await ready();
+    expect(screen.getByRole('region', { name: 'QR code' })).toBeTruthy();
+    expect(screen.getAllByRole('grid', { name: 'Contas do Portal' })).toHaveLength(1);
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })[0]!);
+    expect(screen.getByText('1 selecionados')).toBeTruthy();
+    await user.type(screen.getByRole('textbox', { name: 'Buscar aluno' }), '002');
+    await screen.findByText('SYNTHETIC ACCOUNT 002');
+    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(mock.writes).toHaveLength(0);
+  });
   it('shows official names and distinct states with a complete empty-class catalog', async () => {
     const mock = accountsMockV1();
     mock.accounts[1]!.state = 'pending-activation';

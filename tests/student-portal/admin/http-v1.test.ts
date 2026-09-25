@@ -89,7 +89,7 @@ describe('ADM Pages to private Portal binding', () => {
   });
 
   it('elevates the destructive bulk preview to the write capability it is authorized under', async () => {
-    const preview = { contractVersion: 1, operation: 'bulk-preview', scope: { kind: 'school', academicYear: 2026 }, page: { limit: 100 }, action: 'qr-regenerate' };
+    const preview = { contractVersion: 1, operation: 'bulk-preview', scope: { kind: 'class', academicYear: 2026, classId: 910001 }, page: { limit: 100 }, action: 'qr-regenerate' };
     const seen: TrustedAdminContextV1[] = [];
     const rpc: PortalAdminEntrypointV1 = {
       ...binding().rpc,

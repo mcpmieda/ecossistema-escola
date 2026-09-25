@@ -132,9 +132,9 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
     await first();
-    fireEvent.click(screen.getByRole('button', { name: 'Selecionar todos os disponíveis' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar lista' }));
     expect(screen.getByText('3 selecionados')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Desmarcar todos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
     expect(screen.getByText('0 selecionados')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
@@ -143,11 +143,11 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
     await first();
-    expect(screen.getByRole('button', { name: 'Selecionar disponíveis carregados' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Selecionar exibidos' })).toBeTruthy();
     await waitFor(() => expect(observer.isObserving()).toBe(true));
     await act(async () => observer.intersect());
     await screen.findByText('SYNTHETIC PRINT 105');
-    fireEvent.click(screen.getByRole('button', { name: 'Selecionar todos os disponíveis' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar lista' }));
     expect(screen.getByText('105 selecionados')).toBeTruthy();
     expect(pdf().hasAttribute('disabled')).toBe(true);
     expect(mock.writes).toHaveLength(0);
