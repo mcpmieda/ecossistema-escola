@@ -4,6 +4,7 @@ import { StudentPortalPageV1 } from '../features/student-portal/shell/student-sh
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
+
 const previewPortrait = new URL('./assets/demo-student-boy.webp', import.meta.url).href;
 
 /*
@@ -804,7 +805,7 @@ function PreviewAppV1() {
     hasPortrait: true,
     studentName: PREVIEW_NAMES_V1[0]!,
     situation: 'none',
-    dataset: 'real',
+    dataset: 'example',
     academicState: 'regular',
     singleSubject: false,
   });

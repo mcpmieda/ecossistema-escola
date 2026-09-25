@@ -127,6 +127,25 @@
   outline: none;
 }
 
+.pa-account-switch {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pa-account-switch .card__header {
+  padding: 0 0 0.35rem;
+}
+.pa-account-switch .card__content {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+}
+.pa-account-switch .button {
+  width: 100%;
+}
+
 /* Notebook grid at the top of the sheet, as in the signed-in portal. */
 .pa-entry-sheet::before {
   content: '';

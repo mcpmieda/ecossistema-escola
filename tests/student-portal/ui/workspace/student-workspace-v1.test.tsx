@@ -57,7 +57,7 @@ describe('student portal grade workspace', () => {
     expect(screen.getByRole('heading', { name: first.label })).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
     // The trimester mark is shown once, heading the partials card.
-    expect(screen.getAllByText('Nota do trimestre')).toHaveLength(1);
+    expect(screen.getAllByText('Sua nota do trimestre')).toHaveLength(1);
     expect(screen.getByText('Abaixo do esperado')).toBeTruthy();
     expect(screen.getByText('Resultado oficial:', { exact: false })).toBeTruthy();
   });
@@ -145,13 +145,20 @@ describe('student portal grade workspace', () => {
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     const periods = screen.getByRole('tablist', { name: 'Períodos de ' + first.label });
 
-    expect(screen.queryByRole('img', { name: /em relação ao/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[1]!);
-    expect(screen.getByRole('img', { name: 'Subiu em relação ao 1º Tri' })).toBeTruthy();
+    const trend = screen.getByRole('button', { name: 'Subiu em relação ao 1º Tri' });
+    await user.click(trend);
+    expect(screen.getByRole('tooltip').textContent).toContain('A nota do 2º trimestre foi maior que a do 1º.');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    await user.click(trend);
+    await user.click(screen.getByRole('heading', { name: first.label }));
+    expect(screen.queryByRole('tooltip')).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[2]!);
-    expect(screen.getByRole('img', { name: 'Caiu em relação ao 2º Tri' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Caiu em relação ao 2º Tri' })).toBeTruthy();
     await user.click(within(periods).getAllByRole('tab')[3]!);
-    expect(screen.queryByRole('img', { name: /em relação ao/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
   });
 
   it('omits the breakdown when the admin withholds partials, but says so when none exist', async () => {

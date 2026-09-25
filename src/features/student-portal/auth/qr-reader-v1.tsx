@@ -10,6 +10,8 @@ import {
 } from './qr-media-v1';
 import { QrInputErrorV1, selectStudentQrV1 } from './qr-input-v1';
 
+const CAMERA_ASSIST_DELAY_MS_V1 = 3500;
+
 const qrMessage = (error: unknown) => {
   if (error instanceof QrInputErrorV1)
     return {
@@ -29,7 +31,9 @@ const qrMessage = (error: unknown) => {
 
 type PlatformV1 = 'android' | 'iphone';
 const platformOfV1 = (): PlatformV1 =>
-  typeof navigator !== 'undefined' && /iPhone|iPad|iPod/u.test(navigator.userAgent) ? 'iphone' : 'android';
+  typeof navigator !== 'undefined' && /iPhone|iPad|iPod/u.test(navigator.userAgent)
+    ? 'iphone'
+    : 'android';
 
 /** Decorative access card with a scan line, so the student knows at once what to use. */
 function AccessCardV1() {
@@ -143,6 +147,7 @@ export function StudentQrReaderV1({
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [message, setMessage] = useState<string>();
   const [blocked, setBlocked] = useState(false);
+  const [showDistanceTip, setShowDistanceTip] = useState(false);
   const stop = () => {
     operation.current?.abort();
     operation.current = null;
@@ -190,6 +195,7 @@ export function StudentQrReaderV1({
     stop();
     setMessage(undefined);
     setBlocked(false);
+    setShowDistanceTip(false);
     setState('opening');
     setFacing(direction);
     const controller = new AbortController();
@@ -205,12 +211,25 @@ export function StudentQrReaderV1({
       await player.play();
       controller.signal.throwIfAborted();
       setState('camera');
+      let assisted = false;
+      const assistTimer = window.setTimeout(() => {
+        if (controller.signal.aborted) return;
+        assisted = true;
+        setShowDistanceTip(true);
+        if (direction === 'environment') void lease.current?.zoomForDistance();
+      }, CAMERA_ASSIST_DELAY_MS_V1);
+      controller.signal.addEventListener('abort', () => window.clearTimeout(assistTimer), {
+        once: true,
+      });
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) throw new QrInputErrorV1('unavailable');
       while (!controller.signal.aborted) {
         if (player.videoWidth && player.videoHeight) {
-          const scale = Math.min(1, 960 / Math.max(player.videoWidth, player.videoHeight));
+          const scale = Math.min(
+            1,
+            (assisted ? 1280 : 960) / Math.max(player.videoWidth, player.videoHeight),
+          );
           canvas.width = Math.max(1, Math.round(player.videoWidth * scale));
           canvas.height = Math.max(1, Math.round(player.videoHeight * scale));
           context.drawImage(player, 0, 0, canvas.width, canvas.height);
@@ -292,6 +311,11 @@ export function StudentQrReaderV1({
         className="pa-qr-video"
         hidden={state !== 'camera' && state !== 'opening'}
       />
+      {state === 'camera' && showDistanceTip ? (
+        <p className="card__description" role="status">
+          Se ficar borrado, afaste um pouco o cartão.
+        </p>
+      ) : null}
       {message ? <p role="alert">{message}</p> : null}
       {state === 'opening' || state === 'image' ? (
         <p role="status">{state === 'image' ? 'Lendo imagem…' : 'Abrindo câmera…'}</p>

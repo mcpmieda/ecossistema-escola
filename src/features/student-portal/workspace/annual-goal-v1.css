@@ -78,26 +78,22 @@
 }
 .pa-annual-goal-fill {
   height: 100%;
-  transform-origin: left center;
-  animation: pa-annual-goal-grow 700ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
 }
-.pa-annual-goal-fill--t1 {
-  background: var(--pa-goal-fill);
-}
-.pa-annual-goal-fill--t2 {
-  border-left: 2px solid var(--pa-goal-surface);
-  background: color-mix(in srgb, var(--pa-goal-fill) 78%, #0f2747);
-}
-.pa-annual-goal-fill--needed {
-  border-left: 2px solid var(--pa-goal-surface);
+.pa-annual-goal-fill--have {
   background: repeating-linear-gradient(
     -45deg,
-    color-mix(in srgb, var(--pa-goal-fill) 40%, transparent) 0 4px,
-    color-mix(in srgb, var(--pa-goal-fill) 18%, transparent) 4px 8px
+    var(--pa-goal-fill) 0 4px,
+    color-mix(in srgb, var(--pa-goal-fill) 78%, white) 4.5px,
+    color-mix(in srgb, var(--pa-goal-fill) 58%, white) 5px 9px,
+    color-mix(in srgb, var(--pa-goal-fill) 78%, white) 9.5px,
+    var(--pa-goal-fill) 10px
   );
-  animation-delay: 450ms;
+  background-size: 14.142px 14.142px;
+  animation: pa-annual-goal-flow 2.4s linear infinite;
 }
-/* The 60-point line. */
+.pa-annual-goal-fill--needed {
+  background: color-mix(in srgb, var(--pa-goal-fill) 25%, white);
+}
 .pa-annual-goal-marker {
   position: absolute;
   top: 0;
@@ -135,7 +131,7 @@
 .pa-annual-goal-label--have b {
   color: var(--pa-goal-accent);
 }
-/* Above the striped part: what is still missing, with a tick pointing at it. */
+/* Above the remaining part: what is still missing, with a tick pointing at it. */
 .pa-annual-goal-label--need {
   top: auto;
   bottom: 0.1rem;
@@ -183,12 +179,9 @@
     transform: none;
   }
 }
-@keyframes pa-annual-goal-grow {
-  from {
-    transform: scaleX(0);
-  }
+@keyframes pa-annual-goal-flow {
   to {
-    transform: scaleX(1);
+    background-position-x: 14.142px;
   }
 }
 

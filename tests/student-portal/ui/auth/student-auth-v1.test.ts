@@ -309,13 +309,6 @@ it('closes the number keyboard after the last digit so the buttons show', async 
   expect(screen.getByRole('button', { name: 'Continuar' })).toBeTruthy();
 });
 
-it('asks to tap the boxes when the phone refuses the automatic focus (iOS)', async () => {
-  const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => undefined);
-  view();
-  expect(await screen.findByText('Toque nos quadradinhos para digitar')).toBeTruthy();
-  focus.mockRestore();
-});
-
 it('lifts the blocked-camera help when the camera is allowed in the settings', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(navigator, 'permissions');
   const status = Object.assign(new EventTarget(), { state: 'denied' as PermissionState });

@@ -168,7 +168,7 @@ it('keeps an invalid QR local and does not submit it to the authentication servi
   render(
     <StudentPortalApp client={api.client} entry={{ qr: null, invalidQr: true, route: 'access' }} />,
   );
-  expect(screen.getByText('Este QR não é um acesso válido ao Portal.')).toBeTruthy();
+  expect(await screen.findByText('Este QR não é um acesso válido ao Portal.')).toBeTruthy();
   await waitFor(() => expect(api.calls.length).toBeGreaterThan(0));
   expect(api.calls.every((call) => call.path === '/api/student/session')).toBe(true);
 });
