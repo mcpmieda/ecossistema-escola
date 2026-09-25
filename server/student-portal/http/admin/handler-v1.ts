@@ -32,10 +32,10 @@ function allowed(request: Request, env: RuntimeEnv): boolean {
   const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
   if (environment === 'production' && env.OFFICIAL_ORIGIN !== 'https://admin.escolaieda.com')
     return false;
-  if (
-    environment !== 'production' &&
-    (environment !== 'local' || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
-  )
+  if (environment === 'preview' &&
+    (url.protocol !== 'https:' ||
+      (url.hostname !== 'admin.teste.escolaieda.com' && !url.hostname.endsWith('.pages.dev')))) return false;
+  if (environment === 'local' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
     return false;
   if (url.origin !== env.OFFICIAL_ORIGIN || url.search || url.hash || url.username || url.password)
     return false;

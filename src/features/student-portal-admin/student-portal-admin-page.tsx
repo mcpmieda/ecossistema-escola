@@ -74,6 +74,11 @@ const StudentSessionsV1 = lazy(() =>
     default: module.StudentSessionsV1,
   })),
 );
+const StudentPublicationV1 = lazy(() =>
+  import('./publication/student-publication-v1').then((module) => ({
+    default: module.StudentPublicationV1,
+  })),
+);
 const StudentAuditV1 = lazy(() =>
   import('./audit/student-audit-v1').then((module) => ({ default: module.StudentAuditV1 })),
 );
@@ -272,6 +277,14 @@ function PortalWorkspace({
       sessions: (context) => (
         <StudentSessionsV1
           {...common}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
+      ),
+      publication: (context) => (
+        <StudentPublicationV1
+          client={common.client}
           scope={context.scope}
           scopeLabel={context.account.name}
           canWrite={context.canWrite}

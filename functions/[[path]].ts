@@ -1,5 +1,6 @@
 import type { RuntimeEnv } from '../server/env';
 import { validateEnv } from '../server/env';
+import { previewRequestAllowed } from '../server/preview-read-only';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
 import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
 import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
@@ -197,6 +198,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
   const request = context.request;
   const url = new URL(request.url);
   enforceOfficialOrigin(request, env);
+  if (!(await previewRequestAllowed(request, env))) throw new HttpError(403, 'Preview is read-only');
 
   const healthResponse = await handleSystemHealthRequestV1(request, env);
   if (healthResponse) return healthResponse;

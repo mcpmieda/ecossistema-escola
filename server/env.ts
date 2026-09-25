@@ -107,8 +107,8 @@ const envSchema = z
     if (
       value.RUNTIME_ENVIRONMENT === 'preview' &&
       (origin.protocol !== 'https:' ||
-        !origin.hostname.endsWith('.pages.dev') ||
-        origin.hostname === 'pages.dev')
+        (origin.hostname !== 'admin.teste.escolaieda.com' &&
+          (!origin.hostname.endsWith('.pages.dev') || origin.hostname === 'pages.dev')))
     ) {
       context.addIssue({
         code: 'custom',
