@@ -26,7 +26,7 @@ function scoreOf(subject: SubjectV1, period: PeriodV1['period']): ScoreMarkV1 | 
   return final?.kind === 'score' ? final : null;
 }
 
-/** Null whenever the goal would not be exact: missing or off-scale marks, T3 already scored, or an official result. */
+/** The T2 target remains visible during T3; it is based only on the published T1 + T2 marks. */
 export function annualGoalV1(
   subject: SubjectV1,
   academicState: SelfResponseV1['profile']['academicState'],
@@ -34,7 +34,7 @@ export function annualGoalV1(
   if (academicState !== 'regular' || subject.annualSituation || subject.officialOutcome) return null;
   const t1 = scoreOf(subject, 'T1');
   const t2 = scoreOf(subject, 'T2');
-  if (!t1 || !t2 || scoreOf(subject, 'T3')) return null;
+  if (!t1 || !t2) return null;
   if (t1.maximum === null || t2.maximum === null) return null;
   if (milli(t1.maximum) !== TERM_MAXIMUM_MILLI_V1.T1 || milli(t2.maximum) !== TERM_MAXIMUM_MILLI_V1.T2) return null;
   const t1Milli = milli(t1.value);
