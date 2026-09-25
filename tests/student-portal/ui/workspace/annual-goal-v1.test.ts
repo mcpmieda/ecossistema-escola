@@ -35,7 +35,6 @@ describe('Meta do ano (2º trimestre)', () => {
       { period: 'T1' as const, final: scoreOf(15, 30) },
       { period: 'T2' as const, final: scoreOf(15, 30) },
     ];
-    expect(annualGoalV1(subjectOf([...base, { period: 'T3', final: scoreOf(20, 40) }]), 'regular')).toBeNull();
     expect(annualGoalV1(subjectOf([base[0]!]), 'regular')).toBeNull();
     expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, 25) }]), 'regular')).toBeNull();
     expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, null) }]), 'regular')).toBeNull();
@@ -43,6 +42,19 @@ describe('Meta do ano (2º trimestre)', () => {
     expect(annualGoalV1(subjectOf(base), 'assisted')).toBeNull();
     expect(annualGoalV1(subjectOf(base), 'special')).toBeNull();
     expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), 'regular')).toBeNull();
+  });
+
+  it.each([0, 20, 40])('preserves the T2 target when T3 already has %s points', (t3) => {
+    const base = [
+      { period: 'T1' as const, final: scoreOf(15, 30) },
+      { period: 'T2' as const, final: scoreOf(15, 30) },
+    ];
+    const withThird = [...base, { period: 'T3' as const, final: scoreOf(t3, 40) }];
+    expect(annualGoalV1(subjectOf(withThird), 'regular')).toEqual(
+      annualGoalV1(subjectOf(base), 'regular'),
+    );
+    expect(annualGoalV1(subjectOf(withThird, { officialOutcome: 'approved' }), 'regular')).toBeNull();
+    expect(annualGoalV1(subjectOf(withThird, { annualSituation: 'approved-direct' }), 'regular')).toBeNull();
   });
 });
 
