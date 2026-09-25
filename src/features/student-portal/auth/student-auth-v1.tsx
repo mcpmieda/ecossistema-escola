@@ -52,18 +52,10 @@ function NumericCredentialV1({
   autoFocus?: boolean;
 }>) {
   const id = useId();
-  const hint = useId();
-  // The first field of each step takes the focus, so the phone opens its number keyboard at once.
-  // iOS refuses focus that does not follow a tap; then the field says to tap it.
   const own = useRef<HTMLInputElement>(null);
-  const [needsTap, setNeedsTap] = useState(false);
   useEffect(() => {
     if (!autoFocus) return;
     own.current?.focus({ preventScroll: true });
-    const check = setTimeout(() => {
-      if (own.current && document.activeElement !== own.current) setNeedsTap(true);
-    }, 150);
-    return () => clearTimeout(check);
   }, [autoFocus]);
   // Secret digits: only the one just typed shows, and it turns into * after a short pause, on
   // deletion or when the field loses focus.
@@ -93,10 +85,9 @@ function NumericCredentialV1({
         onComplete={() => onComplete?.(own.current)}
         id={id}
         isDisabled={disabled}
-        onFocus={() => setNeedsTap(false)}
+        autoFocus={autoFocus}
         onBlur={() => setRevealed(null)}
         aria-label={label}
-        aria-describedby={needsTap ? hint : undefined}
         value={value}
         onChange={(next) => {
           if (!/^\d*$/u.test(next)) return;
@@ -121,11 +112,6 @@ function NumericCredentialV1({
           </>
         ) : null}
       </InputOTP>
-      {needsTap ? (
-        <p id={hint} className="pa-credential-tap">
-          Toque nos quadradinhos para digitar
-        </p>
-      ) : null}
     </div>
   );
 }

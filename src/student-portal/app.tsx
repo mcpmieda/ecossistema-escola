@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Alert, Button } from '@heroui/react';
+import { Card } from '@heroui/react/card';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
 import {
   StudentPortalPageV1,
@@ -96,6 +97,43 @@ export function StudentPortalApp({
       </StudentPortalShellV1>
     );
   const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
+  if (access && session.logoutState !== 'done') {
+    if (session.load.state === 'idle' || session.load.state === 'loading')
+      return <StudentSplashV1 />;
+    if (session.load.state === 'ready')
+      return (
+        <StudentEntryLayoutV1>
+          <Card className="pa-account-switch">
+            <Card.Header>
+              <Card.Title>Você já está conectado</Card.Title>
+            </Card.Header>
+            <Card.Content>
+              <Card.Description>Para usar outro cartão, saia da conta atual.</Card.Description>
+              <Button
+                onPress={() => {
+                  discardQr();
+                  setAccess(false);
+                  window.history.replaceState(null, '', '/');
+                }}
+              >
+                Continuar nesta conta
+              </Button>
+              <Button variant="secondary" onPress={() => { void session.logout(); }}>
+                Trocar de aluno
+              </Button>
+            </Card.Content>
+          </Card>
+        </StudentEntryLayoutV1>
+      );
+    if (!anonymous)
+      return (
+        <StudentPortalPageV1
+          load={session.load}
+          onRetry={() => { void session.refresh(); }}
+          onLogout={() => { void session.logout(); }}
+        />
+      );
+  }
   if (access || session.logoutState === 'done' || anonymous)
     return (
       <StudentEntryLayoutV1>

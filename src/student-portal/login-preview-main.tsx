@@ -193,6 +193,37 @@ function applyCameraPermissionV1(state: ScreenV1['camera']) {
   });
 }
 
+/** A local video frame lets reviewers inspect the scanner without requesting a real camera. */
+function installPreviewCameraV1() {
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: async (): Promise<MediaStream> => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 480;
+        const context = canvas.getContext('2d');
+        if (!context) throw new DOMException('Preview canvas unavailable', 'NotFoundError');
+        const background = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+        background.addColorStop(0, '#0d254b');
+        background.addColorStop(1, '#087b9a');
+        context.fillStyle = background;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = '#8eeeff';
+        context.lineWidth = 5;
+        context.strokeRect(170, 90, 300, 300);
+        context.fillStyle = '#ffffff';
+        context.font = 'bold 25px system-ui';
+        context.textAlign = 'center';
+        context.fillText('PRÉVIA DA CÂMERA', 320, 55);
+        context.font = '21px system-ui';
+        context.fillText('Aponte o QR do cartão aqui', 320, 440);
+        return canvas.captureStream(10);
+      },
+    },
+  });
+}
+
 /** Types the given digits into the visible fields and presses the main button. */
 async function playV1(screen: ScreenV1, run: number, current: () => number) {
   if (!screen.type?.length) return;
@@ -300,6 +331,7 @@ function LoginPreviewV1() {
   );
 }
 
+installPreviewCameraV1();
 applyCameraPermissionV1(SCREENS_V1[0]!.camera);
 const root = document.getElementById('root');
 if (!root) throw new Error('Preview root missing');

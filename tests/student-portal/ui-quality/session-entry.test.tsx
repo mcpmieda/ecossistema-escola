@@ -1,12 +1,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
 import { createPortalSelfClientV1 } from '../../../src/features/student-portal/shared/self-client-v1';
 import {
   SYNTHETIC_ID_V1,
+  SYNTHETIC_QR_V1,
   SYNTHETIC_SELF_V1,
 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
+import { clientFixtureV1, REQUIRED, SESSION } from '../ui/auth/fixtures-v1';
 
 const meta = { contractVersion: 1, requestId: SYNTHETIC_ID_V1 };
 const json = (body: unknown, status = 200) =>
@@ -123,6 +126,101 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it('keeps the current account when another QR is opened and does not challenge it', async () => {
+  const client = clientFixtureV1();
+  client.session.mockResolvedValue({
+    ...SESSION,
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  render(
+    <StudentPortalApp
+      client={client}
+      entry={{ qr: SYNTHETIC_QR_V1, route: 'access', invalidQr: false }}
+    />,
+  );
+  expect(screen.getByText('Verificando acesso…')).toBeTruthy();
+  expect(await screen.findByText('Você já está conectado')).toBeTruthy();
+  expect(client.challenge).not.toHaveBeenCalled();
+  expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Continuar nesta conta' }));
+  expect(await screen.findByText(SYNTHETIC_SELF_V1.profile.name)).toBeTruthy();
+  expect(client.logout).not.toHaveBeenCalled();
+  expect(client.challenge).not.toHaveBeenCalled();
+});
+
+it('logs out the current account before challenging the second QR and accepts its new session', async () => {
+  const client = clientFixtureV1();
+  const second = {
+    ...SYNTHETIC_SELF_V1,
+    profile: {
+      ...SYNTHETIC_SELF_V1.profile,
+      accountId: '00000000-0000-4000-8000-000000000099',
+      name: 'Outra conta de exemplo',
+    },
+  };
+  client.session.mockResolvedValue({
+    ...SESSION,
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  client.me.mockResolvedValueOnce(SYNTHETIC_SELF_V1).mockResolvedValueOnce(second);
+  client.challenge.mockResolvedValueOnce(REQUIRED('password'));
+  let finishLogout!: (value: Awaited<ReturnType<typeof client.logout>>) => void;
+  client.logout.mockImplementationOnce(() => new Promise((resolve) => { finishLogout = resolve; }));
+  render(
+    <StudentPortalApp
+      client={client}
+      entry={{ qr: SYNTHETIC_QR_V1, route: 'access', invalidQr: false }}
+    />,
+  );
+  expect(await screen.findByText('Você já está conectado')).toBeTruthy();
+  expect(client.challenge).not.toHaveBeenCalled();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Trocar de aluno' }));
+  expect(client.challenge).not.toHaveBeenCalled();
+  await act(async () => finishLogout({ contractVersion: 1, requestId: SYNTHETIC_ID_V1, state: 'logged-out' }));
+  const password = await screen.findByLabelText('Senha de 6 números');
+  expect(client.logout).toHaveBeenCalledOnce();
+  expect(client.logout.mock.invocationCallOrder[0]).toBeLessThan(client.challenge.mock.invocationCallOrder[0]!);
+  await userEvent.setup().type(password, '001234');
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Entrar' }));
+  expect(await screen.findByText(second.profile.name)).toBeTruthy();
+  expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+});
+
+it('does not challenge another QR when the current logout fails', async () => {
+  const client = clientFixtureV1();
+  client.session.mockResolvedValue({
+    ...SESSION,
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  client.logout.mockRejectedValueOnce(new Error('Synthetic logout failure'));
+  render(
+    <StudentPortalApp
+      client={client}
+      entry={{ qr: SYNTHETIC_QR_V1, route: 'access', invalidQr: false }}
+    />,
+  );
+  await screen.findByText('Você já está conectado');
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Trocar de aluno' }));
+  expect(await screen.findByText('Não foi possível confirmar a saída')).toBeTruthy();
+  expect(client.challenge).not.toHaveBeenCalled();
+});
+
+it('does not challenge another QR while the existing session cannot be checked', async () => {
+  const client = clientFixtureV1();
+  client.session.mockRejectedValueOnce(new TypeError('Synthetic network failure'));
+  render(
+    <StudentPortalApp
+      client={client}
+      entry={{ qr: SYNTHETIC_QR_V1, route: 'access', invalidQr: false }}
+    />,
+  );
+  expect(await screen.findByText('Não foi possível carregar seus dados')).toBeTruthy();
+  expect(client.challenge).not.toHaveBeenCalled();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Sair' }));
+  expect(await screen.findByLabelText('Ano de nascimento do aluno')).toBeTruthy();
+  expect(client.logout).toHaveBeenCalledOnce();
 });
 
 it.each([401, 503])(

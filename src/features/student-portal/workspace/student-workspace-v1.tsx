@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Card,
@@ -163,13 +163,59 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
   return left > right ? 'higher' : left < right ? 'lower' : 'equal';
 }
 
-function TrendIndicatorV1({ trend, reference }: { trend: TrendV1; reference: PeriodIdV1 }) {
+function TrendIndicatorV1({ trend, period, reference }: { trend: TrendV1; period: PeriodIdV1; reference: PeriodIdV1 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const messageId = useId();
   const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
   const verb = trend === 'higher' ? 'Subiu' : trend === 'lower' ? 'Caiu' : 'Manteve';
   const label = `${verb} em relação ao ${PERIOD_LABELS_V1[reference]}`;
+  const comparison = trend === 'higher' ? 'maior' : trend === 'lower' ? 'menor' : 'igual';
+  const periodName = period === 'T2' ? '2º' : '3º';
+  const referenceName = reference === 'T1' ? '1º' : '2º';
+  const message = period === 'T2'
+    ? `A nota do ${periodName} trimestre foi ${trend === 'equal' ? 'igual à do' : `${comparison} que a do`} ${referenceName}.`
+    : `O desempenho do ${periodName} trimestre foi ${trend === 'equal' ? 'igual ao do' : `${comparison} que o do`} ${referenceName}.`;
+
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const dismissEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const timer = window.setTimeout(() => setOpen(false), 8000);
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('keydown', dismissEscape);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', dismissOutside);
+      document.removeEventListener('keydown', dismissEscape);
+    };
+  }, [open]);
+
   return (
-    <span className={'pa-trend pa-trend--' + trend} role="img" aria-label={label} title={label}>
-      <Icon size={17} strokeWidth={2.4} aria-hidden="true" />
+    <span className="pa-trend-wrap" ref={rootRef}>
+      <button
+        type="button"
+        className={'pa-trend pa-trend--' + trend}
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={open ? messageId : undefined}
+        aria-describedby={open ? messageId : undefined}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <Icon size={17} strokeWidth={2.4} aria-hidden="true" />
+      </button>
+      {open ? (
+        <span className="pa-trend-message" id={messageId} role="tooltip">
+          {message}
+          <span className="pa-trend-timer" aria-hidden="true">
+            <span className="pa-trend-timer-fill" />
+          </span>
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -507,9 +553,14 @@ function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
   if (partial.mark.meetsMinimum === null) return null;
   const met = partial.mark.meetsMinimum;
   return (
-    <span className={'pa-partial-feedback pa-partial-feedback--' + (met ? 'met' : 'attention')}>
+    <Chip
+      size="sm"
+      variant="soft"
+      color={met ? 'success' : 'warning'}
+      className="pa-partial-feedback"
+    >
       {met ? 'Foi bem' : 'Não foi muito bem'}
-    </span>
+    </Chip>
   );
 }
 
@@ -653,16 +704,16 @@ function SubjectV1View({
             <Card.Content className="pa-score-card-content">
               <div className="pa-score-card-copy">
                 <span className="pa-score-card-label">
-                  {recoveryOf ? `Recuperação do ${recoveryOf}` : 'Nota do trimestre'}
+                  {recoveryOf ? `Recuperação do ${recoveryOf}` : 'Sua nota do trimestre'}
                 </span>
               </div>
-              {/* The status (Parabéns, Abaixo do esperado...) sits right under the mark it describes. */}
+              {/* The status (Parabéns, Abaixo do esperado...) sits beside the heading. */}
               <div className="pa-score-card-result">
               <div className="pa-score-card-value" aria-label="Nota do período">
                 {mark ? (
                   <>
                     {trend && trendReference ? (
-                      <TrendIndicatorV1 trend={trend} reference={trendReference} />
+                      <TrendIndicatorV1 key={`${subject.subjectId}:${active}`} trend={trend} period={active} reference={trendReference} />
                     ) : null}
                     <strong>{number.format(mark.value)}</strong>
                     {mark.maximum !== null && mark.maximum !== undefined ? (

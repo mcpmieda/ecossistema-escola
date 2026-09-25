@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Chip } from '@heroui/react/chip';
-import { CircleCheck, Compass, Flag, Sparkles } from 'lucide-react';
+import { CircleCheck, Compass, Sparkles } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import {
   renderTermClosingMessageV1,
@@ -88,19 +88,36 @@ export function TermClosingCardV1({
       <h3 className="pa-closing-title">{text(closing.conclusion)}</h3>
       <ul className="pa-closing-pieces">
         <li>
-          <Flag size={16} aria-hidden="true" />
+          <svg
+            className="pa-closing-flag"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 22V4" />
+            <path
+              className="pa-closing-flag-cloth"
+              d="M4 4 C7 2 9 2 12 3.5 C15 5 17 5 20 3.5 L20 13.5 C17 15.5 15 15.5 12 14 C9 12.5 7 12.5 4 15"
+            />
+          </svg>
           <span>{text(closing.weight)}</span>
         </li>
         {closing.strength ? (
           <li>
-            <Sparkles size={16} aria-hidden="true" />
+            <Sparkles className="pa-closing-sparkles" size={16} aria-hidden="true" />
             <span>{text(closing.strength)}</span>
           </li>
         ) : null}
       </ul>
       {action ? (
         <p className="pa-closing-action">
-          <Compass size={16} aria-hidden="true" />
+          <Compass className="pa-closing-compass" size={16} aria-hidden="true" />
           <span>
             <strong>Agora:</strong> {action.replace(/^Agora:\s*/u, '').replace(/^\p{Ll}/u, (letter) => letter.toLocaleUpperCase('pt-BR'))}
           </span>

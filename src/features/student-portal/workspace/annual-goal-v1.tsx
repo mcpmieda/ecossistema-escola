@@ -90,7 +90,7 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
         </div>
       </header>
 
-      {/* How much is missing sits above the striped part it refers to. */}
+      {/* How much is missing sits above the remaining part it refers to. */}
       <div className="pa-annual-goal-above" aria-hidden="true">
         {goal.state === 'reached' ? null : (
           <span className="pa-annual-goal-label pa-annual-goal-label--need" style={{ left: labelAt(goal.soFarMilli + needed / 2) }}>
@@ -99,10 +99,9 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
           </span>
         )}
       </div>
-      {/* 100 points across the year: 1º and 2º tri filled, the 3º tri share still needed striped. */}
+      {/* Earned points move toward the goal; the points still needed remain lighter. */}
       <div className="pa-annual-goal-track" aria-hidden="true">
-        <span className="pa-annual-goal-fill pa-annual-goal-fill--t1" style={{ width: percentOfYear(goal.t1Milli) }} />
-        <span className="pa-annual-goal-fill pa-annual-goal-fill--t2" style={{ width: percentOfYear(goal.t2Milli) }} />
+        <span className="pa-annual-goal-fill pa-annual-goal-fill--have" style={{ width: percentOfYear(goal.soFarMilli) }} />
         {needed > 0 ? (
           <span className="pa-annual-goal-fill pa-annual-goal-fill--needed" style={{ width: percentOfYear(needed) }} />
         ) : null}
@@ -127,7 +126,7 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; s
         {goal.state === 'reached'
           ? 'O 3º trimestre continua valendo para o seu boletim.'
           : goal.state === 'reachable'
-            ? `É o que você precisa no 3º trimestre, que vale 40 pontos, para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`
+            ? `${points(goal.neededMilli)} ${goal.neededMilli === 1000 ? 'ponto é' : 'pontos é'} o que você precisa no 3º trimestre para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`
             : `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`}
       </p>
     </section>

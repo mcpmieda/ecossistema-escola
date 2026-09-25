@@ -129,6 +129,8 @@ export function createStudentSessionV1(
         await client.logout(controller.signal);
         controller.signal.throwIfAborted();
         if (!disposed) {
+          lastLoad = { state: 'idle' };
+          expiresAt = 0;
           logoutState('done');
           publish({ state: 'error', error: new PortalClientErrorV1('unauthenticated', 401) });
         }

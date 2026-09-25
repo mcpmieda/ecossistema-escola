@@ -80,17 +80,77 @@ export function stopCameraTracksV1(stream: MediaStream | null | undefined) {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
+async function enableContinuousFocusV1(stream: MediaStream) {
+  const track = stream.getVideoTracks()[0];
+  try {
+    if (!track) return;
+    const capabilities = track.getCapabilities?.() as
+      (MediaTrackCapabilities & { focusMode?: string[] }) | undefined;
+    if (!capabilities?.focusMode?.includes('continuous')) return;
+    await track.applyConstraints({
+      advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+    });
+  } catch {
+    // Keep the browser's default autofocus if this device rejects the optional setting.
+  }
+}
+
 /** Late permission responses cannot resurrect a camera after a switch/unmount. */
 export function createCameraLeaseV1(media: Pick<MediaDevices, 'getUserMedia'>) {
   let generation = 0;
   let current: MediaStream | undefined;
+  let currentFacing: 'environment' | 'user' | undefined;
   const stop = () => {
     generation += 1;
     stopCameraTracksV1(current);
     current = undefined;
+    currentFacing = undefined;
   };
   return {
     stop,
+    async zoomForDistance(): Promise<boolean> {
+      const stream = current;
+      const request = generation;
+      const track = stream?.getVideoTracks()[0];
+      if (!track || currentFacing !== 'environment') return false;
+      try {
+        const capabilities = track.getCapabilities?.() as
+          | (MediaTrackCapabilities & {
+              focusMode?: string[];
+              zoom?: { min: number; max: number };
+            })
+          | undefined;
+        const settings = track.getSettings?.() as
+          (MediaTrackSettings & { zoom?: number }) | undefined;
+        const zoom = capabilities?.zoom;
+        const target = zoom && Math.min(1.5, zoom.max);
+        const currentZoom = settings?.zoom;
+        if (
+          !zoom ||
+          !Number.isFinite(zoom.min) ||
+          !Number.isFinite(zoom.max) ||
+          typeof currentZoom !== 'number' ||
+          !Number.isFinite(currentZoom) ||
+          !target ||
+          target < zoom.min ||
+          currentZoom >= target
+        )
+          return false;
+        await track.applyConstraints({
+          advanced: [
+            {
+              zoom: target,
+              ...(capabilities?.focusMode?.includes('continuous')
+                ? { focusMode: 'continuous' }
+                : {}),
+            } as MediaTrackConstraintSet,
+          ],
+        });
+        return request === generation && current === stream;
+      } catch {
+        return false;
+      }
+    },
     async open(facing: 'environment' | 'user'): Promise<MediaStream | null> {
       stop();
       const request = generation;
@@ -103,6 +163,9 @@ export function createCameraLeaseV1(media: Pick<MediaDevices, 'getUserMedia'>) {
         return null;
       }
       current = stream;
+      currentFacing = facing;
+      if (facing === 'environment') await enableContinuousFocusV1(stream);
+      if (request !== generation) return null;
       return stream;
     },
   };
