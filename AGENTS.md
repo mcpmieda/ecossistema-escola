@@ -26,6 +26,7 @@ Existe um operador Cloudflare via GitHub Actions para diagnóstico sanitizado se
 
 - Faça a menor mudança suficiente para a issue atribuída.
 - Trabalhe em uma branch curta, com uma issue e um pull request por entrega. Uma fase grande pode ter entregas sequenciais; PR parcial não fecha a fase automaticamente.
+- Exceção aprovada pelo responsável em 24/09/2026: `codex/preview-painel-aluno-admin` é a branch permanente da página de testes oficial do Centro de Administração em `admin.teste.escolaieda.com`. Publique e teste nela antes de promover cada entrega à `main` por PR com os gates vigentes; não a exclua após o merge. Mantenha uma issue e um PR por entrega e sincronize a branch de testes com a `main` após a integração, sem reescrever histórico. Operação e limites em [`docs/student-portal/ADMIN_PREVIEW.md`](docs/student-portal/ADMIN_PREVIEW.md).
 - Reutilize contratos, componentes e serviços existentes antes de criar novos.
 - Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
 - App Factory, Factory Runs, merge trains e orquestradores permanentes continuam proibidos sem autorização explícita. O agente líder, porém, possui autorização contínua de 18/09/2026 para invocar, distribuir, reatribuir, interromper e combinar trabalho entre agentes auxiliares já conectados/homologados quando isso reduzir o tempo total sem reduzir a qualidade.

@@ -1,4 +1,24 @@
-# Preview administrativo com dados reais
+# Página de testes oficial do Centro de Administração
+
+Por decisão do responsável em 24/09/2026, a branch permanente
+`codex/preview-painel-aluno-admin` alimenta a página de testes oficial. Ela é
+uma exceção à regra geral de branches curtas. O GitHub mantém a exclusão
+automática de branches após merge, mas o ruleset `23975409` impede a exclusão
+somente desta branch. A branch permanece no GitHub depois de cada integração.
+
+Fluxo de cada entrega: implementar na branch de testes, publicar nela, testar
+com o responsável no domínio de testes e corrigir o que for encontrado. Quando
+o resultado estiver aceito, atualizar a branch com a `main` se ela tiver
+avançado, executar `npm run verify` e aguardar o CI verde no head final. Promover
+por PR para a `main` com merge commit e workflow oficial de produção. Depois
+do merge, incorporar a `main` de volta à branch de testes sem rebase nem force
+push, para que a próxima entrega comece da árvore integrada. Cada entrega
+continua tendo issue e PR próprios. Não promover apenas porque o deploy de
+testes funcionou.
+
+O escopo atualmente configurado e validado nessa página é o preview
+administrativo do Painel do Aluno com dados reais. Outras áreas do Centro
+exigem validação própria antes de serem consideradas prontas nesse ambiente.
 
 O preview do Painel do Aluno está no projeto Cloudflare Pages separado
 `ecossistema-escola-testes`, em
