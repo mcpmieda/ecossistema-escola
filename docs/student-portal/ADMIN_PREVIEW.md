@@ -20,6 +20,16 @@ O escopo atualmente configurado e validado nessa página é o preview
 administrativo do Painel do Aluno com dados reais. Outras áreas do Centro
 exigem validação própria antes de serem consideradas prontas nesse ambiente.
 
+Para reproduzir um defeito da versão publicada, compare primeiro os SHAs de
+`main` e da branch de testes. Os códigos só são idênticos quando apontam para
+o mesmo commit (ou têm a mesma árvore Git). Durante a homologação de uma
+mudança ainda não integrada, a branch de testes fica à frente da `main` por
+definição; nesse período, diferenças observadas podem vir do código candidato.
+Após o merge e a sincronização, confirme a paridade antes de atribuir uma
+diferença ao ambiente. Mesmo com código idêntico, este preview usa autenticação
+e configuração próprias e bloqueia escritas; ele serve para validar consultas
+reais e interfaces, não para reproduzir operações de escrita da produção.
+
 O preview do Painel do Aluno está no projeto Cloudflare Pages separado
 `ecossistema-escola-testes`, em
 `https://admin.teste.escolaieda.com/#/painel-do-aluno`. O DNS GoDaddy usa o
