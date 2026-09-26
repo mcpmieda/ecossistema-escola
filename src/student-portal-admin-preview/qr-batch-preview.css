@@ -113,26 +113,30 @@
 
 .qr-batch-preview__sheet {
   display: grid;
-  grid-template-columns: repeat(2, 370px);
-  grid-template-rows: repeat(4, 233.42px);
+  grid-template-columns: repeat(2, 95mm);
+  grid-template-rows: repeat(4, 59mm);
   align-content: start;
-  gap: 14px;
-  width: 794px;
-  height: 1123px;
-  padding: 20px;
+  column-gap: 10mm;
+  row-gap: 5mm;
+  width: 210mm;
+  height: 297mm;
+  padding: 5mm;
   background: white;
   box-shadow: 0 4px 20px #51627626;
 }
 
 .qr-batch-preview__card {
-  width: 370px;
-  height: 233.42px;
+  width: 95mm;
+  height: 59mm;
   overflow: hidden;
   break-inside: avoid;
+  outline: 1px dashed #aeb9c8;
+  outline-offset: -1px;
 }
 
 .qr-batch-preview__card > .qr-card {
-  transform: scale(0.43224299);
+  margin-left: 0.74mm;
+  transform: scale(0.41294838);
   transform-origin: top left;
   box-shadow: none;
 }

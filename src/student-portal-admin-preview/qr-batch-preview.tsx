@@ -48,7 +48,7 @@ function QrBatchPreview() {
         <div>
           <p className="qr-batch-preview__eyebrow">Preview local · dados sintéticos</p>
           <h1>Cartões QR em lote</h1>
-          <p>Prévia da folha A4 para turma inteira ou alunos selecionados.</p>
+          <p>Folha A4 · área de corte de 9,5 × 5,9 cm por cartão.</p>
         </div>
         <button type="button" onClick={() => window.print()}>
           Imprimir / salvar PDF

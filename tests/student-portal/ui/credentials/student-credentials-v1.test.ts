@@ -76,6 +76,8 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
     fireEvent.click(await first());
+    expect(screen.getByRole('radio', { name: 'Cartão completo · 9,5 × 5,9 cm' })).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: 'Somente QR' })).toBeNull();
     fireEvent.click(pdf());
     await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
     expect(mock.writes).toHaveLength(1);
@@ -116,6 +118,7 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       const mock = qrMockV1();
       render(createElement(StudentCredentialsV1, mock.props));
       fireEvent.click(await first());
+      fireEvent.click(screen.getByRole('radio', { name: 'QR compacto' }));
       fireEvent.click(screen.getByRole('radio', { name: label }));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Adicionar instrução ao cartão' }));
       fireEvent.change(screen.getByRole('textbox', { name: 'Instrução abaixo do QR' }), {
@@ -223,6 +226,24 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     fireEvent.click(screen.getByRole('button', { name: 'Copiar QR' }));
     await screen.findByText(/Cópia indisponível/);
     view.unmount();
+    expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();
+  });
+  it('clears the individual QR when photo access is forbidden', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 403 })),
+    );
+    const lost = vi.fn();
+    const mock = qrMockV1();
+    render(
+      createElement(StudentCredentialsV1, {
+        ...mock.props,
+        scope: { kind: 'account', academicYear: 2026, accountId: qrPrintIdV1(1) },
+        onAuthorizationLost: lost,
+      }),
+    );
+    await waitFor(() => expect(lost).toHaveBeenCalledTimes(1));
+    expect(lost.mock.calls[0]?.[0]).toMatchObject({ state: 'forbidden' });
     expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();
   });
   it('does not issue or regenerate a missing QR just by opening the individual view', async () => {
