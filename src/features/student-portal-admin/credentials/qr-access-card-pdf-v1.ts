@@ -2,30 +2,38 @@ import { PDFDocument, PrintScaling, StandardFonts, rgb, type PDFFont, type PDFPa
 import { PhotoAdminClientErrorV1 } from '../../student-photos/admin-client-v1';
 import { readCurrentPhotoV1 } from '../../student-photos/catalog-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
-import { QR_ACCESS_CARD_ART_V1, renderQrAccessCardPrintV1 } from './qr-access-card-render-v1';
+import {
+  QR_ACCESS_CARD_ART_V1,
+  renderQrAccessCardBackgroundV1,
+  renderQrAccessCardPrintV1,
+} from './qr-access-card-render-v1';
 import { QR_LAYOUT_V1, qrMatrixV1 } from './qr-artifacts-v1';
 import { qrLayerPathsV1 } from './qr-shapes-v1';
 import { QrArtifactErrorV1, validatePrintCardsV1, type QrArtifactV1 } from './qr-values-v1';
 
 const ptPerMm = 72 / 25.4;
-/** The 95 × 59 mm card size is required by the lamination pouch; no cut guide is printed. */
+/** Cards keep the art's own proportion (93.5 × 59 mm, what fits the lamination pouch) and touch
+ * each other, so one knife stroke separates two neighbours. No cut guide is printed.
+ */
 export const QR_ACCESS_CARD_PDF_LAYOUT_V1 = {
   pageWidth: QR_LAYOUT_V1.pageWidth,
   pageHeight: QR_LAYOUT_V1.pageHeight,
-  cardWidth: 95 * ptPerMm,
+  cardWidth: ((59 * QR_ACCESS_CARD_ART_V1.width) / QR_ACCESS_CARD_ART_V1.height) * ptPerMm,
   cardHeight: 59 * ptPerMm,
-  columnGap: 10 * ptPerMm,
-  rowGap: 5 * ptPerMm,
+  columnGap: 0,
+  rowGap: 0,
   columns: 2,
   rows: 4,
   rulerLength: 50 * ptPerMm,
 } as const;
-const PHOTO_CONCURRENCY = 10;
+// Production serves photos over HTTP/2: a whole class downloads in about one round trip.
+const PHOTO_CONCURRENCY = 32;
 const PHOTO_RETRY_DELAYS_MS = [400, 1_200] as const;
 
 type CardPdfDependenciesV1 = {
   readPhoto: typeof readCurrentPhotoV1;
   renderCard: typeof renderQrAccessCardPrintV1;
+  renderBackground: typeof renderQrAccessCardBackgroundV1;
   wait: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 };
 const waitV1 = (milliseconds: number, signal: AbortSignal) =>
@@ -45,6 +53,7 @@ const waitV1 = (milliseconds: number, signal: AbortSignal) =>
 const defaultDependencies: CardPdfDependenciesV1 = {
   readPhoto: readCurrentPhotoV1,
   renderCard: renderQrAccessCardPrintV1,
+  renderBackground: renderQrAccessCardBackgroundV1,
   wait: waitV1,
 };
 
@@ -241,8 +250,12 @@ export async function renderQrAccessCardsPdfV1(
   const layout = QR_ACCESS_CARD_PDF_LAYOUT_V1;
   const art = QR_ACCESS_CARD_ART_V1;
   const perPage = layout.columns * layout.rows;
-  const artWidth = (layout.cardHeight * art.width) / art.height;
-  const unit = artWidth / art.width;
+  const unit = layout.cardHeight / art.height; // Same scale on both axes: original proportion.
+  // One shared background image for every card; each card adds only its student band.
+  const background = pdf.embedJpg(
+    await (await dependencies.renderBackground(signal)).arrayBuffer(),
+  );
+  background.catch(() => {}); // Awaited by the first card; a stopped batch must not leak it.
   const quiet = QR_LAYOUT_V1.quietModules;
 
   // Art is painted ahead (portraits in parallel) while earlier cards are embedded.
@@ -267,13 +280,24 @@ export async function renderQrAccessCardsPdfV1(
       signal.throwIfAborted();
 
       const { x, y } = qrAccessCardSlotV1(index % perPage);
-      const artX = x + (layout.cardWidth - artWidth) / 2;
-      page!.drawImage(image, { x: artX, y, width: artWidth, height: layout.cardHeight });
+      page!.drawImage(await background, {
+        x,
+        y,
+        width: layout.cardWidth,
+        height: layout.cardHeight,
+      });
+      const band = art.student;
+      page!.drawImage(image, {
+        x: x + band.x * unit,
+        y: y + layout.cardHeight - (band.y + band.height) * unit,
+        width: band.width * unit,
+        height: band.height * unit,
+      });
 
       // Vector QR over the art's white QR box: crisp modules at any printer resolution.
       const matrix = qrMatrixV1(card.qr);
       const qrSize = art.qr.size * unit;
-      const qrX = artX + art.qr.x * unit;
+      const qrX = x + art.qr.x * unit;
       const qrTop = y + layout.cardHeight - art.qr.y * unit;
       page!.drawRectangle({
         x: qrX,

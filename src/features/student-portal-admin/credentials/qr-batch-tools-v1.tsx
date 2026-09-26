@@ -75,11 +75,19 @@ export function QrBatchToolsV1({
         const prepared = await art.current?.source;
         signal.throwIfAborted();
         try {
+          // Each progress update re-renders the student list; a few per second are enough.
+          let shownAt = 0;
+          const throttledProgress = (completed: number, total: number) => {
+            const now = performance.now();
+            if (completed !== 0 && completed !== total && now - shownAt < 250) return;
+            shownAt = now;
+            progress(completed, total);
+          };
           return await renderQrAccessCardsPdfV1(
             cards,
             academicYear,
             signal,
-            progress,
+            throttledProgress,
             undefined,
             prepared,
           );
@@ -202,7 +210,7 @@ export function QrBatchToolsV1({
         <Label>Formato do PDF</Label>
         {(
           [
-            ['card', 'Cartão completo · 9,5 × 5,9 cm'],
+            ['card', 'Cartão completo · 9,35 × 5,9 cm'],
             ['compact', 'QR compacto'],
           ] as const
         ).map(([value, text]) => (

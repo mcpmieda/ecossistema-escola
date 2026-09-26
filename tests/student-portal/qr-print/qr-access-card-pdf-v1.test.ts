@@ -50,6 +50,9 @@ async function syntheticDependencies() {
       async (_input: QrAccessCardPrintInputV1, _signal: AbortSignal) =>
         new Blob([new Uint8Array(jpeg)], { type: 'image/jpeg' }),
     ),
+    renderBackground: vi.fn(
+      async (_signal: AbortSignal) => new Blob([new Uint8Array(jpeg)], { type: 'image/jpeg' }),
+    ),
     wait: vi.fn(async (_milliseconds: number, _signal: AbortSignal) => {}),
   };
 }
@@ -68,7 +71,7 @@ function pageContent(page: PDFPage) {
 }
 
 describe('complete QR access card PDF', () => {
-  it('keeps the 95 × 59 mm card size and makes a new A4 page after eight cards', async () => {
+  it('keeps the art proportion (93.5 × 59 mm) and makes a new A4 page after eight cards', async () => {
     const dependencies = await syntheticDependencies();
     const progress: number[] = [];
     const result = await renderQrAccessCardsPdfV1(
@@ -90,7 +93,7 @@ describe('complete QR access card PDF', () => {
             page.getHeight() === QR_ACCESS_CARD_PDF_LAYOUT_V1.pageHeight,
         ),
     ).toBe(true);
-    expect(mm(QR_ACCESS_CARD_PDF_LAYOUT_V1.cardWidth)).toBeCloseTo(95, 6);
+    expect(mm(QR_ACCESS_CARD_PDF_LAYOUT_V1.cardWidth)).toBeCloseTo((59 * 856) / 540, 6);
     expect(mm(QR_ACCESS_CARD_PDF_LAYOUT_V1.cardHeight)).toBeCloseTo(59, 6);
     expect(dependencies.readPhoto).toHaveBeenCalledTimes(9);
     expect(dependencies.readPhoto.mock.calls[0]?.[0]).toMatchObject({
@@ -117,10 +120,14 @@ describe('complete QR access card PDF', () => {
     const first = qrAccessCardSlotV1(0);
     const last = qrAccessCardSlotV1(7);
     // pdf-lib's A4 is 595.28 × 841.89 pt, so margins match to a hundredth of a millimetre.
-    expect(mm(first.x)).toBeCloseTo(5, 2);
-    expect(mm(layout.pageHeight - first.y - layout.cardHeight)).toBeCloseTo(23, 2);
-    expect(mm(layout.pageWidth - last.x - layout.cardWidth)).toBeCloseTo(5, 2);
-    expect(mm(last.y)).toBeCloseTo(23, 2);
+    expect(mm(first.x)).toBeCloseTo(11.47, 2);
+    expect(mm(layout.pageHeight - first.y - layout.cardHeight)).toBeCloseTo(30.5, 2);
+    expect(mm(layout.pageWidth - last.x - layout.cardWidth)).toBeCloseTo(11.47, 2);
+    expect(mm(last.y)).toBeCloseTo(30.5, 2);
+    // Neighbouring cards touch, so a single knife stroke separates them.
+    expect(qrAccessCardSlotV1(1).x).toBeCloseTo(first.x + layout.cardWidth, 6);
+    expect(qrAccessCardSlotV1(2).y).toBeCloseTo(first.y - layout.cardHeight, 6);
+    expect(layout.cardWidth / layout.cardHeight).toBeCloseTo(856 / 540, 6);
   });
 
   it('draws the QR as vector paths over JPEG art, with no dashed cut guide', async () => {
@@ -137,7 +144,17 @@ describe('complete QR access card PDF', () => {
       expect(input).not.toHaveProperty('qr');
     const pdf = await PDFDocument.load(await result.blob.arrayBuffer());
     const content = pageContent(pdf.getPage(0));
-    expect(content.match(/ Do\b/gu)).toHaveLength(8);
+    // Eight student bands over one shared background image, drawn once per card.
+    expect(content.match(/ Do\b/gu)).toHaveLength(16);
+    expect(dependencies.renderBackground).toHaveBeenCalledTimes(1);
+    const storedImages = pdf.context
+      .enumerateIndirectObjects()
+      .filter(
+        ([, object]) =>
+          object instanceof PDFRawStream &&
+          object.dict.get(PDFName.of('Subtype')) === PDFName.of('Image'),
+      );
+    expect(storedImages).toHaveLength(9);
     expect(content).not.toMatch(/\[[\d.\s]+\]\s+[\d.]+\s+d\b/u);
     expect(result.blob.size).toBeLessThan(1_000_000);
   });
@@ -197,15 +214,15 @@ describe('complete QR access card PDF', () => {
       return undefined;
     });
     await renderQrAccessCardsPdfV1(
-      qrPrintCardsV1(24),
+      qrPrintCardsV1(40),
       2026,
       new AbortController().signal,
       undefined,
       dependencies,
     );
     expect(peak).toBeGreaterThan(1);
-    expect(peak).toBeLessThanOrEqual(10);
-    expect(dependencies.readPhoto).toHaveBeenCalledTimes(24);
+    expect(peak).toBeLessThanOrEqual(32);
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(40);
   });
 
   it('paints card art at click time and reuses it once the credentials arrive', async () => {
@@ -272,18 +289,18 @@ describe('complete QR access card PDF', () => {
     );
     const controller = new AbortController();
     const photoFor = prefetchQrCardPhotosV1(
-      qrPrintCardsV1(14).map((card) => card.accountId),
+      qrPrintCardsV1(36).map((card) => card.accountId),
       2026,
       controller.signal,
       dependencies,
     );
-    expect(dependencies.readPhoto).toHaveBeenCalledTimes(10);
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(32);
     controller.abort();
     const results = await Promise.allSettled(
-      qrPrintCardsV1(14).map((card) => photoFor(card.accountId)),
+      qrPrintCardsV1(36).map((card) => photoFor(card.accountId)),
     );
     expect(results.every((result) => result.status === 'rejected')).toBe(true);
-    expect(dependencies.readPhoto).toHaveBeenCalledTimes(10);
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(32);
   });
 
   it('rejects an unsuitable card before requesting any photo', async () => {

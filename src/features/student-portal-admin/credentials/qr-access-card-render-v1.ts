@@ -14,7 +14,11 @@ export const QR_ACCESS_CARD_ART_V1 = {
   width: WIDTH,
   height: HEIGHT,
   qr: { x: 542, y: 142, size: 304 },
+  /** Band that holds portrait, name and class; its edges sit on the card's own colour edges. */
+  student: { x: 0, y: 132, width: 542, height: 324 },
 } as const;
+type ArtRegionV1 = { x: number; y: number; width: number; height: number };
+const FULL_CARD: ArtRegionV1 = { x: 0, y: 0, width: WIDTH, height: HEIGHT };
 
 export type QrAccessCardInputV1 = {
   qr: Blob;
@@ -43,6 +47,34 @@ function imageFromUrl(url: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new QrArtifactErrorV1('render-unavailable'));
     image.src = url;
   });
+}
+
+const staticLayers = new Map<number, Promise<HTMLCanvasElement>>();
+// The shared layer is painted once per scale and page; a batch then paints only student content.
+function staticLayerV1(scale: number): Promise<HTMLCanvasElement> {
+  let layer = staticLayers.get(scale);
+  if (!layer) {
+    layer = (async () => {
+      const [crest, emblem] = await cardAssetsV1();
+      // Cached text must not freeze a fallback font picked before Inter finished loading.
+      await Promise.all(
+        ['800 15px', '850 20px', '700 18px', '850 29px'].map((font) =>
+          document.fonts?.load(`${font} Inter`).catch(() => []),
+        ),
+      );
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(WIDTH * scale);
+      canvas.height = Math.round(HEIGHT * scale);
+      const context = canvas.getContext('2d');
+      if (!context) throw new QrArtifactErrorV1('render-unavailable');
+      context.scale(scale, scale);
+      paintStaticLayer(context, crest, emblem);
+      return canvas;
+    })();
+    layer.catch(() => staticLayers.delete(scale));
+    staticLayers.set(scale, layer);
+  }
+  return layer;
 }
 
 function fillRoundRect(
@@ -184,20 +216,32 @@ function paintIdentity(context: CanvasRenderingContext2D, name: string, classLab
   context.font = `820 ${classSize}px Inter, Arial, sans-serif`;
   while (context.measureText(classLabel).width > 270 && classSize > 12)
     context.font = `820 ${--classSize}px Inter, Arial, sans-serif`;
-  const badgeWidth = Math.min(294, Math.ceil(context.measureText(classLabel).width + 24));
+  // Glyph bounds are relative to the baseline in effect when measuring.
+  context.textBaseline = 'alphabetic';
+  const glyphs = context.measureText(classLabel);
+  const badgeWidth = Math.min(294, Math.ceil(glyphs.width + 24));
   context.fillStyle = '#1b4480';
   fillRoundRect(context, 220, y, badgeWidth, classHeight, 8);
+  // Centre the drawn glyphs (not the font box) so "6º ANO A" sits in the middle of the badge.
+  const ink = {
+    left: glyphs.actualBoundingBoxLeft,
+    right: glyphs.actualBoundingBoxRight,
+    ascent: glyphs.actualBoundingBoxAscent,
+    descent: glyphs.actualBoundingBoxDescent,
+  };
   context.fillStyle = '#ffffff';
-  context.fillText(classLabel, 232, y + 7);
+  context.fillText(
+    classLabel,
+    220 + (badgeWidth - (ink.left + ink.right)) / 2 + ink.left,
+    y + (classHeight + ink.ascent - ink.descent) / 2,
+  );
 }
 
-function paintCard(
+/** Everything identical on every card: background, patterns, crest and titles. */
+function paintStaticLayer(
   context: CanvasRenderingContext2D,
   crest: HTMLImageElement,
   emblem: HTMLImageElement,
-  qr: ImageBitmap | undefined,
-  input: QrAccessCardPrintInputV1,
-  photo?: ImageBitmap,
 ) {
   context.save();
   context.beginPath();
@@ -259,15 +303,6 @@ function paintCard(
   context.fillStyle = '#ffffff';
   context.fillRect(542, 132, WIDTH - 542, 324);
 
-  paintPhoto(context, photo);
-  paintIdentity(context, input.name, input.classLabel);
-  if (qr) {
-    const box = QR_ACCESS_CARD_ART_V1.qr;
-    context.imageSmoothingEnabled = false;
-    context.drawImage(qr, box.x, box.y, box.size, box.size);
-    context.imageSmoothingEnabled = true;
-  }
-
   context.fillStyle = '#ffffff';
   context.beginPath();
   context.arc(66, 66, 50, 0, Math.PI * 2);
@@ -296,38 +331,69 @@ function paintCard(
   context.restore();
 }
 
+/** Per-student content; it never overlaps the header, so it can go over the cached layer. */
+function paintStudent(
+  context: CanvasRenderingContext2D,
+  qr: ImageBitmap | undefined,
+  input: QrAccessCardPrintInputV1,
+  photo?: ImageBitmap,
+) {
+  paintPhoto(context, photo);
+  paintIdentity(context, input.name, input.classLabel);
+  if (qr) {
+    const box = QR_ACCESS_CARD_ART_V1.qr;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(qr, box.x, box.y, box.size, box.size);
+    context.imageSmoothingEnabled = true;
+  }
+}
+
 async function renderCardBlobV1(
-  input: QrAccessCardPrintInputV1 & { qr?: Blob },
+  input: (QrAccessCardPrintInputV1 & { qr?: Blob }) | undefined,
   signal: AbortSignal,
   scale: number,
   type: 'image/png' | 'image/jpeg',
+  region: ArtRegionV1 = FULL_CARD,
 ): Promise<Blob> {
   signal.throwIfAborted();
   if (typeof document === 'undefined' || typeof createImageBitmap === 'undefined')
     throw new QrArtifactErrorV1('render-unavailable');
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(WIDTH * scale);
-  canvas.height = Math.round(HEIGHT * scale);
+  canvas.width = Math.round(region.width * scale);
+  canvas.height = Math.round(region.height * scale);
   const context = canvas.getContext('2d');
   if (!context) throw new QrArtifactErrorV1('render-unavailable');
   let qr: ImageBitmap | undefined;
   let photo: ImageBitmap | undefined;
   try {
-    const [[crest, emblem], qrImage, photoImage] = await Promise.all([
-      cardAssetsV1(),
-      input.qr ? createImageBitmap(input.qr) : Promise.resolve(undefined),
-      input.photo ? createImageBitmap(input.photo) : Promise.resolve(undefined),
+    const [layer, qrImage, photoImage] = await Promise.all([
+      staticLayerV1(scale),
+      input?.qr ? createImageBitmap(input.qr) : Promise.resolve(undefined),
+      input?.photo ? createImageBitmap(input.photo) : Promise.resolve(undefined),
     ]);
     qr = qrImage;
     photo = photoImage;
     signal.throwIfAborted();
-    context.scale(scale, scale);
     // JPEG has no alpha: the rounded corners must match the white paper, not turn black.
     if (type === 'image/jpeg') {
       context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, WIDTH, HEIGHT);
+      context.fillRect(0, 0, canvas.width, canvas.height);
     }
-    paintCard(context, crest, emblem, qr, input, photo);
+    const [left, top] = [Math.round(region.x * scale), Math.round(region.y * scale)];
+    context.drawImage(
+      layer,
+      left,
+      top,
+      canvas.width,
+      canvas.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    context.scale(scale, scale);
+    context.translate(-region.x, -region.y);
+    if (input) paintStudent(context, qr, input, photo);
     return canvasBlobSyncV1(canvas, type, type === 'image/jpeg' ? PRINT_JPEG_QUALITY : undefined);
   } finally {
     qr?.close();
@@ -345,10 +411,17 @@ export async function renderQrAccessCardV1(
   return { blob, format: 'png', count: 1, pages: 1 };
 }
 
-/** Card art without the QR, as JPEG, for the A4 batch; the PDF overlays the vector QR. */
+/** The part shared by every card (no student data), as JPEG, embedded once per batch PDF. */
+export function renderQrAccessCardBackgroundV1(signal: AbortSignal): Promise<Blob> {
+  return renderCardBlobV1(undefined, signal, PRINT_SCALE, 'image/jpeg');
+}
+
+/** Only the student band (portrait, name, class) as JPEG; the PDF lays it over the shared
+ * background and draws the QR as vector.
+ */
 export function renderQrAccessCardPrintV1(
   input: QrAccessCardPrintInputV1,
   signal: AbortSignal,
 ): Promise<Blob> {
-  return renderCardBlobV1(input, signal, PRINT_SCALE, 'image/jpeg');
+  return renderCardBlobV1(input, signal, PRINT_SCALE, 'image/jpeg', QR_ACCESS_CARD_ART_V1.student);
 }

@@ -113,27 +113,24 @@
 
 .qr-batch-preview__sheet {
   display: grid;
-  grid-template-columns: repeat(2, 95mm);
+  grid-template-columns: repeat(2, 93.53mm);
   grid-template-rows: repeat(4, 59mm);
   align-content: start;
-  column-gap: 10mm;
-  row-gap: 5mm;
   width: 210mm;
   height: 297mm;
-  padding: 23mm 5mm;
+  padding: 30.5mm 11.47mm;
   background: white;
   box-shadow: 0 4px 20px #51627626;
 }
 
 .qr-batch-preview__card {
-  width: 95mm;
+  width: 93.53mm;
   height: 59mm;
   overflow: hidden;
   break-inside: avoid;
 }
 
 .qr-batch-preview__card > .qr-card {
-  margin-left: 0.74mm;
   transform: scale(0.41294838);
   transform-origin: top left;
   box-shadow: none;

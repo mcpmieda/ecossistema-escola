@@ -148,8 +148,8 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
       expectedVersion?: number;
     };
     if (command.operation === 'qr-batch' && command.accountIds && command.mode) {
-      // Production issues the batch in about 2 s; keep that wait so the preview shows it.
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      // Production answered a 32-card batch in 0.37 s (measured 26/09/2026); keep that wait.
+      await new Promise((resolve) => setTimeout(resolve, 400));
       init.signal?.throwIfAborted();
       const chosen = command.accountIds.map((id) =>
         mock.accounts.find((item) => item.accountId === id),
