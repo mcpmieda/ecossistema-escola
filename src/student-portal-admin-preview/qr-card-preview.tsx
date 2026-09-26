@@ -49,8 +49,13 @@ function QrCardPreview() {
   const footerSize = sizeForRows(84, footerRows, symbolSpacing);
   const headerColumns = columnsForWidth(856, symbolSpacing, headerSize);
   const footerColumns = columnsForWidth(856 * 0.64, symbolSpacing, footerSize);
+  const proposalFooterColumns = columnsForWidth(856, symbolSpacing, footerSize);
   const headerEmblems = Array.from({ length: headerColumns * symbolRows }, (_, index) => index);
   const footerEmblems = Array.from({ length: footerColumns * footerRows }, (_, index) => index);
+  const proposalFooterEmblems = Array.from(
+    { length: proposalFooterColumns * footerRows },
+    (_, index) => index,
+  );
 
   useEffect(() => {
     window.localStorage.setItem(spacingKey, String(symbolSpacing));
@@ -61,7 +66,7 @@ function QrCardPreview() {
     <main className="qr-card-preview">
       <header className="qr-card-preview__heading">
         <p>Preview local · dados sintéticos</p>
-        <h1>Modelo único do cartão QR</h1>
+        <h1>Comparação do cartão QR</h1>
         <div className="qr-card-preview__samples" aria-label="Testar comprimento do nome">
           <span>Testar nome</span>
           {sampleNames.map((sample) => (
@@ -106,61 +111,89 @@ function QrCardPreview() {
         </div>
       </header>
       <section className="qr-card-preview__canvas" aria-label="Chave de acesso do aluno">
-        <article className="qr-card">
-          <div className="qr-card__brand">
-            <div
-              className="qr-card__pattern qr-card__brand-pattern"
-              aria-hidden="true"
-              style={{
-                gap: symbolSpacing,
-                gridTemplateColumns: `repeat(${headerColumns}, ${headerSize}px)`,
-                gridTemplateRows: `repeat(${symbolRows}, ${headerSize}px)`,
-              }}
-            >
-              {headerEmblems.map((index) => (
-                <img key={index} src={emblem} alt="" />
-              ))}
+        <div className="qr-card-preview__comparison">
+          {(['original', 'proposal'] as const).map((version) => (
+            <div className="qr-card-preview__version" key={version}>
+              {version === 'proposal' && (
+                <p className="qr-card-preview__version-label">Proposta · identidade editorial</p>
+              )}
+              <article className={version === 'proposal' ? 'qr-card qr-card--proposal' : 'qr-card'}>
+                <div className="qr-card__brand">
+                  <div
+                    className="qr-card__pattern qr-card__brand-pattern"
+                    aria-hidden="true"
+                    style={{
+                      gap: symbolSpacing,
+                      gridTemplateColumns: `repeat(${headerColumns}, ${headerSize}px)`,
+                      gridTemplateRows: `repeat(${symbolRows}, ${headerSize}px)`,
+                    }}
+                  >
+                    {headerEmblems.map((index) => (
+                      <img key={index} src={emblem} alt="" />
+                    ))}
+                  </div>
+                  <span className="qr-card__crest">
+                    <img
+                      src={crest}
+                      alt="Brasão da Escola Municipal Professora Iêda Alves de Oliveira"
+                    />
+                  </span>
+                  <div className="qr-card__brand-copy">
+                    <span>ESCOLA MUNICIPAL</span>
+                    <strong>PROFª IÊDA ALVES DE OLIVEIRA</strong>
+                  </div>
+                  {version === 'proposal' && (
+                    <div className="qr-card__access-copy">
+                      <span>Portal do Aluno</span>
+                      <strong>Cartão de acesso</strong>
+                    </div>
+                  )}
+                </div>
+                <div className="qr-card__content">
+                  <div className="qr-card__photo">
+                    <img src={portrait} alt="Retrato fictício do aluno" />
+                  </div>
+                  <div className={`qr-card__identity qr-card__identity--${nameSize}`}>
+                    <h2>{selectedName}</h2>
+                    {version === 'proposal' ? (
+                      <p>
+                        <strong>7º ANO A</strong>
+                      </p>
+                    ) : (
+                      <p>7º ANO A</p>
+                    )}
+                  </div>
+                  <div className="qr-card__qr-frame">
+                    <img src={qrImage} alt="QR de demonstração" />
+                  </div>
+                </div>
+                <div className="qr-card__footer">
+                  <div
+                    className="qr-card__pattern qr-card__footer-pattern"
+                    aria-hidden="true"
+                    style={{
+                      gap: symbolSpacing,
+                      gridTemplateColumns: `repeat(${version === 'proposal' ? proposalFooterColumns : footerColumns}, ${footerSize}px)`,
+                      gridTemplateRows: `repeat(${footerRows}, ${footerSize}px)`,
+                    }}
+                  >
+                    {(version === 'proposal' ? proposalFooterEmblems : footerEmblems).map(
+                      (index) => (
+                        <img key={index} src={emblem} alt="" />
+                      ),
+                    )}
+                  </div>
+                  {version === 'original' && (
+                    <div className="qr-card__footer-copy">
+                      <span>Portal do Aluno</span>
+                      <strong>Chave de acesso</strong>
+                    </div>
+                  )}
+                </div>
+              </article>
             </div>
-            <span className="qr-card__crest">
-              <img src={crest} alt="Brasão da Escola Municipal Professora Iêda Alves de Oliveira" />
-            </span>
-            <div className="qr-card__brand-copy">
-              <span>ESCOLA MUNICIPAL</span>
-              <strong>PROFª IÊDA ALVES DE OLIVEIRA</strong>
-            </div>
-          </div>
-          <div className="qr-card__content">
-            <div className="qr-card__photo">
-              <img src={portrait} alt="Retrato fictício do aluno" />
-            </div>
-            <div className={`qr-card__identity qr-card__identity--${nameSize}`}>
-              <h2>{selectedName}</h2>
-              <p>7º ANO A</p>
-            </div>
-            <div className="qr-card__qr-frame">
-              <img src={qrImage} alt="QR de demonstração" />
-            </div>
-          </div>
-          <div className="qr-card__footer">
-            <div
-              className="qr-card__pattern qr-card__footer-pattern"
-              aria-hidden="true"
-              style={{
-                gap: symbolSpacing,
-                gridTemplateColumns: `repeat(${footerColumns}, ${footerSize}px)`,
-                gridTemplateRows: `repeat(${footerRows}, ${footerSize}px)`,
-              }}
-            >
-              {footerEmblems.map((index) => (
-                <img key={index} src={emblem} alt="" />
-              ))}
-            </div>
-            <div className="qr-card__footer-copy">
-              <span>Portal do Aluno</span>
-              <strong>Chave de acesso</strong>
-            </div>
-          </div>
-        </article>
+          ))}
+        </div>
       </section>
     </main>
   );
