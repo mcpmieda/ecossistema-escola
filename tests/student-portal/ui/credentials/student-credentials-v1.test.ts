@@ -219,8 +219,8 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       accountId: qrPrintIdV1(1),
     });
     expect(screen.queryByRole('button', { name: 'Baixar PDF' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Imprimir' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Copiar imagem' }));
+    expect(screen.getByRole('button', { name: 'Imprimir QR' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar QR' }));
     await screen.findByText(/Cópia indisponível/);
     view.unmount();
     expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();

@@ -1,7 +1,7 @@
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
 import type { PrintModeV1 } from '../features/student-portal-admin/credentials/qr-values-v1';
-import crest from './assets/school-crest.png';
-import emblem from './assets/school-emblem-outline.png';
+import crest from '../features/student-portal-admin/credentials/assets/school-crest.png';
+import emblem from '../features/student-portal-admin/credentials/assets/school-emblem-outline.png';
 import portrait from './assets/synthetic-student-portrait.png';
 
 const emblemSize = 20;

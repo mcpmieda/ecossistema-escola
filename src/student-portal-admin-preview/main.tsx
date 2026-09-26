@@ -11,6 +11,8 @@ import {
 } from '../../tests/student-portal/ui/overview/fixtures-v1';
 import { settingsFixtureV1 } from '../../tests/student-portal/ui/settings/fixtures-v1';
 import { publicationFixtureV1 } from '../../tests/student-portal/ui/publication/fixtures-v1';
+import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
+import syntheticPortraitWebp from './assets/synthetic-student-portrait.webp';
 import '../styles.css';
 
 /** Local visual preview. Optional personal data lives only in a git-ignored file. */
@@ -65,7 +67,11 @@ if (localStudents?.length) {
 } else {
   for (const [index, account] of mock.accounts.entries()) {
     account.accountId = opIdV1(9901 + index);
-    account.name = ['Ana Costa', 'Bruno Martins', 'Carla Oliveira'][index]!;
+    account.name = [
+      'Ana Costa',
+      'Bruno Martins',
+      'Maria Eduarda de Albuquerque Vasconcelos Ferreira da Silva',
+    ][index]!;
     account.classLabel = '7º ANO A';
   }
 }
@@ -99,15 +105,22 @@ const pageOf = <T,>(items: T[], cursor: string | undefined, limit: number) => {
 const requestId = opIdV1(9900);
 const observedAt = '2026-09-25T12:00:00Z';
 const meta = { contractVersion: 1, requestId };
+const nativeFetch = window.fetch.bind(window);
 
 const previewFetch: PortalFetchV1 = async (path, init) => {
   init.signal?.throwIfAborted();
+  if (path.startsWith('/api/student-photos/admin/image')) {
+    const response = await nativeFetch(syntheticView ? syntheticPortraitWebp : path, init);
+    return response.headers.get('content-type')?.split(';', 1)[0] === 'image/webp'
+      ? response
+      : new Response(null, { status: 404 });
+  }
   if (path === '/api/me')
     return opJsonV1({
       authenticated: true,
       identityKey: 'preview-sintetico-admin',
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-      capabilities: ['platform.settings.read'],
+      capabilities: ['platform.settings.read', 'platform.settings.write'],
     });
   if (path === '/api/gradebook/operational-workspace') {
     const input = JSON.parse(String(init.body)) as { offset: number; limit: number; query: string };
@@ -126,8 +139,26 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
       nextOffset: input.offset + input.limit < filtered.length ? input.offset + input.limit : null,
     });
   }
-  if (path === '/api/student-portal/admin/command')
+  if (path === '/api/student-portal/admin/command') {
+    const command = JSON.parse(String(init.body)) as {
+      operation: string;
+      accountId?: string;
+      expectedVersion?: number;
+    };
+    const account = mock.accounts.find((item) => item.accountId === command.accountId);
+    if (
+      command.operation === 'qr-reprint' &&
+      account?.firstAccess.qrIssued &&
+      command.expectedVersion === account.version
+    )
+      return opJsonV1({
+        ...meta,
+        state: 'qr',
+        version: account.version,
+        cards: [{ accountId: account.accountId, qr: SYNTHETIC_QR_V1, mode: 'qr-only' }],
+      });
     return opJsonV1({ ...meta, state: 'forbidden' }, 403);
+  }
   if (path !== '/api/student-portal/admin/query')
     return opJsonV1({ ...meta, state: 'not-found' }, 404);
 
@@ -325,7 +356,7 @@ createRoot(root).render(
         {localStudents
           ? 'nomes, anos de nascimento e fotos reais locais; demais dados sintéticos'
           : 'dados sintéticos'}{' '}
-        · somente leitura
+        · QR sintético; alterações bloqueadas
       </p>
       <StudentPortalAdminPage fetcher={previewFetch} />
     </main>

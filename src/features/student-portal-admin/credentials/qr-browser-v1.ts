@@ -1,5 +1,13 @@
 import type { QrArtifactV1 } from './qr-values-v1';
 
+export async function pngDataUrlV1(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return 'data:' + blob.type + ';base64,' + btoa(binary);
+}
+
 /** Called by an explicit click, with a ready bitmap: no await before clipboard.write. */
 export async function copyQrImageV1(
   artifact: QrArtifactV1,
