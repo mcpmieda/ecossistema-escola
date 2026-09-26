@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SCHOOL_CARD_NAME_LINES_V1, SCHOOL_NAME_V1 } from '../shared/brand/school-name-v1';
 import { createRoot, type Root } from 'react-dom/client';
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
@@ -125,14 +126,11 @@ function QrCardPreview() {
                   ))}
                 </div>
                 <span className="qr-card__crest">
-                  <img
-                    src={crest}
-                    alt="Brasão da Escola Municipal Professora Iêda Alves de Oliveira"
-                  />
+                  <img src={crest} alt={`Brasão da ${SCHOOL_NAME_V1}`} />
                 </span>
                 <div className="qr-card__brand-copy">
-                  <span>ESCOLA MUNICIPAL</span>
-                  <strong>PROFª IÊDA ALVES DE OLIVEIRA</strong>
+                  <span>{SCHOOL_CARD_NAME_LINES_V1[0]}</span>
+                  <strong>{SCHOOL_CARD_NAME_LINES_V1[1]}</strong>
                 </div>
               </div>
               <div className="qr-card__content">

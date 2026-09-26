@@ -1,8 +1,7 @@
 import type { CSSProperties } from 'react';
 import './school-mark-v1.css';
 
-/** The school's official name, used everywhere it is shown. */
-export const SCHOOL_NAME_V1 = 'Escola Mun. Prof.ª Iêda Alves de Oliveira MCPM';
+export { SCHOOL_NAME_V1 } from './school-name-v1';
 
 /** The school's crest, shared by the administrative apps and the Portal do Aluno. */
 export const SCHOOL_LOGO_SRC_V1 = new URL('../../student-portal/assets/school-logo.webp', import.meta.url)
