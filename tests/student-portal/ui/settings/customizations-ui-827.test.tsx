@@ -31,8 +31,9 @@ function mount(mock = customizationsUiFixture827(), area = 'policies') {
 async function grid() {
   // The grid element can precede its asynchronous row collection. Wait for the
   // actual accessible row actions as well, not merely the empty table shell.
-  const heading = await screen.findByText('Políticas personalizadas', { selector: 'h3' });
-  const card = heading.closest('.pa-custom-settings');
+  const toggle = await screen.findByRole('button', { name: 'Personalizações de turmas e alunos' });
+  if (toggle.getAttribute('aria-expanded') !== 'true') await userEvent.click(toggle);
+  const card = document.querySelector('.pa-custom-settings');
   if (!(card instanceof HTMLElement)) throw new Error('Missing customization card');
   const table = await within(card).findByRole('grid', { name: 'Políticas personalizadas' });
   await within(table).findAllByRole('button', { name: /^Editar personalizações de /u });
@@ -58,6 +59,7 @@ it.each(['Abrir', 'Editar'])(
     expect(within(tabs).getByRole('tab', { name: 'Políticas' }).getAttribute('aria-selected')).toBe(
       'true',
     );
+    await user.click(await within(drawer).findByRole('tab', { name: 'Notas' }));
     expect(await within(drawer).findByText(difference)).toBeTruthy();
     expect(within(drawer).getByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
     expect(mock.commands).toHaveLength(0);
@@ -68,13 +70,12 @@ it('uses the same comparison and reset inside the normally opened student drawer
   await user.click(await screen.findByRole('button', { name: `Abrir ficha de ${student}` }));
   const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
   await user.click(await within(drawer).findByRole('tab', { name: 'Políticas' }));
+  await user.click(await within(drawer).findByRole('tab', { name: 'Notas' }));
   await within(drawer).findByText(difference);
   await user.click(within(drawer).getByRole('button', { name: 'Voltar ao padrão' }));
   const review = await screen.findByRole('dialog', { name: 'Voltar ao padrão' });
   await user.click(within(review).getByRole('button', { name: 'Confirmar retorno ao padrão' }));
-  await within(drawer).findByText(
-    'Sem diferença individual de publicação em relação ao padrão aplicável.',
-  );
+  await waitFor(() => expect(within(drawer).queryByText(difference)).toBeNull());
   expect(within(drawer).getByRole('tab', { name: 'Políticas' }).getAttribute('aria-selected')).toBe(
     'true',
   );
@@ -144,6 +145,7 @@ it('opens a class publication drawer, not a student identity, and resets only th
   );
   const drawer = await screen.findByRole('dialog', { name: 'Políticas da turma' });
   expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull();
+  await user.click(await within(drawer).findByRole('tab', { name: 'Notas' }));
   await within(drawer).findByText(
     '3º trimestre: publicado para esta turma. Padrão da escola: não publicado.',
   );
@@ -186,6 +188,7 @@ it('clears protected customization and drawer content after authorization loss',
     within(await grid()).getByRole('button', { name: `Abrir personalizações de ${student}` }),
   );
   const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+  await user.click(await within(drawer).findByRole('tab', { name: 'Notas' }));
   await within(drawer).findByText(difference);
   mock.state.denied = true;
   await act(async () => window.dispatchEvent(new Event('focus')));

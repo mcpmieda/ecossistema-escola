@@ -8,24 +8,45 @@ import {
 /** Owning views remain keyed by filters/scope/identity. Background reads never reuse another
  * context's data. Pure reads only; previews and writes must not use this hook.
  */
-export function useAccountsReadV1<T>(load: (signal: AbortSignal) => Promise<T>) {
+export function useAccountsReadV1<T>(
+  load: (signal: AbortSignal) => Promise<T>,
+  active = true,
+  eventDriven = true,
+) {
   const [result, setResult] = useState<{ load: typeof load; state: PortalLoadStateV1<T> }>({
-    load, state: { state: 'idle' },
+    load,
+    state: { state: 'idle' },
   });
   const deadline = useRef(0);
   const state: PortalLoadStateV1<T> = result.load === load ? result.state : { state: 'loading' };
   const [clock, setClock] = useState(0);
-  const reader = useMemo(() => createLatestPortalRequestV1<T>((next) => {
-    const error = next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
-    deadline.current = error ? Date.now() + Math.max(5, error.retryAfterSeconds ?? 0) * 1000 : 0;
-    setResult({ load, state: next });
-  }), [load]);
+  const reader = useMemo(
+    () =>
+      createLatestPortalRequestV1<T>((next) => {
+        const error =
+          next.state === 'error'
+            ? next.error
+            : next.state === 'ready'
+              ? next.refreshError
+              : undefined;
+        deadline.current = error
+          ? Date.now() + Math.max(5, error.retryAfterSeconds ?? 0) * 1000
+          : 0;
+        setResult({ load, state: next });
+      }),
+    [load],
+  );
   useEffect(() => {
     deadline.current = 0;
     void reader.run(load);
     return () => reader.clear();
   }, [reader, load]);
-  const error = state.state === 'error' ? state.error : state.state === 'ready' ? state.refreshError : undefined;
+  const error =
+    state.state === 'error'
+      ? state.error
+      : state.state === 'ready'
+        ? state.refreshError
+        : undefined;
   useEffect(() => {
     if (!error) return;
     setClock(Date.now());
@@ -33,10 +54,15 @@ export function useAccountsReadV1<T>(load: (signal: AbortSignal) => Promise<T>) 
     return () => clearInterval(timer);
   }, [error]);
   useLiveRefreshV1(() => reader.run(load, { background: true }), {
+    active,
+    eventDriven,
     domains: ['portal', 'gradebook'],
-    canRefresh: () => Date.now() >= deadline.current && (state.state === 'idle'
-      || (state.state === 'ready' && !state.refreshing)
-      || (state.state === 'error' && ['network-error', 'unavailable', 'rate-limited'].includes(state.error.state))),
+    canRefresh: () =>
+      Date.now() >= deadline.current &&
+      (state.state === 'idle' ||
+        (state.state === 'ready' && !state.refreshing) ||
+        (state.state === 'error' &&
+          ['network-error', 'unavailable', 'rate-limited'].includes(state.error.state))),
   });
   return {
     state,
@@ -44,7 +70,8 @@ export function useAccountsReadV1<T>(load: (signal: AbortSignal) => Promise<T>) 
     refreshError: state.state === 'ready' ? state.refreshError : undefined,
     canReload: state.state !== 'loading' && (!error || clock >= deadline.current),
     reload: () => {
-      if (Date.now() >= deadline.current) void reader.run(load, { background: state.state === 'ready' });
+      if (Date.now() >= deadline.current)
+        void reader.run(load, { background: state.state === 'ready' });
     },
     clear: reader.clear,
   };

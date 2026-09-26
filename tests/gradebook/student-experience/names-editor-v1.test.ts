@@ -25,6 +25,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('names editor sequencing and trust boundaries', () => {
+  it('reports typed and network read failures to the refresh backoff without losing the last snapshot', async () => {
+    const send = vi.fn<typeof requestAssessmentNamesV1>()
+      .mockResolvedValueOnce(ready(2, { '1:1': 'Prova sintética' }))
+      .mockResolvedValueOnce({ contractVersion: 1, state: 'unavailable' })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(ready(3, { '1:1': 'Nova prova sintética' }));
+    const publish = vi.fn();
+    const editor = createAssessmentNamesEditorV1({ year: 2026, send, publish });
+    expect(await editor.load()).toBe(true);
+    expect(await editor.refresh()).toBe(false);
+    expect(await editor.refresh()).toBe(false);
+    expect(publish.mock.calls.at(-1)?.[0]).toMatchObject({
+      base: { version: 2 }, draft: { '1:1': 'Prova sintética' }, failure: 'unavailable',
+    });
+    expect(await editor.refresh()).toBe(true);
+    expect(publish.mock.calls.at(-1)?.[0]).toMatchObject({ base: { version: 3 }, failure: null });
+    editor.dispose();
+  });
   it('loads without saving and coalesces typing into one versioned, trimmed write', async () => {
     vi.useFakeTimers();
     const send = vi

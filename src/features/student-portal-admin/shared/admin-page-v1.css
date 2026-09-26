@@ -19,7 +19,7 @@
 .pa-admin-content {
   min-width: 0;
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 .pa-qr-handoff {
   min-width: 0;
@@ -94,34 +94,6 @@
   min-width: 0;
   gap: 1rem;
 }
-.pa-policy-scope {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  border: 2px solid var(--accent);
-  border-radius: var(--radius-lg);
-  background: var(--accent-soft);
-  padding: 0.85rem 1rem;
-}
-.pa-policy-scope > div {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-.pa-policy-scope span {
-  font-size: 0.7rem;
-  font-weight: 750;
-  letter-spacing: 0.065em;
-}
-.pa-policy-scope strong {
-  font-size: 1rem;
-  overflow-wrap: anywhere;
-}
-.pa-policy-scope--class,
-.pa-policy-scope--account {
-  border-color: var(--warning);
-  background: var(--warning-soft);
-}
 .pa-account-filter-tags {
   min-width: 0;
 }
@@ -134,4 +106,31 @@
 }
 .pa-student-drawer .pa-policies {
   min-width: 0;
+}
+
+/* A single scope label is shared by all policy categories. */
+.pa-policy-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.25rem 0 0.75rem;
+}
+.pa-policy-scope > span {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+.pa-policy-scope strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pa-student-drawer .pa-settings--policies .pa-settings-fields {
+  grid-template-columns: minmax(0, 1fr);
 }

@@ -16,6 +16,7 @@ import {
 import {
   PUBLICATION_LABELS_V1,
   disclosureAtV1,
+  publicationRestrictionV1,
   publicationCommandV1,
   type PublicationCommandV1,
   type PublicationItemV1,
@@ -24,6 +25,7 @@ import {
 import './student-publication-v1.css';
 
 export interface StudentPublicationPropsV1 {
+  readonly embedded?: boolean;
   readonly client: PortalAdminClientV1;
   readonly scope: ScopeV1;
   readonly canWrite: boolean;
@@ -129,16 +131,13 @@ function PublicationPeriodV1({
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
 }>) {
   const disclosure = disclosureAtV1(data.settings, item.period);
+  const restriction = publicationRestrictionV1(data.settings, item.period);
   return (
     <Card className="pa-publication-card">
       <Card.Header>
         <div className="pa-publication-heading">
           <h3>{termLabel(item.period)}</h3>
-          <Chip
-            size="sm"
-            variant="soft"
-            color={publicationColorV1(item)}
-          >
+          <Chip size="sm" variant="soft" color={publicationColorV1(item)}>
             {PUBLICATION_LABELS_V1[item.state]}
           </Chip>
         </div>
@@ -148,12 +147,22 @@ function PublicationPeriodV1({
           <div>
             <dt>Liberar a partir de</dt>
             <dd>
-              {disclosure ? dateLabel(disclosure) : 'Publicação manual'}
+              {restriction === 'outside-single-schedule'
+                ? 'Fora da divulgação única'
+                : disclosure
+                  ? dateLabel(disclosure)
+                  : 'Sem data definida'}
             </dd>
           </div>
           <div>
-            <dt>Período habilitado</dt>
-            <dd>{data.settings.value.allowedPeriods.includes(item.period) ? 'Sim' : 'Não'}</dd>
+            <dt>Regra de exibição</dt>
+            <dd>
+              {restriction === 'period-disabled'
+                ? 'Oculto pela política'
+                : restriction === 'outside-single-schedule'
+                  ? 'Excluído do calendário'
+                  : 'Incluído'}
+            </dd>
           </div>
         </dl>
         <Tooltip>
@@ -269,8 +278,7 @@ function PublicationAcceptedFeedbackV1({
         </Button>
       </>
     );
-  if (mutation.observation === 'confirmed')
-    return <p>{observationConfirmedTextV1(removed)}</p>;
+  if (mutation.observation === 'confirmed') return <p>{observationConfirmedTextV1(removed)}</p>;
   if (mutation.observation === 'reported')
     return (
       <>
@@ -500,6 +508,7 @@ function PublicationPolicyV1({
 }
 
 function PublicationReadyV1({
+  embedded,
   load,
   view,
   canWrite,
@@ -508,6 +517,7 @@ function PublicationReadyV1({
   onOpenSettings,
   prepare,
 }: Readonly<{
+  embedded?: boolean;
   load: ReadyPublicationLoadV1;
   view: PublicationViewV1;
   canWrite: boolean;
@@ -519,13 +529,17 @@ function PublicationReadyV1({
   const disabled = busy || view.refreshing || review !== null || view.mutation.state === 'error';
   return (
     <>
-      <PublicationPolicyV1
-        data={load.data}
-        busy={busy}
-        reviewing={review !== null}
-        onOpenSettings={onOpenSettings}
-      />
-      <StableReadStatusV1 busy={view.refreshing}>Atualizando consulta do servidor</StableReadStatusV1>
+      {!embedded ? (
+        <PublicationPolicyV1
+          data={load.data}
+          busy={busy}
+          reviewing={review !== null}
+          onOpenSettings={onOpenSettings}
+        />
+      ) : null}
+      <StableReadStatusV1 busy={view.refreshing}>
+        Atualizando consulta do servidor
+      </StableReadStatusV1>
       <div className="pa-publication-periods">
         {load.data.items.map((item) => (
           <PublicationPeriodV1
@@ -543,6 +557,7 @@ function PublicationReadyV1({
 }
 
 function PublicationLoadV1({
+  embedded,
   view,
   canWrite,
   busy,
@@ -553,6 +568,7 @@ function PublicationLoadV1({
   onOpenSettings,
   prepare,
 }: Readonly<{
+  embedded?: boolean;
   view: PublicationViewV1;
   canWrite: boolean;
   busy: boolean;
@@ -574,12 +590,7 @@ function PublicationLoadV1({
     return (
       <div role="alert" className="pa-publication-error">
         <p>{publicationLoadErrorMessageV1(view.load.error)}</p>
-        <Button
-          size="sm"
-          variant="secondary"
-          isDisabled={busy || clock < retryAt}
-          onPress={reload}
-        >
+        <Button size="sm" variant="secondary" isDisabled={busy || clock < retryAt} onPress={reload}>
           Tentar novamente
         </Button>
       </div>
@@ -587,6 +598,7 @@ function PublicationLoadV1({
   if (view.load.state === 'ready')
     return (
       <PublicationReadyV1
+        embedded={embedded}
         load={view.load}
         view={view}
         canWrite={canWrite}
@@ -600,6 +612,7 @@ function PublicationLoadV1({
 }
 
 function PublicationScopeV1({
+  embedded,
   client,
   scope,
   canWrite,
@@ -665,11 +678,21 @@ function PublicationScopeV1({
     }
   }
   return (
-    <section className="pa-publication" aria-label="Publicação de períodos do Portal do Aluno">
+    <section
+      className={`pa-publication${embedded ? ' pa-publication--embedded' : ''}`}
+      aria-label="Publicação de períodos do Portal do Aluno"
+    >
       <header className="pa-publication-heading">
         <div>
           <h2>Notas publicadas</h2>
-          <p>{label}</p>
+          {!embedded ? (
+            <p>{label}</p>
+          ) : (
+            <p>
+              Publicar disponibiliza uma versão das notas. A exibição respeita as políticas e o
+              calendário.
+            </p>
+          )}
         </div>
         <LiveReadNoticeV1 failed={view.load.state === 'ready' && Boolean(view.load.refreshError)} />
       </header>
@@ -689,6 +712,7 @@ function PublicationScopeV1({
         reloadDisabled={clock < retryAt}
       />
       <PublicationLoadV1
+        embedded={embedded}
         view={view}
         canWrite={canWrite}
         busy={busy}

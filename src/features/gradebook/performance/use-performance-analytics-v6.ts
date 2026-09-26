@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   PerformanceAnalyticsV6,
   PerformanceAnalyticsRequestV6,
@@ -31,6 +31,7 @@ export function usePerformanceAnalyticsV6(
     [year, classId, period],
   );
   const key = JSON.stringify([epoch, request]);
+  const previousScope = useRef<{ key: string; enabled: boolean; hasRequest: boolean } | null>(null);
   const [snapshot, setSnapshot] = useState<{ key: string; data: PerformanceAnalyticsV6 } | null>(
     null,
   );
@@ -67,15 +68,22 @@ export function usePerformanceAnalyticsV6(
       ticket.complete();
     }
   }, [request, enabled, gate, key, clearAuthorization]);
+  useEffect(() => () => gate.invalidate(), [gate, key]);
   useEffect(() => {
+    const previous = previousScope.current;
+    previousScope.current = { key, enabled, hasRequest: request !== null };
+    if (!enabled || !request || previous?.key === key) return;
+    // A retained reader resumes through the shared clock, preserving its failure cooldown.
+    // Fresh mounts and context changes while visible still load immediately.
+    if (previous && !previous.enabled && previous.hasRequest) return;
     void refresh();
-    return () => gate.invalidate();
-  }, [refresh, gate]);
+  }, [refresh, enabled, key, request]);
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'],
     intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
-    enabled: enabled && request !== null,
-    canRefresh: () => !status.busy && status.failure !== 'not-authorized',
+    enabled: request !== null,
+    active: enabled,
+    canRefresh: () => (status.key !== key || !status.busy) && status.failure !== 'not-authorized',
   });
   const data = request && snapshot?.key === key ? snapshot.data : null;
   return {

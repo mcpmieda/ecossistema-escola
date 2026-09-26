@@ -8,13 +8,19 @@ export function StudentPoliciesV1(
   return (
     <section className="pa-policies" aria-label="Políticas do Portal">
       <PolicyScopeV1 scope={props.scope} label={props.scopeLabel} />
-      <StudentSettingsV1 {...props} area="policies" />
-      <PersonalizedPublicationV1
-        client={props.client}
-        reader={props.reader}
-        scope={props.scope}
-        scopeLabel={props.scopeLabel}
-        canWrite={props.canWrite}
+      <StudentSettingsV1
+        {...props}
+        area="policies"
+        publication={
+          <PersonalizedPublicationV1
+            client={props.client}
+            reader={props.reader}
+            scope={props.scope}
+            scopeLabel={props.scopeLabel}
+            canWrite={props.canWrite}
+            embedded
+          />
+        }
       />
     </section>
   );

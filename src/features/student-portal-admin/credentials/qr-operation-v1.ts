@@ -5,7 +5,7 @@ import {
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { validatePrintCardsV1, type PrintCardV1, type QrArtifactV1 } from './qr-values-v1';
-import { copyQrImageV1, createQrDownloadsV1 } from './qr-browser-v1';
+import { copyQrImageV1, createQrDownloadsV1, pngDataUrlV1 } from './qr-browser-v1';
 
 export type QrCommandV1 = Extract<
   AdminCommandV1,
@@ -67,15 +67,6 @@ function artifactValidV1(artifact: QrArtifactV1, format: 'pdf' | 'png', expected
     artifact.blob.size > 0 &&
     artifact.blob.type === expectedType
   );
-}
-
-/** The admin CSP allows `img-src 'self' data:` only, so the on-screen/print preview cannot use blob: URLs. */
-async function pngDataUrlV1(blob: Blob) {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += 0x8000)
-    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-  return 'data:' + blob.type + ';base64,' + btoa(binary);
 }
 
 /** Credentials/blobs never enter React state, errors, URLs or persistent storage. */
@@ -256,6 +247,10 @@ export function createQrOperationV1({
     imageUrl() {
       if (!artifact || state.state !== 'ready' || artifact.format !== 'png') return null;
       return previewUrl ?? null;
+    },
+    imageBlob() {
+      if (!artifact || state.state !== 'ready' || artifact.format !== 'png') return null;
+      return artifact.blob;
     },
     download(filename?: string) {
       if (!artifact || state.state !== 'ready') return;

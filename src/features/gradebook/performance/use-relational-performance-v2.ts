@@ -141,11 +141,15 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       if (response.state === 'not-authorized') loseAccess();
       if (response.state !== 'ready') {
         error(response.state);
-        return;
+        return false;
       }
       apply(response);
+      return true;
     } catch {
-      if (ticket.isCurrent()) error('unavailable');
+      if (ticket.isCurrent()) {
+        error('unavailable');
+        return false;
+      }
     } finally {
       if (ticket.isCurrent()) setBusy((value) => ({ ...value, [concern]: false }));
       ticket.complete();
@@ -173,13 +177,13 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       },
     );
   }
-  async function loadDashboard(selected: Filters): Promise<boolean> {
+  async function loadDashboard(selected: Filters): Promise<boolean | undefined> {
     if (
       year === null ||
       selected.classId === null ||
       (selected.lens === 'assessments' && selected.offerId === null)
     )
-      return false;
+      return;
     const request = {
       transportVersion: 5,
       operation: 'dashboard',
@@ -193,12 +197,12 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       referencePeriod: selected.referencePeriod,
     } as const;
     const ticket = gates.matrix.begin(JSON.stringify(request));
-    if (!ticket) return false;
+    if (!ticket) return;
     setBusy((value) => ({ ...value, matrix: true }));
     setFailure(null);
     try {
       const response = await requestPerformanceDashboardV5(request, ticket.signal);
-      if (!ticket.isCurrent()) return false;
+      if (!ticket.isCurrent()) return;
       if (response.state === 'not-authorized') loseAccess();
       if (response.state !== 'ready') {
         setFailure(response.state);
@@ -212,8 +216,10 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       setOffers(current.matrix.offers);
       return true;
     } catch {
-      if (ticket.isCurrent()) setFailure('unavailable');
-      return false;
+      if (ticket.isCurrent()) {
+        setFailure('unavailable');
+        return false;
+      }
     } finally {
       if (ticket.isCurrent()) setBusy((value) => ({ ...value, matrix: false }));
       ticket.complete();
@@ -233,7 +239,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       mode: target.mode,
       studentId: target.studentId,
     } as const;
-    await run(
+    return run(
       target.offerId === undefined
         ? { ...scope, operation: 'student-detail' }
         : { ...scope, operation: 'cell-detail', offerId: target.offerId },
@@ -251,15 +257,18 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     if (busy.matrix || failure === 'not-authorized') return;
     const target = detailTarget.current;
     if (!dashboardEnabled && !forceDashboard) {
-      if (target) await readDetail(target);
+      if (target) return readDetail(target);
       return;
     }
-    if ((await loadDashboard(filters)) && target && detailTarget.current === target)
-      await readDetail(target);
+    const refreshed = await loadDashboard(filters);
+    if (refreshed !== true) return refreshed;
+    if (target && detailTarget.current === target) return readDetail(target);
+    return true;
   }
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'],
-    enabled: isActive && year !== null && (dashboardEnabled || detailOpen),
+    enabled: year !== null && (dashboardEnabled || detailOpen),
+    active: isActive,
     canRefresh: () =>
       filters.classId !== null && !busy.matrix && !busy.detail && failure !== 'not-authorized',
   });

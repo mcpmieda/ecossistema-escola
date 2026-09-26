@@ -22,6 +22,7 @@
     "scripts",
     "tests",
     "vite.config.ts",
+    "vite.admin-preview.config.ts",
     "vitest.config.ts",
     "worker-configuration.d.ts",
     "vite.student-portal.config.ts"

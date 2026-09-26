@@ -5,9 +5,14 @@ const css = (path: string) => readFileSync(path, 'utf8');
 it('prevents Card.Content defaults from turning horizontal filter widths into hundreds of pixels of row height', () => {
   const accounts = css('src/features/student-portal-admin/accounts/student-accounts-v1.css');
   expect(accounts).toMatch(
-    /\.pa-account-filters\.card__content\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s,
+    /\.pa-accounts \.pa-account-controls\.card__content\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,/s,
   );
-  expect(accounts).toMatch(/\.pa-account-filters\.card__content\s*>\s*\*\s*\{[^}]*flex:\s*none/s);
+  expect(accounts).toMatch(
+    /\.pa-account-filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,/s,
+  );
+  expect(accounts).toMatch(
+    /\.pa-account-filters\s*>\s*\*\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s,
+  );
   const operations = css('src/features/student-portal-admin/overview/student-operations-v1.css');
   expect(operations).toMatch(/\.pa-operations-filters\s*\{[^}]*flex-direction:\s*row/s);
 });

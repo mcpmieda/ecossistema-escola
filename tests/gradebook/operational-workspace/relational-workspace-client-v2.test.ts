@@ -81,7 +81,7 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
   });
   it('aborts and ignores a delayed search after the query changes',async()=>{
     await mount();const old=deferred();fetchMock.mockReturnValueOnce(old.promise);
-    let pending!:Promise<void>;await act(async()=>{pending=current.search();});
+    let pending!:ReturnType<typeof current.search>;await act(async()=>{pending=current.search();});
     const signal=fetchMock.mock.calls.at(-1)![1]!.signal!;
     await act(async()=>{current.setQuery('new');});expect(signal.aborted).toBe(true);
     fetchMock.mockResolvedValueOnce(reply(search('NEW SYNTHETIC')));await act(async()=>{await current.search();});
@@ -114,7 +114,7 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
   });
   it('invalidates an in-flight request on unmount',async()=>{
     await mount();const pending=deferred();fetchMock.mockReturnValueOnce(pending.promise);
-    let done!:Promise<void>;await act(async()=>{done=current.search();});const signal=fetchMock.mock.calls.at(-1)![1]!.signal!;
+    let done!:ReturnType<typeof current.search>;await act(async()=>{done=current.search();});const signal=fetchMock.mock.calls.at(-1)![1]!.signal!;
     await act(async()=>{root!.unmount();});root=null;expect(signal.aborted).toBe(true);
     await act(async()=>{pending.resolve(reply(search()));await done;});
   });

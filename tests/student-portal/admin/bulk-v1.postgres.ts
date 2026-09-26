@@ -41,7 +41,7 @@ const query = {
   contractVersion: 1,
   operation: 'bulk-preview',
   action: 'block',
-  scope: { kind: 'school', academicYear: 2026 },
+  scope: { kind: 'class', academicYear: 2026, classId: 910001 },
   page: { limit: 100 },
 } as const;
 const cryptography = new PortalCryptoV1(

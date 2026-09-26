@@ -1,17 +1,150 @@
 .pa-accounts {
   display: grid;
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
   min-width: 0;
+}
+.pa-account-controls-card,
+.pa-account-qr-mount,
+.pa-account-bulk-mount {
+  min-width: 0;
+}
+.pa-account-controls-card {
+  padding: 0.5rem;
+}
+.pa-accounts .pa-account-controls.card__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: start;
+  gap: 0.4rem 0.9rem;
+  padding: 0.25rem;
+}
+.pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.98fr) minmax(0, 1fr);
+}
+.pa-account-controls-card--class .pa-account-filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.55rem;
+}
+.pa-account-controls-card--class .pa-account-search {
+  grid-column: 1 / -1;
+}
+.pa-account-qr-mount {
+  border-left: 1px solid var(--border);
+  padding-left: 0.85rem;
+}
+.pa-account-qr-panel {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+.pa-account-bulk-mount:not(:empty) {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+.pa-account-controls-card--class .pa-account-bulk-mount:not(:empty) {
+  grid-column: auto;
+  border-top: 0;
+  border-left: 1px solid var(--border);
+  padding-top: 0;
+  padding-left: 0.85rem;
+}
+.pa-account-bulk-mount:empty {
+  display: none;
+}
+.pa-account-bulk-section {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.pa-account-bulk-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pa-account-bulk-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+}
+.pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+.pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
+  width: auto;
+}
+.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > div {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
+  grid-column: 2;
+  grid-row: 1;
+}
+.pa-account-qr-panel .pa-qr-batch-tools {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
+  gap: 0.3rem 0.35rem;
+}
+.pa-account-qr-panel .radio {
+  padding: 0.125rem 0.5rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--surface-tertiary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.pa-account-qr-panel .radio .radio__content {
+  color: inherit;
+  font-size: inherit;
+}
+.pa-account-qr-panel .radio .radio__control {
+  display: none;
+}
+.pa-account-qr-panel .radio[data-selected] {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 20%, transparent);
+}
+.pa-account-qr-panel .radio[data-disabled] {
+  opacity: 1;
+}
+.pa-account-qr-panel .radio:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pa-account-qr-panel .pa-credentials-actions {
+  gap: 0.35rem;
+}
+.pa-account-qr-panel .pa-credentials-actions button {
+  padding-inline: 0.25rem;
+}
+.pa-account-qr-panel .pa-credentials-actions [role='status'] {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.pa-account-qr-panel .pa-credentials-actions button:nth-of-type(3) {
+  margin-left: auto;
 }
 .pa-accounts header h2 {
   font-size: 1.15rem;
   font-weight: 650;
 }
 .pa-account-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  min-width: 0;
 }
 .pa-account-class-filter {
   display: grid;
@@ -48,7 +181,10 @@
   align-items: center;
 }
 .pa-account-page-controls {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.pa-account-list-card {
+  width: 100%;
 }
 .pa-account-scroll {
   max-width: 100%;
@@ -59,7 +195,7 @@
 }
 .pa-account-table {
   min-width: 0;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 .pa-account-table table {
   min-width: 760px;
@@ -69,6 +205,7 @@
 .pa-account-table th {
   vertical-align: middle;
   white-space: normal;
+  padding-inline: 0.65rem;
 }
 .pa-account-table thead {
   position: sticky;
@@ -79,9 +216,22 @@
 .pa-account-table td > span {
   display: block;
 }
-.pa-account-table th:first-child {
+.pa-account-table th:first-child:not([data-key='selection']),
+.pa-account-table th[data-key='selection'] + th {
   min-width: 220px;
   max-width: 320px;
+}
+.pa-account-table th[data-key='selection'] {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  padding-inline: 0.5rem;
+}
+.pa-account-table:has(th[data-key='selection']) td:first-child {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  padding-inline: 0.5rem;
 }
 .pa-account-selected {
   background: var(--surface-tertiary);
@@ -139,10 +289,99 @@
 .pa-account-dialog [data-slot='alert-dialog-footer'] {
   flex-wrap: wrap;
 }
+@media (max-width: 1100px) {
+  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+  .pa-account-controls-card--class .pa-account-filters {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+  .pa-account-controls-card--class .pa-account-search {
+    grid-column: auto;
+  }
+  .pa-account-controls-card--class .pa-account-bulk-mount:not(:empty) {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    padding-top: 0.4rem;
+    padding-left: 0;
+  }
+  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > div,
+  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+@media (max-width: 900px) {
+  .pa-accounts .pa-account-controls.card__content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pa-account-controls-card--class .pa-account-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pa-account-controls-card--class .pa-account-search {
+    grid-column: 1 / -1;
+  }
+  .pa-account-qr-mount {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 0.6rem;
+  }
+  .pa-account-controls-card--class .pa-account-qr-mount {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding-top: 0;
+    padding-left: 0.85rem;
+  }
+  .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .pa-account-bulk-mount:not(:empty) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 700px) {
+  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-controls-card--class .pa-account-qr-mount {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 0.6rem;
+  }
+  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 640px) {
+  .pa-account-qr-panel .pa-credentials-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pa-account-qr-panel .pa-credentials-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+  .pa-account-qr-panel .pa-credentials-actions button:nth-of-type(3) {
+    margin-left: 0;
+  }
   .pa-account-filters,
   .pa-account-facts {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-controls-card--class .pa-account-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .pa-account-actions button,
   .pa-account-page-controls button {
@@ -152,9 +391,6 @@
   }
 }
 
-.pa-account-filters > * {
-  flex: 1 1 10rem;
-}
 .pa-account-facts dd {
   font-weight: 600;
 }
@@ -163,18 +399,10 @@
   padding-top: 0.5rem;
 }
 
-/* Card.Content is column-oriented by default: do not let a flex-basis become row height. */
-.pa-account-filters.card__content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  align-items: end;
-  align-content: start;
-  height: auto;
-  min-height: 0;
-  flex: 0 0 auto;
+.pa-accounts .card__content {
+  padding: 0.65rem 0.8rem;
 }
-.pa-account-filters.card__content > * {
-  flex: none;
+.pa-account-filters > * {
   min-width: 0;
   max-width: 100%;
 }
@@ -219,14 +447,18 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .pa-account-table .table__cell {
-  padding-block: 0.45rem;
+  padding-block: 0.35rem;
 }
 @media (max-width: 640px) {
+  .pa-account-scroll {
+    max-height: none;
+    overflow-y: hidden;
+  }
   .pa-student-drawer {
     width: 100vw;
   }
   .pa-student-drawer .pa-settings-fields,
-  .pa-account-filters.card__content {
+  .pa-account-filters {
     grid-template-columns: minmax(0, 1fr);
   }
   .pa-account-facts {

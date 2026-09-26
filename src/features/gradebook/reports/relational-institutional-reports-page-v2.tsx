@@ -384,16 +384,18 @@ export function RelationalInstitutionalReportsPageV2({ isActive = true }: { read
       if (response.state !== 'ready') {
         if (response.state === 'not-authorized') { setReport(null); setHistory([]); }
         if (background) setStale(true); else setReportState(response.state === 'invalid-request' ? 'unavailable' : response.state);
-        return;
+        return false;
       }
       setReport(response);
       const empty = response.state === 'ready' && response.operation === 'audit' && response.items.length === 0;
       setReportState(empty ? 'empty' : 'ready');
       setStale(false);
       if (!background) window.requestAnimationFrame(() => outputRef.current?.focus());
+      return true;
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
         if (background) setStale(true); else setReportState(toLoadState(cause));
+        return false;
       }
     }
   }
@@ -408,12 +410,14 @@ export function RelationalInstitutionalReportsPageV2({ isActive = true }: { read
         setSelectedSnapshots((current) => current.filter((key) => response.report.items.some((item) => `${item.snapshotId}:${item.snapshotVersion}` === key)));
         setHistoryState(response.report.items.length === 0 ? 'empty' : 'ready');
         setStale(false);
+        return true;
       } else if (response.state === 'not-authorized') {
         setHistory([]); setReport(null); setHistoryState('not-authorized');
       } else if (background) {
         setStale(true);
       }
-    } catch (cause) { if (background) setStale(true); else setHistoryState(toLoadState(cause)); }
+      return false;
+    } catch (cause) { if (background) setStale(true); else setHistoryState(toLoadState(cause)); return false; }
   }
 
   useLiveRefreshV1(async () => {
@@ -423,16 +427,20 @@ export function RelationalInstitutionalReportsPageV2({ isActive = true }: { read
       if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
         if (catalog.state === 'not-authorized') { setClasses([]); setClassId(null); setReport(null); setHistory([]); setCatalogState('not-authorized'); }
         else setStale(true);
-        return;
+        return false;
       }
       setClasses(catalog.classes);
       if (classId !== null && !catalog.classes.some((item) => item.id === classId)) {
         setClassId(null); setReport(null); setReportState('idle'); setHistory([]); setHistoryState('idle'); setSelectedSnapshots([]);
         return;
       }
-    } catch { setStale(true); return; }
-    if (report !== null) await generate(true);
-    if (historyState === 'ready' || historyState === 'empty') await loadHistory(true);
+    } catch { setStale(true); return false; }
+    if (report !== null) {
+      const refreshed = await generate(true);
+      if (refreshed !== true) return refreshed;
+    }
+    if (historyState === 'ready' || historyState === 'empty') return loadHistory(true);
+    return true;
   }, {
     domains: ['gradebook'], enabled: catalogState === 'ready',
     canRefresh: () => reportState !== 'loading' && historyState !== 'loading' && downloadState !== 'loading',

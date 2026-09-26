@@ -291,6 +291,7 @@ describe('administrative settings UI', () => {
       createElement(StudentSettingsV1, { client, scope: SETTINGS_CLASS_V1, canWrite: true }),
     );
     expect(screen.queryByRole('checkbox')).toBeNull();
+    await vi.waitFor(() => expect(resolve).toBeTypeOf('function'));
     view.rerender(
       createElement(StudentSettingsV1, { client, scope: SETTINGS_SCHOOL_V1, canWrite: true }),
     );
@@ -298,7 +299,8 @@ describe('administrative settings UI', () => {
     await act(async () => {
       resolve(json({ ...base, state: 'settings', settings: settingsFixtureV1(SETTINGS_CLASS_V1) }));
     });
-    expect(screen.getAllByText('Padrão da escola')).toHaveLength(9);
+    expect(screen.getByText('Escola · 2026')).toBeTruthy();
+    expect(screen.queryByText('Padrão da escola')).toBeNull();
     expect(screen.queryByText('Turma 900001 · 2026')).toBeNull();
   });
   it('has no editing or dangerous preview for a read-only operator, and no invented settings on failure', async () => {

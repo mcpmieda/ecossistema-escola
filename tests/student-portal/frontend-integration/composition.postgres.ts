@@ -176,7 +176,9 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     confirmation: '012345',
     keepConnected: true,
   });
-  expect((await student.session()).state).toBe('authenticated');
+  const activeSession = await student.session();
+  expect(activeSession.state).toBe('authenticated');
+  if (activeSession.state !== 'authenticated') throw new Error('Synthetic session was not active');
   const bound = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + account.accountId, cookie });
   expect(bound.status).toBe(200);
   expect(await bound.json()).toMatchObject({ state: 'authenticated' });
@@ -187,7 +189,11 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   const socket = security.webSocket!;
   const connected = new Promise<string>((resolve) => socket.addEventListener('message', event => resolve(String(event.data)), { once: true }));
   socket.accept();
-  expect(JSON.parse(await connected)).toEqual({ contractVersion: 1, type: 'security-connected' });
+  expect(JSON.parse(await connected)).toEqual({
+    contractVersion: 1,
+    type: 'security-connected',
+    expiresAt: activeSession.expiresAt,
+  });
   socket.close(1000, 'synthetic-test-complete');
 
   expect((await student.me()).profile.accountId).toBe(account.accountId);

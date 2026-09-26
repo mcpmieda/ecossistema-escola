@@ -3,16 +3,13 @@ import { instantV1, portalIdV1, versionV1 } from './core-v1';
 
 export const BULK_REQUEST_MAX_BYTES_V1 = 65_536;
 export const bulkActionV1 = z.enum(['qr-regenerate', 'password-reset', 'account-reset', 'block']);
-export const bulkScopeV1 = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('school'), academicYear: z.literal(2026) }).strict(),
-  z
-    .object({
-      kind: z.literal('class'),
-      academicYear: z.literal(2026),
-      classId: z.number().int().positive().safe(),
-    })
-    .strict(),
-]);
+export const bulkScopeV1 = z
+  .object({
+    kind: z.literal('class'),
+    academicYear: z.literal(2026),
+    classId: z.number().int().positive().safe(),
+  })
+  .strict();
 const token = (max: number) =>
   z
     .string()

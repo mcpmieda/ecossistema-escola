@@ -74,11 +74,7 @@ function boundedInput(input: unknown) {
   return input;
 }
 function sameScope(a: z.infer<typeof bulkScopeV1>, b: z.infer<typeof bulkScopeV1>) {
-  return (
-    a.kind === b.kind &&
-    a.academicYear === b.academicYear &&
-    (a.kind !== 'class' || (b.kind === 'class' && a.classId === b.classId))
-  );
+  return a.academicYear === b.academicYear && a.classId === b.classId;
 }
 
 /** Administrative primitive. The RPC boundary verifies tenant and capability before invoking it. */
@@ -128,9 +124,9 @@ export class BulkAdminV1 {
         created = parsed.data.created;
         expires = parsed.data.expires;
       }
-      const parameters = [query.scope.kind === 'class' ? query.scope.classId : null];
+      const parameters = [query.scope.classId];
       const filter = `a.academic_year=2026 AND a.closed_at IS NULL AND a.gradebook_student_id IS NOT NULL
-        AND b.class_id IS NOT NULL AND ($1::integer IS NULL OR b.class_id=$1::integer)`;
+        AND b.class_id=$1::integer`;
       const count = await tx.unsafe(
         `SELECT count(*)::text AS total ${ACCOUNT_JOIN_V1} WHERE ${filter}`,
         parameters,
@@ -265,7 +261,7 @@ export class BulkAdminV1 {
       if (
         !item ||
         item.version !== command.expectedVersion ||
-        (proof.scope.kind === 'class' && proof.scope.classId !== item.classId)
+        proof.scope.classId !== item.classId
       )
         throw new Error('student-portal-bulk-forbidden');
       // Expiry is checked by the mutation after receipt lookup, preserving retries of unknown responses.

@@ -91,7 +91,7 @@ function OverviewBodyV1(props: OperationsPropsV1) {
     },
     [props.reader, props.client, scopeKey],
   );
-  const read = useOperationalReadV1(load, props.onAuthorizationLost);
+  const read = useOperationalReadV1(load, props.onAuthorizationLost, true, false);
   const data = read.state.state === 'ready' ? read.state.data : null;
   useEffect(() => () => populationAbort.current?.abort(), []);
   const synchronizePopulation = async () => {

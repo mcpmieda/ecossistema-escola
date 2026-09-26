@@ -25,7 +25,7 @@ const query = {
   contractVersion: 1,
   operation: 'bulk-preview',
   action: 'block',
-  scope: { kind: 'school', academicYear: 2026 },
+  scope: { kind: 'class', academicYear: 2026, classId: 910001 },
   page: { limit: 100 },
 } as const;
 type Preview = Awaited<ReturnType<BulkAdminV1['preview']>>;
@@ -43,6 +43,11 @@ function command(preview: Preview, index = 0) {
 }
 
 describe('bulk administration #1102 with fictitious disposable data', () => {
+  it('rejects a school-wide bulk preview at the public contract', () => {
+    const school = { ...query, scope: { kind: 'school', academicYear: 2026 } };
+    expect(bulkPreviewQueryV1.safeParse(school).success).toBe(false);
+    expect(adminQueryV1.safeParse(school).success).toBe(false);
+  });
   let pg: PGlite;
   let sql: StudentPortalPostgresSqlV1;
   let service: BulkAdminV1;
@@ -96,7 +101,7 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     await pg?.close();
   });
 
-  it('counts all 151 accounts and paginates without treating the first 100 as the school', async () => {
+  it('counts all 151 accounts in the selected class and paginates the complete class', async () => {
     const first = await service.preview(context, query);
     expect(first.totalCount).toBe(151);
     expect(first.items).toHaveLength(100);
@@ -143,7 +148,7 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     await expect(
       service.preview(context, {
         ...next,
-        scope: { kind: 'class', academicYear: 2026, classId: 910001 },
+        scope: { kind: 'class', academicYear: 2026, classId: 910002 },
       }),
     ).rejects.toThrow('invalid-request');
     await expect(
@@ -227,7 +232,7 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     ).toBe(1);
   });
 
-  it('rejects a class move after a school preview within the individual mutation transaction', async () => {
+  it('rejects a class move after a class preview within the individual mutation transaction', async () => {
     const preview = await service.preview(context, query);
     const input = command(preview);
     await pg.query(

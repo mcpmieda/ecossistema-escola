@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:admin-preview": "vite --config vite.admin-preview.config.ts",
     "build": "tsc -b tsconfig.app.json tsconfig.server.json && vite build",
     "test": "vitest run",
     "test:gradebook-readiness": "vitest run tests/gradebook/readiness",

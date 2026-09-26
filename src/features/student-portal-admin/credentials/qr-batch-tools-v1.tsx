@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, Input, Label, Radio, RadioGroup, TextField } from '@heroui/react';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
-import type { BirthDraftRowV1 } from '../birth-year/birth-values-v1';
+import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { accountCredentialPreparableV1 } from '../accounts/accounts-values-v1';
 import { createQrOperationV1, type QrOperationStateV1, type QrRendererV1 } from './qr-operation-v1';
 import { PRINT_MODES_V1, type PrintModeV1 } from './qr-values-v1';
@@ -10,7 +10,7 @@ import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-
 
 export function QrBatchToolsV1({
   client,
-  rows,
+  accounts,
   selected,
   onSelectAll,
   classId,
@@ -24,7 +24,7 @@ export function QrBatchToolsV1({
   renderArtifact,
 }: {
   client: PortalAdminClientV1;
-  rows: BirthDraftRowV1[];
+  accounts: AdminAccountReadV2[];
   selected: Set<string>;
   onSelectAll: (selected: boolean) => void;
   classId: number;
@@ -94,9 +94,9 @@ export function QrBatchToolsV1({
   }, [state]);
   const working = state.state === 'requesting' || state.state === 'rendering';
   const unresolved = state.state === 'error';
-  const chosen = rows
-    .map((row) => row.record.account)
-    .filter((account) => selected.has(account.accountId) && accountCredentialPreparableV1(account));
+  const chosen = accounts.filter(
+    (account) => selected.has(account.accountId) && accountCredentialPreparableV1(account),
+  );
   const selectionKey = JSON.stringify([
     chosen.map((account) => account.accountId).sort((left, right) => left.localeCompare(right)), mode,
     withInstruction ? instruction.trim().slice(0, 240) : '',
@@ -176,7 +176,7 @@ export function QrBatchToolsV1({
           isDisabled={!canWrite || working || unresolved}
           onPress={() => onSelectAll(true)}
         >
-          {hasMore ? 'Selecionar disponíveis carregados' : 'Selecionar todos os disponíveis'}
+          {hasMore ? 'Selecionar exibidos' : 'Selecionar lista'}
         </Button>
         <Button
           size="sm"
@@ -184,7 +184,7 @@ export function QrBatchToolsV1({
           isDisabled={!selected.size || working || unresolved}
           onPress={() => onSelectAll(false)}
         >
-          Desmarcar todos
+          Limpar
         </Button>
         <span role="status">{chosen.length} selecionados</span>
         <Button

@@ -70,7 +70,7 @@ export function createAssessmentNamesEditorV1(options: {
       if (disposed || controller.signal.aborted) return;
       if (result.state !== 'ready') {
         fail(result.state);
-        return;
+        return false;
       }
       // Editing during a background read wins; don't overwrite a fresh local draft.
       if (state.dirty && !discard) {
@@ -79,8 +79,12 @@ export function createAssessmentNamesEditorV1(options: {
       }
       revision++;
       emit({ base: result, draft: result.names, dirty: false, phase: 'ready', failure: null });
+      return true;
     } catch {
-      if (!disposed && !controller.signal.aborted) fail('unavailable');
+      if (!disposed && !controller.signal.aborted) {
+        fail('unavailable');
+        return false;
+      }
     } finally {
       if (active === controller) active = undefined;
       if (state.phase === 'ready') schedule();

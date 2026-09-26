@@ -18,7 +18,10 @@ import { portalKeysV1, type PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { connectPortalLiveV1 } from '../live/live-connect-v1';
 import { servePortalPhotoV1 } from '../photos/http-v1';
-import { STUDENT_PHOTO_META_PATH_V1, STUDENT_PHOTO_CONTENT_PATH_V1 } from '../../../shared/student-photos/portrait-v1';
+import {
+  STUDENT_PHOTO_META_PATH_V1,
+  STUDENT_PHOTO_CONTENT_PATH_V1,
+} from '../../../shared/student-photos/portrait-v1';
 
 const paths = new Set([
   '/api/student/auth/challenge',
@@ -76,7 +79,12 @@ export async function servePortalSelfV1(
         ),
       );
     };
-    const read: SessionServiceV1['read'] = async (token, requestId, expectedAccountId, includeClosed) => {
+    const read: SessionServiceV1['read'] = async (
+      token,
+      requestId,
+      expectedAccountId,
+      includeClosed,
+    ) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);
@@ -124,6 +132,7 @@ export async function servePortalSelfV1(
                       Math.min(Date.parse(session.expiresAt), Date.now() + 60_000),
                     ).toISOString()
                   : session.expiresAt,
+              effectiveExpiresAt: purpose === 'security' ? session.expiresAt : undefined,
               accountId: context.account.id,
               studentId: context.account.link.studentId,
               classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
@@ -152,7 +161,10 @@ export async function servePortalSelfV1(
           sessionCookieTokenV1(request),
           async (context, tx) => {
             // Scoped V2 editions are the only published source; without them Self fails closed.
-            if (env.PORTAL_PUBLICATION_MODE !== 'scoped-v2' || !(await scopedPublicationEnabledV2(tx)))
+            if (
+              env.PORTAL_PUBLICATION_MODE !== 'scoped-v2' ||
+              !(await scopedPublicationEnabledV2(tx))
+            )
               throw new Error('student-portal-scoped-publication-unavailable');
             return new SelfProjectionReaderV1(sql).readInTransaction(
               tx,

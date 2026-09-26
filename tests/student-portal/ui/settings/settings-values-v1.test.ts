@@ -7,6 +7,7 @@ import {
 } from '../../../../src/features/student-portal-admin/settings/calendar-draft-v1';
 import {
   calendarInputV1,
+  calendarChangeLabelV1,
   calendarInstantV1,
   changedPastDatesV1,
   settingsScopeKeyV1,
@@ -65,6 +66,26 @@ describe('settings drafts keep the contract and São Paulo time', () => {
     expect(
       changedPastDatesV1(previous, EMPTY_CALENDAR_V1, Date.parse('2026-09-13T12:00:00Z')),
     ).toEqual(['yearStartsAt']);
+  });
+  it('names removed disclosure end dates as hiding notes rather than exposing internal keys', () => {
+    const previous = {
+      ...EMPTY_CALENDAR_V1,
+      disclosure: {
+        mode: 'single' as const,
+        at: '2026-08-01T03:00:00Z',
+        endsAt: '2026-08-30T03:00:00Z',
+        periods: ['T1' as const],
+      },
+    };
+    const changes = changedPastDatesV1(
+      previous,
+      EMPTY_CALENDAR_V1,
+      Date.parse('2026-09-13T12:00:00Z'),
+    );
+    expect(changes.map(calendarChangeLabelV1)).toContain('Ocultar notas em');
+    expect(calendarChangeLabelV1('disclosure.endsAt.T1')).toBe('Ocultar notas do 1º trimestre');
+    expect(calendarChangeLabelV1('disclosure.REC2')).toBe('Divulgação da recuperação 2');
+    expect(calendarChangeLabelV1('accessEndsAt')).toBe('Encerrar acesso em');
   });
   it('keeps false and empty periods as explicit overrides and risk/calendar atomic', () => {
     expect(singleSettingV1('accessEnabled', false)).toEqual({ accessEnabled: false });

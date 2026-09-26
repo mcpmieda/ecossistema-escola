@@ -1,4 +1,5 @@
 import { Building2, GraduationCap, UserRound } from 'lucide-react';
+import { Chip } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 export function PolicyScopeV1({ scope, label }: { scope: ScopeV1; label?: string }) {
   const Icon =
@@ -9,24 +10,20 @@ export function PolicyScopeV1({ scope, label }: { scope: ScopeV1; label?: string
       role="note"
       aria-label="Alcance das políticas"
     >
-      <Icon size={22} aria-hidden />
-      <div>
-        <span>
-          {scope.kind === 'school'
-            ? 'TODA A ESCOLA'
-            : scope.kind === 'class'
-              ? 'SOMENTE ESTA TURMA'
-              : 'SOMENTE ESTE ALUNO'}
-        </span>
-        <strong>
-          {label ||
-            (scope.kind === 'school'
-              ? 'Escola · 2026'
-              : scope.kind === 'class'
-                ? 'Turma selecionada'
-                : 'Aluno selecionado')}
-        </strong>
-      </div>
+      <Chip size="sm" variant="soft">
+        <Icon size={15} aria-hidden />
+        {scope.kind === 'school'
+          ? 'Toda a escola'
+          : scope.kind === 'class'
+            ? 'Esta turma'
+            : 'Este aluno'}
+      </Chip>
+      {scope.kind !== 'school' && label ? <strong>{label}</strong> : null}
+      <span>
+        {scope.kind === 'school'
+          ? 'Padrão para turmas e alunos'
+          : 'As opções sem personalização seguem o padrão.'}
+      </span>
     </div>
   );
 }

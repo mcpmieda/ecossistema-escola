@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createSettingsQueryV1 } from './settings-query-v1';
 import { notifyLiveChangeV1 } from '../../../shared/live-data/live-refresh-v1';
 import {
   adminCommandV1,
@@ -28,6 +29,7 @@ function commandState(command: AdminCommandV1): AdminResponseV1['state'] {
 }
 export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}) {
   const send = createPortalTransportV1(options);
+  const shareSettings = createSettingsQueryV1();
   const prepareCommand = (input: PortalAdminCommandInputV1) => {
     // Capture canonical bytes once. A retry preserves CAS, idempotency and every batch item.
     const body = portalRequestBodyV1(adminCommandV1, input);
@@ -35,14 +37,19 @@ export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}
     const schema = responseFor(commandState(command));
     return {
       execute: async (signal?: AbortSignal) => {
+        shareSettings.invalidate();
         let result: AdminResponseV1;
         try {
-          result = await send('/api/student-portal/admin/command', schema, signal, body);
-        } catch (error) {
-          signal?.throwIfAborted();
-          if (!isAmbiguousPortalResponseV1(error)) throw error;
-          // One bounded confirmation replay preserves the exact idempotency key, CAS and bytes.
-          result = await send('/api/student-portal/admin/command', schema, signal, body);
+          try {
+            result = await send('/api/student-portal/admin/command', schema, signal, body);
+          } catch (error) {
+            signal?.throwIfAborted();
+            if (!isAmbiguousPortalResponseV1(error)) throw error;
+            // One bounded confirmation replay preserves the exact idempotency key, CAS and bytes.
+            result = await send('/api/student-portal/admin/command', schema, signal, body);
+          }
+        } finally {
+          shareSettings.invalidate();
         }
         // Hints do not contain the response and never run another command.
         notifyLiveChangeV1('portal');
@@ -55,14 +62,17 @@ export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}
       const body = portalRequestBodyV1(adminQueryV1, input);
       const schema = responseFor(input.operation);
       const recoverableRead = input.operation === 'publication' || input.operation === 'settings';
-      try {
-        return await send('/api/student-portal/admin/query', schema, signal, body);
-      } catch (error) {
-        signal?.throwIfAborted();
-        // Pure reads only; never retry preview creation, denial, conflict or Retry-After here.
-        if (!recoverableRead || !isAmbiguousPortalResponseV1(error)) throw error;
-        return send('/api/student-portal/admin/query', schema, signal, body);
-      }
+      const read = async (requestSignal?: AbortSignal) => {
+        try {
+          return await send('/api/student-portal/admin/query', schema, requestSignal, body);
+        } catch (error) {
+          requestSignal?.throwIfAborted();
+          // Pure reads only; never retry preview creation, denial, conflict or Retry-After here.
+          if (!recoverableRead || !isAmbiguousPortalResponseV1(error)) throw error;
+          return send('/api/student-portal/admin/query', schema, requestSignal, body);
+        }
+      };
+      return input.operation === 'settings' ? shareSettings(body, read, signal) : read(signal);
     },
     command: (input: PortalAdminCommandInputV1, signal?: AbortSignal) =>
       prepareCommand(input).execute(signal),

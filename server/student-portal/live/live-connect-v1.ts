@@ -25,6 +25,7 @@ export function connectPortalLiveV1(
     purpose?: 'academic' | 'security';
     audience: 'admin' | 'student';
     expiresAt: string;
+    effectiveExpiresAt?: string;
     accountId: string | null;
     studentId: number | null;
     classId: number | null;
@@ -39,5 +40,7 @@ export function connectPortalLiveV1(
   if (identity.accountId) headers.set('x-live-account-id', identity.accountId);
   if (identity.studentId) headers.set('x-live-student-id', String(identity.studentId));
   if (identity.classId) headers.set('x-live-class-id', String(identity.classId));
+  if (identity.purpose === 'security' && identity.effectiveExpiresAt)
+    headers.set('x-live-effective-expires-at', identity.effectiveExpiresAt);
   return portalLiveStubV1(env, identity.audience).fetch(new Request(request.url, { headers }));
 }
