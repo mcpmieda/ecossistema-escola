@@ -132,6 +132,18 @@ afterAll(async () => {
   await cluster.end({ timeout: 2 });
 });
 
+it('leaves students who left the school out of bulk operations', async () => {
+  // Owner decision (26/09/2026): desistente, transferido and falecido are not operated on.
+  await owner.unsafe('UPDATE gradebook.vinculo SET situacao=4 WHERE aluno_id=910002', [], {
+    prepare: false,
+  });
+  try {
+    const preview = await bulk.preview(context, query);
+    expect(preview.items.map((item) => item.name)).toEqual(['SYNTHETIC ACADEMIC ONE']);
+  } finally {
+    await owner.unsafe('UPDATE gradebook.vinculo SET situacao=NULL', [], { prepare: false });
+  }
+});
 it('checks CAS after a transfer under the native academic lock', async () => {
   const command = await input();
   let release!: () => void;

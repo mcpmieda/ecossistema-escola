@@ -20,7 +20,7 @@ import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persist
 import type { QrServiceV1 } from '../auth/qr-service-v1';
 import { accountScopeV1, authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { accountsScopeVersionV1 } from './common-v1';
-import { ACCOUNT_JOIN_V1 } from './queries-v1';
+import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 
 const TTL = 300_000;
 const proofItemV1 = z
@@ -126,7 +126,7 @@ export class BulkAdminV1 {
       }
       const parameters = [query.scope.classId];
       const filter = `a.academic_year=2026 AND a.closed_at IS NULL AND a.gradebook_student_id IS NOT NULL
-        AND b.class_id=$1::integer`;
+        AND b.class_id=$1::integer AND ${ENROLLED_ACCOUNT_SQL_V1}`;
       const count = await tx.unsafe(
         `SELECT count(*)::text AS total ${ACCOUNT_JOIN_V1} WHERE ${filter}`,
         parameters,

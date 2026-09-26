@@ -11,7 +11,7 @@ import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persist
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { LinkClosureServiceV1 } from '../integration/lifecycle/link-closure-v1';
 import { accountsScopeVersionV1, adminDigestV1, boundSqlV1 } from './common-v1';
-import { ACCOUNT_JOIN_V1 } from './queries-v1';
+import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 
 type QrBatch = Extract<AdminCommandV1, { operation: 'qr-batch' }>;
 export async function qrBatchV1(
@@ -47,7 +47,8 @@ export async function qrBatchV1(
       ${ACCOUNT_JOIN_V1} LEFT JOIN student_portal.qr_credential q ON q.account_id=a.id AND q.state='active'
       LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id
       LEFT JOIN student_portal.password_credential p ON p.account_id=a.id
-      WHERE a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND a.academic_year=2026`,
+      WHERE a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND a.academic_year=2026
+        AND ${ENROLLED_ACCOUNT_SQL_V1}`,
       [JSON.stringify(command.accountIds)],
     );
     if (
