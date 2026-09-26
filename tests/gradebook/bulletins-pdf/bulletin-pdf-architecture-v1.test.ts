@@ -72,4 +72,9 @@ describe('Boletins PDF arquitetura V1', () => {
     expect(pdfActionSection).toContain('O snapshot permanece legível na tela');
     expect(pdfActionSection).not.toContain('setArtifact(null)');
   });
+  it('codifica as páginas sem toBlob, que no ADM entrega JPEG com ~1 s de atraso', () => {
+    const rasterizer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts');
+    expect(rasterizer).not.toMatch(/\.toBlob\(/u);
+    expect(rasterizer).toContain("toDataURL('image/jpeg', 0.9)");
+  });
 });

@@ -462,28 +462,24 @@ function wrapCanvasText(
   return output.length === 0 ? [''] : output;
 }
 
-function canvasToJpegBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
-    if (typeof canvas.toBlob !== 'function') {
-      reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-to-blob-unavailable'));
-      return;
-    }
-    canvas.toBlob(
-      (blob: Blob | null) => {
-        if (blob === null) {
-          reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed'));
-          return;
-        }
-        void blob.arrayBuffer().then(
-          (buffer: ArrayBuffer) => resolve(new Uint8Array(buffer)),
-          () =>
-            reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed')),
-        );
-      },
-      'image/jpeg',
-      0.9,
-    );
-  });
+/** Synchronous JPEG encoding. In the admin app Chromium delivers PNG/JPEG `toBlob` results about
+ * 1 s late even when idle (measured 26/09/2026; WebP is unaffected), i.e. one extra second per
+ * bulletin page. `toDataURL` encodes the same bytes in milliseconds.
+ */
+function canvasToJpegBytes(canvas: HTMLCanvasElement): Uint8Array {
+  if (typeof canvas.toDataURL !== 'function') {
+    throw new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-to-blob-unavailable');
+  }
+  const prefix = 'data:image/jpeg;base64,';
+  const url = canvas.toDataURL('image/jpeg', 0.9);
+  // A browser that cannot encode JPEG silently returns PNG; never embed it as a JPEG page.
+  if (!url.startsWith(prefix)) {
+    throw new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed');
+  }
+  const binary = atob(url.slice(prefix.length));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 async function requireBundledGeistFont(lines: readonly BulletinPdfLineV1[]): Promise<void> {
@@ -561,7 +557,7 @@ async function renderLinesToRasterPages(
   };
 
   const flush = async (): Promise<void> => {
-    const jpeg = await canvasToJpegBytes(current.canvas);
+    const jpeg = canvasToJpegBytes(current.canvas);
     encodedBytes += jpeg.length;
     if (encodedBytes > BULLETIN_PDF_LIMITS_V1.maxOutputBytes) {
       current.canvas.width = 1;
