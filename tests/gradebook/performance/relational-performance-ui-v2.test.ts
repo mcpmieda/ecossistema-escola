@@ -370,6 +370,12 @@ async function select(label: string, value: string) {
 }
 async function loaded() {
   await mount();
+  // A cold module load (test run alone) can take longer than one settle to show the shell.
+  await waitFor(() =>
+    [...document.querySelectorAll('button,[role=tab]')].some(
+      (element) => element.textContent === 'Notas',
+    ),
+  );
   await click('Notas');
   await select('Turma', '10');
   await waitFor(
@@ -564,6 +570,9 @@ describe('real shell, shared year and rendered performance journey', () => {
     );
     await click('Pesquisar');
     await click('Desempenho');
+    // A discarded matrix would be re-read at once on return; the live clock's tab-return
+    // revalidation is legitimate but waits at least 250 ms, so count before it can fire.
+    const dashboardsOnReturn = requests.filter((value) => value.operation === 'dashboard').length;
     await click(student.name);
     await click('Ver cadastro nas Centrais');
     for (
@@ -575,7 +584,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(requests.filter((value) => value.operation === 'center' && value.id === 1)).toHaveLength(
       2,
     );
-    expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
+    expect(dashboardsOnReturn).toBe(1);
     expect(host.textContent).not.toContain('Conselho no ano anterior');
   }, 10_000);
   it('drops a late old-period response rather than replacing the current trimester', async () => {
