@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react/button';
 import { CameraOff, ImageIcon, SlidersHorizontal } from 'lucide-react';
-import { SchoolMarkV1 } from '../../../shared/brand/school-mark-v1';
+import { SCHOOL_LOGO_SRC_V1 } from '../../../shared/brand/school-mark-v1';
+import { SCHOOL_CARD_NAME_LINES_V1 } from '../../../shared/brand/school-name-v1';
 import {
   createCameraLeaseV1,
   createQrCameraDecoderV1,
@@ -59,16 +60,33 @@ const platformOfV1 = (): PlatformV1 =>
     ? 'iphone'
     : 'android';
 
-/** Decorative access card with a scan line, so the student knows at once what to use. */
+/** Miniature of the printed access card (same layout, colours and header), so the student
+ * recognises the card in hand and knows which QR to scan. Decorative: hidden from assistive tech.
+ */
 function AccessCardV1() {
   return (
     <div className="pa-access-card" aria-hidden="true">
-      <SchoolMarkV1 size={32} shine={false} className="pa-access-card-crest" />
-      <span className="pa-access-card-qr" />
-      <span className="pa-access-card-text">
-        Cartão de acesso
-        <b>Portal do Aluno</b>
-      </span>
+      <div className="pa-access-card-head">
+        <img className="pa-access-card-crest" src={SCHOOL_LOGO_SRC_V1} alt="" />
+        <span className="pa-access-card-school">
+          {SCHOOL_CARD_NAME_LINES_V1[0]}
+          <b>{SCHOOL_CARD_NAME_LINES_V1[1]}</b>
+        </span>
+        <span className="pa-access-card-title">
+          Portal do Aluno
+          <b>Cartão de acesso</b>
+        </span>
+      </div>
+      <div className="pa-access-card-body">
+        <span className="pa-access-card-photo" />
+        <span className="pa-access-card-name">
+          SEU NOME
+          <i />
+          <em>SUA TURMA</em>
+        </span>
+        <span className="pa-access-card-qr" />
+      </div>
+      <div className="pa-access-card-foot" />
     </div>
   );
 }
