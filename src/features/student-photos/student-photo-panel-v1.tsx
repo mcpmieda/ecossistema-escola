@@ -55,6 +55,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   const working = useRef(false);
   const ownedConfirmation = useRef<Confirmation | null>(null);
   const client = useRef(createPhotoAdminClientV1());
+  const picker = useRef<HTMLInputElement>(null);
   const subjectKey = photoSubjectKeyV1(subject);
 
   function discard() {
@@ -99,6 +100,16 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       }
       const blob = current.hasPortrait ? await readCurrentPhotoV1(subject, current.revision, signal) : undefined;
       signal.throwIfAborted(); discard(); setInitialPhoto(blob); setKind(mode); setEditing(true);
+    });
+  }
+  /** A student without a photo goes straight to the file picker; the editor opens with the choice. */
+  function openWithFile(file: File) {
+    void run(async signal => {
+      const current = await refresh(signal, true);
+      if (current.pendingRequest) {
+        setMessage('Há uma alteração anterior pendente. Use “Concluir operação” antes de iniciar outra.'); return;
+      }
+      signal.throwIfAborted(); discard(); setInitialPhoto(file); setKind('replace'); setEditing(true);
     });
   }
   function prepared(draft: PhotoDraftV1) {
@@ -180,9 +191,11 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
         {canWrite ? <>
-          <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => openEditor('replace')}>
+          <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => catalog?.hasPortrait ? openEditor('replace') : picker.current?.click()}>
             <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Editar foto' : 'Adicionar foto'}
           </Button>
+          <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" hidden aria-hidden="true" tabIndex={-1}
+            onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) openWithFile(file); }} />
           {catalog?.hasPortrait ? <>
             <Button size="sm" variant="tertiary" isDisabled={busy || !!catalog.pendingRequest} onPress={() => openEditor('avatar')}>Ajustar avatar</Button>
             <Button size="sm" variant="tertiary" isDisabled={busy || !!catalog.pendingRequest} onPress={() => { discard(); setRemoving(true); }}>
