@@ -18,6 +18,7 @@ import {
   type PhotoChangedDetailV1,
 } from '../../student-photos/catalog-client-v1';
 import { photoSubjectKeyV1 } from '../../../../shared/student-photos/catalog-v1';
+import { PhotoAdminClientErrorV1 } from '../../student-photos/admin-client-v1';
 
 export function IndividualQrV1(
   props: StudentCredentialsPropsV1 & { scope: Extract<ScopeV1, { kind: 'account' }> },
@@ -166,8 +167,19 @@ export function IndividualQrV1(
       card.current = { artifact, imageUrl };
       setCardNoPhoto(!photo);
       setCardState('ready');
-    })().catch(() => {
-      if (!controller.signal.aborted) setCardState('error');
+    })().catch((error: unknown) => {
+      if (controller.signal.aborted) return;
+      if (
+        error instanceof PhotoAdminClientErrorV1 &&
+        (error.code === 'unauthenticated' || error.code === 'forbidden')
+      ) {
+        operation.clear();
+        printer.clear();
+        cardDownloads.clear();
+        notify.current?.(new PortalClientErrorV1(error.code));
+        return;
+      }
+      setCardState('error');
     });
     return () => {
       controller.abort();
@@ -180,6 +192,8 @@ export function IndividualQrV1(
     account?.name,
     account?.classLabel,
     operation,
+    printer,
+    cardDownloads,
     photoSubject,
     photoRevision,
     cardRetry,

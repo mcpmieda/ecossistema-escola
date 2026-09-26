@@ -42,6 +42,8 @@ export async function readCurrentPhotoV1(subject: PhotoAdminSubjectV1, revision:
   const response = await fetch(photoImageUrlV1(subject, 'portrait', revision), {
     credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
   });
+  if (response.status === 401) throw new PhotoAdminClientErrorV1('unauthenticated');
+  if (response.status === 403) throw new PhotoAdminClientErrorV1('forbidden');
   if (response.status === 404) return undefined;
   if (!response.ok || response.headers.get('content-type')?.split(';', 1)[0] !== 'image/webp' || !response.body)
     throw new PhotoAdminClientErrorV1('unavailable');

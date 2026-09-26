@@ -274,13 +274,14 @@ function paintCard(
 export async function renderQrAccessCardV1(
   input: QrAccessCardInputV1,
   signal: AbortSignal,
+  scale: 1 | 2 = SCALE,
 ): Promise<QrArtifactV1> {
   signal.throwIfAborted();
   if (typeof document === 'undefined' || typeof createImageBitmap === 'undefined')
     throw new QrArtifactErrorV1('render-unavailable');
   const canvas = document.createElement('canvas');
-  canvas.width = WIDTH * SCALE;
-  canvas.height = HEIGHT * SCALE;
+  canvas.width = WIDTH * scale;
+  canvas.height = HEIGHT * scale;
   const context = canvas.getContext('2d');
   if (!context) throw new QrArtifactErrorV1('render-unavailable');
   let qr: ImageBitmap | undefined;
@@ -295,7 +296,7 @@ export async function renderQrAccessCardV1(
     qr = qrImage;
     photo = photoImage;
     signal.throwIfAborted();
-    context.scale(SCALE, SCALE);
+    context.scale(scale, scale);
     paintCard(context, crest, emblem, qr, input, photo);
     const blob = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(

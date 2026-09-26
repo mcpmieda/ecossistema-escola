@@ -209,6 +209,7 @@ function AccountsResultsV1(
                 accounts={visibleItems}
                 selected={selectedQr}
                 onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
+                academicYear={qrClass.academicYear}
                 classId={qrClass.classId}
                 scopeVersion={current.scopeVersion}
                 label={props.bulkScopeLabel}

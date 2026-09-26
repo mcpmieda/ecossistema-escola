@@ -8,11 +8,14 @@ import { PRINT_MODES_V1, type PrintModeV1 } from './qr-values-v1';
 import { qrFilenameV1 } from './qr-filename-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 
+type QrBatchLayoutV1 = 'card' | 'compact';
+
 export function QrBatchToolsV1({
   client,
   accounts,
   selected,
   onSelectAll,
+  academicYear,
   classId,
   scopeVersion,
   label,
@@ -27,6 +30,7 @@ export function QrBatchToolsV1({
   accounts: AdminAccountReadV2[];
   selected: Set<string>;
   onSelectAll: (selected: boolean) => void;
+  academicYear: number;
   classId: number;
   scopeVersion: number;
   label: string;
@@ -38,21 +42,34 @@ export function QrBatchToolsV1({
   renderArtifact?: QrRendererV1;
 }) {
   const [state, setState] = useState<QrOperationStateV1>({ state: 'idle' });
+  const [layout, setLayout] = useState<QrBatchLayoutV1>('card');
   const [mode, setMode] = useState<PrintModeV1>('qr-name-class');
   const [withInstruction, setWithInstruction] = useState(false),
     [instruction, setInstruction] = useState('');
   const [clock, setClock] = useState(Date.now);
-  const capture = useRef({ instruction: '', filename: '', run: '', selectionKey: '' });
+  const capture = useRef({
+    instruction: '',
+    filename: '',
+    run: '',
+    selectionKey: '',
+    layout: 'card' as QrBatchLayoutV1,
+  });
   const callbacks = useRef({ onAuthorizationLost, onCommitted });
   callbacks.current = { onAuthorizationLost, onCommitted };
   const render = useCallback<QrRendererV1>(
     async (cards, format, signal, progress) => {
       if (renderArtifact) return renderArtifact(cards, format, signal, progress);
+      signal.throwIfAborted();
+      if (capture.current.layout === 'card') {
+        const { renderQrAccessCardsPdfV1 } = await import('./qr-access-card-pdf-v1');
+        signal.throwIfAborted();
+        return renderQrAccessCardsPdfV1(cards, academicYear, signal, progress);
+      }
       const { renderQrPdfV1 } = await import('./qr-artifacts-v1');
       signal.throwIfAborted();
       return renderQrPdfV1(cards, signal, progress, capture.current.instruction);
     },
-    [renderArtifact],
+    [renderArtifact, academicYear],
   );
   const operation = useMemo(
     () =>
@@ -97,20 +114,25 @@ export function QrBatchToolsV1({
   const chosen = accounts.filter(
     (account) => selected.has(account.accountId) && accountCredentialPreparableV1(account),
   );
+  const requestMode = layout === 'card' ? 'qr-name-class' : mode;
   const selectionKey = JSON.stringify([
-    chosen.map((account) => account.accountId).sort((left, right) => left.localeCompare(right)), mode,
-    withInstruction ? instruction.trim().slice(0, 240) : '',
+    chosen.map((account) => account.accountId).sort((left, right) => left.localeCompare(right)),
+    layout,
+    requestMode,
+    layout === 'compact' && withInstruction ? instruction.trim().slice(0, 240) : '',
   ]);
-  const readyForSelection = state.state === 'ready' && capture.current.selectionKey === selectionKey;
+  const readyForSelection =
+    state.state === 'ready' && capture.current.selectionKey === selectionKey;
   function generate() {
     if (!canWrite || working || unresolved || pendingBirth || !chosen.length || chosen.length > 100)
       return;
     const idempotencyKey = crypto.randomUUID();
     capture.current = {
-      instruction: withInstruction ? instruction.trim().slice(0, 240) : '',
+      instruction: layout === 'compact' && withInstruction ? instruction.trim().slice(0, 240) : '',
       filename: qrFilenameV1(label, 'pdf'),
       run: idempotencyKey,
       selectionKey,
+      layout,
     };
     operation.clear();
     void operation.submit(
@@ -120,7 +142,7 @@ export function QrBatchToolsV1({
         classId,
         expectedVersion: scopeVersion,
         accountIds: chosen.map((account) => account.accountId),
-        mode,
+        mode: requestMode,
         confirmed: true,
         idempotencyKey,
       },
@@ -130,13 +152,18 @@ export function QrBatchToolsV1({
   return (
     <div className="pa-qr-batch-tools" aria-label="Opções do PDF de QR">
       <RadioGroup
-        value={mode}
-        onChange={(value) => setMode(value as PrintModeV1)}
+        value={layout}
+        onChange={(value) => setLayout(value as QrBatchLayoutV1)}
         orientation="horizontal"
         isDisabled={!canWrite || working || unresolved}
       >
-        <Label>Conteúdo do PDF</Label>
-        {(Object.entries(PRINT_MODES_V1) as [PrintModeV1, string][]).map(([value, text]) => (
+        <Label>Formato do PDF</Label>
+        {(
+          [
+            ['card', 'Cartão completo · 9,5 × 5,9 cm'],
+            ['compact', 'QR compacto'],
+          ] as const
+        ).map(([value, text]) => (
           <Radio key={value} value={value}>
             <Radio.Content>
               <Radio.Control>
@@ -147,27 +174,49 @@ export function QrBatchToolsV1({
           </Radio>
         ))}
       </RadioGroup>
-      <Checkbox
-        isSelected={withInstruction}
-        onChange={setWithInstruction}
-        isDisabled={working || unresolved || !canWrite}
-      >
-        <Checkbox.Content>
-          <Checkbox.Control>
-            <Checkbox.Indicator />
-          </Checkbox.Control>
-          <span>Adicionar instrução ao cartão</span>
-        </Checkbox.Content>
-      </Checkbox>
-      {withInstruction ? (
-        <TextField
-          value={instruction}
-          onChange={setInstruction}
-          isDisabled={working || unresolved || !canWrite}
-        >
-          <Label>Instrução abaixo do QR</Label>
-          <Input maxLength={240} placeholder="Texto opcional, somente neste navegador" />
-        </TextField>
+      {layout === 'compact' ? (
+        <>
+          <RadioGroup
+            value={mode}
+            onChange={(value) => setMode(value as PrintModeV1)}
+            orientation="horizontal"
+            isDisabled={!canWrite || working || unresolved}
+          >
+            <Label>Conteúdo do QR</Label>
+            {(Object.entries(PRINT_MODES_V1) as [PrintModeV1, string][]).map(([value, text]) => (
+              <Radio key={value} value={value}>
+                <Radio.Content>
+                  <Radio.Control>
+                    <Radio.Indicator />
+                  </Radio.Control>
+                  <span>{text}</span>
+                </Radio.Content>
+              </Radio>
+            ))}
+          </RadioGroup>
+          <Checkbox
+            isSelected={withInstruction}
+            onChange={setWithInstruction}
+            isDisabled={working || unresolved || !canWrite}
+          >
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <span>Adicionar instrução ao cartão</span>
+            </Checkbox.Content>
+          </Checkbox>
+          {withInstruction ? (
+            <TextField
+              value={instruction}
+              onChange={setInstruction}
+              isDisabled={working || unresolved || !canWrite}
+            >
+              <Label>Instrução abaixo do QR</Label>
+              <Input maxLength={240} placeholder="Texto opcional, somente neste navegador" />
+            </TextField>
+          ) : null}
+        </>
       ) : null}
       <div className="pa-credentials-actions">
         <Button
@@ -191,13 +240,12 @@ export function QrBatchToolsV1({
           size="sm"
           isDisabled={
             !canWrite ||
-            (!readyForSelection && (
-              working || unresolved || pendingBirth || !chosen.length || chosen.length > 100
-            ))
+            (!readyForSelection &&
+              (working || unresolved || pendingBirth || !chosen.length || chosen.length > 100))
           }
-          onPress={readyForSelection
-            ? () => operation.download(capture.current.filename)
-            : generate}
+          onPress={
+            readyForSelection ? () => operation.download(capture.current.filename) : generate
+          }
         >
           {readyForSelection ? 'Baixar PDF pronto' : 'Baixar PDF'}
         </Button>

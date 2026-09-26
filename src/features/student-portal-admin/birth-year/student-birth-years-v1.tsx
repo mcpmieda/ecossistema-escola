@@ -230,6 +230,7 @@ function BirthPageBodyV1(props: PageProps) {
                   accounts={state.rows.map((row) => row.record.account)}
                   selected={selectedQr}
                   onSelectAll={(selected) => setSelectedQr(selected ? eligibleQr : new Set())}
+                  academicYear={scope.academicYear}
                   classId={scope.classId}
                   scopeVersion={state.accountsScopeVersion ?? -1}
                   label={props.scopeLabel}
