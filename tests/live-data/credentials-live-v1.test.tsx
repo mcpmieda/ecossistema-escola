@@ -49,6 +49,7 @@ it('retains artifact while open and allows a different PDF mode without a discar
   render(createElement(StudentCredentialsV1, mock.props));
   const selected = await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' });
   fireEvent.click(selected);
+  fireEvent.click(screen.getByRole('radio', { name: 'QR compacto' }));
   fireEvent.click(screen.getByRole('radio', { name: 'QR + nome' }));
   await generate();
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
