@@ -204,17 +204,6 @@ function paintCard(
   context.closePath();
   context.fill();
 
-  const brandFade = context.createLinearGradient(0, 96, 0, 132);
-  brandFade.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  brandFade.addColorStop(1, '#ffffff');
-  context.fillStyle = brandFade;
-  context.fillRect(0, 96, WIDTH, 36);
-  const footerFade = context.createLinearGradient(0, 456, 0, 504);
-  footerFade.addColorStop(0, '#ffffff');
-  footerFade.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  context.fillStyle = footerFade;
-  context.fillRect(0, 456, WIDTH, 48);
-
   const center = context.createLinearGradient(0, 132, 600, 132);
   center.addColorStop(0, '#e8f2ff');
   center.addColorStop(0.7, '#f6faff');
@@ -239,16 +228,13 @@ function paintCard(
   }
   context.globalAlpha = 1;
 
-  const contentTopFade = context.createLinearGradient(0, 132, 0, 156);
-  contentTopFade.addColorStop(0, '#ffffff');
-  contentTopFade.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  context.fillStyle = contentTopFade;
-  context.fillRect(0, 132, WIDTH, 24);
-  const contentBottomFade = context.createLinearGradient(0, 432, 0, 456);
-  contentBottomFade.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  contentBottomFade.addColorStop(1, '#ffffff');
-  context.fillStyle = contentBottomFade;
-  context.fillRect(0, 432, WIDTH, 24);
+  const qrJoin = context.createLinearGradient(400, 0, 542, 0);
+  qrJoin.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  qrJoin.addColorStop(1, '#ffffff');
+  context.fillStyle = qrJoin;
+  context.fillRect(400, 132, 142, 324);
+  context.fillStyle = '#ffffff';
+  context.fillRect(542, 132, WIDTH - 542, 324);
 
   paintPhoto(context, photo);
   paintIdentity(context, input.name, input.classLabel);
