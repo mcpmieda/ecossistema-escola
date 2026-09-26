@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import QRCode from 'qrcode';
+import { canvasBlobSyncV1 } from './canvas-encode-v1';
 import { paintQrShapeV1, qrLayerPathsV1, qrShapesV1 } from './qr-shapes-v1';
 import { qrUrlV1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import {
@@ -54,16 +55,9 @@ function canvasV1(width: number, height: number) {
   if (!context) throw new QrArtifactErrorV1('render-unavailable');
   return { canvas, context };
 }
-async function canvasBlobV1(canvas: HTMLCanvasElement, signal: AbortSignal) {
+function canvasBlobV1(canvas: HTMLCanvasElement, signal: AbortSignal) {
   signal.throwIfAborted();
-  const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob(
-      (value) => (value ? resolve(value) : reject(new QrArtifactErrorV1('render-unavailable'))),
-      'image/png',
-    ),
-  );
-  signal.throwIfAborted();
-  return blob;
+  return canvasBlobSyncV1(canvas, 'image/png');
 }
 /** The bitmap contains only black/white QR modules and the four-module quiet zone. */
 export async function renderQrPngV1(qr: string, signal: AbortSignal): Promise<QrArtifactV1> {

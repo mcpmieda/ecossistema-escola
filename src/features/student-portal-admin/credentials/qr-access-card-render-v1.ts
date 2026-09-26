@@ -1,3 +1,4 @@
+import { canvasBlobSyncV1 } from './canvas-encode-v1';
 import { QrArtifactErrorV1, type QrArtifactV1 } from './qr-values-v1';
 
 const crestUrl = new URL('./assets/school-crest.png', import.meta.url).href;
@@ -327,15 +328,7 @@ async function renderCardBlobV1(
       context.fillRect(0, 0, WIDTH, HEIGHT);
     }
     paintCard(context, crest, emblem, qr, input, photo);
-    const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (value) => (value ? resolve(value) : reject(new QrArtifactErrorV1('render-unavailable'))),
-        type,
-        type === 'image/jpeg' ? PRINT_JPEG_QUALITY : undefined,
-      ),
-    );
-    signal.throwIfAborted();
-    return blob;
+    return canvasBlobSyncV1(canvas, type, type === 'image/jpeg' ? PRINT_JPEG_QUALITY : undefined);
   } finally {
     qr?.close();
     photo?.close();

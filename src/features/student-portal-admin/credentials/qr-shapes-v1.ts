@@ -73,7 +73,19 @@ export function qrShapePathV1(shape: QrShapeV1): string {
     height: h,
     radii: [a, b, c, d],
   } = shape;
-  return `M${x + a} ${y}H${x + w - b}Q${x + w} ${y} ${x + w} ${y + b}V${y + h - c}Q${x + w} ${y + h} ${x + w - c} ${y + h}H${x + d}Q${x} ${y + h} ${x} ${y + h - d}V${y + a}Q${x} ${y} ${x + a} ${y}Z`;
+  // Square corners need no curve; skipping them keeps PDF content streams small.
+  const corner = (radius: number, curve: string) => (radius ? curve : '');
+  return (
+    `M${x + a} ${y}H${x + w - b}` +
+    corner(b, `Q${x + w} ${y} ${x + w} ${y + b}`) +
+    `V${y + h - c}` +
+    corner(c, `Q${x + w} ${y + h} ${x + w - c} ${y + h}`) +
+    `H${x + d}` +
+    corner(d, `Q${x} ${y + h} ${x} ${y + h - d}`) +
+    `V${y + a}` +
+    corner(a, `Q${x} ${y} ${x + a} ${y}`) +
+    'Z'
+  );
 }
 export function paintQrShapeV1(
   context: CanvasRenderingContext2D,
@@ -105,9 +117,38 @@ export function paintQrShapeV1(
   context.fill();
 }
 
+/** Dark single modules touching in a row become one shape: their shared corners are square, so
+ * the outline is unchanged while PDF path operators drop by more than half.
+ */
+function mergedRowsV1(shapes: QrShapeV1[]): QrShapeV1[] {
+  const merged: QrShapeV1[] = [];
+  for (const shape of shapes) {
+    const prior = merged.at(-1);
+    if (
+      prior?.dark &&
+      shape.dark &&
+      prior.height === 1 &&
+      shape.height === 1 &&
+      shape.width === 1 &&
+      prior.y === shape.y &&
+      prior.x + prior.width === shape.x &&
+      prior.radii[1] === 0 &&
+      prior.radii[2] === 0 &&
+      shape.radii[0] === 0 &&
+      shape.radii[3] === 0
+    )
+      merged[merged.length - 1] = {
+        ...prior,
+        width: prior.width + 1,
+        radii: [prior.radii[0], shape.radii[1], shape.radii[2], prior.radii[3]],
+      };
+    else merged.push(shape);
+  }
+  return merged;
+}
 export function qrLayerPathsV1(matrix: Matrix, quiet = 4): { path: string; dark: boolean }[] {
   const groups: { parts: string[]; dark: boolean }[] = [];
-  for (const shape of qrShapesV1(matrix, quiet)) {
+  for (const shape of mergedRowsV1(qrShapesV1(matrix, quiet))) {
     const prior = groups.at(-1);
     if (prior?.dark === shape.dark) prior.parts.push(qrShapePathV1(shape));
     else groups.push({ dark: shape.dark, parts: [qrShapePathV1(shape)] });

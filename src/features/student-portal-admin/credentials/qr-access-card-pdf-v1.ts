@@ -20,7 +20,7 @@ export const QR_ACCESS_CARD_PDF_LAYOUT_V1 = {
   rows: 4,
   rulerLength: 50 * ptPerMm,
 } as const;
-const PHOTO_CONCURRENCY = 4;
+const PHOTO_CONCURRENCY = 10;
 const PHOTO_RETRY_DELAYS_MS = [400, 1_200] as const;
 
 type CardPdfDependenciesV1 = {
@@ -91,6 +91,105 @@ async function readPhotoOrNoneV1(
   }
 }
 
+export type QrCardPhotoSourceV1 = (accountId: string) => Promise<Blob | undefined>;
+
+/** Starts every portrait download at once (bounded), so they overlap the credential request.
+ * Blobs stay in memory only for this batch; the signal stops downloads that are still queued.
+ */
+export function prefetchQrCardPhotosV1(
+  accountIds: readonly string[],
+  academicYear: number,
+  signal: AbortSignal,
+  dependencies: CardPdfDependenciesV1 = defaultDependencies,
+): QrCardPhotoSourceV1 {
+  type Entry = {
+    accountId: string;
+    photo: Promise<Blob | undefined>;
+    resolve: (photo: Blob | undefined) => void;
+    reject: (error: unknown) => void;
+  };
+  const pending = new Map<string, Promise<Blob | undefined>>();
+  const queue: Entry[] = [];
+  for (const accountId of accountIds) {
+    const key = accountId.toLowerCase();
+    if (pending.has(key)) continue;
+    const entry = { accountId } as Entry;
+    entry.photo = new Promise((resolve, reject) => Object.assign(entry, { resolve, reject }));
+    entry.photo.catch(() => {}); // Awaited in card order; a stopped batch must not leak rejections.
+    pending.set(key, entry.photo);
+    queue.push(entry);
+  }
+  let next = 0;
+  const worker = async () => {
+    while (next < queue.length) {
+      const entry = queue[next++]!;
+      // Queued portraits still settle after a stop, so no caller waits forever.
+      if (signal.aborted) {
+        entry.reject(signal.reason);
+        continue;
+      }
+      try {
+        entry.resolve(await readPhotoOrNoneV1(dependencies, entry.accountId, academicYear, signal));
+      } catch (error) {
+        entry.reject(error);
+      }
+    }
+  };
+  for (let index = 0; index < Math.min(PHOTO_CONCURRENCY, queue.length); index++) void worker();
+  return (accountId) =>
+    pending.get(accountId.toLowerCase()) ??
+    readPhotoOrNoneV1(dependencies, accountId, academicYear, signal);
+}
+
+export type QrCardIdentityV1 = { accountId: string; name: string; classLabel: string };
+export type QrCardArtSourceV1 = (card: QrCardIdentityV1) => Promise<Blob>;
+
+/** Paints card art (portrait, name, class; the QR is vector) as portraits arrive, so the batch
+ * can start at click time, while the server is still issuing the credentials.
+ */
+export function prepareQrCardArtV1(
+  identities: readonly QrCardIdentityV1[],
+  academicYear: number,
+  signal: AbortSignal,
+  dependencies: CardPdfDependenciesV1 = defaultDependencies,
+): QrCardArtSourceV1 {
+  const photoFor = prefetchQrCardPhotosV1(
+    identities.map((card) => card.accountId),
+    academicYear,
+    signal,
+    dependencies,
+  );
+  const paint = async (card: QrCardIdentityV1) => {
+    const photo = await photoFor(card.accountId);
+    signal.throwIfAborted();
+    const identity = { name: card.name, classLabel: card.classLabel };
+    try {
+      return await dependencies.renderCard({ ...identity, photo }, signal);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!photo) throw error;
+      return dependencies.renderCard(identity, signal); // Undecodable portrait.
+    }
+  };
+  const painted = new Map<string, QrCardIdentityV1 & { art: Promise<Blob> }>();
+  let queue: Promise<unknown> = Promise.resolve();
+  for (const card of identities) {
+    const key = card.accountId.toLowerCase();
+    if (painted.has(key)) continue;
+    const art = queue.then(() => paint(card)); // One canvas at a time, in list order.
+    art.catch(() => {}); // Awaited in card order; a stopped batch must not leak rejections.
+    queue = art.catch(() => {});
+    painted.set(key, { ...card, art });
+  }
+  return (card) => {
+    const entry = painted.get(card.accountId.toLowerCase());
+    // The server's name and class win: art painted from a stale list row is repainted.
+    return entry?.name === card.name && entry.classLabel === card.classLabel
+      ? entry.art
+      : paint(card);
+  };
+}
+
 function drawCalibrationV1(page: PDFPage, font: PDFFont) {
   const layout = QR_ACCESS_CARD_PDF_LAYOUT_V1;
   const color = rgb(0.45, 0.5, 0.58);
@@ -124,6 +223,7 @@ export async function renderQrAccessCardsPdfV1(
   signal: AbortSignal,
   progress: (completed: number, total: number) => void = () => {},
   dependencies: CardPdfDependenciesV1 = defaultDependencies,
+  prepared?: QrCardArtSourceV1,
 ): Promise<QrArtifactV1> {
   signal.throwIfAborted();
   if (!Number.isInteger(academicYear) || academicYear < 1900 || academicYear > 9999)
@@ -145,25 +245,12 @@ export async function renderQrAccessCardsPdfV1(
   const unit = artWidth / art.width;
   const quiet = QR_LAYOUT_V1.quietModules;
 
-  // Photos download a few cards ahead while earlier cards are painted; order stays fixed.
-  const photoController = new AbortController();
-  const stopPhotos = () => photoController.abort(signal.reason);
-  signal.addEventListener('abort', stopPhotos, { once: true });
-  const photos: Promise<Blob | undefined>[] = [];
-  const photoAt = (index: number) => {
-    const last = Math.min(cards.length, index + PHOTO_CONCURRENCY);
-    for (let next = photos.length; next < last; next++) {
-      const request = readPhotoOrNoneV1(
-        dependencies,
-        cards[next]!.accountId,
-        academicYear,
-        photoController.signal,
-      );
-      request.catch(() => {}); // Awaited in order below; a stopped batch must not leak rejections.
-      photos.push(request);
-    }
-    return photos[index]!;
-  };
+  // Art is painted ahead (portraits in parallel) while earlier cards are embedded.
+  const artController = new AbortController();
+  const stopArt = () => artController.abort(signal.reason);
+  signal.addEventListener('abort', stopArt, { once: true });
+  const artFor =
+    prepared ?? prepareQrCardArtV1(cards, academicYear, artController.signal, dependencies);
 
   let page: PDFPage | undefined;
   try {
@@ -174,17 +261,7 @@ export async function renderQrAccessCardsPdfV1(
         page = pdf.addPage([layout.pageWidth, layout.pageHeight]);
         drawCalibrationV1(page, font);
       }
-      const photo = await photoAt(index);
-      signal.throwIfAborted();
-      const identity = { name: card.name, classLabel: card.classLabel };
-      let artBlob: Blob;
-      try {
-        artBlob = await dependencies.renderCard({ ...identity, photo }, signal);
-      } catch (error) {
-        signal.throwIfAborted();
-        if (!photo) throw error;
-        artBlob = await dependencies.renderCard(identity, signal); // Undecodable portrait.
-      }
+      const artBlob = await artFor(card);
       signal.throwIfAborted();
       const image = await pdf.embedJpg(await artBlob.arrayBuffer());
       signal.throwIfAborted();
@@ -217,8 +294,8 @@ export async function renderQrAccessCardsPdfV1(
       progress(index + 1, cards.length);
     }
   } finally {
-    signal.removeEventListener('abort', stopPhotos);
-    photoController.abort();
+    signal.removeEventListener('abort', stopArt);
+    artController.abort();
   }
   signal.throwIfAborted();
   const bytes = await pdf.save({ objectsPerTick: 30 });

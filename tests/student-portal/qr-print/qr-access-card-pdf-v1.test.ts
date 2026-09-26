@@ -16,12 +16,19 @@ import type { PhotoAdminSubjectV1 } from '../../../shared/student-photos/admin-h
 import type { QrAccessCardPrintInputV1 } from '../../../src/features/student-portal-admin/credentials/qr-access-card-render-v1';
 import {
   QR_ACCESS_CARD_PDF_LAYOUT_V1,
+  prefetchQrCardPhotosV1,
+  prepareQrCardArtV1,
   qrAccessCardSlotV1,
   renderQrAccessCardsPdfV1,
 } from '../../../src/features/student-portal-admin/credentials/qr-access-card-pdf-v1';
 import { qrPrintCardsV1 } from './fixtures-v1';
 
 const mm = (points: number) => (points * 25.4) / 72;
+const cardFixtures = (count: number) =>
+  qrPrintCardsV1(count).map((card) => {
+    if (card.mode !== 'qr-name-class') throw new Error('complete cards need name and class');
+    return card;
+  });
 
 async function syntheticDependencies() {
   const jpeg = await sharp({
@@ -190,15 +197,93 @@ describe('complete QR access card PDF', () => {
       return undefined;
     });
     await renderQrAccessCardsPdfV1(
-      qrPrintCardsV1(12),
+      qrPrintCardsV1(24),
       2026,
       new AbortController().signal,
       undefined,
       dependencies,
     );
     expect(peak).toBeGreaterThan(1);
-    expect(peak).toBeLessThanOrEqual(4);
-    expect(dependencies.readPhoto).toHaveBeenCalledTimes(12);
+    expect(peak).toBeLessThanOrEqual(10);
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(24);
+  });
+
+  it('paints card art at click time and reuses it once the credentials arrive', async () => {
+    const dependencies = await syntheticDependencies();
+    dependencies.readPhoto.mockResolvedValue(dependencies.photo);
+    const cards = cardFixtures(3);
+    // The batch starts from the list rows, before the server returns the cards.
+    const prepared = prepareQrCardArtV1(
+      cards.map(({ accountId, name, classLabel }) => ({
+        accountId: accountId.toUpperCase(),
+        name,
+        classLabel,
+      })),
+      2026,
+      new AbortController().signal,
+      dependencies,
+    );
+    await vi.waitFor(() => expect(dependencies.renderCard).toHaveBeenCalledTimes(3));
+    await renderQrAccessCardsPdfV1(
+      cards,
+      2026,
+      new AbortController().signal,
+      undefined,
+      dependencies,
+      prepared,
+    );
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(3);
+    expect(dependencies.renderCard).toHaveBeenCalledTimes(3);
+    for (const [input] of dependencies.renderCard.mock.calls)
+      expect(input.photo).toBe(dependencies.photo);
+  });
+
+  it('repaints a card when the server name or class differs from the list row', async () => {
+    const dependencies = await syntheticDependencies();
+    const cards = cardFixtures(2);
+    const prepared = prepareQrCardArtV1(
+      cards.map(({ accountId, name }) => ({ accountId, name, classLabel: 'OLD CLASS' })),
+      2026,
+      new AbortController().signal,
+      dependencies,
+    );
+    await renderQrAccessCardsPdfV1(
+      cards,
+      2026,
+      new AbortController().signal,
+      undefined,
+      dependencies,
+      prepared,
+    );
+    const classes = dependencies.renderCard.mock.calls.map(([input]) => input.classLabel);
+    expect(classes.filter((label) => label === 'OLD CLASS')).toHaveLength(2);
+    expect(classes.filter((label) => label !== 'OLD CLASS')).toEqual(
+      cards.map((card) => card.classLabel),
+    );
+  });
+
+  it('settles queued portraits after a stop so no card waits forever', async () => {
+    const dependencies = await syntheticDependencies();
+    dependencies.readPhoto.mockImplementation(
+      (_subject, _revision, signal) =>
+        new Promise((_, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+        ),
+    );
+    const controller = new AbortController();
+    const photoFor = prefetchQrCardPhotosV1(
+      qrPrintCardsV1(14).map((card) => card.accountId),
+      2026,
+      controller.signal,
+      dependencies,
+    );
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(10);
+    controller.abort();
+    const results = await Promise.allSettled(
+      qrPrintCardsV1(14).map((card) => photoFor(card.accountId)),
+    );
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    expect(dependencies.readPhoto).toHaveBeenCalledTimes(10);
   });
 
   it('rejects an unsuitable card before requesting any photo', async () => {
@@ -218,18 +303,24 @@ describe('complete QR access card PDF', () => {
   it('stops on cancellation without returning a partial PDF', async () => {
     const dependencies = await syntheticDependencies();
     const controller = new AbortController();
+    let paintedAtAbort = 0;
     await expect(
       renderQrAccessCardsPdfV1(
         qrPrintCardsV1(9),
         2026,
         controller.signal,
         (completed) => {
-          if (completed === 2) controller.abort();
+          if (completed !== 2) return;
+          paintedAtAbort = dependencies.renderCard.mock.calls.length;
+          controller.abort();
         },
         dependencies,
       ),
     ).rejects.toThrow();
-    expect(dependencies.renderCard).toHaveBeenCalledTimes(2);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Art paints ahead of the PDF, but nothing new starts once the batch is stopped.
+    expect(dependencies.renderCard.mock.calls.length).toBeLessThanOrEqual(paintedAtAbort + 1);
+    expect(dependencies.renderCard.mock.calls.length).toBeLessThan(9);
   });
 
   it('propagates photo authorization loss to the QR operation', async () => {

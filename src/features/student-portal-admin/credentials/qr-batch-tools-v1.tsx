@@ -7,6 +7,7 @@ import { createQrOperationV1, type QrOperationStateV1, type QrRendererV1 } from 
 import { PRINT_MODES_V1, type PrintModeV1 } from './qr-values-v1';
 import { qrFilenameV1 } from './qr-filename-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import type { QrCardArtSourceV1 } from './qr-access-card-pdf-v1';
 
 type QrBatchLayoutV1 = 'card' | 'compact';
 
@@ -54,6 +55,15 @@ export function QrBatchToolsV1({
     selectionKey: '',
     layout: 'card' as QrBatchLayoutV1,
   });
+  // Card art (portrait, name, class) is painted from the click onwards, while the server is
+  // still issuing the credentials; the QR itself is drawn as vector once the cards arrive.
+  const art = useRef<
+    { controller: AbortController; source: Promise<QrCardArtSourceV1> } | undefined
+  >(undefined);
+  const stopArt = useCallback(() => {
+    art.current?.controller.abort();
+    art.current = undefined;
+  }, []);
   const callbacks = useRef({ onAuthorizationLost, onCommitted });
   callbacks.current = { onAuthorizationLost, onCommitted };
   const render = useCallback<QrRendererV1>(
@@ -62,14 +72,26 @@ export function QrBatchToolsV1({
       signal.throwIfAborted();
       if (capture.current.layout === 'card') {
         const { renderQrAccessCardsPdfV1 } = await import('./qr-access-card-pdf-v1');
+        const prepared = await art.current?.source;
         signal.throwIfAborted();
-        return renderQrAccessCardsPdfV1(cards, academicYear, signal, progress);
+        try {
+          return await renderQrAccessCardsPdfV1(
+            cards,
+            academicYear,
+            signal,
+            progress,
+            undefined,
+            prepared,
+          );
+        } finally {
+          stopArt(); // The PDF holds what it needs; drop the in-memory portraits and art.
+        }
       }
       const { renderQrPdfV1 } = await import('./qr-artifacts-v1');
       signal.throwIfAborted();
       return renderQrPdfV1(cards, signal, progress, capture.current.instruction);
     },
-    [renderArtifact, academicYear],
+    [renderArtifact, academicYear, stopArt],
   );
   const operation = useMemo(
     () =>
@@ -85,13 +107,18 @@ export function QrBatchToolsV1({
   );
   const autoDownloaded = useRef('');
   useEffect(() => {
+    // Code only (no data): the first click must not wait for the PDF chunk to download.
+    if (canWrite && !renderArtifact) void import('./qr-access-card-pdf-v1').catch(() => {});
+  }, [canWrite, renderArtifact]);
+  useEffect(() => {
     const clear = () => operation.clear();
     window.addEventListener('pagehide', clear);
     return () => {
       window.removeEventListener('pagehide', clear);
       operation.clear();
+      stopArt();
     };
-  }, [operation]);
+  }, [operation, stopArt]);
   useEffect(() => {
     if (
       state.state !== 'ready' ||
@@ -135,6 +162,21 @@ export function QrBatchToolsV1({
       layout,
     };
     operation.clear();
+    stopArt();
+    if (layout === 'card' && !renderArtifact) {
+      const controller = new AbortController();
+      const identities = chosen.map(({ accountId, name, classLabel }) => ({
+        accountId,
+        name,
+        classLabel,
+      }));
+      art.current = {
+        controller,
+        source: import('./qr-access-card-pdf-v1').then(({ prepareQrCardArtV1 }) =>
+          prepareQrCardArtV1(identities, academicYear, controller.signal),
+        ),
+      };
+    }
     void operation.submit(
       {
         contractVersion: 1,

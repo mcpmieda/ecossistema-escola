@@ -143,8 +143,32 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
     const command = JSON.parse(String(init.body)) as {
       operation: string;
       accountId?: string;
+      accountIds?: string[];
+      mode?: 'qr-only' | 'qr-name' | 'qr-name-class';
       expectedVersion?: number;
     };
+    if (command.operation === 'qr-batch' && command.accountIds && command.mode) {
+      // Production issues the batch in about 2 s; keep that wait so the preview shows it.
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      init.signal?.throwIfAborted();
+      const chosen = command.accountIds.map((id) =>
+        mock.accounts.find((item) => item.accountId === id),
+      );
+      if (chosen.every(Boolean))
+        return opJsonV1({
+          ...meta,
+          state: 'qr',
+          version: command.expectedVersion,
+          cards: chosen.map((item, index) => ({
+            accountId: item!.accountId,
+            // Each card needs its own credential; the app rejects repeated QR payloads.
+            qr: SYNTHETIC_QR_V1.replace('a'.repeat(43), String(index + 1).padStart(43, 'a')),
+            mode: command.mode,
+            ...(command.mode !== 'qr-only' ? { name: item!.name } : {}),
+            ...(command.mode === 'qr-name-class' ? { classLabel: item!.classLabel } : {}),
+          })),
+        });
+    }
     const account = mock.accounts.find((item) => item.accountId === command.accountId);
     if (
       command.operation === 'qr-reprint' &&

@@ -9,6 +9,11 @@ import {
   renderQrPdfV1,
   wrapQrLabelV1,
 } from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
+import {
+  qrLayerPathsV1,
+  qrShapePathV1,
+  qrShapesV1,
+} from '../../../src/features/student-portal-admin/credentials/qr-shapes-v1';
 import { validatePrintCardsV1 } from '../../../src/features/student-portal-admin/credentials/qr-values-v1';
 import { qrPrintCardsV1, qrPrintUrlV1 } from './fixtures-v1';
 
@@ -74,6 +79,32 @@ describe('private QR print artifacts', () => {
       expect(svg).toContain('Q');
     },
   );
+  it('draws the same outline with merged row paths as with one path per module', async () => {
+    const matrix = qrMatrixV1(qrPrintUrlV1(7));
+    const size = matrix.size + 8;
+    const svg = (paths: { path: string; dark: boolean }[]) =>
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${size * 12}" height="${size * 12}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="white"/>${paths
+          .map(({ path, dark }) => `<path d="${path}" fill="${dark ? 'black' : 'white'}"/>`)
+          .join('')}</svg>`,
+      );
+    const perModule = qrShapesV1(matrix).map((shape) => ({
+      path: qrShapePathV1(shape),
+      dark: shape.dark,
+    }));
+    const merged = qrLayerPathsV1(matrix);
+    const [before, after] = await Promise.all(
+      [perModule, merged].map((paths) => sharp(svg(paths)).greyscale().raw().toBuffer()),
+    );
+    let differing = 0;
+    for (let index = 0; index < before!.length; index++)
+      if (Math.abs(before![index]! - after![index]!) > 96) differing++;
+    // Only anti-aliasing seams between formerly separate module paths may differ.
+    expect(differing / before!.length).toBeLessThan(0.002);
+    expect(merged.map(({ path }) => path).join('').length).toBeLessThan(
+      perModule.map(({ path }) => path).join('').length * 0.9,
+    );
+  });
   it('rejects zero, 101, duplicate, mixed-mode and forbidden extra card fields', () => {
     const repeatedQr = qrPrintCardsV1(2);
     repeatedQr[1]!.qr = repeatedQr[0]!.qr;
