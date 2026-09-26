@@ -5,20 +5,33 @@ import {
   validateQrImageFileV1,
 } from './qr-input-v1';
 
-export type QrFrameDecoderV1 = (frame: ImageData, signal: AbortSignal) => Promise<string[]>;
-export const decodeQrFrameV1: QrFrameDecoderV1 = (frame, signal) =>
-  new Promise((resolve, reject) => {
+export type QrFrameOptionsV1 = { sharpen?: boolean };
+export type QrFrameDecoderV1 = (
+  frame: ImageData,
+  signal: AbortSignal,
+  options?: QrFrameOptionsV1,
+) => Promise<string[]>;
+
+const qrWorkerV1 = () =>
+  new Worker(new URL('./qr-decoder.worker.ts', import.meta.url), { type: 'module' });
+
+function decodeWithWorkerV1(
+  worker: Worker,
+  frame: ImageData,
+  signal: AbortSignal,
+  options: QrFrameOptionsV1 | undefined,
+  release: (failed: boolean) => void,
+): Promise<string[]> {
+  return new Promise((resolve, reject) => {
     signal.throwIfAborted();
-    const worker = new Worker(new URL('./qr-decoder.worker.ts', import.meta.url), {
-      type: 'module',
-    });
     let settled = false;
     const finish = (codes?: string[], error?: unknown) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       signal.removeEventListener('abort', abort);
-      worker.terminate();
+      worker.onmessage = worker.onerror = null;
+      release(error !== undefined);
       if (error) reject(error);
       else resolve(codes!);
     };
@@ -35,13 +48,46 @@ export const decodeQrFrameV1: QrFrameDecoderV1 = (frame, signal) =>
       else finish(undefined, new QrInputErrorV1('unavailable'));
     };
     try {
-      worker.postMessage({ pixels: frame.data, width: frame.width, height: frame.height }, [
-        frame.data.buffer,
-      ]);
+      worker.postMessage(
+        {
+          pixels: frame.data,
+          width: frame.width,
+          height: frame.height,
+          sharpen: options?.sharpen === true,
+        },
+        [frame.data.buffer],
+      );
     } catch {
       finish(undefined, new QrInputErrorV1('unavailable'));
     }
   });
+}
+
+/** One-off decode (image files): the worker lives only for this frame. */
+export const decodeQrFrameV1: QrFrameDecoderV1 = (frame, signal, options) => {
+  signal.throwIfAborted();
+  const worker = qrWorkerV1();
+  return decodeWithWorkerV1(worker, frame, signal, options, () => worker.terminate());
+};
+
+/** Camera sessions decode several frames a second: keep one local worker warm and replace it
+ * after a failure or cancellation, so a late answer can never be read as the next frame's.
+ */
+export function createQrCameraDecoderV1(): QrFrameDecoderV1 & { dispose(): void } {
+  let worker: Worker | undefined;
+  const dispose = () => {
+    worker?.terminate();
+    worker = undefined;
+  };
+  const decode: QrFrameDecoderV1 = (frame, signal, options) => {
+    signal.throwIfAborted();
+    const current = (worker ??= qrWorkerV1());
+    return decodeWithWorkerV1(current, frame, signal, options, (failed) => {
+      if (failed && worker === current) dispose();
+    });
+  };
+  return Object.assign(decode, { dispose });
+}
 
 /** Image stays local. No object URL/upload; bitmap and worker are released on every path. */
 export async function readQrImageV1(
@@ -156,7 +202,8 @@ export function createCameraLeaseV1(media: Pick<MediaDevices, 'getUserMedia'>) {
       const request = generation;
       const stream = await media.getUserMedia({
         audio: false,
-        video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        // A printed card read from where the lens can focus is small in frame: ask for detail.
+        video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       });
       if (request !== generation) {
         stopCameraTracksV1(stream);

@@ -66,3 +66,47 @@ export function decodeQrPixelsV1(
   }
   return found.map((item) => item.data);
 }
+
+/** Unsharp mask on luminance, for camera frames softened by focus hunting (printed cards held
+ * close). Returns a new grey RGBA frame; the input is left untouched.
+ */
+export function sharpenQrPixelsV1(
+  bytes: Uint8ClampedArray,
+  width: number,
+  height: number,
+  amount = 2,
+  radius = 2,
+): Uint8ClampedArray {
+  const size = width * height;
+  const grey = new Float32Array(size);
+  for (let index = 0; index < size; index++)
+    grey[index] =
+      bytes[index * 4]! * 0.299 + bytes[index * 4 + 1]! * 0.587 + bytes[index * 4 + 2]! * 0.114;
+  // Two separable box passes approximate a small Gaussian blur.
+  const blurred = new Float32Array(grey);
+  const scratch = new Float32Array(size);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const row = y * width;
+        let sum = 0;
+        for (let offset = -radius; offset <= radius; offset++)
+          sum += blurred[row + Math.min(width - 1, Math.max(0, x + offset))]!;
+        scratch[row + x] = sum / (2 * radius + 1);
+      }
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        let sum = 0;
+        for (let offset = -radius; offset <= radius; offset++)
+          sum += scratch[Math.min(height - 1, Math.max(0, y + offset)) * width + x]!;
+        blurred[y * width + x] = sum / (2 * radius + 1);
+      }
+  }
+  const out = new Uint8ClampedArray(size * 4);
+  for (let index = 0; index < size; index++) {
+    const value = grey[index]! + amount * (grey[index]! - blurred[index]!);
+    out[index * 4] = out[index * 4 + 1] = out[index * 4 + 2] = value;
+    out[index * 4 + 3] = 255;
+  }
+  return out;
+}
