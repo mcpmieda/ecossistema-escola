@@ -1,33 +1,30 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
-  qrSvgV1,
-  renderQrPdfV1,
-} from '../features/student-portal-admin/credentials/qr-artifacts-v1';
-import {
   PRINT_MODES_V1,
-  type PrintCardV1,
   type PrintModeV1,
 } from '../features/student-portal-admin/credentials/qr-values-v1';
+import { QrAccessCard } from './qr-access-card';
+import './qr-card-preview.css';
 import './qr-batch-preview.css';
 
-const students = Array.from(
-  { length: 12 },
-  (_, index) => `Aluno Exemplo ${String(index + 1).padStart(2, '0')}`,
-);
+const students = Array.from({ length: 12 }, (_, index) => ({
+  id: `75600000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+  name:
+    index === 5
+      ? 'Maria Eduarda Exemplo de Albuquerque e Vasconcelos da Silva Nascimento'
+      : `Aluno Exemplo ${String(index + 1).padStart(2, '0')}`,
+  classLabel: '7º ANO A',
+  qr: `https://aluno.escolaieda.com/access#v1.${String(index + 1).padStart(43, 'a')}.1.${'b'.repeat(43)}`,
+}));
+
 type Selection = 'class' | 'selected';
 
-function sampleCards(selection: Selection, mode: PrintModeV1): PrintCardV1[] {
-  const count = selection === 'class' ? students.length : 3;
-  return students.slice(0, count).map((name, index) => {
-    const card = {
-      accountId: `75600000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
-      qr: `https://aluno.escolaieda.com/access#v1.${String(index + 1).padStart(43, 'a')}.1.${'b'.repeat(43)}`,
-    };
-    if (mode === 'qr-only') return { ...card, mode };
-    if (mode === 'qr-name') return { ...card, mode, name };
-    return { ...card, mode, name, classLabel: '7º ANO A' };
-  });
+function savedSetting(key: string, fallback: number, min: number, max: number) {
+  const stored = window.localStorage.getItem(key);
+  if (stored === null) return fallback;
+  const value = Number(stored);
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
 function QrBatchPreview() {
@@ -35,32 +32,15 @@ function QrBatchPreview() {
   const [mode, setMode] = useState<PrintModeV1>('qr-name-class');
   const [withInstruction, setWithInstruction] = useState(false);
   const [instruction, setInstruction] = useState('Acesse o Portal do Aluno com este cartão.');
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  const cards = useMemo(() => sampleCards(selection, mode), [selection, mode]);
-  const rows = Array.from({ length: Math.ceil(cards.length / 3) }, (_, index) =>
-    cards.slice(index * 3, index * 3 + 3),
+  const [symbolSpacing] = useState(() => savedSetting('qr-card-preview-symbol-spacing', 10, 4, 12));
+  const [symbolRows] = useState(() => savedSetting('qr-card-preview-symbol-rows', 4, 3, 6));
+  const cards = useMemo(
+    () => students.slice(0, selection === 'class' ? students.length : 3),
+    [selection],
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let url: string | undefined;
-    setPdfUrl(null);
-    setError(false);
-    void renderQrPdfV1(cards, controller.signal, undefined, withInstruction ? instruction : '')
-      .then((artifact) => {
-        if (controller.signal.aborted) return;
-        url = URL.createObjectURL(artifact.blob);
-        setPdfUrl(url);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError(true);
-      });
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [cards, withInstruction, instruction]);
+  const pages = Array.from({ length: Math.ceil(cards.length / 8) }, (_, index) =>
+    cards.slice(index * 8, index * 8 + 8),
+  );
 
   return (
     <main className="qr-batch-preview">
@@ -68,13 +48,11 @@ function QrBatchPreview() {
         <div>
           <p className="qr-batch-preview__eyebrow">Preview local · dados sintéticos</p>
           <h1>Cartões QR em lote</h1>
-          <p>Layout atual do PDF para turma inteira ou alunos selecionados.</p>
+          <p>Prévia da folha A4 para turma inteira ou alunos selecionados.</p>
         </div>
-        {pdfUrl && (
-          <a href={pdfUrl} download="cartoes-qr-lote-preview.pdf">
-            Baixar PDF atual
-          </a>
-        )}
+        <button type="button" onClick={() => window.print()}>
+          Imprimir / salvar PDF
+        </button>
       </header>
       <section className="qr-batch-preview__controls" aria-label="Opções do lote">
         <fieldset>
@@ -123,7 +101,7 @@ function QrBatchPreview() {
           </label>
           {withInstruction && (
             <input
-              aria-label="Instrução abaixo do QR"
+              aria-label="Instrução no cartão"
               value={instruction}
               maxLength={240}
               onChange={(event) => setInstruction(event.target.value)}
@@ -132,35 +110,24 @@ function QrBatchPreview() {
         </div>
       </section>
       <section className="qr-batch-preview__paper" aria-label="Prévia do PDF em lote">
-        <div
-          className={`qr-batch-preview__sheet qr-batch-preview__sheet--${mode}${withInstruction ? ' qr-batch-preview__sheet--instruction' : ''}`}
-        >
-          {rows.map((row, rowIndex) => (
-            <div className="qr-batch-preview__row" key={rowIndex}>
-              {row.map((card) => (
-                <article className="qr-batch-preview__card" key={card.accountId}>
-                  <img
-                    src={`data:image/svg+xml,${encodeURIComponent(qrSvgV1(card.qr))}`}
-                    alt="QR sintético"
-                  />
-                  {card.mode !== 'qr-only' && <p className="qr-batch-preview__name">{card.name}</p>}
-                  {card.mode === 'qr-name-class' && (
-                    <p className="qr-batch-preview__class">{card.classLabel}</p>
-                  )}
-                  {withInstruction && instruction.trim() && (
-                    <p className="qr-batch-preview__card-instruction">{instruction.trim()}</p>
-                  )}
-                </article>
-              ))}
-            </div>
-          ))}
-        </div>
+        {pages.map((page, pageIndex) => (
+          <div className="qr-batch-preview__sheet" key={pageIndex}>
+            {page.map((card) => (
+              <div className="qr-batch-preview__card" key={card.id}>
+                <QrAccessCard
+                  name={card.name}
+                  classLabel={card.classLabel}
+                  qr={card.qr}
+                  mode={mode}
+                  instruction={withInstruction ? instruction : ''}
+                  symbolSpacing={symbolSpacing}
+                  symbolRows={symbolRows}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
       </section>
-      {error ? (
-        <p role="alert">Não foi possível gerar o PDF para download.</p>
-      ) : (
-        !pdfUrl && <p role="status">Gerando PDF para download…</p>
-      )}
     </main>
   );
 }
