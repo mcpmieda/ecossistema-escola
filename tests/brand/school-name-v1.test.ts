@@ -10,8 +10,8 @@ describe('official school name', () => {
 
   it('splits the access card header without dropping any part of the name', () => {
     expect(SCHOOL_CARD_NAME_LINES_V1).toEqual([
-      'ESCOLA MUN.',
-      'PROF.ª IÊDA ALVES DE OLIVEIRA MCPM',
+      'ESCOLA MUN. PROF.ª',
+      'IÊDA ALVES DE OLIVEIRA MCPM',
     ]);
     expect(SCHOOL_CARD_NAME_LINES_V1.join(' ')).toBe(SCHOOL_NAME_V1.toLocaleUpperCase('pt-BR'));
   });

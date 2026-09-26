@@ -320,7 +320,7 @@ function paintStaticLayer(
   context.font = '800 15px Inter, Arial, sans-serif';
   context.fillText(schoolFirst, 134, 49);
   // The full official name must stay clear of the red panel that starts near x = 505.
-  let schoolSize = 20;
+  let schoolSize = 23;
   context.font = `850 ${schoolSize}px Inter, Arial, sans-serif`;
   while (context.measureText(schoolSecond).width > 366 && schoolSize > 14)
     context.font = `850 ${--schoolSize}px Inter, Arial, sans-serif`;
