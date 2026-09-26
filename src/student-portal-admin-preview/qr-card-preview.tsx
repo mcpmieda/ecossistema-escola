@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { SCHOOL_CARD_NAME_LINES_V1, SCHOOL_NAME_V1 } from '../shared/brand/school-name-v1';
+import { QrCardSchoolV1 } from './qr-access-card';
 import { createRoot, type Root } from 'react-dom/client';
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
-import crest from '../features/student-portal-admin/credentials/assets/school-crest.png';
 import emblem from '../features/student-portal-admin/credentials/assets/school-emblem-outline.png';
 import portrait from './assets/synthetic-student-portrait.png';
 import { QrAccessCard } from './qr-access-card';
@@ -125,13 +124,7 @@ function QrCardPreview() {
                     <img key={index} src={emblem} alt="" />
                   ))}
                 </div>
-                <span className="qr-card__crest">
-                  <img src={crest} alt={`Brasão da ${SCHOOL_NAME_V1}`} />
-                </span>
-                <div className="qr-card__brand-copy">
-                  <span>{SCHOOL_CARD_NAME_LINES_V1[0]}</span>
-                  <strong>{SCHOOL_CARD_NAME_LINES_V1[1]}</strong>
-                </div>
+                <QrCardSchoolV1 />
               </div>
               <div className="qr-card__content">
                 <div className="qr-card__photo">

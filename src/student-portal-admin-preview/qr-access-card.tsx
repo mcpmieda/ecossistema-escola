@@ -25,6 +25,21 @@ type QrAccessCardProps = {
   instruction?: string;
 };
 
+/** Crest and official name, shared by the card previews. */
+export function QrCardSchoolV1() {
+  return (
+    <>
+      <span className="qr-card__crest">
+        <img src={crest} alt={`Brasão da ${SCHOOL_NAME_V1}`} />
+      </span>
+      <div className="qr-card__brand-copy">
+        <span>{SCHOOL_CARD_NAME_LINES_V1[0]}</span>
+        <strong>{SCHOOL_CARD_NAME_LINES_V1[1]}</strong>
+      </div>
+    </>
+  );
+}
+
 export function QrAccessCard({
   name,
   classLabel,
@@ -60,13 +75,7 @@ export function QrAccessCard({
             <img key={index} src={emblem} alt="" />
           ))}
         </div>
-        <span className="qr-card__crest">
-          <img src={crest} alt={`Brasão da ${SCHOOL_NAME_V1}`} />
-        </span>
-        <div className="qr-card__brand-copy">
-          <span>{SCHOOL_CARD_NAME_LINES_V1[0]}</span>
-          <strong>{SCHOOL_CARD_NAME_LINES_V1[1]}</strong>
-        </div>
+        <QrCardSchoolV1 />
         <div className="qr-card__access-copy">
           <span>Portal do Aluno</span>
           <strong>Cartão de acesso</strong>

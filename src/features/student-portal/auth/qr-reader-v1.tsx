@@ -236,13 +236,13 @@ export function StudentQrReaderV1({
       controller.signal.throwIfAborted();
       setState('camera');
       let assisted = false;
-      const assistTimer = window.setTimeout(() => {
+      const assistTimer = setTimeout(() => {
         if (controller.signal.aborted) return;
         assisted = true;
         setShowDistanceTip(true);
         if (direction === 'environment') void lease.current?.zoomForDistance();
       }, CAMERA_ASSIST_DELAY_MS_V1);
-      controller.signal.addEventListener('abort', () => window.clearTimeout(assistTimer), {
+      controller.signal.addEventListener('abort', () => clearTimeout(assistTimer), {
         once: true,
       });
       const canvas = document.createElement('canvas');
