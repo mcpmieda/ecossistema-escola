@@ -76,7 +76,7 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
     fireEvent.click(await first());
-    expect(screen.getByRole('radio', { name: 'Cartão completo · 9,5 × 5,9 cm' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Cartão completo · 9,35 × 5,9 cm' })).toBeTruthy();
     expect(screen.queryByRole('radio', { name: 'Somente QR' })).toBeNull();
     fireEvent.click(pdf());
     await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
