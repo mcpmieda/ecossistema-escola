@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAuthenticationV1 } from '../../../../src/features/student-portal/auth/student-auth-v1';
 import {
   StudentRiskWidgetV1,
@@ -34,6 +34,11 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+// input-otp schedules short timers (up to 50 ms) that call setState; if one fires after this file
+// tears down jsdom, React throws "window is not defined" as an unhandled error and fails CI.
+afterAll(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 150));
 });
 function view(client = clientFixtureV1()) {
   const success = vi.fn();
