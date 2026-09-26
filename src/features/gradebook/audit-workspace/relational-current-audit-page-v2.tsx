@@ -485,7 +485,7 @@ export function RelationalCurrentAuditPageV2() {
       if (!append) setTreatments([]);
       if (findings.length === 0) {
         setTreatmentState('ready');
-        return;
+        return true;
       }
       setTreatmentState('loading');
       try {
@@ -501,13 +501,15 @@ export function RelationalCurrentAuditPageV2() {
         if (signal.aborted) return;
         if (response.state !== 'ready' || response.operation !== 'context') {
           setTreatmentState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable');
-          return;
+          return false;
         }
         mergeTreatments(response.items);
         setTreatmentState('ready');
+        return true;
       } catch (cause) {
         if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
           setTreatmentState('unavailable');
+          return false;
         }
       }
     },
@@ -532,17 +534,23 @@ export function RelationalCurrentAuditPageV2() {
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      if (response.state === 'not-authorized') { setItems([]); return setState('not-authorized'); }
-      if (response.state !== 'ready') { if (background) setStale(true); else setState('unavailable'); return; }
+      if (response.state === 'not-authorized') { setItems([]); setState('not-authorized'); return false; }
+      if (response.state !== 'ready') { if (background) setStale(true); else setState('unavailable'); return false; }
       if (background && draftFindingsRef.current.size > 0) return;
       setItems(response.items);
       setNextOffset(response.nextOffset);
       setState(response.items.length === 0 ? 'empty' : 'ready');
-      await loadTreatments(response.items, controller.signal);
+      const treatmentsLoaded = await loadTreatments(response.items, controller.signal);
+      if (treatmentsLoaded !== true) {
+        if (background && treatmentsLoaded === false) setStale(true);
+        return treatmentsLoaded;
+      }
       setStale(false);
+      return true;
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
         if (background) setStale(true); else setState('unavailable');
+        return false;
       }
     }
   }, [loadTreatments, year]);
@@ -666,7 +674,7 @@ export function RelationalCurrentAuditPageV2() {
         if (response.state !== 'ready' || response.operation !== 'history') {
           if (response.state === 'not-authorized') { setHistory([]); setHistoryState('not-authorized'); }
           else if (background) setStale(true); else setHistoryState('unavailable');
-          return;
+          return false;
         }
         if (background && draftFindingsRef.current.size > 0) return;
         setHistory((current) =>
@@ -675,9 +683,11 @@ export function RelationalCurrentAuditPageV2() {
         setHistoryNextCursor(response.nextCursor);
         setHistoryState(response.items.length === 0 && cursor === null ? 'empty' : 'ready');
         setStale(false);
+        return true;
       } catch (cause) {
         if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
           if (background) setStale(true); else setHistoryState('unavailable');
+          return false;
         }
       }
     },
@@ -693,9 +703,11 @@ export function RelationalCurrentAuditPageV2() {
   }, [load]);
 
   useLiveRefreshV1(async () => {
-    await load(true);
+    const refreshed = await load(true);
+    if (refreshed !== true) return refreshed;
     if ((historyState === 'ready' || historyState === 'empty') && draftFindings.size === 0)
-      await loadHistory(null, true);
+      return loadHistory(null, true);
+    return true;
   }, {
     domains: ['gradebook'], enabled: year !== null,
     canRefresh: () => state !== 'loading' && !loadingMore && busyTreatments.size === 0 && draftFindings.size === 0,

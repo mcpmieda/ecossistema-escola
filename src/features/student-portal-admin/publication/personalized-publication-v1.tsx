@@ -63,7 +63,7 @@ function ScopedPersonalizedPublicationV1(props: Props) {
           onReload={read.reload}
         />
       ) : null}
-      {context?.resolved ? (
+      {context?.resolved && (!props.embedded || differences.length > 0) ? (
         <div
           aria-label="Diferenças do padrão de publicação"
           className="grid gap-2 rounded-xl border border-separator p-3 text-sm"
@@ -85,7 +85,7 @@ function ScopedPersonalizedPublicationV1(props: Props) {
                 >
                   <div className="min-w-0 flex-1">
                     <strong>
-                      {item.customized ? 'Política personalizada' : 'Personalização da turma'}
+                      {item.customized ? 'Publicação própria' : 'Publicação da turma'}
                     </strong>
                     <p>
                       {publicationDifferenceV1(
@@ -117,7 +117,7 @@ function ScopedPersonalizedPublicationV1(props: Props) {
             A visualização continua sujeita ao acesso, às datas e aos períodos permitidos.
           </p>
         </div>
-      ) : context ? (
+      ) : context && !context.resolved ? (
         <p role="status">Não foi possível resolver o padrão para este vínculo.</p>
       ) : null}
       <StudentPublicationV1 {...props} />

@@ -51,6 +51,8 @@ async function setup() {
       return socket;
     },
     authorize: session.authorizeSecurity,
+    onAuthorized: (expiry, startedAt) =>
+      session.acceptSecurityAuthorization(expiry, SYNTHETIC_SELF_V1.profile.accountId, startedAt),
   });
   return {
     client,
@@ -65,16 +67,191 @@ async function setup() {
   };
 }
 describe('student security channel', () => {
-  it('revalidates only session on open/security notices and ignores academic or extra payload fields', async () => {
+  it('keeps eight healthy rotations free of duplicate HTTP and academic reads', async () => {
+    const s = await setup();
+    const confirm = () => {
+      s.sockets.at(-1)!.open();
+      s.sockets
+        .at(-1)!
+        .message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
+    };
+    confirm();
+    for (let cycle = 0; cycle < 8; cycle++) {
+      await vi.advanceTimersByTimeAsync(45_000);
+      confirm();
+    }
+    expect(s.sockets).toHaveLength(9);
+    expect(s.client.session).toHaveBeenCalledTimes(1);
+    expect(s.client.me).toHaveBeenCalledTimes(1);
+    s.dispose();
+  });
+  it('supports old confirmations with one HTTP check and ignores duplicate confirmations', async () => {
+    const s = await setup();
+    s.sockets[0]!.open();
+    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected' });
+    await vi.advanceTimersByTimeAsync(0);
+    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected' });
+    expect(s.client.session).toHaveBeenCalledTimes(2);
+    s.dispose();
+  });
+  it('uses handshake start for the deadline and ignores old socket callbacks', async () => {
+    const s = await setup();
+    s.sockets[0]!.open();
+    const oldMessage = s.sockets[0]!.onmessage!;
+    await vi.advanceTimersByTimeAsync(30_000);
+    s.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+    });
+    await vi.advanceTimersByTimeAsync(15_000);
+    oldMessage({
+      data: JSON.stringify({
+        contractVersion: 1,
+        type: 'security-connected',
+        expiresAt: SESSION.expiresAt,
+      }),
+    } as MessageEvent);
+    oldMessage({
+      data: JSON.stringify({ contractVersion: 1, type: 'reauthorize' }),
+    } as MessageEvent);
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(s.client.session).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.client.session).toHaveBeenCalledTimes(2);
+    s.dispose();
+  });
+  it('aborts timed-out verification and never renews from its late response', async () => {
+    const s = await setup();
+    let resolve!: (value: typeof SESSION) => void;
+    s.client.session.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
+    const signal = s.client.session.mock.lastCall![0]!;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(signal.aborted).toBe(true);
+    resolve(SESSION);
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(s.client.session).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.client.session).toHaveBeenCalledTimes(3);
+    s.dispose();
+  });
+  it('applies effective expiry from the handshake and rejects older authorization results', async () => {
+    const s = await setup();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const expiry = new Date(NOW + 3_000).toISOString();
+    s.client.session.mockResolvedValueOnce({ ...SESSION, expiresAt: expiry });
+    await s.session.authorizeSecurity(new AbortController().signal);
+    expect(
+      s.session.acceptSecurityAuthorization(
+        SESSION.expiresAt,
+        SYNTHETIC_SELF_V1.profile.accountId,
+        NOW,
+      ),
+    ).toBe(false);
+    expect(
+      s.session.acceptSecurityAuthorization(SESSION.expiresAt, 'different-account', NOW + 1_000),
+    ).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(s.publish.mock.lastCall![0]).toMatchObject({
+      state: 'error',
+      error: { state: 'unauthenticated' },
+    });
+    s.dispose();
+    const fresh = await setup();
+    fresh.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: new Date(Date.now() + 2_000).toISOString(),
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fresh.publish.mock.lastCall![0]).toMatchObject({
+      state: 'error',
+      error: { state: 'unauthenticated' },
+    });
+    expect(fresh.client.session).toHaveBeenCalledTimes(1);
+    fresh.dispose();
+  });
+  it('orders manual refresh and socket observations even while the academic read is pending', async () => {
+    const s = await setup();
+    await vi.advanceTimersByTimeAsync(1_000);
+    s.client.session.mockResolvedValueOnce({
+      ...SESSION,
+      expiresAt: new Date(NOW + 3_000).toISOString(),
+    });
+    await s.session.refresh(true);
+    expect(
+      s.session.acceptSecurityAuthorization(
+        SESSION.expiresAt,
+        SYNTHETIC_SELF_V1.profile.accountId,
+        NOW,
+      ),
+    ).toBe(false);
+    let resolve!: (value: typeof SYNTHETIC_SELF_V1) => void;
+    s.client.me.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const refresh = s.session.refresh(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(
+      s.session.acceptSecurityAuthorization(
+        new Date(NOW + 4_000).toISOString(),
+        SYNTHETIC_SELF_V1.profile.accountId,
+        Date.now(),
+      ),
+    ).toBe(true);
+    resolve(SYNTHETIC_SELF_V1);
+    await refresh;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(s.publish.mock.lastCall![0]).toMatchObject({
+      state: 'error',
+      error: { state: 'unauthenticated' },
+    });
+    s.dispose();
+  });
+  it('does not apply an old denial after a newer authorized handshake', async () => {
+    const s = await setup();
+    let reject!: (error: unknown) => void;
+    s.client.session.mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const pending = s.session.authorizeSecurity(new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(
+      s.session.acceptSecurityAuthorization(
+        SESSION.expiresAt,
+        SYNTHETIC_SELF_V1.profile.accountId,
+        Date.now(),
+      ),
+    ).toBe(true);
+    reject(new PortalClientErrorV1('access-closed', 403));
+    await pending;
+    expect(s.publish.mock.lastCall![0]).toEqual({ state: 'ready', data: SYNTHETIC_SELF_V1 });
+    s.dispose();
+  });
+  it('uses confirmed handshakes without HTTP and revalidates only session on security notices', async () => {
     const s = await setup();
     s.sockets[0]!.open();
     await vi.advanceTimersByTimeAsync(0);
-    expect(s.client.session).toHaveBeenLastCalledWith(
-      expect.any(AbortSignal),
-      SYNTHETIC_SELF_V1.profile.accountId,
-    );
-    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected' });
+    expect(s.client.session).toHaveBeenCalledTimes(1);
+    s.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+    });
     await vi.advanceTimersByTimeAsync(0);
+    expect(s.client.session).toHaveBeenCalledTimes(1);
     s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
     await vi.advanceTimersByTimeAsync(0);
     const count = s.client.session.mock.calls.length;
@@ -92,6 +269,7 @@ describe('student security channel', () => {
       new PortalClientErrorV1(status === 401 ? 'unauthenticated' : 'forbidden', status),
     );
     s.sockets[0]!.open();
+    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
     await vi.advanceTimersByTimeAsync(0);
     expect(s.publish.mock.lastCall![0]).toMatchObject({
       state: 'error',
@@ -151,6 +329,7 @@ describe('student security channel', () => {
         }),
     );
     s.sockets[0]!.open();
+    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
     s.dispose();
     resolve(SESSION);
     await vi.advanceTimersByTimeAsync(120_000);
@@ -168,6 +347,7 @@ describe('student security channel', () => {
     );
     s.sockets[0]!.open();
     s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
+    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
     s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
     resolve(SESSION);
     await vi.advanceTimersByTimeAsync(0);
@@ -176,13 +356,11 @@ describe('student security channel', () => {
     s.dispose();
   });
   it('restricts the expected account query to the session endpoint', async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(SESSION), {
-          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-        }),
-      );
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(SESSION), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      }),
+    );
     const client = createPortalSelfClientV1({ fetch });
     await client.session(undefined, SYNTHETIC_SELF_V1.profile.accountId);
     expect(fetch.mock.calls[0]![0]).toBe(

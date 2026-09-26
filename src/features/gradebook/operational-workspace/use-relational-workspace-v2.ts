@@ -86,10 +86,11 @@ export function useRelationalWorkspaceV2() {
     try {
       const response=await requestOperationalWorkspaceV2(request,ticket.signal);
       if (!ticket.isCurrent()) return;
-      if (response.state==='not-authorized') {accessLost();return;}
-      if (response.state!=='ready') {setFailure(response.state);return;}
+      if (response.state==='not-authorized') {accessLost();return false;}
+      if (response.state!=='ready') {setFailure(response.state);return false;}
       apply(response);
-    } catch { if (ticket.isCurrent()) setFailure('unavailable'); }
+      return true;
+    } catch { if (ticket.isCurrent()) { setFailure('unavailable'); return false; } }
     finally { if (ticket.isCurrent()) setBusy((current) => ({...current,[concern]:false})); ticket.complete(); }
   }
   function setQuery(value:string) {clearSearch();setQueryValue(value);setFailure(null);}
@@ -97,7 +98,7 @@ export function useRelationalWorkspaceV2() {
   async function search(offset=0, quiet=false) {
     if(year === null || context?.year.year!==year) return;
     if(offset===0 && !quiet) {epoch.current++;target.current=null;loadedPages.current=1;gates.detail.invalidate();setDetail(null);setItems([]);setNextOffset(null);setSearched(false);setBusy((current)=>({...current,detail:false}));}
-    await run({contractVersion:2,operation:'search',year,kind,query,offset,limit:PAGE_SIZE},'search',(response) => {
+    return run({contractVersion:2,operation:'search',year,kind,query,offset,limit:PAGE_SIZE},'search',(response) => {
       if(response.operation!=='search') return;
       setItems((current)=>offset===0?response.items:unique([...current,...response.items],(item)=>`${item.entity.kind}:${item.entity.id}`));
       loadedPages.current = Math.max(loadedPages.current, Math.floor(offset / PAGE_SIZE) + 1);
@@ -107,7 +108,7 @@ export function useRelationalWorkspaceV2() {
   async function open(entity:WorkspaceLinkV2, offset=0, quiet=false) {
     if(year === null || context?.year.year!==year) return;
     if(offset===0 && !quiet) { epoch.current++; target.current = entity; setDetail(null); }
-    await run({contractVersion:2,operation:'center',year,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
+    return run({contractVersion:2,operation:'center',year,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
       if(response.operation!=='center') return;
       setDetail((current)=>offset===0||current===null?response.center:{
         ...response.center,
@@ -126,14 +127,16 @@ export function useRelationalWorkspaceV2() {
   useLiveRefreshV1(async () => {
     if (year === null) return;
     const entity = target.current, observedEpoch = epoch.current;
-    await run({contractVersion:2,operation:'context',year},'context',(response) => {
+    const refreshed = await run({contractVersion:2,operation:'context',year},'context',(response) => {
       if(response.operation==='context') setContext({year:response.context,counts:response.counts});
     });
+    if (refreshed !== true) return refreshed;
     if (epoch.current !== observedEpoch) return;
     // Do not silently collapse a list the operator has expanded to multiple pages.
-    if (searched && loadedPages.current === 1) await search(0, true);
+    if (searched && loadedPages.current === 1 && await search(0, true) === false) return false;
     if (epoch.current !== observedEpoch) return;
-    if (entity && target.current === entity && detail && detail.bindings.length <= PAGE_SIZE && detail.offers.length <= PAGE_SIZE) await open(entity, 0, true);
+    if (entity && target.current === entity && detail && detail.bindings.length <= PAGE_SIZE && detail.offers.length <= PAGE_SIZE) return open(entity, 0, true);
+    return true;
   }, { domains: ['gradebook'], enabled: year !== null,
     canRefresh: () => context?.year.year === year && !busy.context && !busy.search && !busy.detail && failure !== 'not-authorized' });
   return {year,context,kind,query,items,nextOffset,searched,detail,busy,failure,setQuery,setKind,search,open};

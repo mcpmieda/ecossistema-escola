@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Spinner } from '@heroui/react';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { useOperationalReadV1 } from '../overview/operations-values-v1';
+import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 
 type CursorPage = { items: unknown[]; nextCursor: string | null };
 type CollectionOptions = { maxPages?: number; cursors?: Set<string | undefined> };
@@ -56,6 +57,8 @@ export function useContinuousReadV1<P extends CursorPage>(
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<P>,
   key: string,
   onAuthorizationLost?: (error: PortalClientErrorV1) => void,
+  active = true,
+  eventDriven = true,
 ) {
   const cache = useMemo(
     () => ({
@@ -70,15 +73,21 @@ export function useContinuousReadV1<P extends CursorPage>(
     async (signal: AbortSignal) => {
       const append = cache.append;
       const seed = append && Date.now() - cache.fetchedAt < 240_000 ? cache.data : null;
-      const desired = append && !seed
-        ? (cache.data?.items.length ?? 0) + INITIAL_ROWS
-        : seed ? INITIAL_ROWS : Math.max(INITIAL_ROWS, cache.data?.items.length ?? 0);
+      const desired =
+        append && !seed
+          ? (cache.data?.items.length ?? 0) + INITIAL_ROWS
+          : seed
+            ? INITIAL_ROWS
+            : Math.max(INITIAL_ROWS, cache.data?.items.length ?? 0);
       // Rebuild only the previously visited window; a fresh append adds one bounded page.
       const maxPages = seed || !cache.data ? 1 : Math.max(1, cache.cursors.size) + (append ? 1 : 0);
       const cursors = seed ? new Set(cache.cursors) : new Set<string | undefined>();
       cache.append = false;
       try {
-        const data = await collectCursorPagesV1(loadPage, signal, key, seed, desired, { maxPages, cursors });
+        const data = await collectCursorPagesV1(loadPage, signal, key, seed, desired, {
+          maxPages,
+          cursors,
+        });
         signal.throwIfAborted();
         cache.data = data;
         cache.cursors = cursors;
@@ -97,7 +106,7 @@ export function useContinuousReadV1<P extends CursorPage>(
     },
     [cache, loadPage, key],
   );
-  const read = useOperationalReadV1(load, onAuthorizationLost);
+  const read = useOperationalReadV1(load, onAuthorizationLost, active, eventDriven);
   useEffect(() => {
     const clear = () => {
       cache.data = null;
@@ -112,7 +121,7 @@ export function useContinuousReadV1<P extends CursorPage>(
   }, [cache]);
   return {
     ...read,
-    more: read.state.state === 'ready' && Boolean(read.state.data.nextCursor),
+    more: active && read.state.state === 'ready' && Boolean(read.state.data.nextCursor),
     loadMore: () => {
       if (
         read.state.state !== 'ready' ||
@@ -140,11 +149,12 @@ export function ContinuousEndV1({
   loadMore: () => void;
   retry?: () => void;
 }) {
+  const active = useLiveRefreshScopeV1();
   const ref = useRef<HTMLDivElement>(null);
   const latest = useRef(loadMore);
   latest.current = loadMore;
   useEffect(() => {
-    if (!more || busy || failed || !ref.current) return;
+    if (!active || !more || busy || failed || !ref.current) return;
     if (typeof IntersectionObserver === 'undefined') {
       latest.current();
       return;
@@ -157,7 +167,7 @@ export function ContinuousEndV1({
     );
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, [more, busy, failed]);
+  }, [active, more, busy, failed]);
   return (
     <div ref={ref} className="pa-continuous-end" role="status">
       {failed && more ? (
@@ -169,7 +179,9 @@ export function ContinuousEndV1({
           <Spinner size="sm" />
           <span>Carregando mais registros…</span>
         </>
-      ) : more ? <span>Role para carregar mais registros.</span> : null}
+      ) : more ? (
+        <span>Role para carregar mais registros.</span>
+      ) : null}
     </div>
   );
 }

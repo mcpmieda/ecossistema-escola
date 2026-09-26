@@ -4,6 +4,7 @@ import {
   publicationObservationV1,
   publicationSnapshotV1,
   disclosureAtV1,
+  publicationRestrictionV1,
 } from '../../../../src/features/student-portal-admin/publication/publication-values-v1';
 import { SYNTHETIC_ID_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { settingsFixtureV1, SETTINGS_CLASS_V1, SETTINGS_SCHOOL_V1 } from '../settings/fixtures-v1';
@@ -14,6 +15,21 @@ import {
   PUBLICATION_ACCOUNT_V1,
 } from './fixtures-v1';
 describe('publication decisions use only server revisions', () => {
+  it('distinguishes policy exclusion from the single-schedule subset without granting access', () => {
+    const settings = settingsFixtureV1();
+    settings.value.allowedPeriods = ['T1', 'T2'];
+    settings.value.calendar.disclosure = { mode: 'single', at: null, periods: ['T1'] };
+    expect(publicationRestrictionV1(settings, 'T3')).toBe('period-disabled');
+    expect(publicationRestrictionV1(settings, 'T2')).toBe('outside-single-schedule');
+    settings.value.accessEnabled = false;
+    expect(publicationRestrictionV1(settings, 'T1')).toBeNull();
+    settings.value.calendar.disclosure = {
+      mode: 'per-period',
+      at: { T1: null, T2: null, T3: null, REC1: null, REC2: null, REC3: null },
+    };
+    expect(publicationRestrictionV1(settings, 'T2')).toBeNull();
+    expect(publicationRestrictionV1(settings, 'T3')).toBe('period-disabled');
+  });
   it('preserves the selected period and exact source/CAS revision', () => {
     const item = publicationFixtureV1().items[1]!;
     expect(

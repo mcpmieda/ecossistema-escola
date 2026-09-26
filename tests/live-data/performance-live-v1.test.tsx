@@ -28,7 +28,7 @@ it('retains dashboard and detail while the same context refreshes', async () => 
   const previous = view.result.current.dashboard, detail = view.result.current.detail;
   let resolve!: (value: ReturnType<typeof snapshot>) => void;
   mocks.dashboard.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-  let pending!: Promise<void>;
+  let pending!: ReturnType<ReturnType<typeof useRelationalPerformanceV2>['refresh']>;
   act(() => { pending = view.result.current.refresh(); });
   expect(view.result.current.dashboard).toBe(previous);
   expect(view.result.current.detail).toBe(detail);
@@ -45,7 +45,7 @@ it('does not reopen a detail closed while a dashboard refresh is in flight', asy
   await act(() => view.result.current.open(1));
   let resolve!: (value: ReturnType<typeof snapshot>) => void;
   mocks.dashboard.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-  let pending!: Promise<void>;
+  let pending!: ReturnType<ReturnType<typeof useRelationalPerformanceV2>['refresh']>;
   act(() => { pending = view.result.current.refresh(); });
   act(() => view.result.current.closeDetail());
   await act(async () => { resolve(snapshot('second')); await pending; });

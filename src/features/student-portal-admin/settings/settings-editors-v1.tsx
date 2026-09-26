@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { CalendarDateTime, parseDateTime, today } from '@internationalized/date';
 import { I18nProvider } from 'react-aria-components';
 import {
   Calendar,
+  Accordion,
   Checkbox,
   CloseButton,
   DateField,
@@ -74,7 +75,11 @@ function PeriodsEditorV1({
         {PERIODS_V1.map((period) => (
           <SettingsCheckboxV1
             key={period}
-            label={period}
+            label={
+              period.startsWith('REC')
+                ? `Recuperação ${period.slice(3)}`
+                : `${period.slice(1)}º trimestre`
+            }
             selected={value.includes(period)}
             disabled={disabled}
             onChange={(selected) =>
@@ -149,7 +154,7 @@ export function DateInputV1({
                 onPress={() => onChange('')}
               />
             ) : null}
-            <DatePicker.Trigger aria-label="Abrir calendário">
+            <DatePicker.Trigger aria-label={`Abrir calendário: ${label}`}>
               <DatePicker.TriggerIndicator />
             </DatePicker.Trigger>
           </DateField.Suffix>
@@ -183,38 +188,90 @@ export function DateInputV1({
 }
 const DATE_GROUPS: { label: string; keys: CalendarDateKeyV1[] }[] = [
   { label: 'Quando o aluno pode entrar', keys: ['accessStartsAt', 'accessEndsAt'] },
-  { label: 'Ano letivo', keys: ['enrollmentStartsAt', 'yearEndsAt'] },
-  { label: '1º trimestre', keys: ['yearStartsAt', 't1EndsAt'] },
-  { label: '2º trimestre', keys: ['t2StartsAt', 't2EndsAt'] },
-  { label: '3º trimestre', keys: ['t3StartsAt', 't3EndsAt'] },
   {
-    label: 'Recuperação e resultado',
-    keys: ['recoveriesStartAt', 'finalDisclosureAt', 'finalDisclosureEndsAt'],
+    label: 'Ano letivo e trimestres',
+    keys: [
+      'enrollmentStartsAt',
+      'yearStartsAt',
+      't1EndsAt',
+      't2StartsAt',
+      't2EndsAt',
+      't3StartsAt',
+      't3EndsAt',
+      'recoveriesStartAt',
+      'yearEndsAt',
+    ],
+  },
+  {
+    label: 'Resultado anual',
+    keys: ['finalDisclosureAt', 'finalDisclosureEndsAt'],
   },
 ];
+function CalendarSectionV1({
+  label,
+  compact,
+  children,
+}: {
+  label: string;
+  compact: boolean;
+  children: ReactNode;
+}) {
+  return compact ? (
+    <Accordion.Item id={label}>
+      <Accordion.Heading>
+        <Accordion.Trigger>
+          {label}
+          <Accordion.Indicator />
+        </Accordion.Trigger>
+      </Accordion.Heading>
+      <Accordion.Panel>
+        <Accordion.Body>{children}</Accordion.Body>
+      </Accordion.Panel>
+    </Accordion.Item>
+  ) : (
+    <fieldset className="pa-calendar-group">
+      <legend>{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
 export function CalendarEditorV1({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   value: CalendarDraftV1;
   disabled: boolean;
   onChange: (value: CalendarDraftV1) => void;
+  compact?: boolean;
 }) {
+  const Wrapper = compact ? Accordion : 'div';
   return (
     <div className="pa-settings-calendar">
-      <div className="pa-calendar-zone">
-        <span>Horário de Brasília</span>
-        <InfoV1 label="Sobre os horários">
-          Início incluído. No horário de encerramento, o acesso ao período termina. Campo vazio não
-          define uma data. Sem datas específicas de acesso, valem o início e o fim do ano letivo. O
-          botão Acesso ao Portal precisa estar ativado; agendar notas não abre o Portal.
-        </InfoV1>
-      </div>
-      <div className="pa-calendar-sections">
+      {!compact ? (
+        <div className="pa-calendar-zone">
+          <span>Horário de Brasília</span>
+          <InfoV1 label="Sobre os horários">
+            Início incluído. No horário de encerramento, o acesso ao período termina. Campo vazio
+            não define uma data. Sem datas específicas de acesso, valem o início e o fim do ano
+            letivo. O botão Acesso ao Portal precisa estar ativado; agendar notas não abre o Portal.
+          </InfoV1>
+        </div>
+      ) : null}
+      <Wrapper
+        className="pa-calendar-sections"
+        {...(compact
+          ? { allowsMultipleExpanded: true, defaultExpandedKeys: ['Quando o aluno pode entrar'] }
+          : {})}
+      >
         {DATE_GROUPS.map((group) => (
-          <fieldset key={group.label} className="pa-calendar-group">
-            <legend>{group.label}</legend>
+          <CalendarSectionV1 key={group.label} label={group.label} compact={compact}>
+            {group.label === 'Quando o aluno pode entrar' ? (
+              <p className="pa-settings-hint">
+                Sem datas próprias, valem o início e o fim do ano letivo.
+              </p>
+            ) : null}
             <div className="pa-settings-grid">
               {group.keys.map((key) => (
                 <DateInputV1
@@ -228,100 +285,100 @@ export function CalendarEditorV1({
                 />
               ))}
             </div>
-          </fieldset>
+          </CalendarSectionV1>
         ))}
-      </div>
-      <fieldset className="pa-calendar-group pa-calendar-disclosure">
-        <legend>
-          Divulgação das notas{' '}
-          <InfoV1 label="Sobre a liberação">
-            Trocar o modo limpa as datas de divulgação. O resultado final usa a data própria acima.
-          </InfoV1>
-        </legend>
-        <Select
-          className="max-w-72"
-          selectedKey={value.mode}
-          isDisabled={disabled}
-          onSelectionChange={(key) => {
-            if (key === 'single' || key === 'per-period') onChange(calendarDraftModeV1(value, key));
-          }}
-        >
-          <Label>Divulgação das notas</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id="single" textValue="Data única">
-                Data única
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-              <ListBox.Item id="per-period" textValue="Por trimestre / recuperação">
-                Por trimestre / recuperação
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-        {value.mode === 'single' ? (
-          <>
-            <DateInputV1
-              label="Liberar notas em"
-              value={value.singleAt}
-              disabled={disabled}
-              onChange={(singleAt) => onChange({ ...value, singleAt })}
-            />
-            <DateInputV1
-              label="Ocultar notas em"
-              value={value.singleUntil ?? ''}
-              disabled={disabled}
-              onChange={(singleUntil) => onChange({ ...value, singleUntil })}
-            />
-            <PeriodsEditorV1
-              label="Notas incluídas"
-              value={value.singlePeriods}
-              disabled={disabled}
-              onChange={(singlePeriods) => onChange({ ...value, singlePeriods })}
-            />
-          </>
-        ) : (
-          <div className="pa-settings-grid">
-            {PERIODS_V1.map((period) => (
-              <div key={period} className="grid gap-2">
+        <CalendarSectionV1 label="Divulgação das notas" compact={compact}>
+          <div className="pa-calendar-disclosure">
+            <p className="pa-settings-hint">
+              Trocar o modo limpa as datas de divulgação. Publique as notas na categoria Notas.
+            </p>
+            <Select
+              className="max-w-72"
+              selectedKey={value.mode}
+              isDisabled={disabled}
+              onSelectionChange={(key) => {
+                if (key === 'single' || key === 'per-period')
+                  onChange(calendarDraftModeV1(value, key));
+              }}
+            >
+              <Label>Divulgação das notas</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="single" textValue="Data única">
+                    Data única
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="per-period" textValue="Por trimestre / recuperação">
+                    Por trimestre / recuperação
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+            {value.mode === 'single' ? (
+              <>
                 <DateInputV1
-                  label={`Divulgação de ${period}`}
-                  value={value.periodAt[period]}
+                  label="Liberar notas em"
+                  value={value.singleAt}
                   disabled={disabled}
-                  onChange={(date) =>
-                    onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
-                  }
+                  onChange={(singleAt) => onChange({ ...value, singleAt })}
                 />
                 <DateInputV1
-                  label={`Ocultar ${period} em`}
-                  value={value.periodUntil?.[period] ?? ''}
+                  label="Ocultar notas em"
+                  value={value.singleUntil ?? ''}
                   disabled={disabled}
-                  onChange={(date) =>
-                    onChange({
-                      ...value,
-                      periodUntil: {
-                        T1: '',
-                        T2: '',
-                        T3: '',
-                        REC1: '',
-                        REC2: '',
-                        REC3: '',
-                        ...value.periodUntil,
-                        [period]: date,
-                      },
-                    })
-                  }
+                  onChange={(singleUntil) => onChange({ ...value, singleUntil })}
                 />
+                <PeriodsEditorV1
+                  label="Notas incluídas"
+                  value={value.singlePeriods}
+                  disabled={disabled}
+                  onChange={(singlePeriods) => onChange({ ...value, singlePeriods })}
+                />
+              </>
+            ) : (
+              <div className="pa-settings-grid">
+                {PERIODS_V1.map((period) => (
+                  <div key={period} className="grid gap-2">
+                    <DateInputV1
+                      label={`Divulgação de ${period}`}
+                      value={value.periodAt[period]}
+                      disabled={disabled}
+                      onChange={(date) =>
+                        onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
+                      }
+                    />
+                    <DateInputV1
+                      label={`Ocultar ${period} em`}
+                      value={value.periodUntil?.[period] ?? ''}
+                      disabled={disabled}
+                      onChange={(date) =>
+                        onChange({
+                          ...value,
+                          periodUntil: {
+                            T1: '',
+                            T2: '',
+                            T3: '',
+                            REC1: '',
+                            REC2: '',
+                            REC3: '',
+                            ...value.periodUntil,
+                            [period]: date,
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </fieldset>
+        </CalendarSectionV1>
+      </Wrapper>
     </div>
   );
 }
@@ -330,15 +387,22 @@ export function SettingsEditorV1({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   field: SettingsFieldV1;
   value: SettingsDraftV1;
   disabled: boolean;
   onChange: (value: SettingsDraftV1) => void;
+  compact?: boolean;
 }) {
   if (field === 'calendar')
     return (
-      <CalendarEditorV1 value={value as CalendarDraftV1} disabled={disabled} onChange={onChange} />
+      <CalendarEditorV1
+        value={value as CalendarDraftV1}
+        disabled={disabled}
+        onChange={onChange}
+        compact={compact}
+      />
     );
   if (field === 'allowedPeriods')
     return (
@@ -423,7 +487,17 @@ export function SettingsValueSummaryV1({
   value: EffectiveSettingsV1['value'][SettingsFieldV1];
 }) {
   if (field === 'allowedPeriods')
-    return <p>{(value as CalendarPeriodV1[]).join(', ') || 'Nenhum período'}</p>;
+    return (
+      <p>
+        {(value as CalendarPeriodV1[])
+          .map((period) =>
+            period.startsWith('REC')
+              ? `Recuperação ${period.slice(3)}`
+              : `${period.slice(1)}º trimestre`,
+          )
+          .join(', ') || 'Nenhum período'}
+      </p>
+    );
   if (field === 'risk') {
     const risk = value as EffectiveSettingsV1['value']['risk'];
     return (
@@ -492,5 +566,15 @@ export function SettingsValueSummaryV1({
       </div>
     );
   }
-  return <p>{value ? 'Ativado' : 'Desativado'}</p>;
+  return (
+    <p>
+      {field === 'termClosingConclusive'
+        ? value
+          ? 'Trimestre encerrado'
+          : 'Trimestre em andamento'
+        : value
+          ? 'Ativado'
+          : 'Desativado'}
+    </p>
+  );
 }

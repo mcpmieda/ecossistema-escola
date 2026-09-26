@@ -506,6 +506,7 @@ export function createBirthEditorV1(options: {
         refreshError: undefined,
         retryAt: 0,
       });
+      return true;
     } catch (error) {
       if (current !== generation || controller.signal.aborted) return;
       const failure = birthErrorV1(error);
@@ -515,6 +516,7 @@ export function createBirthEditorV1(options: {
           refreshError: failure,
           retryAt: now() + Math.max(5, failure.retryAfterSeconds ?? 0) * 1000,
         });
+      return false;
     } finally {
       if (background === controller) {
         background = undefined;

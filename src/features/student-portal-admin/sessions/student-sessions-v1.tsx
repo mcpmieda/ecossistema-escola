@@ -88,7 +88,7 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     },
     [props.reader, scopeKey, revision],
   );
-  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost);
+  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost, true, false);
   const loadHistory = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await props.reader.query(
@@ -115,7 +115,13 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     },
     [props.reader, scopeKey, revision],
   );
-  const historyRead = useContinuousReadV1(loadHistory, 'sessionId', props.onAuthorizationLost);
+  const historyRead = useContinuousReadV1(
+    loadHistory,
+    'sessionId',
+    props.onAuthorizationLost,
+    true,
+    false,
+  );
   const historyData = historyRead.state.state === 'ready' ? historyRead.state.data : null;
 
   const operation = useMemo(

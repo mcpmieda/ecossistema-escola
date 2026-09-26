@@ -12,9 +12,9 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   accessEnabled: 'Acesso ao Portal',
   showPartials: 'Notas parciais',
   autoUpdate: 'Atualizar notas já publicadas',
-  showFinalResult: 'Resultado final',
+  showFinalResult: 'Resultado anual',
   showTermClosing: 'Fechamento do trimestre',
-  termClosingConclusive: 'Usar termos de conclusão',
+  termClosingConclusive: 'Tipo de orientação',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
   calendar: 'Datas',
@@ -92,6 +92,17 @@ export function calendarInstantV1(input: string): string | null {
 }
 export function singleSettingV1(field: SettingsFieldV1, value: unknown) {
   return settingsOverrideV1.parse({ [field]: value });
+}
+export function calendarChangeLabelV1(key: string): string {
+  if (key in CALENDAR_LABELS_V1) return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
+  if (key === 'disclosure') return 'Data única de divulgação';
+  if (key === 'disclosure.endsAt') return 'Ocultar notas em';
+  const ending = key.startsWith('disclosure.endsAt.');
+  const period = key.slice(ending ? 'disclosure.endsAt.'.length : 'disclosure.'.length);
+  const label = period.startsWith('REC')
+    ? `da recuperação ${period.slice(3)}`
+    : `do ${period.slice(1)}º trimestre`;
+  return ending ? `Ocultar notas ${label}` : `Divulgação ${label}`;
 }
 /** Review information; the backend still decides actual eligibility and immediate effects. */
 export function changedPastDatesV1(before: CalendarV1, after: CalendarV1, now: number): string[] {

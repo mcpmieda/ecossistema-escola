@@ -152,12 +152,18 @@ export function shouldReloadFailedModuleV1(
   now: number,
 ): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  if (!/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(message)) return false;
+  if (
+    !/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+      message,
+    )
+  )
+    return false;
   try {
     const previousState = navigation.state;
-    const state: Record<string, unknown> = previousState && typeof previousState === 'object' && !Array.isArray(previousState)
-      ? previousState as Record<string, unknown>
-      : {};
+    const state: Record<string, unknown> =
+      previousState && typeof previousState === 'object' && !Array.isArray(previousState)
+        ? (previousState as Record<string, unknown>)
+        : {};
     const last = Number(state[STALE_MODULE_RELOAD_KEY]);
     if (last > 0 && now - last >= 0 && now - last < STALE_MODULE_RELOAD_WINDOW_MS) return false;
     navigation.replaceState({ ...state, [STALE_MODULE_RELOAD_KEY]: now }, '');
@@ -248,18 +254,30 @@ function GradebookWorkspaceShellContent() {
   const [activeSurface, setActiveSurface] = useState<GradebookWorkspaceSurfaceId>(() =>
     workspaceSurfaceFromHash(),
   );
-  const [visitedSurfaces, setVisitedSurfaces] = useState<ReadonlySet<GradebookWorkspaceSurfaceId>>(
-    () => new Set([workspaceSurfaceFromHash()]),
-  );
+  const epoch = scope?.epoch ?? 0;
+  const [visits, setVisits] = useState<{
+    epoch: number;
+    surfaces: ReadonlySet<GradebookWorkspaceSurfaceId>;
+  }>(() => ({ epoch, surfaces: new Set([workspaceSurfaceFromHash()]) }));
+  let visitedSurfaces = visits.surfaces;
+  if (visits.epoch !== epoch) {
+    visitedSurfaces = new Set<GradebookWorkspaceSurfaceId>([
+      activeSurface,
+      ...(visits.surfaces.has('importacao') ? ['importacao' as const] : []),
+    ]);
+    // Reset before children render: hidden readers must not load the new year.
+    // Importation is independent of the selected year and can still be running.
+    setVisits({ epoch, surfaces: visitedSurfaces });
+  }
   const tabRefs = useRef(new Map<GradebookWorkspaceSurfaceId, HTMLButtonElement>());
 
   const activateSurface = (surfaceId: GradebookWorkspaceSurfaceId) => {
     if (!allowDraftNavigationV1()) return;
-    setVisitedSurfaces((current) => {
-      if (current.has(surfaceId)) return current;
-      const next = new Set(current);
+    setVisits((current) => {
+      if (current.surfaces.has(surfaceId)) return current;
+      const next = new Set(current.surfaces);
       next.add(surfaceId);
-      return next;
+      return { ...current, surfaces: next };
     });
     setActiveSurface(surfaceId);
     replaceWorkspaceSurfaceHash(surfaceId);
@@ -268,11 +286,11 @@ function GradebookWorkspaceShellContent() {
   useEffect(() => {
     const onHashChange = () => {
       const requested = workspaceSurfaceFromHash();
-      setVisitedSurfaces((current) => {
-        if (current.has(requested)) return current;
-        const next = new Set(current);
+      setVisits((current) => {
+        if (current.surfaces.has(requested)) return current;
+        const next = new Set(current.surfaces);
         next.add(requested);
-        return next;
+        return { ...current, surfaces: next };
       });
       setActiveSurface(requested);
     };

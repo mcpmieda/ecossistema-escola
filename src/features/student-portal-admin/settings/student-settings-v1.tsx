@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
+import {
+  Accordion,
+  Button,
+  Card,
+  Chip,
+  Label,
+  ListBox,
+  Modal,
+  Select,
+  Spinner,
+} from '@heroui/react';
+import { PolicyLayoutV1 } from './policy-layout-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -11,14 +22,13 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { CustomizedSettingsV1 } from './customized-settings-v1';
 import type { OpenCustomizationV1 } from './customization-values-v1';
 import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
-import { InfoV1 } from '../shared/info-v1';
 import { SettingsEditorV1, SettingsValueSummaryV1 } from './settings-editors-v1';
 import { parseSettingsDraftV1, settingsDraftV1 } from './settings-draft-v1';
 import { createSettingsMutationV1, type SettingsMutationStateV1 } from './settings-mutation-v1';
 import {
-  CALENDAR_LABELS_V1,
   SETTINGS_LABELS_V1,
   changedPastDatesV1,
+  calendarChangeLabelV1,
   ownsSettingV1,
   settingsScopeKeyV1,
   settingsScopeLabelV1,
@@ -28,6 +38,7 @@ import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigatio
 import { LinkClosureV1 } from './link-closure-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
+import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import './student-settings-v1.css';
 
 type ReviewIntentV1 =
@@ -35,6 +46,7 @@ type ReviewIntentV1 =
   | { field: SettingsFieldV1; inherit: false; value: ReturnType<typeof parseSettingsDraftV1> };
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
 export interface StudentSettingsPropsV1 {
+  readonly publication?: ReactNode;
   readonly area?: 'all' | 'policies' | 'general';
   readonly client: PortalAdminClientV1;
   readonly reader?: PortalAdminReadClientV2;
@@ -47,21 +59,19 @@ export interface StudentSettingsPropsV1 {
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
-    'Liga ou desliga o acesso ao Portal. O aluno também precisa de cadastro, senha ou QR e de estar no período de acesso.',
-  showPartials: 'Exibe as avaliações e atividades já publicadas, além da nota final do trimestre.',
+    'Permite a entrada com senha ou QR, dentro das datas de acesso. O bloqueio da escola prevalece.',
+  showPartials: 'Inclui avaliações e atividades nas notas publicadas.',
   autoUpdate:
-    'Atualiza as notas já liberadas quando o Banco recebe uma alteração. Não libera novos períodos por conta própria.',
-  showFinalResult:
-    'Mostra o resultado final autorizado pela escola, a partir da data de divulgação configurada.',
-  showTermClosing:
-    'Mostra ao aluno uma leitura curta de cada disciplina, com as frases aprovadas pela escola.',
+    'Mantém as notas publicadas em dia com o Banco. A primeira publicação continua manual.',
+  showFinalResult: 'Exibe o resultado anual autorizado, nas datas definidas no Calendário.',
+  showTermClosing: 'Exibe uma orientação por disciplina, com as frases aprovadas pela escola.',
   termClosingConclusive:
-    'Ligado: ao fim de cada trimestre, um fechamento com frases de conclusão ("Seu trimestre foi bom…"). Desligado: acompanhamento do trimestre em andamento, com orientações para frente ("Procure fazer todas as próximas atividades").',
+    'Escolha entre a conclusão do trimestre encerrado e a orientação durante o trimestre.',
   allowedPeriods:
-    'Escolha os períodos que podem aparecer. Desmarcar todos oculta as notas; Usar padrão recupera a escolha da escola ou turma.',
+    'Define quais notas podem aparecer. Também é necessário publicar e respeitar as datas de divulgação.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',
   calendar:
-    'Organiza os períodos de acesso e divulgação. Uma personalização substitui o calendário inteiro neste aluno ou turma. Campo vazio não define uma data.',
+    'Campos vazios não definem datas. Personalizar substitui todo o calendário neste aluno ou turma.',
 };
 
 function sourceBadgeV1(
@@ -74,12 +84,6 @@ function sourceBadgeV1(
   return settings.sources[field].kind === 'school'
     ? 'Padrão da escola'
     : 'Padrão de ' + sourceLabel;
-}
-
-function calendarChangeLabelV1(key: string) {
-  if (key in CALENDAR_LABELS_V1) return CALENDAR_LABELS_V1[key as keyof typeof CALENDAR_LABELS_V1];
-  if (key === 'disclosure') return 'Data única de divulgação';
-  return `Divulgação de ${key.slice('disclosure.'.length)}`;
 }
 
 function loadErrorLabelV1(error: PortalClientErrorV1) {
@@ -113,6 +117,7 @@ function FieldCardV1({
   sourceLabel,
   review,
   onDirtyChange,
+  compact = false,
 }: Readonly<{
   field: SettingsFieldV1;
   settings: EffectiveSettingsV1;
@@ -121,6 +126,7 @@ function FieldCardV1({
   sourceLabel: string;
   review: (review: ReviewIntentV1) => void;
   onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
+  compact?: boolean;
 }>) {
   const sourceDraft = useMemo(() => settingsDraftV1(field, settings.value), [field, settings]);
   const sourceKey = JSON.stringify(sourceDraft);
@@ -149,22 +155,88 @@ function FieldCardV1({
     }
   }
   return (
-    <Card className={`pa-settings-card pa-settings-card--${field}`}>
+    <Card
+      className={`pa-settings-card pa-settings-card--${field}${boolean ? ' pa-settings-card--boolean' : ''}`}
+    >
       <Card.Header>
         <div className="pa-settings-card-heading">
-          <h3>{SETTINGS_LABELS_V1[field]}</h3>
-          <Chip size="sm" variant="soft">
-            {sourceBadgeV1(settings, field, owns, sourceLabel)}
-          </Chip>
+          {!(compact && (field === 'calendar' || field === 'risk')) ? (
+            <h3>
+              {field === 'termClosingConclusive' ? 'Tipo de orientação' : SETTINGS_LABELS_V1[field]}
+            </h3>
+          ) : null}
+          {settings.scope.kind !== 'school' ? (
+            <Chip size="sm" variant="soft">
+              {sourceBadgeV1(settings, field, owns, sourceLabel)}
+            </Chip>
+          ) : null}
+          <p className="pa-settings-field-help">
+            {field === 'calendar' && settings.scope.kind === 'school'
+              ? 'Campos vazios não definem datas.'
+              : fieldHelp[field]}
+          </p>
         </div>
-        <InfoV1 label={`Sobre ${SETTINGS_LABELS_V1[field]}`}>{fieldHelp[field]}</InfoV1>
       </Card.Header>
       <Card.Content>
-        {canWrite ? (
+        {canWrite &&
+        boolean &&
+        compact &&
+        (settings.scope.kind !== 'school' || field === 'termClosingConclusive') ? (
+          <Select
+            selectedKey={
+              !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft)
+            }
+            isDisabled={disabled}
+            onSelectionChange={(key) => {
+              if (key === 'inherit') review({ field, inherit: true });
+              else if (key === 'true' || key === 'false')
+                review({
+                  field,
+                  inherit: false,
+                  value: parseSettingsDraftV1(field, key === 'true'),
+                });
+            }}
+          >
+            <Label className="sr-only">{SETTINGS_LABELS_V1[field]}</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {settings.scope.kind !== 'school' ? (
+                  <ListBox.Item id="inherit" textValue="Usar padrão">
+                    {!owns
+                      ? `Padrão · ${field === 'termClosingConclusive' ? (sourceDraft ? 'Trimestre encerrado' : 'Trimestre em andamento') : sourceDraft ? 'Ativado' : 'Desativado'}`
+                      : 'Usar padrão'}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ) : null}
+                <ListBox.Item
+                  id="true"
+                  textValue={field === 'termClosingConclusive' ? 'Trimestre encerrado' : 'Ativado'}
+                >
+                  {field === 'termClosingConclusive' ? 'Trimestre encerrado' : 'Ativado'}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item
+                  id="false"
+                  textValue={
+                    field === 'termClosingConclusive' ? 'Trimestre em andamento' : 'Desativado'
+                  }
+                >
+                  {field === 'termClosingConclusive' ? 'Trimestre em andamento' : 'Desativado'}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        ) : canWrite ? (
           <SettingsEditorV1
             field={field}
             value={boolean ? sourceDraft : draft}
             disabled={disabled}
+            compact={compact}
             onChange={(value) => {
               if (boolean) {
                 review({ field, inherit: false, value: parseSettingsDraftV1(field, value) });
@@ -189,14 +261,14 @@ function FieldCardV1({
             <Button
               size="sm"
               variant="secondary"
-              isDisabled={disabled}
+              isDisabled={disabled || (owns && !dirty)}
               onPress={prepare}
               aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
             >
               {owns ? 'Salvar' : 'Personalizar'}
             </Button>
           ) : null}
-          {settings.scope.kind !== 'school' && owns ? (
+          {settings.scope.kind !== 'school' && owns && !(compact && boolean) ? (
             <Button
               size="sm"
               variant="ghost"
@@ -316,6 +388,8 @@ function SettingsMutationFeedbackV1({
 }
 
 function SettingsReadyV1({
+  publication,
+  fieldVersions,
   area,
   data,
   mutation,
@@ -339,6 +413,8 @@ function SettingsReadyV1({
   onReviewClose,
   onReviewConfirm,
 }: Readonly<{
+  publication?: ReactNode;
+  fieldVersions: Partial<Record<SettingsFieldV1, number>>;
   area: 'all' | 'policies' | 'general';
   data: EffectiveSettingsV1;
   mutation: SettingsMutationStateV1;
@@ -363,6 +439,21 @@ function SettingsReadyV1({
   onReviewConfirm: () => void;
 }>) {
   const fieldDisabled = busy || mutation.state === 'error' || review !== null;
+  const [customizationsOpen, setCustomizationsOpen] = useState(false);
+  const [customizationsVisited, setCustomizationsVisited] = useState(false);
+  const renderField = (field: SettingsFieldV1) => (
+    <FieldCardV1
+      key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
+      field={field}
+      settings={data}
+      canWrite={canWrite}
+      disabled={fieldDisabled}
+      compact={area === 'policies'}
+      sourceLabel={sourceLabel(data.sources[field])}
+      review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+      onDirtyChange={onDirtyChange}
+    />
+  );
   return (
     <>
       <SettingsMutationFeedbackV1
@@ -372,31 +463,52 @@ function SettingsReadyV1({
         retry={onRetry}
         reload={onReload}
       />
-      <div className="pa-settings-fields">
-        {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[])
-          .filter(() => area !== 'general')
-          .map((field) => (
-            <FieldCardV1
-              key={`${discardVersion}:${field}`}
-              field={field}
-              settings={data}
-              canWrite={canWrite}
-              disabled={fieldDisabled}
-              sourceLabel={sourceLabel(data.sources[field])}
-              review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
-              onDirtyChange={onDirtyChange}
-            />
-          ))}
-      </div>
-      {area !== 'general' && reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
-        <CustomizedSettingsV1
-          key={settingsScopeKeyV1(fixedScope)}
-          reader={reader}
-          client={client}
-          scope={fixedScope}
-          canWrite={canWrite}
-          onOpen={onOpenCustomization}
+      {area === 'policies' ? (
+        <PolicyLayoutV1
+          field={renderField}
+          publication={publication}
+          disabled={busy || review !== null}
         />
+      ) : area !== 'general' ? (
+        <div className="pa-settings-fields">
+          {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map(renderField)}
+        </div>
+      ) : null}
+      {area !== 'general' && reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
+        <Accordion className="pa-policy-customizations">
+          <Accordion.Item
+            id="customizations"
+            isExpanded={customizationsOpen}
+            onExpandedChange={(open) => {
+              setCustomizationsOpen(open);
+              if (open) setCustomizationsVisited(true);
+            }}
+          >
+            <Accordion.Heading>
+              <Accordion.Trigger>
+                Personalizações de turmas e alunos
+                <Accordion.Indicator />
+              </Accordion.Trigger>
+            </Accordion.Heading>
+            <Accordion.Panel>
+              <Accordion.Body>
+                {customizationsVisited ? (
+                  <LiveRefreshScopeV1 active={customizationsOpen}>
+                    <CustomizedSettingsV1
+                      key={settingsScopeKeyV1(fixedScope)}
+                      reader={reader}
+                      client={client}
+                      scope={fixedScope}
+                      canWrite={canWrite}
+                      onOpen={onOpenCustomization}
+                      compact
+                    />
+                  </LiveRefreshScopeV1>
+                ) : null}
+              </Accordion.Body>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       ) : null}
       {area !== 'policies' && fixedScope.kind === 'school' && canWrite ? (
         <LinkClosureV1
@@ -450,6 +562,7 @@ function SettingsLoadV1({
 }
 
 function SettingsScopeV1({
+  publication,
   area = 'all',
   client,
   reader,
@@ -468,6 +581,12 @@ function SettingsScopeV1({
   const [closing, setClosing] = useState(false);
   const [clock, setClock] = useState(Date.now);
   const [discardVersion, setDiscardVersion] = useState(0);
+  const [fieldVersions, setFieldVersions] = useState<Partial<Record<SettingsFieldV1, number>>>({});
+  const submittedField = useRef<SettingsFieldV1 | null>(null);
+  const [pendingReset, setPendingReset] = useState<{
+    field: SettingsFieldV1;
+    version: number;
+  } | null>(null);
   const [dirtyFields, setDirtyFields] = useState<Set<SettingsFieldV1>>(() => new Set());
   const request = useMemo(() => createLatestPortalRequestV1<EffectiveSettingsV1>(setLoad), []);
   const writer = useMemo(() => createSettingsMutationV1(client, setMutation), [client]);
@@ -509,12 +628,28 @@ function SettingsScopeV1({
   }, [mutation, request]);
   useEffect(() => {
     if (mutation.state !== 'committed') return;
+    const field = submittedField.current;
+    if (field) setPendingReset({ field, version: mutation.version });
     setReview(null);
     setNotice('Salvo.');
     writer.clear();
     void reload(true);
     onCommitted?.();
   }, [mutation, onCommitted, reload, writer]);
+  useEffect(() => {
+    if (
+      !pendingReset ||
+      load.state !== 'ready' ||
+      load.refreshing ||
+      load.refreshError ||
+      load.data.version < pendingReset.version
+    )
+      return;
+    const { field } = pendingReset;
+    setFieldVersions((previous) => ({ ...previous, [field]: (previous[field] ?? 0) + 1 }));
+    setPendingReset(null);
+    submittedField.current = null;
+  }, [load, pendingReset]);
   useEffect(() => {
     if (mutation.state !== 'error' || !mutation.retryable) return;
     setClock(Date.now());
@@ -543,6 +678,8 @@ function SettingsScopeV1({
     setReview(null);
     setNotice(null);
     setDiscardVersion((value) => value + 1);
+    setPendingReset(null);
+    submittedField.current = null;
     setDirtyFields(new Set());
     void reload(false);
   }, [reload, writer]);
@@ -556,7 +693,7 @@ function SettingsScopeV1({
     canRefresh: () =>
       load.state === 'ready' &&
       !load.refreshing &&
-      dirtyFields.size === 0 &&
+      (dirtyFields.size === 0 || pendingReset !== null) &&
       review === null &&
       mutation.state === 'idle' &&
       !closing,
@@ -570,6 +707,7 @@ function SettingsScopeV1({
       idempotencyKey: crypto.randomUUID(),
     };
     try {
+      submittedField.current = review.field;
       await writer.submit(
         review.inherit
           ? { ...common, operation: 'settings-inherit', keys: [review.field] }
@@ -586,13 +724,23 @@ function SettingsScopeV1({
   }
   const sourceLabel = (source: ScopeV1) => sourceLabelV1(source, fixedScope, label, describeScope);
   return (
-    <section className="pa-settings" aria-label="Configurações do Aluno">
+    <section
+      className={`pa-settings${area === 'policies' ? ' pa-settings--policies' : ''}`}
+      aria-label="Configurações do Aluno"
+    >
       <header className="pa-settings-heading">
-        <div>
-          <h2>{area === 'policies' ? 'Acesso e divulgação' : 'Configurações'}</h2>
-          <p>{label}</p>
-        </div>
+        {area !== 'policies' ? (
+          <div>
+            <h2>Configurações</h2>
+            <p>{label}</p>
+          </div>
+        ) : null}
         <LiveReadNoticeV1 failed={load.state === 'ready' && Boolean(load.refreshError)} />
+        {pendingReset && load.state === 'ready' && load.refreshError ? (
+          <Button size="sm" variant="secondary" onPress={() => void reload(true)}>
+            Conferir alteração salva
+          </Button>
+        ) : null}
         {dirtyFields.size > 0 ? (
           <Button size="sm" variant="outline" isDisabled={busy} onPress={discardAndReload}>
             Desfazer edições
@@ -603,6 +751,8 @@ function SettingsScopeV1({
       <SettingsLoadV1 load={load} reload={() => void reload(false)}>
         {load.state === 'ready' ? (
           <SettingsReadyV1
+            publication={publication}
+            fieldVersions={fieldVersions}
             area={area}
             data={load.data}
             mutation={mutation}
@@ -610,7 +760,7 @@ function SettingsScopeV1({
             reader={reader}
             fixedScope={fixedScope}
             canWrite={canWrite}
-            busy={busy}
+            busy={busy || pendingReset !== null || Boolean(load.refreshing)}
             review={review}
             label={label}
             discardVersion={discardVersion}
@@ -633,5 +783,7 @@ function SettingsScopeV1({
 }
 /** The scope key remounts before paint: stale data/drafts/previews cannot flash in a new scope. */
 export function StudentSettingsV1(props: StudentSettingsPropsV1) {
-  return <SettingsScopeV1 key={settingsScopeKeyV1(props.scope)} {...props} />;
+  return (
+    <SettingsScopeV1 key={settingsScopeKeyV1(props.scope) + ':' + props.canWrite} {...props} />
+  );
 }

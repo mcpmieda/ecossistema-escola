@@ -20,8 +20,9 @@ export function createStudentSessionV1(
   let logoutRequest: AbortController | undefined;
   let lastLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
   let preserve = false;
-  let pending: Promise<void> | undefined;
+  let pending: Promise<boolean | undefined> | undefined;
   let securityGeneration = 0;
+  let securityVerifiedAt = 0;
   const checkExpiry = () => {
     if (disposed) return;
     if (expiresAt > now()) {
@@ -47,20 +48,43 @@ export function createStudentSessionV1(
     clearTimeout(timer);
     latest.clear();
   };
+  const acceptSecurityAuthorization = (expiry: string, accountId: string, startedAt: number) => {
+    if (
+      blocked ||
+      disposed ||
+      lastLoad.state !== 'ready' ||
+      lastLoad.data.profile.accountId !== accountId ||
+      startedAt < securityVerifiedAt
+    )
+      return false;
+    const end = Date.parse(expiry);
+    if (!Number.isFinite(end) || end <= now()) return false;
+    securityVerifiedAt = startedAt;
+    expiresAt = end;
+    clearTimeout(timer);
+    timer = setTimeout(checkExpiry, Math.min(2147483647, end - now()));
+    return true;
+  };
   const authorizeSecurity = async (signal: AbortSignal) => {
     if (blocked || disposed || lastLoad.state !== 'ready') return;
     const generation = securityGeneration;
     const accountId = lastLoad.data.profile.accountId;
+    const startedAt = now();
     try {
       const result = await client.session(signal, accountId);
       signal.throwIfAborted();
       if (disposed || generation !== securityGeneration) return;
-      expiresAt = Date.parse(result.expiresAt);
-      if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
-      clearTimeout(timer);
-      timer = setTimeout(checkExpiry, Math.min(2147483647, expiresAt - now()));
+      if (Date.parse(result.expiresAt) <= now())
+        throw new PortalClientErrorV1('unauthenticated', 401);
+      acceptSecurityAuthorization(result.expiresAt, accountId, startedAt);
     } catch (error) {
-      if (signal.aborted || disposed || generation !== securityGeneration) return;
+      if (
+        signal.aborted ||
+        disposed ||
+        generation !== securityGeneration ||
+        startedAt < securityVerifiedAt
+      )
+        return;
       if (
         error instanceof PortalClientErrorV1 &&
         (error.state === 'unauthenticated' ||
@@ -70,9 +94,13 @@ export function createStudentSessionV1(
           error.status === 403)
       ) {
         clear();
-        publish({ state: 'error', error: error.state === 'access-closed'
-          ? error
-          : new PortalClientErrorV1('unauthenticated', 401) });
+        publish({
+          state: 'error',
+          error:
+            error.state === 'access-closed'
+              ? error
+              : new PortalClientErrorV1('unauthenticated', 401),
+        });
       }
       throw error;
     }
@@ -85,13 +113,17 @@ export function createStudentSessionV1(
     if (!preserve) clearTimeout(timer);
     const request = latest.run(
       async (signal) => {
+        const startedAt = now();
         const session = await client.session(signal);
         signal.throwIfAborted();
         const data = await client.me(signal);
         signal.throwIfAborted();
         if (previousAccount !== null && previousAccount !== data.profile.accountId)
           throw new PortalClientErrorV1('unauthenticated', 401);
-        expiresAt = Date.parse(session.expiresAt);
+        if (startedAt >= securityVerifiedAt) {
+          expiresAt = Date.parse(session.expiresAt);
+          securityVerifiedAt = startedAt;
+        }
         if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
         return data;
       },
@@ -99,7 +131,7 @@ export function createStudentSessionV1(
     );
     pending = request;
     try {
-      await request;
+      return await request;
     } finally {
       if (pending === request) pending = undefined;
     }
@@ -107,6 +139,7 @@ export function createStudentSessionV1(
   return {
     clear,
     authorizeSecurity,
+    acceptSecurityAuthorization,
     /** Content was dropped on pagehide (never frozen in history); reload it on return. */
     restoredFromHistory() {
       clear();
@@ -195,6 +228,8 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
         return new window.WebSocket(url);
       },
       authorize: current.authorizeSecurity,
+      onAuthorized: (expiry, startedAt) =>
+        current.acceptSecurityAuthorization(expiry, securityAccountId, startedAt),
     });
     return () => security.dispose();
   }, [securityAccountId, client]);

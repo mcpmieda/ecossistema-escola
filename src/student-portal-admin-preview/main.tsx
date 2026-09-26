@@ -207,7 +207,28 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
       publicationVersion: 7,
       items: [],
       nextCursor: null,
-      context: null,
+      context:
+        scope.kind === 'school'
+          ? null
+          : {
+              scope,
+              resolved: true,
+              publications: publicationFixtureV1(scope).items.map((item) => {
+                const inherited = {
+                  source: item.publishedRevision ? { kind: 'school', academicYear: 2026 } : null,
+                  revision: item.publishedRevision,
+                  version: item.publishedRevision ? item.version : null,
+                };
+                return {
+                  period: item.period,
+                  school: inherited,
+                  inherited,
+                  current: inherited,
+                  customized: false,
+                  ownVersion: null,
+                };
+              }),
+            },
     });
   if (query.operation === 'closing-preview')
     return opJsonV1({

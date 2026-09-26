@@ -1,3 +1,5 @@
+import { instantV1 } from '../../../../shared/student-portal-contracts/core-v1';
+
 export interface StudentSecuritySocketV1 {
   onopen: ((event: Event) => unknown) | null;
   onmessage: ((event: MessageEvent) => unknown) | null;
@@ -12,6 +14,8 @@ export function createStudentSecurityV1(options: {
   connect: () => StudentSecuritySocketV1;
   /** Session-only check. Must publish and throw on revocation; throws on network uncertainty. */
   authorize: (signal: AbortSignal) => Promise<void>;
+  /** Receives only the effective expiry confirmed by the authorized handshake. */
+  onAuthorized?: (expiresAt: string, startedAt: number) => boolean;
 }) {
   let disposed = false;
   let socket: StudentSecuritySocketV1 | undefined;
@@ -22,7 +26,10 @@ export function createStudentSecurityV1(options: {
   let lease: ReturnType<typeof setTimeout> | undefined;
   let checking = false,
     again = false;
-  const controller = new AbortController();
+  let request: AbortController | undefined;
+  let requestTimeout: ReturnType<typeof setTimeout> | undefined;
+  let noticeVersion = 0,
+    lastHttpStartedAt = 0;
   const disconnect = () => {
     clearInterval(heartbeat);
     clearTimeout(rotation);
@@ -37,40 +44,20 @@ export function createStudentSecurityV1(options: {
   };
   const dispose = () => {
     disposed = true;
-    controller.abort();
+    request?.abort();
+    clearTimeout(requestTimeout);
     clearTimeout(reconnect);
     clearTimeout(lease);
     disconnect();
   };
   const renew = (verifiedAt = Date.now()) => {
     clearTimeout(lease);
-    lease = setTimeout(() => void verifyBeforeExpiry(), Math.max(0, 60_000 - (Date.now() - verifiedAt)));
+    lease = setTimeout(() => void authorize(), Math.max(0, 60_000 - (Date.now() - verifiedAt)));
   };
   // Stable login (owner decision, 22/09/2026): when the lease is due, re-check the session over
   // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
   // the session hook disposes this channel. Network uncertainty (socket blocked, tab resumed
   // after the OS suspended it, flaky mobile data) keeps the content and retries shortly.
-  const verifyBeforeExpiry = async () => {
-    if (disposed) return;
-    const startedAt = Date.now();
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([
-        options.authorize(controller.signal),
-        new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error('security-verification-timeout')), 10_000);
-        }),
-      ]);
-      if (!disposed) renew(startedAt);
-    } catch {
-      if (disposed) return;
-      clearTimeout(lease);
-      lease = setTimeout(() => void verifyBeforeExpiry(), 15_000);
-      if (!socket) schedule();
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
   const authorize = async (repeat = false) => {
     if (disposed) return;
     if (checking) {
@@ -79,12 +66,31 @@ export function createStudentSecurityV1(options: {
     }
     checking = true;
     const startedAt = Date.now();
+    lastHttpStartedAt = startedAt;
+    const controller = new AbortController();
+    request = controller;
     try {
-      await options.authorize(controller.signal);
-      if (!disposed) renew(startedAt);
+      await Promise.race([
+        options.authorize(controller.signal),
+        new Promise((_, reject) => {
+          requestTimeout = setTimeout(() => {
+            controller.abort();
+            reject(new Error('security-verification-timeout'));
+          }, 10_000);
+        }),
+      ]);
+      controller.signal.throwIfAborted();
+      if (!disposed && !again) renew(startedAt);
     } catch {
       // Network uncertainty does not revoke an account or extend its authorization lease.
+      if (!disposed) {
+        clearTimeout(lease);
+        lease = setTimeout(() => void authorize(), 15_000);
+        if (!socket) schedule();
+      }
     } finally {
+      clearTimeout(requestTimeout);
+      request = undefined;
       checking = false;
       if (again && !disposed) {
         again = false;
@@ -104,6 +110,9 @@ export function createStudentSecurityV1(options: {
   const connect = () => {
     if (disposed) return;
     let current: StudentSecuritySocketV1;
+    const startedAt = Date.now(),
+      version = noticeVersion;
+    let acknowledged = false;
     try {
       current = options.connect();
     } catch {
@@ -117,8 +126,9 @@ export function createStudentSecurityV1(options: {
       connect();
     }, 45_000);
     current.onopen = () => {
+      if (disposed || socket !== current) return;
       retry = 1000;
-      void authorize();
+      clearInterval(heartbeat);
       heartbeat = setInterval(() => {
         try {
           current.send('security-ping');
@@ -128,6 +138,7 @@ export function createStudentSecurityV1(options: {
       }, 20_000);
     };
     current.onmessage = ({ data }) => {
+      if (disposed || socket !== current) return;
       if (data === 'security-pong') return;
       if (typeof data !== 'string' || data.length > 128) return;
       let message: unknown;
@@ -138,11 +149,32 @@ export function createStudentSecurityV1(options: {
       }
       if (!message || typeof message !== 'object') return;
       const value = message as Record<string, unknown>;
-      if (Object.keys(value).length !== 2 || value.contractVersion !== 1) return;
-      if (value.type === 'reauthorize') void authorize(true);
-      if (value.type === 'security-connected') void authorize();
+      if (value.contractVersion !== 1) return;
+      if (value.type === 'reauthorize' && Object.keys(value).length === 2) {
+        noticeVersion++;
+        void authorize(true);
+      }
+      if (value.type === 'security-connected' && !acknowledged) {
+        const keys = Object.keys(value).length;
+        const expiry = instantV1.safeParse(value.expiresAt);
+        if (keys !== 2 && (keys !== 3 || !expiry.success)) return;
+        acknowledged = true;
+        // An older handshake cannot override a security event or a newer HTTP observation.
+        if (version !== noticeVersion || startedAt < lastHttpStartedAt) return;
+        if (
+          keys === 3 &&
+          expiry.success &&
+          options.onAuthorized &&
+          Date.now() < startedAt + 60_000 &&
+          Date.parse(expiry.data) > Date.now()
+        ) {
+          if (options.onAuthorized(expiry.data, startedAt)) renew(startedAt);
+        } else void authorize(); // Older servers retain the session-only compatibility path.
+      }
     };
-    current.onclose = current.onerror = schedule;
+    current.onclose = current.onerror = () => {
+      if (!disposed && socket === current) schedule();
+    };
   };
   renew();
   connect();

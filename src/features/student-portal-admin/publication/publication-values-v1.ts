@@ -89,3 +89,14 @@ export function disclosureAtV1(settings: EffectiveSettingsV1, period: Publicatio
       : null
     : disclosure.at[period];
 }
+/** Describes configured exclusions only; eligibility and access remain server decisions. */
+export function publicationRestrictionV1(
+  settings: EffectiveSettingsV1,
+  period: PublicationItemV1['period'],
+): 'period-disabled' | 'outside-single-schedule' | null {
+  if (!settings.value.allowedPeriods.includes(period)) return 'period-disabled';
+  const disclosure = settings.value.calendar.disclosure;
+  if (disclosure.mode === 'single' && !disclosure.periods.includes(period))
+    return 'outside-single-schedule';
+  return null;
+}

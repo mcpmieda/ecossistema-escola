@@ -192,6 +192,16 @@ body {
 .qr-card--proposal .qr-card__brand {
   gap: 18px;
   padding: 0 0 0 16px;
+  background:
+    linear-gradient(180deg, transparent 0, transparent 96px, #ffffff 100%),
+    linear-gradient(90deg, #061632 0%, #0d2c63 48%, #1c4c82 100%);
+}
+.qr-card--proposal {
+  background: #ffffff;
+}
+.qr-card--proposal .qr-card__brand-pattern {
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 96px, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 96px, transparent 100%);
 }
 .qr-card--proposal .qr-card__crest {
   order: 0;
@@ -240,6 +250,11 @@ body {
   letter-spacing: -0.035em;
   white-space: nowrap;
 }
+.qr-card--proposal .qr-card__access-copy {
+  background:
+    linear-gradient(180deg, transparent 0, transparent 96px, #ffffff 100%),
+    linear-gradient(250deg, #7c1429 0%, #bc2b40 53%, #ed5b5b 100%);
+}
 .qr-card__content {
   position: relative;
   display: grid;
@@ -279,6 +294,13 @@ body {
   padding: 0;
   background:
     linear-gradient(
+      180deg,
+      #ffffff 0,
+      transparent 48px,
+      transparent calc(100% - 48px),
+      #ffffff 100%
+    ),
+    linear-gradient(
       90deg,
       rgb(210 228 249 / 0.42) 0%,
       rgb(217 233 250 / 0.35) 44%,
@@ -302,7 +324,18 @@ body {
   mask-image: linear-gradient(90deg, #000 50%, transparent 66%);
 }
 .qr-card--proposal .qr-card__content::after {
-  display: none;
+  display: block;
+  inset: 0;
+  z-index: 0;
+  width: auto;
+  height: auto;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0,
+    transparent 24px,
+    transparent calc(100% - 24px),
+    #ffffff 100%
+  );
 }
 .qr-card__photo {
   position: relative;
@@ -461,10 +494,14 @@ body {
   color: white;
 }
 .qr-card--proposal .qr-card__footer {
-  background: linear-gradient(112deg, #061632 0%, #0d2c63 48%, #1c4c82 100%);
+  background:
+    linear-gradient(180deg, #ffffff 0, transparent 48px),
+    linear-gradient(90deg, #061632 0%, #0d2c63 48%, #1c4c82 100%);
 }
 .qr-card--proposal .qr-card__footer-pattern {
   inset: 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 48px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 48px);
 }
 .qr-card__footer-pattern {
   inset: 0 36% 0 0;

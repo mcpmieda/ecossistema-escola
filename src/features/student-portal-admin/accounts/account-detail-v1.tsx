@@ -14,6 +14,7 @@ import {
   type AccountQrResultV1,
 } from './account-mutation-v1';
 import { useAccountsReadV1 } from './accounts-read-v1';
+import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
   ACCOUNT_ACTIONS_V1,
@@ -130,7 +131,7 @@ function AccountDetailBodyV1({
     },
     [reader, ownScope, parentClassId],
   );
-  const read = useAccountsReadV1(load);
+  const read = useAccountsReadV1(load, true, false);
   const [mutation, setMutation] = useState<AccountMutationStateV1>({ state: 'idle' });
   const [review, setReview] = useState<{
     action: AccountActionV1;
@@ -286,8 +287,15 @@ function AccountDetailBodyV1({
         {account && context && (
           <>
             <AccountIdentityV1 account={account} detail />
-            <StudentPhotoPanelV1 showAvatar={false} canWrite={canWrite}
-              subject={{ source: 'portal', academicYear: ownScope.academicYear, accountIds: [account.accountId] }} />
+            <StudentPhotoPanelV1
+              showAvatar={false}
+              canWrite={canWrite}
+              subject={{
+                source: 'portal',
+                academicYear: ownScope.academicYear,
+                accountIds: [account.accountId],
+              }}
+            />
             <AccountStatusV1 account={account} />
             <dl className="pa-account-facts">
               <div>
@@ -403,7 +411,9 @@ function AccountDetailBodyV1({
                       className="pa-account-slot"
                       hidden={key !== activeSlot}
                     >
-                      {slots?.[key as keyof AccountSlotsV1]?.(context)}
+                      <LiveRefreshScopeV1 active={key === activeSlot}>
+                        {slots?.[key as keyof AccountSlotsV1]?.(context)}
+                      </LiveRefreshScopeV1>
                     </Tabs.Panel>
                   ))}
               </Tabs>

@@ -47,19 +47,21 @@ export function useRelationalCouncilV3() {
     try {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE }, controller.signal);
       if (controller.signal.aborted) return;
-      if (response.state === 'not-authorized') { loseAccess(); return; }
+      if (response.state === 'not-authorized') { loseAccess(); return false; }
       if (response.state !== 'ready' || response.operation !== 'classes') {
         if (background) setStale(true); else setFailure(response.state === 'ready' ? 'unavailable' : response.state);
-        return;
+        return false;
       }
       setClasses(response.classes);
       if (selectedClass.current !== null && !response.classes.some((item) => item.id === selectedClass.current)) {
         selectedClass.current = null; setClassId(null); setWorkspace(null);
       }
       setStale(false);
+      return true;
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         if (background) setStale(true); else setFailure('unavailable');
+        return false;
       }
     } finally {
       if (!background && !controller.signal.aborted) setBusy((current) => ({ ...current, classes: false }));
@@ -75,18 +77,20 @@ export function useRelationalCouncilV3() {
     try {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'workspace', year, classId: target }, controller.signal);
       if (controller.signal.aborted || ticket !== sequence.current) return;
-      if (response.state === 'not-authorized') { loseAccess(); return; }
+      if (response.state === 'not-authorized') { loseAccess(); return false; }
       if (response.state !== 'ready' || response.operation === 'classes') {
         if (background) setStale(true);
         else { setFailure(response.state === 'ready' ? 'unavailable' : response.state); setWorkspace(null); }
-        return;
+        return false;
       }
       if (background && draftProtected.current) return;
       setWorkspace(response.workspace);
       setStale(false);
+      return true;
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError') && ticket === sequence.current) {
         if (background) setStale(true); else setFailure('unavailable');
+        return false;
       }
     } finally {
       if (!background && !controller.signal.aborted && ticket === sequence.current) setBusy((current) => ({ ...current, workspace: false }));
@@ -100,8 +104,11 @@ export function useRelationalCouncilV3() {
 
   const refresh = useCallback(async () => {
     if (busy.command || draftProtected.current || failure === 'not-authorized') return;
-    await loadClasses(true);
-    if (classId !== null && !draftProtected.current) await loadWorkspace(classId, true);
+    const refreshed = await loadClasses(true);
+    if (refreshed !== true) return refreshed;
+    if (classId !== null && selectedClass.current === classId && !draftProtected.current)
+      return loadWorkspace(classId, true);
+    return refreshed;
   }, [busy.command, classId, failure, loadClasses, loadWorkspace]);
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'], enabled: year !== null,

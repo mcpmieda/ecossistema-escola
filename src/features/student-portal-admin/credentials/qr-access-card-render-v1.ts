@@ -191,6 +191,30 @@ function paintCard(
   paintPattern(context, emblem, 0, 132, 5);
   paintPattern(context, emblem, 456, 84, 4);
 
+  const red = context.createLinearGradient(509, 0, 856, 0);
+  red.addColorStop(0, '#ed5b5b');
+  red.addColorStop(0.53, '#bc2b40');
+  red.addColorStop(1, '#7c1429');
+  context.fillStyle = red;
+  context.beginPath();
+  context.moveTo(535, 0);
+  context.lineTo(856, 0);
+  context.lineTo(856, 132);
+  context.lineTo(509, 132);
+  context.closePath();
+  context.fill();
+
+  const brandFade = context.createLinearGradient(0, 96, 0, 132);
+  brandFade.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  brandFade.addColorStop(1, '#ffffff');
+  context.fillStyle = brandFade;
+  context.fillRect(0, 96, WIDTH, 36);
+  const footerFade = context.createLinearGradient(0, 456, 0, 504);
+  footerFade.addColorStop(0, '#ffffff');
+  footerFade.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  context.fillStyle = footerFade;
+  context.fillRect(0, 456, WIDTH, 48);
+
   const center = context.createLinearGradient(0, 132, 600, 132);
   center.addColorStop(0, '#e8f2ff');
   center.addColorStop(0.7, '#f6faff');
@@ -215,6 +239,17 @@ function paintCard(
   }
   context.globalAlpha = 1;
 
+  const contentTopFade = context.createLinearGradient(0, 132, 0, 156);
+  contentTopFade.addColorStop(0, '#ffffff');
+  contentTopFade.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  context.fillStyle = contentTopFade;
+  context.fillRect(0, 132, WIDTH, 24);
+  const contentBottomFade = context.createLinearGradient(0, 432, 0, 456);
+  contentBottomFade.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  contentBottomFade.addColorStop(1, '#ffffff');
+  context.fillStyle = contentBottomFade;
+  context.fillRect(0, 432, WIDTH, 24);
+
   paintPhoto(context, photo);
   paintIdentity(context, input.name, input.classLabel);
   context.imageSmoothingEnabled = false;
@@ -238,18 +273,6 @@ function paintCard(
   context.font = '850 20px Inter, Arial, sans-serif';
   context.fillText('PROFª IÊDA ALVES DE OLIVEIRA', 134, 68);
 
-  const red = context.createLinearGradient(509, 0, 856, 0);
-  red.addColorStop(0, '#ed5b5b');
-  red.addColorStop(0.53, '#bc2b40');
-  red.addColorStop(1, '#7c1429');
-  context.fillStyle = red;
-  context.beginPath();
-  context.moveTo(535, 0);
-  context.lineTo(856, 0);
-  context.lineTo(856, 132);
-  context.lineTo(509, 132);
-  context.closePath();
-  context.fill();
   context.fillStyle = '#ffffff';
   context.font = '700 18px Inter, Arial, sans-serif';
   context.fillText('Portal do Aluno', 552, 43);

@@ -48,6 +48,7 @@ import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
 import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
+import { LiveRefreshScopeV1 } from '../../shared/live-data/live-refresh-scope-v1';
 
 const StudentAccountsV1 = lazy(() =>
   import('./accounts/student-accounts-v1').then((module) => ({
@@ -277,7 +278,9 @@ function PortalWorkspace({
           canWrite={context.canWrite}
         />
       ),
-      closing: (context) => <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />,
+      closing: (context) => (
+        <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />
+      ),
       audit: (context) => (
         <StudentAuditV1
           {...common}
@@ -293,6 +296,7 @@ function PortalWorkspace({
           scope={context.scope}
           scopeLabel={context.account.name}
           canWrite={context.canWrite}
+          onCommitted={context.refresh}
         />
       ),
     }),
@@ -405,15 +409,20 @@ function PortalWorkspace({
           >
             <Tabs.ListContainer className="max-w-full overflow-x-auto">
               <Tabs.List aria-label="Áreas do Painel do Aluno">
-                {studentPortalSections.filter((item) => item.id !== 'credentials').map((item) => (
-                  <Tabs.Tab key={item.id} id={item.id}>
-                    {item.label}
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
+                {studentPortalSections
+                  .filter((item) => item.id !== 'credentials')
+                  .map((item) => (
+                    <Tabs.Tab key={item.id} id={item.id}>
+                      {item.label}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
               </Tabs.List>
             </Tabs.ListContainer>
-            <Tabs.Panel id={section === 'credentials' ? 'accounts' : section} className="pa-admin-content">
+            <Tabs.Panel
+              id={section === 'credentials' ? 'accounts' : section}
+              className="pa-admin-content"
+            >
               <ClassTabsV1
                 items={classItems}
                 selectedId={selectedClass?.id ?? null}
@@ -452,7 +461,9 @@ function PortalWorkspace({
                   </Button>
                 )}
                 <Suspense fallback={sectionFallback}>
-                  <div key={section}>{content}</div>
+                  <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
+                    <div key={section}>{content}</div>
+                  </LiveRefreshScopeV1>
                 </Suspense>
               </ClassTabsV1>
             </Tabs.Panel>

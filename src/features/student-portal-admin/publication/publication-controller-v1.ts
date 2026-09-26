@@ -68,25 +68,33 @@ export function createPublicationControllerV1(
   let intended: PublicationCommandV1 | undefined;
   const emit = () => publish({ ...view });
   const reader = createLatestPortalRequestV1<PublicationSnapshotV1>((next) => {
-    const error = next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
-    view = { ...view, load: next, refreshing: next.state === 'ready' && Boolean(next.refreshing),
-      readRetryAt: error ? now() + (error.retryAfterSeconds ?? 0) * 1000 : 0 };
+    const error =
+      next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
+    view = {
+      ...view,
+      load: next,
+      refreshing: next.state === 'ready' && Boolean(next.refreshing),
+      readRetryAt: error ? now() + (error.retryAfterSeconds ?? 0) * 1000 : 0,
+    };
     emit();
   });
   const read = async (keepVisible = false) => {
-    await reader.run(async (signal) => {
-      const [publication, policy] = await Promise.all([
-        client.query(
-          { contractVersion: 1, operation: 'publication', scope: ownScope, page: { limit: 50 } },
-          signal,
-        ),
-        client.query(
-          { contractVersion: 1, operation: 'settings', scope: ownScope, page: { limit: 50 } },
-          signal,
-        ),
-      ]);
-      return publicationSnapshotV1(ownScope, publication, policy);
-    }, { background: keepVisible });
+    return reader.run(
+      async (signal) => {
+        const [publication, policy] = await Promise.all([
+          client.query(
+            { contractVersion: 1, operation: 'publication', scope: ownScope, page: { limit: 50 } },
+            signal,
+          ),
+          client.query(
+            { contractVersion: 1, operation: 'settings', scope: ownScope, page: { limit: 50 } },
+            signal,
+          ),
+        ]);
+        return publicationSnapshotV1(ownScope, publication, policy);
+      },
+      { background: keepVisible },
+    );
   };
   function stopObservation() {
     observationGeneration++;
@@ -101,17 +109,24 @@ export function createPublicationControllerV1(
     const checks = accepted.checks + 1;
     if (view.load.state !== 'ready' || view.load.refreshError) {
       // Retained content cannot confirm a new decision after an unsuccessful read.
-      const error = view.load.state === 'error' ? view.load.error
-        : view.load.state === 'ready' ? view.load.refreshError : undefined;
+      const error =
+        view.load.state === 'error'
+          ? view.load.error
+          : view.load.state === 'ready'
+            ? view.load.refreshError
+            : undefined;
       const retryable = error && ['network-error', 'unavailable'].includes(error.state);
       const observation = retryable && checks < maxChecks ? 'observing' : 'unconfirmed';
       view = { ...view, mutation: { ...accepted, checks, observation } };
       emit();
       if (observation === 'observing') {
-        timer = setTimeout(() => {
-          timer = undefined;
-          void observe(generation);
-        }, Math.max(delay, view.readRetryAt - now()));
+        timer = setTimeout(
+          () => {
+            timer = undefined;
+            void observe(generation);
+          },
+          Math.max(delay, view.readRetryAt - now()),
+        );
       }
       return;
     }
@@ -217,11 +232,20 @@ export function createPublicationControllerV1(
   }
   return {
     async refresh() {
-      if (now() < view.readRetryAt || view.refreshing || view.mutation.state === 'sending'
-        || (view.mutation.state === 'accepted' && view.mutation.observation === 'observing')
-        || view.mutation.state === 'error') return;
-      if (view.load.state === 'error' && !['network-error', 'unavailable', 'rate-limited'].includes(view.load.error.state)) return;
-      await read(true);
+      if (
+        now() < view.readRetryAt ||
+        view.refreshing ||
+        view.mutation.state === 'sending' ||
+        (view.mutation.state === 'accepted' && view.mutation.observation === 'observing') ||
+        view.mutation.state === 'error'
+      )
+        return;
+      if (
+        view.load.state === 'error' &&
+        !['network-error', 'unavailable', 'rate-limited'].includes(view.load.error.state)
+      )
+        return;
+      return read(true);
     },
     async load() {
       if (

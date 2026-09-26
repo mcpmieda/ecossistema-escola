@@ -109,6 +109,20 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       return new Response(null, { status: 403 });
     if (parsed.data.purpose === 'security' && parsed.data.audience !== 'student')
       return new Response(null, { status: 403 });
+    const effectiveHeader = request.headers.get('x-live-effective-expires-at');
+    const effectiveExpiry = z.iso
+      .datetime({ offset: true })
+      .safeParse(
+        parsed.data.purpose === 'security' && effectiveHeader !== null
+          ? effectiveHeader
+          : parsed.data.expiresAt,
+      );
+    if (
+      !effectiveExpiry.success ||
+      Date.parse(effectiveExpiry.data) < Date.parse(parsed.data.expiresAt)
+    )
+      return new Response(null, { status: 403 });
+    const effectiveExpiresAt = effectiveExpiry.data;
     if (parsed.data.purpose === 'security')
       parsed.data.expiresAt = new Date(
         Math.min(Date.parse(parsed.data.expiresAt), Date.now() + 60_000),
@@ -119,7 +133,14 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     this.ctx.acceptWebSocket(server, [parsed.data.audience]);
     server.serializeAttachment({ ...parsed.data, resumed: false } satisfies SocketIdentityV1);
     if (parsed.data.purpose === 'security')
-      server.send(JSON.stringify({ contractVersion: 1, type: 'security-connected' }));
+      server.send(
+        JSON.stringify({
+          contractVersion: 1,
+          type: 'security-connected',
+          // Older callers provide only the short lease, not the session expiry.
+          ...(effectiveHeader === null ? {} : { expiresAt: effectiveExpiresAt }),
+        }),
+      );
     return new Response(null, { status: 101, webSocket: client });
   }
 

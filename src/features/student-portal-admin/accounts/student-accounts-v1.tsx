@@ -82,44 +82,46 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
       <header>
         <h2>Alunos</h2>
       </header>
-      <Card className={`pa-account-controls-card${scope.kind === 'class' ? ' pa-account-controls-card--class' : ''}`}>
+      <Card
+        className={`pa-account-controls-card${scope.kind === 'class' ? ' pa-account-controls-card--class' : ''}`}
+      >
         <Card.Content className="pa-account-controls">
           <div className="pa-account-filters">
-          {props.scope.kind === 'school' && (
-            <ClassFilterV1
-              catalog={props.catalog}
-              selected={selectedClass}
+            {props.scope.kind === 'school' && (
+              <ClassFilterV1
+                catalog={props.catalog}
+                selected={selectedClass}
+                onChange={(value) => {
+                  if (allowDraftNavigationV1()) setSelectedClass(value);
+                }}
+              />
+            )}
+            <TextField
+              className="pa-account-search min-w-48 max-w-72"
+              value={name}
               onChange={(value) => {
-                if (allowDraftNavigationV1()) setSelectedClass(value);
+                if (allowDraftNavigationV1()) setName(value);
               }}
+            >
+              <Label>Buscar aluno</Label>
+              <Input maxLength={200} />
+            </TextField>
+            <AccountFilterTagsV1
+              label="Situação"
+              selected={states}
+              onChange={(value) => {
+                if (allowDraftNavigationV1()) setStates(value);
+              }}
+              options={ACCOUNT_STATE_OPTIONS_V1}
             />
-          )}
-          <TextField
-            className="pa-account-search min-w-48 max-w-72"
-            value={name}
-            onChange={(value) => {
-              if (allowDraftNavigationV1()) setName(value);
-            }}
-          >
-            <Label>Buscar aluno</Label>
-            <Input maxLength={200} />
-          </TextField>
-          <AccountFilterTagsV1
-            label="Situação"
-            selected={states}
-            onChange={(value) => {
-              if (allowDraftNavigationV1()) setStates(value);
-            }}
-            options={ACCOUNT_STATE_OPTIONS_V1}
-          />
-          <AccountFilterTagsV1
-            label="Bloqueio"
-            selected={blocks}
-            onChange={(value) => {
-              if (allowDraftNavigationV1()) setBlocks(value);
-            }}
-            options={ACCOUNT_BLOCK_OPTIONS_V1}
-          />
+            <AccountFilterTagsV1
+              label="Bloqueio"
+              selected={blocks}
+              onChange={(value) => {
+                if (allowDraftNavigationV1()) setBlocks(value);
+              }}
+              options={ACCOUNT_BLOCK_OPTIONS_V1}
+            />
           </div>
           <div ref={setQrMount} className="pa-account-qr-mount" />
           {scope.kind === 'class' && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
@@ -171,7 +173,7 @@ function AccountsResultsV1(
     },
     [props.reader, props.query, refreshVersion],
   );
-  const read = useContinuousReadV1(load, 'accountId');
+  const read = useContinuousReadV1(load, 'accountId', undefined, selectedId === null, false);
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
   const visibleItems =
     current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
@@ -197,39 +199,46 @@ function AccountsResultsV1(
   };
   return (
     <>
-      {props.qrMount && createPortal(<section className="pa-account-qr-panel" aria-label="QR code">
-        <h2>QR code</h2>
-        {qrClass && current ? (
-          <QrBatchToolsV1
-            client={props.client}
-            accounts={visibleItems}
-            selected={selectedQr}
-            onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
-            classId={qrClass.classId}
-            scopeVersion={current.scopeVersion}
-            label={props.bulkScopeLabel}
-            canWrite={props.canWrite && !authorizationError && !protectedFailure}
-            pendingBirth={Boolean(read.refreshing || read.refreshError)}
-            hasMore={Boolean(current.nextCursor)}
-            onCommitted={onChanged}
-            onAuthorizationLost={onAuthorizationLost}
-          />
-        ) : (
-          <p className="text-sm text-muted">
-            {qrClass ? 'Carregando opções de QR…' : 'Selecione uma turma para gerar PDF.'}
-          </p>
+      {props.qrMount &&
+        createPortal(
+          <section className="pa-account-qr-panel" aria-label="QR code">
+            <h2>QR code</h2>
+            {qrClass && current ? (
+              <QrBatchToolsV1
+                client={props.client}
+                accounts={visibleItems}
+                selected={selectedQr}
+                onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
+                classId={qrClass.classId}
+                scopeVersion={current.scopeVersion}
+                label={props.bulkScopeLabel}
+                canWrite={props.canWrite && !authorizationError && !protectedFailure}
+                pendingBirth={Boolean(read.refreshing || read.refreshError)}
+                hasMore={Boolean(current.nextCursor)}
+                onCommitted={onChanged}
+                onAuthorizationLost={onAuthorizationLost}
+              />
+            ) : (
+              <p className="text-sm text-muted">
+                {qrClass ? 'Carregando opções de QR…' : 'Selecione uma turma para gerar PDF.'}
+              </p>
+            )}
+          </section>,
+          props.qrMount,
         )}
-      </section>, props.qrMount)}
-      {props.bulkMount && !authorizationError &&
+      {props.bulkMount &&
+        !authorizationError &&
         !protectedFailure &&
-        props.query.scope.kind === 'class' && (
-          createPortal(<StudentBulkV1
+        props.query.scope.kind === 'class' &&
+        createPortal(
+          <StudentBulkV1
             client={props.client}
             scope={props.query.scope}
             scopeLabel={props.bulkScopeLabel}
             canWrite={props.canWrite}
             onAuthorizationLost={onAuthorizationLost}
-          />, props.bulkMount)
+          />,
+          props.bulkMount,
         )}
       <Card className="pa-account-list-card">
         <Card.Content>

@@ -27,6 +27,8 @@ export const authorizationLostV1 = (error: PortalClientErrorV1) =>
 export function useOperationalReadV1<T>(
   load: (signal: AbortSignal) => Promise<T>,
   onAuthorizationLost?: OperationsPropsV1['onAuthorizationLost'],
+  active = true,
+  eventDriven = true,
 ) {
   const callback = useRef(onAuthorizationLost);
   const retryDeadline = useRef(0);
@@ -47,7 +49,7 @@ export function useOperationalReadV1<T>(
     },
     [load],
   );
-  const read = useAccountsReadV1(guarded);
+  const read = useAccountsReadV1(guarded, active, eventDriven);
   useEffect(() => {
     const clear = () => read.clear();
     window.addEventListener('pagehide', clear);

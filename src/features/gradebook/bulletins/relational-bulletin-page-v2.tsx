@@ -651,6 +651,7 @@ export function RelationalBulletinPageV2() {
       setStale(false);
     } else if (background) setStale(true);
     if (!background) setBusy(null);
+    return response?.state === 'ready' && response.operation === 'history';
   };
 
   const refresh = async () => {
@@ -674,12 +675,12 @@ export function RelationalBulletinPageV2() {
           setHistory([]);
           setFailure('not-authorized');
         } else setStale(true);
-        return;
+        return false;
       }
       setCatalog(latestCatalog);
       if (classId === null) {
         setStale(false);
-        return;
+        return true;
       }
       if (!latestCatalog.classes.some((item) => item.id === classId)) {
         setClassId(null);
@@ -697,12 +698,11 @@ export function RelationalBulletinPageV2() {
         year,
         classId,
       });
-      if (
-        ticket !== sequence.current ||
-        latestStudents.state !== 'ready' ||
-        latestStudents.operation !== 'students'
-      )
-        return;
+      if (ticket !== sequence.current) return;
+      if (latestStudents.state !== 'ready' || latestStudents.operation !== 'students') {
+        setStale(true);
+        return false;
+      }
       const valid = new Set(latestStudents.students.map((student) => student.id));
       setStudents(latestStudents);
       setSelectedIds((current) => current.filter((id) => valid.has(id)));
@@ -718,9 +718,14 @@ export function RelationalBulletinPageV2() {
         if (ticket !== sequence.current) return;
         if (latestPreview.state === 'ready' && latestPreview.operation === 'preview')
           setArtifact({ mode: 'preview', model: latestPreview.model });
+        else {
+          setStale(true);
+          return false;
+        }
       }
-      if (historyRead) await loadHistory(classId, true);
+      if (historyRead && await loadHistory(classId, true) === false) return false;
       if (ticket === sequence.current) setStale(false);
+      return true;
     } catch (cause) {
       if (ticket !== sequence.current) return;
       if (cause instanceof RelationalBulletinClientErrorV2 && cause.code === 'not-authorized') {
@@ -730,6 +735,7 @@ export function RelationalBulletinPageV2() {
         setHistory([]);
         setFailure(cause.code);
       } else setStale(true);
+      return false;
     }
   };
   useLiveRefreshV1(refresh, {
