@@ -120,7 +120,7 @@
   row-gap: 5mm;
   width: 210mm;
   height: 297mm;
-  padding: 5mm;
+  padding: 23mm 5mm;
   background: white;
   box-shadow: 0 4px 20px #51627626;
 }
@@ -130,8 +130,6 @@
   height: 59mm;
   overflow: hidden;
   break-inside: avoid;
-  outline: 1px dashed #aeb9c8;
-  outline-offset: -1px;
 }
 
 .qr-batch-preview__card > .qr-card {
