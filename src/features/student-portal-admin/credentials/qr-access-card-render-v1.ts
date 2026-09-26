@@ -1,3 +1,4 @@
+import { canvasBlobSyncV1 } from './canvas-encode-v1';
 import { QrArtifactErrorV1, type QrArtifactV1 } from './qr-values-v1';
 
 const crestUrl = new URL('./assets/school-crest.png', import.meta.url).href;
@@ -5,6 +6,15 @@ const emblemUrl = new URL('./assets/school-emblem-outline.png', import.meta.url)
 const WIDTH = 856;
 const HEIGHT = 540;
 const SCALE = 2;
+/** Batch print art: vector QR is drawn by the PDF, so the bitmap only needs text/photo detail. */
+const PRINT_SCALE = 1.5;
+const PRINT_JPEG_QUALITY = 0.9;
+/** Card art geometry in its own 856 × 540 units; the QR box includes its quiet zone. */
+export const QR_ACCESS_CARD_ART_V1 = {
+  width: WIDTH,
+  height: HEIGHT,
+  qr: { x: 542, y: 142, size: 304 },
+} as const;
 
 export type QrAccessCardInputV1 = {
   qr: Blob;
@@ -12,6 +22,19 @@ export type QrAccessCardInputV1 = {
   name: string;
   classLabel: string;
 };
+export type QrAccessCardPrintInputV1 = Omit<QrAccessCardInputV1, 'qr'>;
+
+let cardAssets: Promise<[HTMLImageElement, HTMLImageElement]> | undefined;
+// Crest and emblem are static bundle assets; decode them once per page, not once per card.
+function cardAssetsV1() {
+  cardAssets ??= Promise.all([imageFromUrl(crestUrl), imageFromUrl(emblemUrl)]).catch(
+    (error: unknown) => {
+      cardAssets = undefined;
+      throw error;
+    },
+  );
+  return cardAssets;
+}
 
 function imageFromUrl(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -172,8 +195,8 @@ function paintCard(
   context: CanvasRenderingContext2D,
   crest: HTMLImageElement,
   emblem: HTMLImageElement,
-  qr: ImageBitmap,
-  input: QrAccessCardInputV1,
+  qr: ImageBitmap | undefined,
+  input: QrAccessCardPrintInputV1,
   photo?: ImageBitmap,
 ) {
   context.save();
@@ -238,9 +261,12 @@ function paintCard(
 
   paintPhoto(context, photo);
   paintIdentity(context, input.name, input.classLabel);
-  context.imageSmoothingEnabled = false;
-  context.drawImage(qr, 542, 142, 304, 304);
-  context.imageSmoothingEnabled = true;
+  if (qr) {
+    const box = QR_ACCESS_CARD_ART_V1.qr;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(qr, box.x, box.y, box.size, box.size);
+    context.imageSmoothingEnabled = true;
+  }
 
   context.fillStyle = '#ffffff';
   context.beginPath();
@@ -270,45 +296,59 @@ function paintCard(
   context.restore();
 }
 
-/** Generates a local PNG from the current QR and the school's served portrait. */
-export async function renderQrAccessCardV1(
-  input: QrAccessCardInputV1,
+async function renderCardBlobV1(
+  input: QrAccessCardPrintInputV1 & { qr?: Blob },
   signal: AbortSignal,
-  scale: 1 | 2 = SCALE,
-): Promise<QrArtifactV1> {
+  scale: number,
+  type: 'image/png' | 'image/jpeg',
+): Promise<Blob> {
   signal.throwIfAborted();
   if (typeof document === 'undefined' || typeof createImageBitmap === 'undefined')
     throw new QrArtifactErrorV1('render-unavailable');
   const canvas = document.createElement('canvas');
-  canvas.width = WIDTH * scale;
-  canvas.height = HEIGHT * scale;
+  canvas.width = Math.round(WIDTH * scale);
+  canvas.height = Math.round(HEIGHT * scale);
   const context = canvas.getContext('2d');
   if (!context) throw new QrArtifactErrorV1('render-unavailable');
   let qr: ImageBitmap | undefined;
   let photo: ImageBitmap | undefined;
   try {
-    const [crest, emblem, qrImage, photoImage] = await Promise.all([
-      imageFromUrl(crestUrl),
-      imageFromUrl(emblemUrl),
-      createImageBitmap(input.qr),
+    const [[crest, emblem], qrImage, photoImage] = await Promise.all([
+      cardAssetsV1(),
+      input.qr ? createImageBitmap(input.qr) : Promise.resolve(undefined),
       input.photo ? createImageBitmap(input.photo) : Promise.resolve(undefined),
     ]);
     qr = qrImage;
     photo = photoImage;
     signal.throwIfAborted();
     context.scale(scale, scale);
+    // JPEG has no alpha: the rounded corners must match the white paper, not turn black.
+    if (type === 'image/jpeg') {
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, WIDTH, HEIGHT);
+    }
     paintCard(context, crest, emblem, qr, input, photo);
-    const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (value) => (value ? resolve(value) : reject(new QrArtifactErrorV1('render-unavailable'))),
-        'image/png',
-      ),
-    );
-    signal.throwIfAborted();
-    return { blob, format: 'png', count: 1, pages: 1 };
+    return canvasBlobSyncV1(canvas, type, type === 'image/jpeg' ? PRINT_JPEG_QUALITY : undefined);
   } finally {
     qr?.close();
     photo?.close();
     canvas.width = canvas.height = 1;
   }
+}
+
+/** Generates a local PNG from the current QR and the school's served portrait. */
+export async function renderQrAccessCardV1(
+  input: QrAccessCardInputV1,
+  signal: AbortSignal,
+): Promise<QrArtifactV1> {
+  const blob = await renderCardBlobV1(input, signal, SCALE, 'image/png');
+  return { blob, format: 'png', count: 1, pages: 1 };
+}
+
+/** Card art without the QR, as JPEG, for the A4 batch; the PDF overlays the vector QR. */
+export function renderQrAccessCardPrintV1(
+  input: QrAccessCardPrintInputV1,
+  signal: AbortSignal,
+): Promise<Blob> {
+  return renderCardBlobV1(input, signal, PRINT_SCALE, 'image/jpeg');
 }

@@ -67,6 +67,13 @@ describe('HTTP security', () => {
       expect(policy).not.toMatch(/script-src[^;]*blob:/u);
     }
   });
+  it('lets browsers keep content-hashed static assets while HTML revalidates', () => {
+    const rules = readFileSync('public/_headers', 'utf8').split(/\r?\n(?=\S)/u);
+    const rule = (path: string) => rules.find((block) => block.split(/\r?\n/u)[0] === path) ?? '';
+    expect(rule('/assets/*')).toContain('Cache-Control: public, max-age=31536000, immutable');
+    expect(rule('/')).toContain('Cache-Control: no-cache');
+    expect(rule('/index.html')).toContain('Cache-Control: no-cache');
+  });
   it('marks protected responses no-store', () =>
     expect(withSecurityHeaders(new Response('ok'), true).headers.get('Cache-Control')).toContain(
       'no-store',
