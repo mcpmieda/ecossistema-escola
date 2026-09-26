@@ -52,3 +52,30 @@ it('uses the imported revision for direct removal', async () => {
   expect(spies.save.mock.calls[0]?.[1]).toMatchObject({ kind: 'remove', expectedRevision: revision });
   expect(spies.save.mock.calls[0]?.[2]).toBeNull();
 });
+it('opens the file picker directly for a student without a photo, then the editor with the choice', async () => {
+  const user = userEvent.setup();
+  vi.mocked(readPhotoCatalogV1).mockResolvedValue(catalog({ hasPortrait: false }));
+  const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+  const { container } = render(<StudentPhotoPanelV1 subject={subject} />);
+  await user.click(await screen.findByRole('button', { name: 'Adicionar foto' }));
+  // No intermediate editor: the browser's own picker (explorer or gallery) is the first thing shown.
+  expect(click).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('dialog', { name: 'Editar foto do aluno' })).toBeNull();
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  expect(input.accept).toBe('image/jpeg,image/png,image/webp');
+  await user.upload(input, new File(['synthetic'], 'aluno.png', { type: 'image/png' }));
+  expect(await screen.findByRole('dialog', { name: 'Editar foto do aluno' })).toBeTruthy();
+  expect(vi.mocked(readPhotoCatalogV1).mock.lastCall?.[2]).toBe(true);
+  expect(spies.save).not.toHaveBeenCalled();
+  click.mockRestore();
+});
+it('keeps opening the editor with the current photo when the student already has one', async () => {
+  const user = userEvent.setup();
+  vi.mocked(readPhotoCatalogV1).mockResolvedValue(catalog());
+  const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+  render(<StudentPhotoPanelV1 subject={subject} />);
+  await user.click(await screen.findByRole('button', { name: 'Editar foto' }));
+  expect(await screen.findByRole('dialog', { name: 'Editar foto do aluno' })).toBeTruthy();
+  expect(click).not.toHaveBeenCalled();
+  click.mockRestore();
+});
