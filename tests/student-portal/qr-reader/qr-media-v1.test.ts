@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createCameraLeaseV1,
+  createQrCameraDecoderV1,
   decodeQrFrameV1,
   readQrImageV1,
 } from '../../../src/features/student-portal/auth/qr-media-v1';
@@ -189,6 +190,44 @@ describe('local QR resource lifecycle', () => {
     await expect(decoding).rejects.toMatchObject({ name: 'AbortError' });
     expect(terminate).toHaveBeenCalledOnce();
     expect(post.mock.calls[0]?.[0]).toMatchObject({ width: 1, height: 1 });
+  });
+  it('keeps one warm worker for camera frames and replaces it after a cancellation', async () => {
+    const workers: {
+      terminate: ReturnType<typeof vi.fn>;
+      postMessage: ReturnType<typeof vi.fn>;
+      onmessage: ((event: MessageEvent) => void) | null;
+      onerror: (() => void) | null;
+    }[] = [];
+    vi.stubGlobal(
+      'Worker',
+      class {
+        terminate = vi.fn();
+        postMessage = vi.fn();
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor() {
+          workers.push(this);
+        }
+      },
+    );
+    const frame = () => ({ width: 1, height: 1, data: new Uint8ClampedArray(4) }) as ImageData;
+    const decoder = createQrCameraDecoderV1();
+    for (const sharpen of [false, true]) {
+      const pending = decoder(frame(), new AbortController().signal, { sharpen });
+      workers[0]!.onmessage!({ data: { codes: [] } } as MessageEvent);
+      await expect(pending).resolves.toEqual([]);
+      expect(workers[0]!.postMessage.mock.lastCall?.[0]).toMatchObject({ sharpen });
+    }
+    expect(workers).toHaveLength(1);
+    const controller = new AbortController();
+    const cancelled = decoder(frame(), controller.signal);
+    controller.abort();
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+    expect(workers[0]!.terminate).toHaveBeenCalledOnce();
+    void decoder(frame(), new AbortController().signal).catch(() => {});
+    expect(workers).toHaveLength(2);
+    decoder.dispose();
+    expect(workers[1]!.terminate).toHaveBeenCalledOnce();
   });
   it('releases the bitmap on cancellation and rejects excessive pixel dimensions before canvas work', async () => {
     const close = vi.fn(),

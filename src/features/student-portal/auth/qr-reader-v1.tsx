@@ -4,13 +4,37 @@ import { CameraOff, ImageIcon, SlidersHorizontal } from 'lucide-react';
 import { SchoolMarkV1 } from '../../../shared/brand/school-mark-v1';
 import {
   createCameraLeaseV1,
+  createQrCameraDecoderV1,
   decodeQrFrameV1,
   readQrImageV1,
   type QrFrameDecoderV1,
 } from './qr-media-v1';
 import { QrInputErrorV1, selectStudentQrV1 } from './qr-input-v1';
 
-const CAMERA_ASSIST_DELAY_MS_V1 = 3500;
+const CAMERA_ASSIST_DELAY_MS_V1 = 2000;
+const CAMERA_FRAME_GAP_MS_V1 = 120;
+
+type NativeQrDetectorV1 = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
+/** The platform detector (Chrome on Android) copes with soft focus far better than jsQR. It runs
+ * on the device; nothing leaves the browser.
+ */
+async function nativeQrDetectorV1(): Promise<NativeQrDetectorV1 | undefined> {
+  const Detector = (
+    globalThis as {
+      BarcodeDetector?: (new (options: { formats: string[] }) => NativeQrDetectorV1) & {
+        getSupportedFormats?: () => Promise<string[]>;
+      };
+    }
+  ).BarcodeDetector;
+  if (!Detector) return undefined;
+  try {
+    const formats = await Detector.getSupportedFormats?.();
+    if (formats && !formats.includes('qr_code')) return undefined;
+    return new Detector({ formats: ['qr_code'] });
+  } catch {
+    return undefined;
+  }
+}
 
 const qrMessage = (error: unknown) => {
   if (error instanceof QrInputErrorV1)
@@ -132,7 +156,7 @@ function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
 
 export function StudentQrReaderV1({
   onQr,
-  decode = decodeQrFrameV1,
+  decode,
 }: {
   onQr: (qr: string) => void;
   decode?: QrFrameDecoderV1;
@@ -224,23 +248,58 @@ export function StudentQrReaderV1({
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) throw new QrInputErrorV1('unavailable');
+      const session = decode ? undefined : createQrCameraDecoderV1();
+      const frameDecoder = decode ?? session!;
+      if (session) controller.signal.addEventListener('abort', session.dispose, { once: true });
+      const native = await nativeQrDetectorV1();
+      controller.signal.throwIfAborted();
+      let attempt = 0;
       while (!controller.signal.aborted) {
         if (player.videoWidth && player.videoHeight) {
-          const scale = Math.min(
-            1,
-            (assisted ? 1280 : 960) / Math.max(player.videoWidth, player.videoHeight),
-          );
-          canvas.width = Math.max(1, Math.round(player.videoWidth * scale));
-          canvas.height = Math.max(1, Math.round(player.videoHeight * scale));
-          context.drawImage(player, 0, 0, canvas.width, canvas.height);
-          const codes = await decode(
-            context.getImageData(0, 0, canvas.width, canvas.height),
-            controller.signal,
-          );
+          let codes: string[] = [];
+          if (native)
+            try {
+              codes = (await native.detect(player))
+                .map((code) => code.rawValue)
+                .filter((value) => typeof value === 'string' && value.length > 0);
+            } catch {
+              codes = [];
+            }
           controller.signal.throwIfAborted();
+          if (!codes.length) {
+            // Rotate: centre at full detail, centre sharpened (soft focus), whole frame.
+            const step = attempt++ % 3;
+            const [width, height] = [player.videoWidth, player.videoHeight];
+            if (step === 2) {
+              const scale = Math.min(1, (assisted ? 1280 : 960) / Math.max(width, height));
+              canvas.width = Math.max(1, Math.round(width * scale));
+              canvas.height = Math.max(1, Math.round(height * scale));
+              context.drawImage(player, 0, 0, canvas.width, canvas.height);
+            } else {
+              const side = Math.round(Math.min(width, height) * 0.75);
+              canvas.width = canvas.height = Math.min(side, 1024);
+              context.drawImage(
+                player,
+                Math.round((width - side) / 2),
+                Math.round((height - side) / 2),
+                side,
+                side,
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+              );
+            }
+            codes = await frameDecoder(
+              context.getImageData(0, 0, canvas.width, canvas.height),
+              controller.signal,
+              { sharpen: step === 1 },
+            );
+            controller.signal.throwIfAborted();
+          }
           if (codes.length) {
             try {
-              const qr = selectStudentQrV1(codes);
+              const qr = selectStudentQrV1([...new Set(codes)]);
               stop();
               setState('idle');
               onRead.current(qr);
@@ -256,7 +315,7 @@ export function StudentQrReaderV1({
             controller.signal.removeEventListener('abort', done);
             resolve();
           };
-          const timer = setTimeout(done, 300);
+          const timer = setTimeout(done, CAMERA_FRAME_GAP_MS_V1);
           controller.signal.addEventListener('abort', done, { once: true });
         });
       }
@@ -276,7 +335,7 @@ export function StudentQrReaderV1({
     const controller = new AbortController();
     operation.current = controller;
     try {
-      const qr = await readQrImageV1(file, controller.signal, decode);
+      const qr = await readQrImageV1(file, controller.signal, decode ?? decodeQrFrameV1);
       if (!controller.signal.aborted) {
         stop();
         setState('idle');
