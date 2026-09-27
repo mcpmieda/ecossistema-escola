@@ -504,3 +504,7 @@
   overflow: auto;
   font-size: 0.875rem;
 }
+.pa-bulk-dialog__edge {
+  width: min(100%, 40rem);
+  margin-inline: auto;
+}

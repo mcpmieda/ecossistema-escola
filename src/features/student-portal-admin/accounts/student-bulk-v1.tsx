@@ -142,7 +142,7 @@ export function StudentBulkV1({
         >
           <Modal.Container size="full">
             <Modal.Dialog aria-label={actions[action]} className="pa-bulk-dialog">
-              <Modal.Header>
+              <Modal.Header className="pa-bulk-dialog__edge">
                 <Modal.Heading>{actions[action]}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className="pa-bulk-dialog__body">
@@ -231,7 +231,7 @@ export function StudentBulkV1({
                   </p>
                 ) : null}
               </Modal.Body>
-              <Modal.Footer>
+              <Modal.Footer className="pa-bulk-dialog__edge">
                 {state.phase === 'loading' || state.phase === 'review' ? (
                   <Button variant="secondary" onPress={() => controller.current?.cancel()}>
                     Cancelar
