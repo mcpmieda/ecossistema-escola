@@ -11,11 +11,18 @@ export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
   LEFT JOIN LATERAL (SELECT min(class_id) AS class_id,min(class_name) AS class_name,count(*)::integer AS matches
     FROM student_portal.academic_binding_v1 WHERE student_id=a.gradebook_student_id AND academic_year=a.academic_year
       AND status IS DISTINCT FROM 6) b ON b.matches=1`;
+/** The admin lists and operations show only em curso, especial and estava no (owner decision,
+ * 26/09/2026): assistido (2), desistente (3), transferido (4) and falecido (5) are hidden. "Foi
+ * para" (6) is already history outside the class binding. Needs the `a` account alias.
+ */
+export const ENROLLED_ACCOUNT_SQL_V1 = `NOT EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 exit_b
+  WHERE exit_b.student_id=a.gradebook_student_id AND exit_b.academic_year=a.academic_year
+    AND exit_b.status IN (2,3,4,5))`;
 export const studentNameOrderSqlV1 = (value: string) =>
   `translate(lower(${value}),'áàâãäéèêëíìîïóòôõöúùûüç','aaaaaeeeeiiiiooooouuuuc') COLLATE "C"`;
 function accountFilter(query: AdminQueryV1, parameters: unknown[]): string {
   const bind = (value: unknown) => { parameters.push(value); return `$${parameters.length}`; };
-  const predicates = ['a.academic_year=2026'];
+  const predicates = ['a.academic_year=2026', ENROLLED_ACCOUNT_SQL_V1];
   if (query.scope.kind === 'account') predicates.push(`a.id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') predicates.push(`b.class_id=${bind(query.scope.classId)}`);
   if (query.accountState !== undefined) predicates.push(`a.auth_state=${bind(query.accountState)}`);

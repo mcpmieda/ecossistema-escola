@@ -5,7 +5,7 @@ import {
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
-import { ACCOUNT_JOIN_V1 } from './queries-v1';
+import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
 import type { AdminCursorV1 } from './cursor-v1';
 
@@ -22,7 +22,7 @@ function sessionScopeSqlV2(scope: AdminReadQueryV2['scope']) {
     values.push(value);
     return '$' + values.length;
   };
-  const where = ['a.academic_year=2026'];
+  const where = ['a.academic_year=2026', ENROLLED_ACCOUNT_SQL_V1];
   if (scope.kind === 'account') where.push('a.id=' + bind(scope.accountId) + '::uuid');
   if (scope.kind === 'class')
     where.push(`EXISTS (SELECT 1 FROM student_portal.academic_binding_v1 bb
