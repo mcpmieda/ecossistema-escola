@@ -35,7 +35,8 @@ describe('student shell and canonical profile', () => {
     expect(headings).toEqual(['Perfil do aluno', 'Minhas notas']);
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
-    expect(screen.getByText('2026')).toBeTruthy();
+    // The year chip was removed (owner review 27/09/2026).
+    expect(screen.queryByText('2026')).toBeNull();
     expect(screen.getByText('Em curso')).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
@@ -92,7 +93,7 @@ describe('student shell and canonical profile', () => {
       academicState: 'assisted' as const,
       result: 'not-applicable' as const,
     };
-    render(createElement(StudentProfileV1, { profile, updatedAt: 'not-a-date' }));
+    render(createElement(StudentProfileV1, { profile }));
     expect(screen.getByText(profile.name)).toBeTruthy();
     // No approved background-free photo: neither an image nor an initials stand-in.
     expect(screen.queryByText('ÉS')).toBeNull();
@@ -113,11 +114,6 @@ describe('student shell and canonical profile', () => {
     fireEvent.error(photo);
     expect(document.querySelector('.pa-hero-frame')).toBeNull();
     expect(document.querySelector('.pa-student-hero--no-portrait')).not.toBeNull();
-  });
-  it('exposes an optional real projection timestamp with an explicit school timezone', () => {
-    render(page({ showUpdatedAt: true }));
-    expect(document.querySelector('time')?.dateTime).toBe('2026-09-01T12:00:00.000Z');
-    expect(document.querySelector('time')?.textContent).toContain('09:00');
   });
   it('supports skip link, keyboard logout and explicit retry/login callbacks', async () => {
     const user = userEvent.setup();

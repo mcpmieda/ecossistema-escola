@@ -28,10 +28,12 @@ const score = (value: number, maximum: number) => ({
 });
 const absent = { kind: 'absent' as const };
 let nextAssessmentId = 910000;
+// In the example data the two assessments (columns R and S) are the ones named "Avaliação N".
 const partial = (label: string, value: number, maximum: number) => ({
   assessmentId: ++nextAssessmentId,
   label,
   mark: score(value, maximum),
+  ...(/^Avaliação \d/u.test(label) ? { assessment: true as const } : {}),
 });
 const notDone = (label: string) => ({
   assessmentId: ++nextAssessmentId,
@@ -251,6 +253,7 @@ const realSubject = (
     // A blank activity is an observed "não fez" (D1); a pending parallel exam is not.
     ...(value === null && activity !== PARALLEL_LABEL ? { notDone: true as const } : {}),
     ...(activity === PARALLEL_LABEL ? { parallel: true as const } : {}),
+    ...(activity === AV1_LABEL || activity === AV2_LABEL ? { assessment: true as const } : {}),
   }));
   const valueOf = (name: string) => activities.find(([activity]) => activity === name)?.[2] ?? null;
   const quantitative = (valueOf(AV1_LABEL) ?? 0) + (valueOf(AV2_LABEL) ?? 0);
@@ -265,6 +268,60 @@ const realSubject = (
 const AV1_LABEL = '1ª AVALIAÇÃO';
 const AV2_LABEL = 'SIMULADO';
 const PARALLEL_LABEL = 'Prova paralela';
+/*
+ * "Casos de tendência": one subject per case of the 2º-vs-1º trimester line (owner review
+ * 27/09/2026). Max 30 and minimum 18 (60%): blue from 18, amber below.
+ */
+const TREND_CASES_V1: readonly [label: string, t1: number, t2: number][] = [
+  ['1 AZUL QUE SUBIU', 20, 24],
+  ['2 AZUL QUE CAIU', 27, 21],
+  ['3 AZUL IGUAL', 22, 22],
+  ['4 AZUL QUE VIROU ÂMBAR', 22, 15],
+  ['5 ÂMBAR QUE CAIU MUITO', 16, 12],
+  ['5B ÂMBAR QUE CAIU POUCO', 16, 15],
+  ['6 ÂMBAR QUE SUBIU', 10, 15],
+  ['7 ÂMBAR IGUAL', 14, 14],
+  ['8 ÂMBAR QUE VIROU AZUL', 15, 20],
+  ['9 BRILHANTE', 26, 29],
+];
+let trendDataV1: typeof previewData | undefined;
+const trendPreviewData = () =>
+  (trendDataV1 ??= selfResponseV1.parse({
+    ...previewData,
+    subjects: TREND_CASES_V1.map(([label, t1, t2], order) => ({
+      subjectId: 930001 + order,
+      label,
+      order,
+      periods: [
+        term('T1', t1, [partial('Avaliação 1', Math.round((t1 / 3) * 2) / 2, 10), partial('Participação', 3, 3)]),
+        term('T2', t2, [partial('Avaliação 1', Math.round((t2 / 3) * 2) / 2, 10), partial('Participação', 3, 3)]),
+      ],
+    })),
+  }));
+/*
+ * "Como na produção": PORTUGUÊS and HISTÓRIA are red in the 1º trimestre, so ED. FÍSICA (29,5)
+ * earns no seal (owner decision 27/09/2026). The panel can simulate the teachers correcting both
+ * marks above the minimum, the only way the seal appears.
+ */
+const REAL_CORRECTED_T1_V1: Record<number, number> = { 910001: 19, 910003: 18.5 };
+const withRealCorrectionV1 = (data: typeof previewData, corrected: boolean) =>
+  corrected
+    ? {
+        ...data,
+        subjects: data.subjects.map((subject) =>
+          subject.subjectId in REAL_CORRECTED_T1_V1
+            ? {
+                ...subject,
+                periods: subject.periods.map((period) =>
+                  period.period === 'T1'
+                    ? { ...period, final: score(REAL_CORRECTED_T1_V1[subject.subjectId]!, 30) }
+                    : period,
+                ),
+              }
+            : subject,
+        ),
+      }
+    : data;
 const realPreviewData = selfResponseV1.parse({
   ...previewData,
   profile: { ...previewData.profile, classLabel: '7º ANO B' },
@@ -503,12 +560,14 @@ interface AdminSimulationV1 {
   hasPortrait: boolean;
   studentName: string;
   situation: AnnualSituationV1 | 'none';
-  dataset: 'real' | 'example';
+  dataset: 'real' | 'example' | 'trend';
   academicState: SelfResponseV1['profile']['academicState'];
   /** Two real students have a single published subject. */
   singleSubject: boolean;
   /** Portal notices (/api/student/status): release countdown or grades hidden again. */
   notice: 'none' | 'countdown' | 'ended';
+  /** "Como na produção": teachers corrected the two red T1 marks, so ED. FÍSICA earns its seal. */
+  correctedRed: boolean;
 }
 // Short (regular), long and extra-long names exercise the hero's type-size tiers. Production
 // names are all upper-case, 20–39 characters, 3–6 words; the first one mirrors that.
@@ -681,7 +740,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -695,9 +754,17 @@ function AdminSimulatorPanelV1({
         >
           <option value="real">Como na produção (7º ANO, só T1)</option>
           <option value="example">Exemplo completo (T1–T3 e REC)</option>
+          <option value="trend">Casos de tendência (2º vs 1º)</option>
         </select>
         <label>{toggle('singleSubject')} Só 1 disciplina</label>
       </div>
+      {value.dataset === 'real' ? (
+        <div style={rowStyle}>
+          <label>
+            {toggle('correctedRed')} Professores corrigiram PORTUGUÊS e HISTÓRIA (sem vermelhas no 1º tri)
+          </label>
+        </div>
+      ) : null}
       <div style={rowStyle}>
         <span style={{ opacity: 0.7 }}>Aviso:</span>
         <select
@@ -725,7 +792,7 @@ function AdminSimulatorPanelV1({
       <div style={rowStyle}>
         <label>{toggle('accessEnabled')} Acesso liberado</label>
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
-        <label>{toggle('showTermClosing')} Fechamento do trimestre</label>
+        <label>{toggle('showTermClosing')} Relatório do trimestre</label>
         <label>{toggle('termClosingConclusive')} Usar termos de conclusão</label>
         <label>{toggle('hasPortrait')} Foto do aluno</label>
       </div>
@@ -824,11 +891,16 @@ function PreviewAppV1() {
     academicState: 'regular',
     singleSubject: false,
     notice: 'none',
+    correctedRed: false,
   });
   const data = useMemo(
     () =>
       simulateAdminV1(
-        admin.dataset === 'real' ? realPreviewData : previewData,
+        admin.dataset === 'real'
+          ? withRealCorrectionV1(realPreviewData, admin.correctedRed)
+          : admin.dataset === 'trend'
+            ? trendPreviewData()
+            : previewData,
         admin.notice === 'countdown' ? { ...admin, periods: [] } : admin,
       ),
     [admin],

@@ -4,19 +4,15 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Skeleton } from '@heroui/react/skeleton';
-import { GraduationCap, LogOut } from 'lucide-react';
+import { GraduationCap, LogOut, Star } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import type { PortalLoadStateV1 } from '../shared/latest-request-v1';
 import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
+import { brilliantSealCountV1 } from '../grades/brilliant-seal-v1';
 import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
 
 export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
-const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
 const outcome = {
   'in-progress': { label: 'Em curso', color: 'default' },
   approved: { label: 'Aprovado', color: 'success' },
@@ -108,18 +104,29 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
   return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
 }
 
+/** Beside "Em curso": "★ 2 selos brilhantes". Only earned seals exist; none, nothing shown. */
+function SealCountV1({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <span className="pa-seal-count">
+      <Star size={13} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+      {count} {count === 1 ? 'selo' : 'selos'}
+      {/* Dropped visually on the narrowest phones so the counter stays beside the status chip. */}
+      <span className="pa-seal-count-word">{count === 1 ? ' brilhante' : ' brilhantes'}</span>
+    </span>
+  );
+}
+
 export function StudentProfileV1({
   profile,
-  updatedAt,
   schoolName = STUDENT_SCHOOL_NAME_V1,
   logo,
   onLogout,
   loggingOut = false,
   portraitSrc,
+  seals = 0,
 }: {
   profile: SelfResponseV1['profile'];
-  /** Optional projection timestamp; never an invented date or the last BN import. */
-  updatedAt?: string;
   schoolName?: string;
   logo?: ReactNode;
   onLogout?: () => void;
@@ -129,6 +136,8 @@ export function StudentProfileV1({
    * Must be same-origin (CSP img-src 'self'). Absent or failing to load → no portrait at all.
    */
   portraitSrc?: string;
+  /** Selos brilhantes collected this year (see grades/brilliant-seal-v1.ts). */
+  seals?: number;
 }) {
   const heading = useId();
   const [failedSrc, setFailedSrc] = useState<string>();
@@ -137,7 +146,6 @@ export function StudentProfileV1({
     profile.academicState === 'assisted'
       ? { label: 'ASSISTIDO', color: 'accent' as const }
       : outcome[profile.result];
-  const date = updatedAt ? new Date(updatedAt) : null;
 
   return (
     <header
@@ -195,12 +203,7 @@ export function StudentProfileV1({
               <Chip size="sm" variant="soft" color={status.color}>
                 {status.label}
               </Chip>
-              <span className="pa-hero-year">{profile.link.academicYear}</span>
-              {date && Number.isFinite(date.getTime()) ? (
-                <time className="pa-profile-time" dateTime={date.toISOString()}>
-                  Atualizado em {dateFormatter.format(date)}
-                </time>
-              ) : null}
+              <SealCountV1 count={seals} />
             </div>
           </div>
 
@@ -324,7 +327,6 @@ export interface StudentPagePropsV1
   status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
-  showUpdatedAt?: boolean;
   portraitSrc?: string;
 }
 
@@ -341,7 +343,6 @@ export function StudentPortalPageV1({
   status,
   onRetry,
   onLogin,
-  showUpdatedAt = false,
   portraitSrc,
   ...shell
 }: StudentPagePropsV1) {
@@ -379,7 +380,7 @@ export function StudentPortalPageV1({
     load.state === 'ready' ? (
       <StudentProfileV1
         profile={load.data.profile}
-        updatedAt={showUpdatedAt ? load.data.generatedAt : undefined}
+        seals={brilliantSealCountV1(load.data.subjects)}
         schoolName={shell.schoolName}
         logo={shell.logo}
         onLogout={shell.onLogout}

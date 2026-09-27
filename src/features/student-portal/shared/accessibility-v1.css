@@ -5,7 +5,6 @@
   .pa-admin-page,
   .pa-account-dialog,
   .pa-birth-dialog,
-  .pa-credentials-dialog,
   .pa-operations-dialog,
   .pa-qr-handoff,
   [role='dialog']:has(.pa-settings-review, .pa-publication-review)

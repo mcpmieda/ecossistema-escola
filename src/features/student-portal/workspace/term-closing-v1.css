@@ -1,4 +1,5 @@
-/* Fechamento do trimestre (#1132). Layout/tone only; the text comes from the shared catalog. */
+/* Relatório do trimestre (#1132). Layout/tone only; the text comes from the shared catalog.
+   Blue and amber only, the portal's two colours (27/09/2026). */
 .pa-closing,
 .pa-closing-summary {
   --pa-closing-accent: #1e40af;
@@ -14,9 +15,9 @@
 }
 .pa-closing--attention,
 .pa-closing-summary--attention {
-  --pa-closing-accent: #b45309;
-  --pa-closing-surface: #fffbeb;
-  --pa-closing-border: #fde68a;
+  --pa-closing-accent: #a32d2d;
+  --pa-closing-surface: #fdf6f6;
+  --pa-closing-border: #f5d6d6;
 }
 .pa-closing--point {
   --pa-closing-accent: #1e40af;
@@ -24,9 +25,9 @@
 }
 .pa-closing--good,
 .pa-closing-summary--good {
-  --pa-closing-accent: #15803d;
-  --pa-closing-surface: #f0fdf4;
-  --pa-closing-border: #bbf7d0;
+  --pa-closing-accent: #185fa5;
+  --pa-closing-surface: #f4f9fe;
+  --pa-closing-border: #d6e7f8;
 }
 .pa-closing-summary {
   margin: 1.1rem 0 0;

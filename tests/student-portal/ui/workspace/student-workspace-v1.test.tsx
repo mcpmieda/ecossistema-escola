@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentPortalWorkspaceV1 } from '../../../../src/features/student-portal/workspace/student-workspace-v1';
@@ -58,8 +58,9 @@ describe('student portal grade workspace', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
     // The trimester mark is shown once, heading the partials card.
     expect(screen.getAllByText('Sua nota do 1º trimestre')).toHaveLength(1);
-    expect(screen.getByText('Abaixo do esperado')).toBeTruthy();
-    expect(screen.getByText('Resultado oficial:', { exact: false })).toBeTruthy();
+    expect(screen.getByText('Não foi muito bem')).toBeTruthy();
+    // Only an official result earns a chip beside the title; this subject has none yet.
+    expect(screen.queryByText('Resultado oficial:', { exact: false })).toBeNull();
   });
 
   it('labels discipline partials with the granular Não fez / Tirou zero rule', async () => {
@@ -139,6 +140,36 @@ describe('student portal grade workspace', () => {
     expect(within(row('PARALELA PENDENTE')).queryByText('Foi uma segunda chance')).toBeNull();
   });
 
+  it('swipes to the next or previous discipline, never on a tab bar or a vertical scroll', async () => {
+    const data = gradesFixtureV1(false);
+    const [first, second] = [...data.subjects].sort((a, b) => a.order - b.order) as [
+      (typeof data.subjects)[number],
+      (typeof data.subjects)[number],
+    ];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const swipe = (target: Element, from: [number, number], to: [number, number]) => {
+      fireEvent.touchStart(target, { touches: [{ clientX: from[0], clientY: from[1] }] });
+      fireEvent.touchEnd(target, { changedTouches: [{ clientX: to[0], clientY: to[1] }] });
+    };
+    const heading = () => screen.getByRole('heading', { level: 2, name: /Disciplina sintética/u }).textContent;
+
+    // Right from the first discipline: nothing before it, no wrap.
+    swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
+    expect(heading()).toBe(first.label);
+    // Mostly vertical: a scroll, not a swipe.
+    swipe(screen.getByText('Sua nota do 1º trimestre'), [260, 200], [150, 420]);
+    expect(heading()).toBe(first.label);
+    // On the subject bar, which scrolls sideways itself.
+    swipe(screen.getByRole('tablist', { name: 'Trocar disciplina' }), [260, 150], [100, 150]);
+    expect(heading()).toBe(first.label);
+
+    swipe(screen.getByText('Sua nota do 1º trimestre'), [260, 300], [100, 305]);
+    expect(heading()).toBe(second.label);
+    swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
+    expect(heading()).toBe(first.label);
+  });
+
   it('keeps the chosen trimester across subjects, the Boletim tab on return and a reload', async () => {
     const data = gradesFixtureV1(false);
     const subjects = [...data.subjects].sort((a, b) => a.order - b.order);
@@ -155,7 +186,7 @@ describe('student portal grade workspace', () => {
       within(screen.getByRole('tablist', { name })).getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')!
         .textContent;
 
-    await user.click(screen.getByRole('tab', { name: 'II Trimestre' }));
+    await user.click(screen.getByRole('tab', { name: '2º Trimestre' }));
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     expect(selected('Períodos de ' + first.label)).toContain('2º Trimestre');
 
@@ -163,7 +194,7 @@ describe('student portal grade workspace', () => {
     expect(selected('Períodos de ' + second.label)).toContain('2º Trimestre');
 
     await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
-    expect(selected('Período das notas')).toBe('II Trimestre');
+    expect(selected('Período das notas')).toBe('2º Trimestre');
 
     // A reload restores the same place from the history entry.
     await user.click(screen.getByRole('option', { name: new RegExp(second.label, 'u') }));
@@ -213,20 +244,15 @@ describe('student portal grade workspace', () => {
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     const periods = screen.getByRole('tablist', { name: 'Períodos de ' + first.label });
 
-    expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
+    // The trend is a plain line under the status (option C, 27/09/2026), no button or tooltip.
+    expect(screen.queryByText(/em relação ao/u)).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[1]!);
-    const trend = screen.getByRole('button', { name: 'Subiu em relação ao 1º Trimestre' });
-    await user.click(trend);
-    expect(screen.getByRole('tooltip').textContent).toContain('A nota do 2º trimestre foi maior que a do 1º.');
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('tooltip')).toBeNull();
-    await user.click(trend);
-    await user.click(screen.getByRole('heading', { name: first.label }));
-    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(screen.getByText('Subiu em relação ao 1º')).toBeTruthy();
     await user.click(within(periods).getAllByRole('tab')[2]!);
-    expect(screen.getByRole('button', { name: 'Caiu em relação ao 2º Trimestre' })).toBeTruthy();
+    // Still above the minimum, so the drop reads "Porém caiu".
+    expect(screen.getByText('Porém caiu em relação ao 2º')).toBeTruthy();
     await user.click(within(periods).getAllByRole('tab')[3]!);
-    expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
+    expect(screen.queryByText(/em relação ao/u)).toBeNull();
   });
 
   it('omits the breakdown when the admin withholds partials, but says so when none exist', async () => {
@@ -366,7 +392,7 @@ describe('student portal grade workspace', () => {
   });
 });
 
-describe('Fechamento do trimestre summary on the Boletim', () => {
+describe('Relatório do trimestre summary on the Boletim', () => {
   const summary = (period: 'T1' | 'T2') => ({
     period,
     mode: 'conclusion' as const,
@@ -386,16 +412,16 @@ describe('Fechamento do trimestre summary on the Boletim', () => {
   it('shows a trimester summary only on its own tab', async () => {
     const data = { ...withT2(), closingSummary: summary('T2') };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'II Trimestre' }));
-    expect(await screen.findByText(/Fechamento do 2º trimestre/u)).toBeTruthy();
+    expect(screen.queryByText(/Relatório do 2º trimestre/u)).toBeNull();
+    await userEvent.setup().click(screen.getByRole('tab', { name: '2º Trimestre' }));
+    expect(await screen.findByText(/Relatório do 2º trimestre/u)).toBeTruthy();
   });
 
   it('uses the per-trimester summaries when the server sends them', async () => {
     const data = { ...withT2(), closingSummary: summary('T2'), closingSummaries: [summary('T1'), summary('T2')] };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    expect(screen.getByText(/Fechamento do 1º trimestre/u)).toBeTruthy();
-    expect(screen.queryByText(/Fechamento do 2º trimestre/u)).toBeNull();
+    expect(screen.getByText(/Relatório do 1º trimestre/u)).toBeTruthy();
+    expect(screen.queryByText(/Relatório do 2º trimestre/u)).toBeNull();
   });
 });
 

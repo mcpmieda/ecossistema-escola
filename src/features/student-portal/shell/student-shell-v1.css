@@ -306,29 +306,53 @@
   color: #dbeafe;
   filter: drop-shadow(0 2px 6px rgb(2 30 74 / 0.2));
 }
+/* The year's situation ("Em curso", official result) sits under the class (27/09/2026). */
 .pa-profile-meta {
-  display: none;
+  display: flex;
+  /* One line: the seal counter sits beside "Em curso" (owner request 27/09/2026). */
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
 }
-.pa-profile-meta [data-slot='base'] {
-  border-color: rgb(255 255 255 / 0.12);
-}
-.pa-hero-year {
+/* Selos brilhantes collected this year, beside "Em curso": a small gold ribbon. */
+.pa-seal-count {
   display: inline-flex;
   align-items: center;
-  min-height: 1.5rem;
-  padding-inline: 0.65rem;
-  border: 1px solid rgb(255 255 255 / 0.18);
+  flex: none;
+  gap: 0.25rem;
+  /* The height of HeroUI's small chip, so both read as one row. */
+  height: 1.375rem;
+  padding: 0 0.45rem;
+  white-space: nowrap;
+  border: 1px solid rgb(250 199 117 / 0.9);
   border-radius: 999px;
-  background: rgb(3 37 92 / 0.18);
-  color: rgb(239 246 255 / 0.94);
-  font-size: 0.72rem;
-  font-weight: 650;
-  backdrop-filter: blur(6px);
+  background: linear-gradient(120deg, #fde9b5, #fac775, #fde9b5);
+  color: #633806;
+  font-size: 0.7rem;
+  font-weight: 750;
+  box-shadow: 0 2px 8px -3px rgb(239 159 39 / 0.8);
 }
-.pa-profile-time {
-  color: rgb(219 234 254 / 0.8);
-  font-size: 0.72rem;
-  line-height: 1.45;
+.pa-seal-count-word {
+  white-space: pre;
+}
+@media (max-width: 370px) {
+  .pa-seal-count-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+.pa-seal-count svg {
+  color: #ba7517;
+}
+.pa-profile-meta .chip {
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  font-weight: 600;
 }
 .pa-hero-portrait {
   position: relative;
@@ -491,7 +515,7 @@
   .pa-student-hero {
     top: 0.35rem;
     width: calc(100% - 0.75rem);
-    min-height: 15.1rem;
+    min-height: 13.4rem;
     margin-top: 0.35rem;
     border-radius: 1.9rem;
     /* Portrait cover keeps the glass card and red accent behind the student photo. */
@@ -523,21 +547,19 @@
   .pa-hero-body {
     position: relative;
     display: block;
-    min-height: 10.35rem;
+    min-height: 9.2rem;
   }
   .pa-hero-copy {
-    width: 58%;
-    max-width: 14.25rem;
+    width: 51%;
     /* Bottom room = content-sheet overlap (2.15rem) + gap, so long (3-line) names grow the hero. */
-    padding: 1.2rem 0 3.45rem;
+    padding: 0.85rem 0 3.1rem;
   }
   .pa-hero-greeting {
     margin-bottom: 0.2rem;
     font-size: 0.58rem;
   }
   .pa-student-name {
-    max-width: 12ch;
-    font-size: clamp(1.55rem, 6.7vw, 1.8rem);
+    font-size: clamp(1.4rem, 6vw, 1.6rem);
     line-height: 0.99;
     letter-spacing: -0.045em;
     text-wrap: balance;
@@ -830,12 +852,17 @@
   -webkit-line-clamp: 3;
 }
 @media (max-width: 767px) {
+  /* Never under the portrait's glass arch: a long name takes a short extra line instead. */
+  .pa-student-name.pa-student-name--long,
+  .pa-student-name.pa-student-name--xlong {
+    max-width: 10.6rem;
+  }
   .pa-student-name.pa-student-name--long {
-    font-size: 1.45rem;
+    font-size: 1.06rem;
   }
   /* Up to 4 lines on phones: a real (≈50 character) name must never lose a surname. */
   .pa-student-name.pa-student-name--xlong {
-    font-size: 1.08rem;
+    font-size: 1rem;
     -webkit-line-clamp: 4;
   }
 }

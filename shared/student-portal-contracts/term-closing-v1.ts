@@ -77,7 +77,8 @@ export type TermClosingSummaryV1 = z.infer<typeof termClosingSummaryV1>;
 const ORDINAL_V1: Record<TermClosingPeriodV1, string> = { T1: '1º', T2: '2º', T3: '3º' };
 /** "Fechamento do 1º trimestre" (D10), or "Acompanhamento do 2º trimestre" in progress mode. */
 export const termClosingLabelV1 = (period: TermClosingPeriodV1, mode: TermClosingModeV1 = 'conclusion') =>
-  `${mode === 'progress' ? 'Acompanhamento' : 'Fechamento'} do ${ORDINAL_V1[period]} trimestre`;
+  // "Relatório" matches the admin tab name (Relatório de notas, 27/09/2026).
+  `${mode === 'progress' ? 'Acompanhamento' : 'Relatório'} do ${ORDINAL_V1[period]} trimestre`;
 
 /** Subject labels arrive upper-case from the BN; sentences use only the first letter capitalized. */
 export function subjectSentenceLabelV1(label: string): string {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1 } from 'react';
 import {
   Button,
   Card,
@@ -30,12 +30,14 @@ import {
   PenLine,
   Scale,
   Sparkles,
+  Star,
   TrendingDown,
   TrendingUp,
   TriangleAlert,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
+import { earnsSealV1 } from '../grades/brilliant-seal-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
 import { TermClosingCardV1, TermClosingSummaryCardV1 } from './term-closing-v1';
@@ -57,49 +59,52 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC3: 'REC 3º Trimestre',
 };
 const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
-  T1: 'I Trimestre',
-  T2: 'II Trimestre',
-  T3: 'III Trimestre',
+  T1: '1º Trimestre',
+  T2: '2º Trimestre',
+  T3: '3º Trimestre',
 };
 const resultLabels = {
   approved: 'Aprovado',
   failed: 'Reprovado',
   'failed-attendance': 'Reprovado por falta',
 } as const;
-type ToneV1 = 'default' | 'success' | 'warning' | 'danger';
+// 'failed' is a darker red than the 'danger' of Em recuperação (owner review 27/09/2026).
+type ToneV1 = 'default' | 'success' | 'danger' | 'failed';
+const chipColorV1 = (tone: ToneV1) => (tone === 'failed' ? 'danger' : tone);
+const chipToneClassV1 = (tone: ToneV1) => (tone === 'failed' ? 'pa-chip-failed' : undefined);
 /** Official BN/Council wording; the coarse `result` is only a fallback for legacy payloads. */
 const ANNUAL_SITUATION_LABELS_V1: Record<
   NonNullable<SelfResponseV1['profile']['annualSituation']>,
   { label: string; tone: ToneV1 }
 > = {
-  'in-recovery': { label: 'Em recuperação', tone: 'warning' },
+  'in-recovery': { label: 'Em recuperação', tone: 'danger' },
   // Not emitted any more (owner decision 2026-09-23); older payloads read as EM RECUPERAÇÃO.
-  'awaiting-council': { label: 'Em recuperação', tone: 'warning' },
+  'awaiting-council': { label: 'Em recuperação', tone: 'danger' },
   'approved-direct': { label: 'Aprovado direto', tone: 'success' },
   'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
   'approved-special': { label: 'Aprovado', tone: 'success' },
   'approved-by-council': { label: 'Aprovado pelo Conselho', tone: 'success' },
-  'failed-after-recovery': { label: 'Reprovado após recuperação', tone: 'danger' },
-  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'danger' },
-  'failed-repeat': { label: 'Reprovado', tone: 'danger' },
-  'failed-by-council': { label: 'Reprovado pelo Conselho', tone: 'danger' },
-  'failed-by-absence': { label: 'Reprovado por falta', tone: 'danger' },
+  'failed-after-recovery': { label: 'Reprovado após recuperação', tone: 'failed' },
+  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'failed' },
+  'failed-repeat': { label: 'Reprovado', tone: 'failed' },
+  'failed-by-council': { label: 'Reprovado pelo Conselho', tone: 'failed' },
+  'failed-by-absence': { label: 'Reprovado por falta', tone: 'failed' },
 };
 const SUBJECT_SITUATION_LABELS_V1: Record<
   NonNullable<SubjectV1['annualSituation']>,
   { label: string; tone: ToneV1 }
 > = {
-  'recovery-pending': { label: 'Em recuperação', tone: 'warning' },
+  'recovery-pending': { label: 'Em recuperação', tone: 'danger' },
   'approved-direct': { label: 'Aprovado direto', tone: 'success' },
   'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
-  'not-approved': { label: 'Não aprovado', tone: 'danger' },
-  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'danger' },
-  'failed-repeat': { label: 'Reprovado', tone: 'danger' },
+  'not-approved': { label: 'Não aprovado', tone: 'failed' },
+  'failed-no-show': { label: 'Reprovado por não comparecimento', tone: 'failed' },
+  'failed-repeat': { label: 'Reprovado', tone: 'failed' },
 };
 const finalResultLabelsV1 = {
   approved: { label: 'Aprovado', tone: 'success' },
-  failed: { label: 'Reprovado', tone: 'danger' },
-  'failed-attendance': { label: 'Reprovado por falta', tone: 'danger' },
+  failed: { label: 'Reprovado', tone: 'failed' },
+  'failed-attendance': { label: 'Reprovado por falta', tone: 'failed' },
 } as const;
 
 function subjectSituationV1(subject: SubjectV1): { label: string; tone: ToneV1 } | null {
@@ -107,12 +112,17 @@ function subjectSituationV1(subject: SubjectV1): { label: string; tone: ToneV1 }
   if (subject.officialOutcome)
     return {
       label: resultLabels[subject.officialOutcome],
-      tone: subject.officialOutcome === 'approved' ? 'success' : 'danger',
+      tone: subject.officialOutcome === 'approved' ? 'success' : 'failed',
     };
   return null;
 }
 type SummaryKeyV1 = PeriodIdV1 | 'REC';
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
+// Trimester marks read with one decimal at least: "27,0" (owner review 27/09/2026).
+const trimesterNumber = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 20,
+});
 const WORKSPACE_HISTORY_KEY_V1 = '__studentPortalWorkspaceV1';
 
 function subjectPeriodV1(subject: SubjectV1, period: PeriodIdV1) {
@@ -165,59 +175,59 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
   return left > right ? 'higher' : left < right ? 'lower' : 'equal';
 }
 
-function TrendIndicatorV1({ trend, period, reference }: { trend: TrendV1; period: PeriodIdV1; reference: PeriodIdV1 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLSpanElement>(null);
-  const messageId = useId();
+/**
+ * The comparison with the previous trimester as a short line (owner rules, 27/09/2026). Gentle with
+ * a student who reached the minimum, plain with one below it:
+ * - reached it: "Subiu em relação ao 1º" / "Porém caiu em relação ao 1º" / "Se manteve igual ao 1º";
+ * - below it: "Subiu, mas ainda precisa melhorar" / "Caiu em relação ao 1º" /
+ *   "Se manteve igual ao 1º, mas precisa melhorar";
+ * - "consideravelmente" only for a drop that worries: from the minimum to below it, or 10
+ *   percentage points or more (`drop`, in points of the trimester's maximum).
+ * The 3rd trimester is worth 40, so trends compare percentages, never raw marks.
+ */
+export function trendTextV1(
+  trend: TrendV1,
+  reference: PeriodIdV1,
+  current: boolean | null,
+  previous: boolean | null,
+  drop = 0,
+): string {
+  const ref = reference === 'T1' ? '1º' : '2º';
+  if (trend === 'higher')
+    return current === false ? 'Subiu, mas ainda precisa melhorar' : `Subiu em relação ao ${ref}`;
+  if (trend === 'equal')
+    return current === false
+      ? `Se manteve igual ao ${ref}, mas precisa melhorar`
+      : `Se manteve igual ao ${ref}`;
+  if (current === true) return `Porém caiu em relação ao ${ref}`;
+  const worrying = (current === false && previous === true) || drop >= 10;
+  return worrying ? `Caiu consideravelmente em relação ao ${ref}` : `Caiu em relação ao ${ref}`;
+}
+
+/** Percentage points lost from one trimester to the next (0 when it did not fall). */
+function trendDropV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): number {
+  if (!current?.maximum || !reference?.maximum) return 0;
+  return Math.max(0, (reference.value / reference.maximum - current.value / current.maximum) * 100);
+}
+
+function TrendLineV1({
+  trend,
+  reference,
+  current,
+  previous,
+  drop,
+}: {
+  trend: TrendV1;
+  reference: PeriodIdV1;
+  current: boolean | null;
+  previous: boolean | null;
+  drop: number;
+}) {
   const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
-  const verb = trend === 'higher' ? 'Subiu' : trend === 'lower' ? 'Caiu' : 'Manteve';
-  const label = `${verb} em relação ao ${PERIOD_LABELS_V1[reference]}`;
-  const comparison = trend === 'higher' ? 'maior' : trend === 'lower' ? 'menor' : 'igual';
-  const periodName = period === 'T2' ? '2º' : '3º';
-  const referenceName = reference === 'T1' ? '1º' : '2º';
-  const message = period === 'T2'
-    ? `A nota do ${periodName} trimestre foi ${trend === 'equal' ? 'igual à do' : `${comparison} que a do`} ${referenceName}.`
-    : `O desempenho do ${periodName} trimestre foi ${trend === 'equal' ? 'igual ao do' : `${comparison} que o do`} ${referenceName}.`;
-
-  useEffect(() => {
-    if (!open) return;
-    const dismissOutside = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const dismissEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    const timer = window.setTimeout(() => setOpen(false), 8000);
-    document.addEventListener('pointerdown', dismissOutside);
-    document.addEventListener('keydown', dismissEscape);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener('pointerdown', dismissOutside);
-      document.removeEventListener('keydown', dismissEscape);
-    };
-  }, [open]);
-
   return (
-    <span className="pa-trend-wrap" ref={rootRef}>
-      <button
-        type="button"
-        className={'pa-trend pa-trend--' + trend}
-        aria-label={label}
-        aria-expanded={open}
-        aria-controls={open ? messageId : undefined}
-        aria-describedby={open ? messageId : undefined}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <Icon size={17} strokeWidth={2.4} aria-hidden="true" />
-      </button>
-      {open ? (
-        <span className="pa-trend-message" id={messageId} role="tooltip">
-          {message}
-          <span className="pa-trend-timer" aria-hidden="true">
-            <span className="pa-trend-timer-fill" />
-          </span>
-        </span>
-      ) : null}
+    <span className={'pa-score-head-trend pa-score-head-trend--' + trend}>
+      <Icon size={15} strokeWidth={2.4} aria-hidden="true" />
+      {trendTextV1(trend, reference, current, previous, drop)}
     </span>
   );
 }
@@ -291,13 +301,11 @@ function SubjectIconV1({ label, size = 18, animated = false }: { label: string; 
 
 function PageIntroV1({
   icon,
-  eyebrow,
   title,
   aside,
   onBack,
 }: {
   icon: ReactNode;
-  eyebrow: string;
   title: string;
   aside?: ReactNode;
   onBack?: () => void;
@@ -318,7 +326,6 @@ function PageIntroV1({
       ) : null}
       <span aria-hidden="true">{icon}</span>
       <div>
-        <p className="pa-workspace-eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
       {aside ? <div className="pa-workspace-intro-aside">{aside}</div> : null}
@@ -393,14 +400,21 @@ function SummaryV1({
                   </p>
                 ) : null}
               </div>
-              <Chip size="sm" variant="soft" color={finalResult.tone}>
+              <Chip
+                size="sm"
+                variant="soft"
+                color={chipColorV1(finalResult.tone)}
+                className={chipToneClassV1(finalResult.tone)}
+              >
                 Oficial
               </Chip>
             </Card.Content>
           </Card>
         ) : null}
 
-        {available.length ? (
+        {/* One period only (e.g. just the 1º Trimestre released): no bar to choose from; the
+            heading names it instead. */}
+        {available.length > 1 ? (
           <Tabs
             className="pa-boletim-period-tabs"
             selectedKey={active}
@@ -428,6 +442,13 @@ function SummaryV1({
         <div className="pa-workspace-heading-row">
           <div>
             <h2 id="pa-summary-title">Minhas notas</h2>
+            {available.length === 1 ? (
+              <p className="pa-summary-period">
+                {active === 'REC'
+                  ? 'Recuperação'
+                  : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active])}
+              </p>
+            ) : null}
           </div>
           <Chip size="sm" color="accent" variant="soft">
             {published.length} {published.length === 1 ? 'disciplina' : 'disciplinas'}
@@ -458,18 +479,32 @@ function SummaryV1({
             // Below the minimum on this trimester: a soft red band runs from the icon to the mark.
             const below =
               active !== 'REC' && scoreOfV1(subjectPeriodV1(subject, active))?.meetsMinimum === false;
+            // A Brilhante trimester (95%+) earns a gold seal in the Boletim, to collect, unless
+            // any subject is red in that trimester; a missing seal is simply not shown.
+            const brilliant = active !== 'REC' && earnsSealV1(subjects, subject, active);
             return (
               <ListBox.Item
                 id={String(subject.subjectId)}
                 key={subject.subjectId}
                 textValue={subject.label}
               >
-                <span className={'pa-list-band' + (below ? ' pa-list-band--below' : '')}>
+                <span
+                  className={
+                    'pa-list-band' +
+                    (below ? ' pa-list-band--below' : '') +
+                    (brilliant ? ' pa-list-band--brilliant' : '')
+                  }
+                >
                 <SubjectIconV1 label={subject.label} />
                 <div className="pa-workspace-list-copy">
                   <Label>{subject.label}</Label>
                   {outcome ? (
-                    <Chip size="sm" variant="soft" color={outcome.tone} className="pa-list-outcome">
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color={chipColorV1(outcome.tone)}
+                      className={['pa-list-outcome', chipToneClassV1(outcome.tone)].filter(Boolean).join(' ')}
+                    >
                       <span className="pa-visually-hidden">Resultado oficial: </span>
                       {outcome.label}
                     </Chip>
@@ -482,14 +517,24 @@ function SummaryV1({
                         <span className="pa-recovery-mark-label">
                           {PERIOD_LABELS_V1[period.period].replace('REC ', '')}
                         </span>
-                        <strong><StudentMarkV1 mark={period.final} /></strong>
+                        <strong><StudentMarkV1 mark={period.final} oneDecimal /></strong>
                       </span>
                     ))}
                   </span>
                 ) : (
-                  <strong>
-                    <StudentMarkV1 mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }} />
-                  </strong>
+                  <>
+                    {brilliant ? (
+                      <span className="pa-seal" role="img" aria-label="Selo brilhante">
+                        <Star size={13} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+                      </span>
+                    ) : null}
+                    <strong>
+                      <StudentMarkV1
+                        mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }}
+                        oneDecimal
+                      />
+                    </strong>
+                  </>
                 )}
                 </span>
                 {/* Each row opens its discipline. */}
@@ -556,40 +601,57 @@ function PartialLabelV1({ label, feedback }: { label: string; feedback?: ReactNo
 /*
  * Tag under each activity, in four bands of the activity's own maximum (owner decision
  * 2026-09-27): below 40% Precisa melhorar, 40–59% Não foi muito bem, 60–79% Foi bem,
- * 80–100% Excelente. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
+ * 80–100% Excelente, and from 95% Brilhante — only for a trimester's mark and its two
+ * assessments (columns R and S), since other activities get full marks too often (42% in
+ * 2026) for it to mean anything. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
  * mark's colour; only the split inside each side is computed here, by exact cross-multiplication.
  * Não fez / Tirou zero already speak for themselves on the right, and a mark without a
  * classification or maximum gets nothing.
  */
-type PartialBandV1 = 'needs-work' | 'below' | 'good' | 'excellent';
-const PARTIAL_BANDS_V1: Record<PartialBandV1, { label: string; color: 'danger' | 'warning' | 'success' | 'default' }> = {
-  'needs-work': { label: 'Precisa melhorar', color: 'danger' },
-  below: { label: 'Não foi muito bem', color: 'warning' },
-  good: { label: 'Foi bem', color: 'success' },
-  excellent: { label: 'Excelente', color: 'default' },
+type PartialBandV1 = 'needs-work' | 'below' | 'good' | 'excellent' | 'brilliant';
+const PARTIAL_BANDS_V1: Record<PartialBandV1, { label: string }> = {
+  'needs-work': { label: 'Precisa melhorar' },
+  below: { label: 'Não foi muito bem' },
+  good: { label: 'Foi bem' },
+  excellent: { label: 'Excelente' },
+  brilliant: { label: 'Brilhante' },
 };
-function partialBandV1(partial: PartialV1): PartialBandV1 | null {
-  if (partial.notDone || partial.mark.kind !== 'score' || partial.mark.value === 0) return null;
-  const { value, maximum, meetsMinimum } = partial.mark;
+/** The band of any score: an activity, a trimester or a recovery. None without a classification. */
+function markBandV1(mark: PeriodV1['final'], brilliantAllowed = false): PartialBandV1 | null {
+  if (mark.kind !== 'score') return null;
+  const { value, maximum, meetsMinimum } = mark;
   if (meetsMinimum === null || !maximum) return null;
   const milli = (amount: number) => Math.round(amount * 1000);
-  // value / maximum >= 80%  ⇔  5·value >= 4·maximum;  < 40%  ⇔  5·value < 2·maximum.
+  // ≥ 95% ⇔ 20·value ≥ 19·maximum; ≥ 80% ⇔ 5·value ≥ 4·maximum; < 40% ⇔ 5·value < 2·maximum.
+  if (meetsMinimum && brilliantAllowed && milli(value) * 20 >= milli(maximum) * 19) return 'brilliant';
   if (meetsMinimum) return milli(value) * 5 >= milli(maximum) * 4 ? 'excellent' : 'good';
   return milli(value) * 5 < milli(maximum) * 2 ? 'needs-work' : 'below';
 }
+function partialBandV1(partial: PartialV1): PartialBandV1 | null {
+  if (partial.notDone || (partial.mark.kind === 'score' && partial.mark.value === 0)) return null;
+  return markBandV1(partial.mark, partial.assessment === true);
+}
 
-function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
+/**
+ * `calm`: the trimester mark is below the minimum, so an Excelente stays still — the celebration
+ * is kept for a trimester that went well (owner decision 2026-09-27). Brilhante always shines.
+ */
+function PartialFeedbackV1({ partial, calm }: { partial: PartialV1; calm: boolean }) {
   const band = partialBandV1(partial);
   if (!band) return null;
-  const { label, color } = PARTIAL_BANDS_V1[band];
+  const { label } = PARTIAL_BANDS_V1[band];
   return (
     <Chip
       size="sm"
       variant="soft"
-      color={color}
-      className={'pa-partial-feedback pa-partial-feedback--' + band}
+      className={
+        'pa-partial-feedback pa-partial-feedback--' + band + (calm && band === 'excellent' ? ' is-calm' : '')
+      }
+      data-band={band}
     >
-      {band === 'excellent' ? (
+      {band === 'brilliant' ? (
+        <Star className="pa-brilliant-star" size={11} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
+      ) : band === 'excellent' ? (
         <Sparkles className="pa-excellent-star" size={11} strokeWidth={2.4} aria-hidden="true" />
       ) : null}
       {label}
@@ -597,14 +659,57 @@ function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
   );
 }
 
-/** Status copy only restates the server's mark kind/classification; it never infers a result. */
-function periodStatusV1(period: PeriodV1 | undefined, recovery: boolean) {
+/**
+ * Status copy restates the server's mark kind and classification in the same four bands as the
+ * activities (owner decision 2026-09-27); it never infers a result.
+ */
+function periodStatusV1(period: PeriodV1 | undefined) {
   const final = period?.final;
-  if (!final || final.kind === 'absent') return 'Ainda não lançada';
-  if (final.kind === 'recovery-pending') return 'Aguardando nota';
-  if (final.kind !== 'score' || final.meetsMinimum === null) return 'Nota em análise';
-  if (final.meetsMinimum) return recovery ? 'Atingiu o mínimo' : 'Parabéns';
-  return 'Abaixo do esperado';
+  if (!final || final.kind === 'absent') return { label: 'Ainda não lançada', band: null };
+  if (final.kind === 'recovery-pending') return { label: 'Aguardando nota', band: null };
+  const band = markBandV1(final, true);
+  if (!band) return { label: 'Nota em análise', band: null };
+  return { label: PARTIAL_BANDS_V1[band].label, band };
+}
+
+/*
+ * Swipe between disciplines (owner request 27/09/2026): a clear horizontal flick on the discipline
+ * view opens the next (left) or previous (right) one, in the order of the subject bar; no wrap.
+ * Ignored when it starts on a tab bar (they scroll sideways themselves), on a control, or near the
+ * screen edges (the browser's own back gesture), and when the finger moved mostly vertically.
+ */
+const SWIPE_MIN_PX_V1 = 60;
+const SWIPE_EDGE_PX_V1 = 24;
+const SWIPE_MAX_MS_V1 = 700;
+function useSubjectSwipeV1(onSwipe: (step: 1 | -1) => void) {
+  const start = useRef<{ x: number; y: number; at: number } | null>(null);
+  return {
+    onTouchStart: (event: ReactTouchEventV1) => {
+      const touch = event.touches[0];
+      const target = event.target as HTMLElement;
+      start.current =
+        event.touches.length === 1 &&
+        touch &&
+        touch.clientX > SWIPE_EDGE_PX_V1 &&
+        touch.clientX < window.innerWidth - SWIPE_EDGE_PX_V1 &&
+        !target.closest('[role="tablist"], button, a, input, label, [role="switch"]')
+          ? { x: touch.clientX, y: touch.clientY, at: Date.now() }
+          : null;
+    },
+    onTouchEnd: (event: ReactTouchEventV1) => {
+      const from = start.current;
+      start.current = null;
+      const touch = event.changedTouches[0];
+      if (!from || !touch || Date.now() - from.at > SWIPE_MAX_MS_V1) return;
+      const dx = touch.clientX - from.x;
+      const dy = touch.clientY - from.y;
+      if (Math.abs(dx) < SWIPE_MIN_PX_V1 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      onSwipe(dx < 0 ? 1 : -1);
+    },
+    onTouchCancel: () => {
+      start.current = null;
+    },
+  };
 }
 
 function SubjectV1View({
@@ -664,22 +769,32 @@ function SubjectV1View({
     : null;
   // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
   const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
+  // Only an official result earns a chip here; "Em curso" lives under the class in the hero.
   const official = subjectSituationV1(subject);
-  const result = official?.label ?? 'Em curso';
-  const resultColor = official?.tone ?? 'default';
+  const swipe = useSubjectSwipeV1((step) => {
+    const index = subjects.findIndex((item) => item.subjectId === subject.subjectId);
+    const next = subjects[index + step];
+    if (index >= 0 && next) onSubjectChange(next.subjectId);
+  });
 
   return (
-    <div className="pa-workspace-view">
+    <div className="pa-workspace-view" {...swipe}>
       <PageIntroV1
         icon={<SubjectIconV1 label={subject.label} size={20} animated />}
         onBack={onBack}
-        eyebrow="Disciplina"
         title={subject.label}
         aside={
-          <Chip size="sm" variant="soft" color={resultColor}>
-            <span className="pa-visually-hidden">Resultado oficial: </span>
-            {result}
-          </Chip>
+          official ? (
+            <Chip
+              size="sm"
+              variant="soft"
+              color={chipColorV1(official.tone)}
+              className={chipToneClassV1(official.tone)}
+            >
+              <span className="pa-visually-hidden">Resultado oficial: </span>
+              {official.label}
+            </Chip>
+          ) : undefined
         }
       />
 
@@ -710,15 +825,22 @@ function SubjectV1View({
           onSelect(next);
         }}
       >
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className={available.length > 1 ? undefined : 'pa-visually-hidden'}>
           <Tabs.List aria-label={'Períodos de ' + subject.label}>
             {/* Each period tab carries its own final mark, so the evolution reads at a glance. */}
             {available.map((item) => (
               <Tabs.Tab id={item} key={item} className="pa-period-tab">
                 <span className="pa-period-tab-label">{PERIOD_LABELS_V1[item]}</span>
-                <span className="pa-period-tab-mark">
-                  <StudentMarkV1 mark={subjectPeriodV1(subject, item)?.final ?? { kind: 'absent' }} />
-                </span>
+                {/* The chosen trimester's mark heads the card below; the others stay here so a
+                    parent can compare (owner review 27/09/2026). */}
+                {item === active ? null : (
+                  <span className="pa-period-tab-mark">
+                    <StudentMarkV1
+                      mark={subjectPeriodV1(subject, item)?.final ?? { kind: 'absent' }}
+                      oneDecimal
+                    />
+                  </span>
+                )}
                 <Tabs.Indicator />
               </Tabs.Tab>
             ))}
@@ -735,32 +857,58 @@ function SubjectV1View({
               (periodMotion ? ' pa-tab-motion pa-tab-motion--' + periodMotion : '')
             }
           >
-            <Card.Content className="pa-score-card-content">
-              <div className="pa-score-card-copy">
-                <span className="pa-score-card-label">
-                  {recoveryOf
-                    ? `Recuperação do ${recoveryOf}`
-                    : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
+            <Card.Content
+              className={
+                'pa-score-head' + (periodStatusV1(period).band === 'brilliant' ? ' pa-score-head--brilliant' : '')
+              }
+            >
+              {periodStatusV1(period).band === 'brilliant' ? (
+                // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
+                <span className="pa-head-sparkles" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
                 </span>
-              </div>
-              {/* The status (Parabéns, Abaixo do esperado...) sits beside the heading. */}
-              <div className="pa-score-card-result">
-              <div className="pa-score-card-value" aria-label="Nota do período">
-                {mark ? (
-                  <>
-                    {trend && trendReference ? (
-                      <TrendIndicatorV1 key={`${subject.subjectId}:${active}`} trend={trend} period={active} reference={trendReference} />
+              ) : null}
+              <span className="pa-score-head-label">
+                {recoveryOf
+                  ? `Recuperação do ${recoveryOf}`
+                  : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
+              </span>
+              <div className="pa-score-head-row">
+                <div className="pa-score-head-mark" aria-label="Nota do período">
+                  {mark ? (
+                    <>
+                      <strong>{trimesterNumber.format(mark.value)}</strong>
+                      {mark.maximum !== null && mark.maximum !== undefined ? (
+                        <span>de {number.format(mark.maximum)} pontos</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <strong>
+                      <StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} />
+                    </strong>
+                  )}
+                </div>
+                <div className="pa-score-head-copy">
+                  <span className="pa-score-head-status" data-band={periodStatusV1(period).band ?? undefined}>
+                    {periodStatusV1(period).band === 'brilliant' ? (
+                      <Star className="pa-brilliant-star" size={16} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
                     ) : null}
-                    <strong>{number.format(mark.value)}</strong>
-                    {mark.maximum !== null && mark.maximum !== undefined ? (
-                      <span>/ {number.format(mark.maximum)}</span>
-                    ) : null}
-                  </>
-                ) : (
-                  <strong><StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} /></strong>
-                )}
-              </div>
-              <span className="pa-score-card-status">{periodStatusV1(period, Boolean(recoveryOf))}</span>
+                    {periodStatusV1(period).label}
+                  </span>
+                  {trend && trendReference ? (
+                    <TrendLineV1
+                      trend={trend}
+                      reference={trendReference}
+                      current={mark?.meetsMinimum ?? null}
+                      previous={scoreOfV1(subjectPeriodV1(subject, trendReference))?.meetsMinimum ?? null}
+                      drop={trendDropV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))}
+                    />
+                  ) : null}
+                </div>
               </div>
             </Card.Content>
             {/* No `partials` key means the admin did not release the breakdown (showPartials off):
@@ -781,7 +929,7 @@ function SubjectV1View({
                             label={partial.label}
                             feedback={
                               <>
-                                <PartialFeedbackV1 partial={partial} />
+                                <PartialFeedbackV1 partial={partial} calm={mark?.meetsMinimum === false} />
                                 {/* A taken parallel exam (a score, zero included) was a second chance. */}
                                 {partial.parallel && partial.mark.kind === 'score' ? (
                                   <span className="pa-partial-second-chance">
@@ -804,7 +952,10 @@ function SubjectV1View({
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
                             ) : (
-                              <StudentMarkV1 mark={partial.mark} showMaximum />
+                              // The mark pill wears its band colour, like the tag beside it.
+                              <span className="pa-mark-band" data-band={partialBandV1(partial) ?? undefined}>
+                                <StudentMarkV1 mark={partial.mark} showMaximum />
+                              </span>
                             )}
                           </strong>
                         </li>
@@ -906,11 +1057,13 @@ export function StudentPortalWorkspaceV1({
   };
 
   /** A new place (area or subject) gets its own Back step. */
-  const go = (patch: Partial<WorkspaceEntryV1>) => {
+  const go = (patch: Partial<WorkspaceEntryV1>, direction?: 'forward' | 'back') => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'push');
-    applyEntry(entry);
+    applyEntry(entry, direction);
   };
+  /** Another discipline slides in from the side it sits on in the subject bar. */
+  const orderOf = (subjectId: number) => subjects.findIndex((subject) => subject.subjectId === subjectId);
   /** A tab inside the same place only updates the current step. */
   const remember = (patch: Partial<WorkspaceEntryV1>) => {
     const entry = { ...current, ...patch };
@@ -984,7 +1137,12 @@ export function StudentPortalWorkspaceV1({
               subject={selectedSubject}
               subjects={subjects}
               // Switching subjects keeps the trimester being read.
-              onSubjectChange={(subjectId) => go({ area: 'subject', subjectId })}
+              onSubjectChange={(subjectId) =>
+                go(
+                  { area: 'subject', subjectId },
+                  orderOf(subjectId) < orderOf(selectedSubject.subjectId) ? 'back' : 'forward',
+                )
+              }
               onBack={() => go({ area: 'summary', subjectId: selectedSubject.subjectId })}
               selected={subjectPeriod}
               onSelect={(period) => remember({ period })}

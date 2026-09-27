@@ -38,6 +38,9 @@ export const subjectV1 = z
                     notDone: z.literal(true).optional(),
                     // The parallel exam (slot 3), whatever the teacher named it.
                     parallel: z.literal(true).optional(),
+                    // The trimester's two assessments (columns R and S, slots 1 and 2), whatever
+                    // names the Banco de Notas settings give them.
+                    assessment: z.literal(true).optional(),
                   })
                   .strict()
                   .refine(
