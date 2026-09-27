@@ -26,6 +26,7 @@ import { normalizeCalendarV1 } from './calendar-v1';
 
 const FIELDS = [
   'accessEnabled',
+  'accessSchedule',
   'showPartials',
   'autoUpdate',
   'showFinalResult',
@@ -36,8 +37,8 @@ const FIELDS = [
   'calendar',
 ] as const;
 type Field = (typeof FIELDS)[number];
-/** Added by migration 0020 (#1132). Until it exists the school row may be absent and reads as off. */
-const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing', 'termClosingConclusive'];
+/** Added by migrations 0020 (#1132) and 0021 (schedules). Absent school rows read as off / none. */
+const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing', 'termClosingConclusive', 'accessSchedule'];
 const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.length;
 const schoolFieldCountValidV1 = (count: number) =>
   count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
@@ -228,7 +229,7 @@ export async function resolvePolicySnapshotRowsV1(
   const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
   return {
     settings,
-    enforcedValue: enforceSchoolAccessV1(settings.value, settingsValueV1.parse(schoolValueV1(school))),
+    enforcedValue: enforceSchoolAccessV1(settings, settingsValueV1.parse(schoolValueV1(school))),
     classId,
     epoch,
     policyVersion: `policy:${await hash({ settings, classId })}`,
@@ -301,6 +302,15 @@ async function applySettingsSetV1(
     const value =
       field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
     const previous = stored.find((row) => row.field_key === field);
+    if (field === 'accessSchedule' && value === null) {
+      // No schedule is kept as no row, so levels without one never need migration 0021.
+      if (!previous) continue;
+      if (!command.acknowledgeImmediateEffect)
+        throw new Error('student-portal-policy-immediate-confirmation-required');
+      await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2', [key(scope), field]);
+      changed = true;
+      continue;
+    }
     if (storedMatchesV1(previous, value, scope)) continue;
     const immediate =
       field !== 'calendar' || immediateCalendarChange(previousCalendar, value, now.getTime());
@@ -438,7 +448,8 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       );
       if (rows.length === 0) {
         const defaults = initialPolicyDefaultsV1();
-        for (const field of FIELDS) await writeField(tx, SCHOOL, field, defaults[field], 1);
+        for (const field of FIELDS)
+          if (defaults[field] !== null) await writeField(tx, SCHOOL, field, defaults[field], 1);
       }
       return this.readSnapshotInTransaction(tx, SCHOOL);
     });

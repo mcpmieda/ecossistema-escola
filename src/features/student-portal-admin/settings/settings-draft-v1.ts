@@ -12,7 +12,11 @@ export const RISK_LABELS_V1 = {
 } as const;
 export type RiskDraftV1 = Record<keyof typeof RISK_LABELS_V1, string>;
 export type SettingsDraftV1 =
-  boolean | EffectiveSettingsV1['value']['allowedPeriods'] | RiskDraftV1 | CalendarDraftV1;
+  | boolean
+  | EffectiveSettingsV1['value']['allowedPeriods']
+  | RiskDraftV1
+  | CalendarDraftV1
+  | NonNullable<EffectiveSettingsV1['value']['accessSchedule']>;
 export function settingsDraftV1(
   field: SettingsFieldV1,
   value: EffectiveSettingsV1['value'],
@@ -23,6 +27,8 @@ export function settingsDraftV1(
       Object.entries(value.risk).map(([key, number]) => [key, String(number)]),
     ) as RiskDraftV1;
   if (field === 'allowedPeriods') return [...value.allowedPeriods];
+  // Edited with the switch on the access card (access-plan-v1); never on its own.
+  if (field === 'accessSchedule') return [...(value.accessSchedule ?? [])];
   return value[field];
 }
 export function parseSettingsDraftV1(field: SettingsFieldV1, draft: SettingsDraftV1) {

@@ -186,8 +186,9 @@ export function DateInputV1({
     </I18nProvider>
   );
 }
+// Opening and closing the Portal moved to Acesso (agendamentos). Older access dates stay stored
+// untouched in the calendar, and still apply to a level that never saved its access card.
 const DATE_GROUPS: { label: string; keys: CalendarDateKeyV1[] }[] = [
-  { label: 'Quando o aluno pode entrar', keys: ['accessStartsAt', 'accessEndsAt'] },
   {
     label: 'Ano letivo e trimestres',
     keys: [
@@ -253,25 +254,19 @@ export function CalendarEditorV1({
         <div className="pa-calendar-zone">
           <span>Horário de Brasília</span>
           <InfoV1 label="Sobre os horários">
-            Início incluído. No horário de encerramento, o acesso ao período termina. Campo vazio
-            não define uma data. Sem datas específicas de acesso, valem o início e o fim do ano
-            letivo. O botão Acesso ao Portal precisa estar ativado; agendar notas não abre o Portal.
+            Início incluído. No horário de encerramento, o período termina. Campo vazio não define
+            uma data. Abrir e fechar o Portal fica em Acesso; agendar notas não abre o Portal.
           </InfoV1>
         </div>
       ) : null}
       <Wrapper
         className="pa-calendar-sections"
         {...(compact
-          ? { allowsMultipleExpanded: true, defaultExpandedKeys: ['Quando o aluno pode entrar'] }
+          ? { allowsMultipleExpanded: true, defaultExpandedKeys: ['Ano letivo e trimestres'] }
           : {})}
       >
         {DATE_GROUPS.map((group) => (
           <CalendarSectionV1 key={group.label} label={group.label} compact={compact}>
-            {group.label === 'Quando o aluno pode entrar' ? (
-              <p className="pa-settings-hint">
-                Sem datas próprias, valem o início e o fim do ano letivo.
-              </p>
-            ) : null}
             <div className="pa-settings-grid">
               {group.keys.map((key) => (
                 <DateInputV1
@@ -522,7 +517,12 @@ export function SettingsValueSummaryV1({
         <p className="text-xs text-muted">Horário de Brasília</p>
         <dl className="pa-settings-summary">
           {Object.entries(CALENDAR_LABELS_V1)
-            .filter(([key]) => calendar[key as CalendarDateKeyV1] != null)
+            .filter(
+              ([key]) =>
+                key !== 'accessStartsAt' &&
+                key !== 'accessEndsAt' &&
+                calendar[key as CalendarDateKeyV1] != null,
+            )
             .map(([key, label]) => (
               <div key={key}>
                 <dt>{label}</dt>
@@ -564,6 +564,18 @@ export function SettingsValueSummaryV1({
           )}
         </dl>
       </div>
+    );
+  }
+  if (field === 'accessSchedule') {
+    const schedule = (value as EffectiveSettingsV1['value']['accessSchedule']) ?? [];
+    return (
+      <p>
+        {schedule.length
+          ? schedule
+              .map((event) => `${event.action === 'open' ? 'Abrir' : 'Fechar'} em ${dateLabel(event.at)}`)
+              .join(' · ')
+          : 'Nenhum agendamento'}
+      </p>
     );
   }
   return (

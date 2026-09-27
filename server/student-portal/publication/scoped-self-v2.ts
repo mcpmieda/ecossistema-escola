@@ -6,7 +6,7 @@ import {
 import { academicVersionSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import { compareSourceSubjectPresentationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../academic/academic-reader-v1';
-import { applyPublishedVisibilityV1 } from '../policies/calendar-v1';
+import { accessGateV1, applyPublishedVisibilityV1 } from '../policies/calendar-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import type { publicationContextV1 } from './self-projection-reader-v1';
 import { dataVectorV1, PERIODS_V1, publicationDigestV1 } from './state-v1';
@@ -259,11 +259,11 @@ async function closingSourceV2(
 export async function termClosingPreviewV2(tx: StudentPortalPostgresQueryV1, context: ContextV2) {
   const value = settingsValueV1.parse(context.policy.enforcedValue);
   const targets = termClosingTargetsV1(
-    { ...value, showTermClosing: true, accessEnabled: true },
+    { ...value, showTermClosing: true, accessEnabled: true, accessSchedule: null },
     context.profile.academicState,
     context.now,
   );
-  const visibleToStudent = value.showTermClosing && value.accessEnabled && targets.periods.length > 0;
+  const visibleToStudent = value.showTermClosing && accessGateV1(value, context.now) && targets.periods.length > 0;
   const source = targets.periods.length
     ? await closingSourceV2(tx, context, new AcademicStudentReaderPostgresV1(tx), new Map())
     : null;

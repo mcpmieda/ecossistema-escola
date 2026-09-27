@@ -6,7 +6,7 @@ import { opaqueV1, scopeV1, versionV1, type ScopeV1 } from '../../../shared/stud
 import { sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
-import { sessionExpiryV1 } from '../policies/calendar-v1';
+import { accessEndV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { readPortalSnapshotV2 } from './read-snapshot-v2';
 import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, accountTransactionV1, type AccessContextV1 } from './transaction-v1';
 
@@ -116,8 +116,7 @@ export class SessionServiceV1 {
       const tokenEnd = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000);
       if (tokenEnd <= context.now.getTime()) return null;
       if (!context.accessOpen) return { state: 'access-closed' };
-      const end = Math.min(tokenEnd,
-        Date.parse((context.policy.enforcedValue.calendar.accessEndsAt ?? context.policy.enforcedValue.calendar.yearEndsAt)!));
+      const end = Math.min(tokenEnd, accessEndV1(context.policy.enforcedValue, context.now));
       if (end <= context.now.getTime()) return null;
       return { state: 'ready', value: await operation(context, tx, { id: z.uuid().parse(row.id), expiresAt: new Date(end).toISOString(), persistent }) };
     });

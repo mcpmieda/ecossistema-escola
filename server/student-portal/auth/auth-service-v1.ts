@@ -29,6 +29,7 @@ import {
   type AccessContextV1,
 } from './transaction-v1';
 import { createSessionV1 } from './session-service-v1';
+import { accessEndV1 } from '../policies/calendar-v1';
 import type { RiskVerifierV1 } from './turnstile-v1';
 
 const denied = (requestId: string): FailureV1 => ({
@@ -396,7 +397,7 @@ export class AuthServiceV1 {
       const expiresAt = new Date(
         Math.min(
           context.now.getTime() + context.policy.enforcedValue.risk.challengeTtlSeconds * 1000,
-          Date.parse((context.policy.enforcedValue.calendar.accessEndsAt ?? context.policy.enforcedValue.calendar.yearEndsAt)!),
+          accessEndV1(context.policy.enforcedValue, context.now),
         ),
       ).toISOString();
       if (Date.parse(expiresAt) <= context.now.getTime())

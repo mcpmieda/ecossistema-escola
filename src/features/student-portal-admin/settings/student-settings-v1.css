@@ -353,3 +353,110 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Entrada no Portal: switch (state now), agendamentos and a plain "Como funciona". */
+.pa-access {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.pa-access-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.pa-access-status--open {
+  border-color: color-mix(in oklab, var(--success) 45%, transparent);
+  background: var(--success-soft);
+  color: var(--success-soft-foreground);
+}
+.pa-access-status--closed {
+  border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+  background: var(--warning-soft);
+  color: var(--warning-soft-foreground);
+}
+.pa-access-status-title {
+  margin: 0;
+  font-weight: 650;
+}
+.pa-access-status-next {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+}
+.pa-access-schedule h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.pa-access-rows {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-access-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(0, 18rem) auto;
+  align-items: end;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.pa-access-row > * {
+  min-width: 0;
+}
+.pa-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.pa-access-help {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary, color-mix(in oklab, var(--foreground) 4%, transparent));
+  font-size: 0.8rem;
+}
+.pa-access-help-title {
+  margin: 0 0 0.35rem;
+  font-weight: 650;
+}
+.pa-access-help ul,
+.pa-access-summary ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.pa-access-summary p {
+  margin: 0 0 0.35rem;
+}
+@media (max-width: 40rem) {
+  .pa-access-status {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .pa-access-switch {
+    grid-column: 1 / -1;
+  }
+  .pa-access-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pa-access-row > .pa-access-action {
+    grid-column: 1 / -1;
+  }
+}
+.pa-access-summary .pa-access-consequence {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--warning-soft);
+  color: var(--warning-soft-foreground);
+  font-weight: 600;
+}

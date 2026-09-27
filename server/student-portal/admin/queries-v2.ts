@@ -12,6 +12,7 @@ import {
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1 } from './common-v1';
+import { accessEndV1 } from '../policies/calendar-v1';
 import {
   ACCOUNT_JOIN_V1,
   ENROLLED_ACCOUNT_SQL_V1,
@@ -89,14 +90,17 @@ export async function readAdminV2(
   for (const row of selected) {
     const { item, policy, securityVersion } = await accountReadContextV2(row, now);
     items.push(item);
-    if (item.access.accessPermitted && item.state === 'active' && policy)
+    if (item.access.accessPermitted && item.state === 'active' && policy) {
+      const end = accessEndV1(policy.enforcedValue, now);
       sessionPolicies.push({
         id: item.accountId,
         security: securityVersion,
-        end: (policy.enforcedValue.calendar.accessEndsAt ?? policy.enforcedValue.calendar.yearEndsAt)!,
+        // No scheduled close: timestamptz 'infinity' keeps LEAST() on the other limits.
+        end: Number.isFinite(end) ? new Date(end).toISOString() : 'infinity',
         persistent: policy.enforcedValue.risk.persistentSeconds,
         short: policy.enforcedValue.risk.shortSeconds,
       });
+    }
   }
   if (sessionPolicies.length > 0) {
     const sessions = await tx.unsafe(

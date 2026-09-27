@@ -11,6 +11,7 @@ export const SETTINGS_CLASS_V1 = { kind: 'class', academicYear: 2026, classId: 9
 export function settingsFixtureV1(scope: ScopeV1 = SETTINGS_SCHOOL_V1): EffectiveSettingsV1 {
   const value = {
     accessEnabled: false,
+    accessSchedule: null,
     showPartials: false,
     autoUpdate: false,
     showFinalResult: false,

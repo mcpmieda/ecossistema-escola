@@ -57,22 +57,25 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0020_term_closing_policy_v1.sql');
+    // 0021 (agendamentos de acesso) is in the tree and applied after its Worker deploy; the
+    // production schema stays recorded at 0020 until its postflight.
+    const applied = '0020_term_closing_policy_v1.sql';
+    expect(latest).toBe('0021_access_schedule_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0020-applied-after-worker-deploy',
+        student_portal_candidate_migrations_status: '0021-pending-after-worker-deploy',
       },
       student_portal_integration: {
-        schema_migration_file: latest,
+        schema_migration_file: applied,
         schema_migration_production_version: 20260923193137,
         schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
-      student_portal_schema_latest_migration: latest,
+      student_portal_schema_latest_migration: applied,
       student_portal_schema_production_version: 20260923193137,
       student_portal_schema_table_count: 27,
       recovery_1101: {
