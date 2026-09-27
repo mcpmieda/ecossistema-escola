@@ -1,6 +1,6 @@
 import { compareSourceSubjectPresentationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
-import { periodDisclosureV1 } from '../policies/calendar-v1';
+import { accessGateV1, periodDisclosureV1 } from '../policies/calendar-v1';
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import {
   TERM_CLOSING_PERIODS_V1,
@@ -39,7 +39,7 @@ export function termClosingTargetsV1(
 ): TermClosingTargetsV1 {
   const value = settingsValueV1.parse(policy);
   const mode: TermClosingModeV1 = value.termClosingConclusive ? 'conclusion' : 'progress';
-  if (!value.showTermClosing || !value.accessEnabled || academicState !== 'regular') return { mode, periods: [] };
+  if (!value.showTermClosing || !accessGateV1(value, now) || academicState !== 'regular') return { mode, periods: [] };
   const at = (raw: string | null | undefined) => (raw && Number.isFinite(Date.parse(raw)) ? Date.parse(raw) : null);
   const ended = (period: TermClosingPeriodV1) => {
     const end = at(value.calendar[END_FIELD_V1[period]]);

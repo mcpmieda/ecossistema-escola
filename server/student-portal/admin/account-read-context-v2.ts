@@ -5,7 +5,7 @@ import {
   resolveEligibilityV1,
 } from '../../../shared/gradebook-contracts/student-portal/eligibility-v1';
 import { resolvePolicySnapshotRowsV1 } from '../policies/policy-service-v1';
-import { sessionExpiryV1 } from '../policies/calendar-v1';
+import { accessGateV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { adminInstantV1 } from './common-v1';
 
 /** Shared bounded account/policy snapshot; never a second academic rule. */
@@ -83,7 +83,7 @@ export async function accountReadContextV2(row: Record<string, unknown>, now: Da
       sessionExpiryV1(policy.enforcedValue, now, false) !== null;
     access = {
       state: 'resolved',
-      enabled: policy.enforcedValue.accessEnabled,
+      enabled: accessGateV1(policy.enforcedValue, now),
       source: policy.settings.sources.accessEnabled,
       settingsVersion: policy.settings.version,
       accessPermitted,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { instantV1, periodV1, scopeV1, versionV1 } from './core-v1';
+import { accessScheduleV1 } from './access-schedule-v1';
 
 const seconds = z.number().int().min(60).max(31_536_000);
 export const riskPolicyV1 = z
@@ -117,6 +118,9 @@ export const calendarV1 = z
 export const settingsValueV1 = z
   .object({
     accessEnabled: z.boolean(),
+    // Scheduled Abrir/Fechar for this level (access-schedule-v1). null: the older access window
+    // in the Calendário still applies. Saved together with accessEnabled, as one unit.
+    accessSchedule: accessScheduleV1.nullable(),
     showPartials: z.boolean(),
     autoUpdate: z.boolean(),
     showFinalResult: z.boolean(),
@@ -140,6 +144,8 @@ export const settingsValueV1 = z
 export const OPTIONAL_STORED_POLICY_DEFAULTS_V1 = {
   showTermClosing: false,
   termClosingConclusive: true,
+  // Migration 0021 (agendamentos de acesso): no row means no schedule.
+  accessSchedule: null,
 } as const;
 export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
   stored !== null && typeof stored === 'object' && !Array.isArray(stored)
@@ -158,6 +164,7 @@ export const effectiveSettingsV1 = z
     sources: z
       .object({
         accessEnabled: scopeV1,
+        accessSchedule: scopeV1,
         showPartials: scopeV1,
         autoUpdate: scopeV1,
         showFinalResult: scopeV1,

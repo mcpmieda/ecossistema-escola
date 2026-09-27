@@ -9,6 +9,11 @@ import {
   portalNoticesV1,
   type PortalNoticesV1,
 } from '../../../shared/student-portal-contracts/notices-v1';
+import {
+  accessOpenAtV1,
+  nextAccessChangeV1,
+  type AccessPlanV1,
+} from '../../../shared/student-portal-contracts/access-schedule-v1';
 
 export type CalendarV1 = z.infer<typeof calendarV1>;
 export type PolicyValueV1 = z.infer<typeof settingsValueV1>;
@@ -75,6 +80,29 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
   });
 }
 
+/** The enforced plan when schedules are in use (school-access-v1); null on the Calendário window. */
+function enforcedPlanV1(value: PolicyValueV1): AccessPlanV1 | null {
+  return value.accessSchedule === null
+    ? null
+    : { enabled: value.accessEnabled, schedule: value.accessSchedule };
+}
+
+/** Whether the Portal is open for this enforced policy at `now` (the switch alone without schedules). */
+export function accessGateV1(input: PolicyValueV1, now: Date): boolean {
+  const value = settingsValueV1.parse(input);
+  const plan = enforcedPlanV1(value);
+  return plan ? accessOpenAtV1(plan, now.getTime()) : value.accessEnabled;
+}
+
+/** When the current access ends (ms): the next scheduled close, the Calendário end, or Infinity. */
+export function accessEndV1(input: PolicyValueV1, now: Date): number {
+  const value = settingsValueV1.parse(input);
+  const plan = enforcedPlanV1(value);
+  if (plan) return nextAccessChangeV1(plan, now.getTime(), false) ?? Number.POSITIVE_INFINITY;
+  const end = value.calendar.accessEndsAt ?? value.calendar.yearEndsAt;
+  return end ? Date.parse(end) : Number.NEGATIVE_INFINITY;
+}
+
 export function sessionExpiryV1(
   input: PolicyValueV1,
   now: Date,
@@ -82,6 +110,12 @@ export function sessionExpiryV1(
 ): string | null {
   const value = settingsValueV1.parse(input);
   const current = now.getTime();
+  const plan = enforcedPlanV1(value);
+  if (plan) {
+    if (!Number.isFinite(current) || !accessOpenAtV1(plan, current)) return null;
+    const ttl = (persistent ? value.risk.persistentSeconds : value.risk.shortSeconds) * 1000;
+    return new Date(Math.min(current + ttl, accessEndV1(value, now))).toISOString();
+  }
   const start = timestamp(value.calendar.accessStartsAt ?? value.calendar.yearStartsAt);
   const end = timestamp(value.calendar.accessEndsAt ?? value.calendar.yearEndsAt);
   if (
@@ -166,7 +200,11 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   if (!Number.isFinite(current)) throw new Error('student-portal-clock-invalid');
   const calendar = value.calendar;
   const open = sessionExpiryV1(value, now, false) !== null;
+  const plan = enforcedPlanV1(value);
   const accessStart = timestamp(calendar.accessStartsAt ?? calendar.yearStartsAt);
+  // With schedules: the next "Abrir" that really opens it for this student, whatever the switch.
+  const scheduledOpening = plan && !open ? nextAccessChangeV1(plan, current, true) : null;
+  const opensLater = plan ? open || scheduledOpening !== null : value.accessEnabled;
   const disclosure = calendar.disclosure;
   let release: number | null = null;
   let ended: { period: PeriodV1 | null; at: number } | null = null;
@@ -190,11 +228,12 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   const iso = (time: number | null) => (time === null ? null : new Date(time).toISOString());
   return portalNoticesV1.parse({
     access: open ? 'open' : 'closed',
-    accessOpensAt:
-      !open && value.accessEnabled && accessStart !== null && accessStart > current
+    accessOpensAt: plan
+      ? iso(scheduledOpening)
+      : !open && value.accessEnabled && accessStart !== null && accessStart > current
         ? iso(accessStart)
         : null,
-    gradesReleaseAt: value.accessEnabled ? iso(release) : null,
+    gradesReleaseAt: opensLater ? iso(release) : null,
     disclosureEnded: ended === null ? null : { period: ended.period, at: iso(ended.at)! },
   });
 }
@@ -233,7 +272,8 @@ export function applyPublishedVisibilityV1(
   const recoveryDisclosed = periodDisclosureV1(value, 'T3', now) === 'allowed';
   const situationVisible = (situation: string | undefined, earlyValue: string) =>
     situation !== undefined && (final || (recoveryDisclosed && situation === earlyValue));
-  const subjects = value.accessEnabled
+  const accessOn = accessGateV1(value, now);
+  const subjects = accessOn
     ? projection.subjects
         .map((subject) => {
           const { officialOutcome, annualSituation, ...base } = subject;
@@ -256,7 +296,7 @@ export function applyPublishedVisibilityV1(
     : [];
   const { annualSituation, ...profile } = projection.profile;
   const showSituation =
-    value.accessEnabled &&
+    accessOn &&
     projection.profile.academicState !== 'assisted' &&
     situationVisible(annualSituation, 'in-recovery');
   return selfResponseV1.parse({
@@ -268,7 +308,7 @@ export function applyPublishedVisibilityV1(
       result:
         projection.profile.academicState === 'assisted'
           ? 'not-applicable'
-          : final && value.accessEnabled
+          : final && accessOn
             ? projection.profile.result
             : 'in-progress',
     },

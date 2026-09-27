@@ -34,7 +34,9 @@ const valueLabel = (value: unknown) =>
     ? value
       ? 'Ativado'
       : 'Desativado'
-    : Array.isArray(value)
+    : Array.isArray(value) && value.some((item) => typeof item === 'object')
+      ? `${value.length} ${value.length === 1 ? 'agendamento' : 'agendamentos'}`
+      : Array.isArray(value)
       ? value.map((period) => customizationPeriodV1(String(period))).join(', ') || 'Nenhum período'
       : 'Personalizado';
 function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, compact }: Props) {

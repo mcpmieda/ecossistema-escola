@@ -10,7 +10,7 @@ const categories = [
     label: 'Acesso',
     icon: DoorOpen,
     title: 'Entrada no Portal',
-    description: 'Permissão para entrar. As datas de acesso ficam em Calendário.',
+    description: 'Abra ou feche o Portal agora e agende as próximas aberturas e fechamentos.',
     fields: ['accessEnabled'],
   },
   {
@@ -34,7 +34,7 @@ const categories = [
     label: 'Calendário',
     icon: CalendarDays,
     title: 'Datas e horários',
-    description: 'Acesso, ano letivo e divulgação. Horário de Brasília.',
+    description: 'Ano letivo, trimestres e divulgação. Horário de Brasília.',
     fields: ['calendar'],
   },
   {

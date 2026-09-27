@@ -10,6 +10,47 @@ import {
   opJsonV1,
 } from '../../tests/student-portal/ui/overview/fixtures-v1';
 import { settingsFixtureV1 } from '../../tests/student-portal/ui/settings/fixtures-v1';
+import {
+  effectiveSettingsV1,
+  type EffectiveSettingsV1,
+} from '../../shared/student-portal-contracts/policy-v1';
+import type { ScopeV1 } from '../../shared/student-portal-contracts/core-v1';
+
+/*
+ * Settings the preview can save: the school value plus class/student overrides, resolved field by
+ * field like the server. The school starts like production on 27/09/2026 — switch on and the old
+ * Calendário access window — so the access card shows how it converts into agendamentos.
+ */
+const previewSchool = (() => {
+  const base = settingsFixtureV1().value;
+  return {
+    ...base,
+    accessEnabled: true,
+    calendar: {
+      ...base.calendar,
+      yearStartsAt: '2026-02-23T03:00:00Z',
+      yearEndsAt: '2026-12-18T21:00:00Z',
+      accessStartsAt: new Date(Date.now() + 2 * 3600_000).toISOString().replace(/\.\d{3}Z$/u, 'Z'),
+    },
+  } as EffectiveSettingsV1['value'];
+})();
+const previewOverrides = new Map<string, Partial<EffectiveSettingsV1['value']>>();
+let previewSettingsVersion = 7;
+const previewScopeKey = (scope: ScopeV1) =>
+  scope.kind === 'school' ? 'school' : scope.kind === 'class' ? `class:${scope.classId}` : `account:${scope.accountId}`;
+function previewSettingsV1(scope: ScopeV1): EffectiveSettingsV1 {
+  const value: Record<string, unknown> = { ...previewSchool };
+  const sources: Record<string, ScopeV1> = Object.fromEntries(
+    Object.keys(previewSchool).map((key) => [key, { kind: 'school', academicYear: 2026 }]),
+  );
+  const chain: ScopeV1[] = scope.kind === 'school' ? [] : [scope];
+  for (const level of chain)
+    for (const [key, override] of Object.entries(previewOverrides.get(previewScopeKey(level)) ?? {})) {
+      value[key] = override;
+      sources[key] = level;
+    }
+  return effectiveSettingsV1.parse({ scope, version: previewSettingsVersion, value, sources });
+}
 import { publicationFixtureV1 } from '../../tests/student-portal/ui/publication/fixtures-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
 import syntheticPortraitWebp from './assets/synthetic-student-portrait.webp';
@@ -169,6 +210,25 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
           })),
         });
     }
+    if (command.operation === 'settings-set' || command.operation === 'settings-inherit') {
+      const settings = command as unknown as {
+        operation: string;
+        scope: ScopeV1;
+        value?: Partial<EffectiveSettingsV1['value']>;
+        keys?: (keyof EffectiveSettingsV1['value'])[];
+      };
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (settings.scope.kind === 'school') Object.assign(previewSchool, settings.value ?? {});
+      else {
+        const key = previewScopeKey(settings.scope);
+        const current = { ...(previewOverrides.get(key) ?? {}) };
+        if (settings.operation === 'settings-set') Object.assign(current, settings.value);
+        else for (const field of settings.keys ?? []) delete current[field];
+        previewOverrides.set(key, current);
+      }
+      previewSettingsVersion += 1;
+      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9960), version: previewSettingsVersion });
+    }
     if (command.operation === 'bulk-execute') {
       // Each write answers like a production round trip, so the progress bar is visible.
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -195,7 +255,7 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
   const query = JSON.parse(String(init.body)) as AdminQueryV1 | AdminReadQueryV2;
   const scope = query.scope;
   if (query.operation === 'settings')
-    return opJsonV1({ ...meta, state: 'settings', settings: settingsFixtureV1(scope) });
+    return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });
   if (query.operation === 'publication')
     return opJsonV1({ ...meta, state: 'publication', items: publicationFixtureV1(scope).items });
   if (query.operation === 'birth-years')

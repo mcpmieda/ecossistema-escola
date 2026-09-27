@@ -10,6 +10,7 @@ export type SettingsFieldV1 = keyof EffectiveSettingsV1['value'];
 export type CalendarV1 = z.infer<typeof calendarV1>;
 export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   accessEnabled: 'Acesso ao Portal',
+  accessSchedule: 'Agendamentos de acesso',
   showPartials: 'Notas parciais',
   autoUpdate: 'Atualizar notas já publicadas',
   showFinalResult: 'Resultado anual',
@@ -32,7 +33,7 @@ export const CALENDAR_LABELS_V1 = {
   t3StartsAt: 'Início do 3º trimestre',
   t3EndsAt: 'Encerramento do 3º trimestre',
   recoveriesStartAt: 'Início das recuperações',
-  yearEndsAt: 'Encerramento do ano e dos acessos',
+  yearEndsAt: 'Encerramento do ano letivo',
   finalDisclosureAt: 'Divulgação do resultado final',
 } as const;
 export function settingsScopeKeyV1(input: ScopeV1): string {

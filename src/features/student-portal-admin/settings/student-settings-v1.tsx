@@ -36,6 +36,8 @@ import {
 } from './settings-values-v1';
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import { LinkClosureV1 } from './link-closure-v1';
+import { AccessPlanCardV1, AccessPlanSummaryV1, accessPlanOfSettingsV1 } from './access-plan-v1';
+import { accessOpenAtV1 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
@@ -59,7 +61,8 @@ export interface StudentSettingsPropsV1 {
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
-    'Permite a entrada com senha ou QR, dentro das datas de acesso. O bloqueio da escola prevalece.',
+    'Permite a entrada com senha ou QR. Agendamentos abrem e fecham sozinhos. O bloqueio da escola prevalece.',
+  accessSchedule: 'Abrir e Fechar agendados, salvos junto com a entrada no Portal.',
   showPartials: 'Inclui avaliações e atividades nas notas publicadas.',
   autoUpdate:
     'Mantém as notas publicadas em dia com o Banco. A primeira publicação continua manual.',
@@ -320,10 +323,29 @@ function ReviewDialogV1({
           </Modal.Header>
           <Modal.Body className="pa-settings-review">
             <p>
-              <strong>{SETTINGS_LABELS_V1[review.field]}</strong> em {scopeLabel}.
+              <strong>
+                {review.field === 'accessEnabled' ? 'Entrada no Portal' : SETTINGS_LABELS_V1[review.field]}
+              </strong>{' '}
+              em {scopeLabel}.
             </p>
             {review.inherit ? (
-              <p>Esta opção voltará a seguir o padrão da escola ou da turma.</p>
+              <p>
+                {review.field === 'accessEnabled'
+                  ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão da escola ou da turma.'
+                  : 'Esta opção voltará a seguir o padrão da escola ou da turma.'}
+              </p>
+            ) : review.field === 'accessEnabled' ? (
+              <>
+                <p>Como vai ficar:</p>
+                <AccessPlanSummaryV1
+                  plan={{
+                    enabled: review.value.accessEnabled ?? false,
+                    schedule: review.value.accessSchedule ?? [],
+                  }}
+                  now={Date.now()}
+                  wasOpen={accessOpenAtV1(accessPlanOfSettingsV1(settings).plan, Date.now())}
+                />
+              </>
             ) : (
               <>
                 <p>Novo valor:</p>
@@ -441,7 +463,19 @@ function SettingsReadyV1({
   const fieldDisabled = busy || mutation.state === 'error' || review !== null;
   const [customizationsOpen, setCustomizationsOpen] = useState(false);
   const [customizationsVisited, setCustomizationsVisited] = useState(false);
-  const renderField = (field: SettingsFieldV1) => (
+  const renderField = (field: SettingsFieldV1) =>
+    field === 'accessSchedule' ? null : field === 'accessEnabled' ? (
+      // The switch and its schedules are one unit, edited on their own card.
+      <AccessPlanCardV1
+        key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}:${data.version}`}
+        settings={data}
+        canWrite={canWrite}
+        disabled={fieldDisabled}
+        sourceLabel={sourceLabel(data.sources[field])}
+        review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+        onDirtyChange={onDirtyChange}
+      />
+    ) : (
     <FieldCardV1
       key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
       field={field}
@@ -453,7 +487,7 @@ function SettingsReadyV1({
       review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
       onDirtyChange={onDirtyChange}
     />
-  );
+    );
   return (
     <>
       <SettingsMutationFeedbackV1
@@ -710,7 +744,12 @@ function SettingsScopeV1({
       submittedField.current = review.field;
       await writer.submit(
         review.inherit
-          ? { ...common, operation: 'settings-inherit', keys: [review.field] }
+          ? {
+              ...common,
+              operation: 'settings-inherit',
+              // The switch and its schedules return to the default together.
+              keys: review.field === 'accessEnabled' ? ['accessEnabled', 'accessSchedule'] : [review.field],
+            }
           : {
               ...common,
               operation: 'settings-set',

@@ -130,21 +130,20 @@ describe('policy categories preserve editing and inheritance', () => {
     expect(mock.writes).toHaveLength(0);
   });
 
-  it('pins an inherited enabled value with one confirmed command and no temporary inversion', async () => {
+  it('personalizes the inherited access of a class with one confirmed command', async () => {
     const initial = settingsFixtureV1(SETTINGS_CLASS_V1);
     initial.value.accessEnabled = true;
     const user = userEvent.setup();
     const mock = setup(initial);
-    await user.click(await screen.findByRole('button', { name: /Acesso ao Portal/ }));
-    await user.click(screen.getByRole('option', { name: 'Ativado' }));
+    await user.click(await screen.findByRole('button', { name: 'Personalizar Entrada no Portal' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('Ativado')).toBeTruthy();
+    expect(within(dialog).getByText('Fechado agora.')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     expect(mock.writes[0]).toMatchObject({
       operation: 'settings-set',
-      value: { accessEnabled: true },
+      value: { accessEnabled: false, accessSchedule: [] },
       scope: SETTINGS_CLASS_V1,
       expectedVersion: 7,
       acknowledgeImmediateEffect: true,

@@ -8,6 +8,7 @@ import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
 import type { AdminCursorV1 } from './cursor-v1';
+import { accessEndV1 } from '../policies/calendar-v1';
 
 type SessionContextV2 = Awaited<ReturnType<typeof accountReadContextV2>>;
 type SessionItemV2 = Extract<
@@ -119,15 +120,17 @@ function effectiveSessionExpiryV2(
   created: number,
   persistent: boolean,
   context: SessionContextV2,
+  now: Date,
 ) {
   const { policy } = context;
-  const end = policy?.enforcedValue.calendar.accessEndsAt ?? policy?.enforcedValue.calendar.yearEndsAt;
-  if (!policy || !end) return null;
+  if (!policy) return null;
+  const end = accessEndV1(policy.enforcedValue, now);
+  if (end === Number.NEGATIVE_INFINITY) return null;
   const durationSeconds = persistent
     ? policy.enforcedValue.risk.persistentSeconds
     : policy.enforcedValue.risk.shortSeconds;
   return new Date(
-    Math.min(Date.parse(expiresAt), Date.parse(end), created + durationSeconds * 1000),
+    Math.min(Date.parse(expiresAt), end, created + durationSeconds * 1000),
   ).toISOString();
 }
 
@@ -242,7 +245,7 @@ function mapSession(
   const createdAt = adminInstantV1(row.created_at);
   const created = Date.parse(createdAt);
   const persistent = z.boolean().parse(row.persistent);
-  const effectiveExpiresAt = effectiveSessionExpiryV2(expiresAt, created, persistent, context);
+  const effectiveExpiresAt = effectiveSessionExpiryV2(expiresAt, created, persistent, context, now);
   const revokedAt = row.revoked_at === null ? null : adminInstantV1(row.revoked_at);
   return {
     sessionId: z.uuid().parse(row.id),
