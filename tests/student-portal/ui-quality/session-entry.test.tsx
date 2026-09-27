@@ -316,3 +316,22 @@ it.each(['unavailable', 'network-error'] as const)(
     expect(await screen.findByText(SYNTHETIC_SELF_V1.profile.name)).toBeTruthy();
   },
 );
+
+it('sends a signed-in student whose access closed back to the login countdown, not a bare error', async () => {
+  const fetcher = vi.fn(async () => json({ ...meta, state: 'access-closed' }, 403));
+  const opensAt = new Date(Date.now() + 3 * 3600_000).toISOString();
+  const statusClient = vi.fn(async () => ({
+    contractVersion: 1 as const,
+    requestId: SYNTHETIC_ID_V1,
+    state: 'status' as const,
+    scope: 'school' as const,
+    serverNow: new Date().toISOString(),
+    notices: { access: 'closed' as const, accessOpensAt: opensAt, gradesReleaseAt: null, disclosureEnded: null },
+  }));
+  render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} statusClient={statusClient} />);
+
+  expect(await screen.findByText('Portal fechado no momento')).toBeTruthy();
+  expect(screen.getByText(/O Portal abre em/u)).toBeTruthy();
+  expect(screen.queryByText('Acesso ao Portal fechado')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Selecionar QR da galeria' })).toBeNull();
+});
