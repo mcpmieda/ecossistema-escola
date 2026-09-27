@@ -5,6 +5,10 @@ import {
   selfResponseV1,
   type SelfResponseV1,
 } from '../../../shared/student-portal-contracts/self-v1';
+import {
+  portalNoticesV1,
+  type PortalNoticesV1,
+} from '../../../shared/student-portal-contracts/notices-v1';
 
 export type CalendarV1 = z.infer<typeof calendarV1>;
 export type PolicyValueV1 = z.infer<typeof settingsValueV1>;
@@ -150,6 +154,49 @@ export function periodDisclosureV1(
   if (end !== null && now.getTime() >= end) return 'disabled';
   if (start === null) return 'unavailable';
   return now.getTime() >= Math.max(start, at ?? start) ? 'allowed' : 'not-yet';
+}
+
+/** Notices for the Portal pages: access state, the next configured grade release and the latest
+ * disclosure end already past. A countdown needs an explicit "Liberar notas em" date; a period that
+ * simply starts later has no announced release.
+ */
+export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): PortalNoticesV1 {
+  const value = settingsValueV1.parse(input);
+  const current = now.getTime();
+  if (!Number.isFinite(current)) throw new Error('student-portal-clock-invalid');
+  const calendar = value.calendar;
+  const open = sessionExpiryV1(value, now, false) !== null;
+  const accessStart = timestamp(calendar.accessStartsAt ?? calendar.yearStartsAt);
+  const disclosure = calendar.disclosure;
+  let release: number | null = null;
+  let ended: { period: PeriodV1 | null; at: number } | null = null;
+  for (const period of periodV1.options) {
+    if (!value.allowedPeriods.includes(period)) continue;
+    if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) continue;
+    const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
+    const until = timestamp(
+      (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
+    );
+    if (until !== null && until <= current) {
+      if (ended === null || until > ended.at)
+        ended = { period: disclosure.mode === 'single' ? null : period, at: until };
+      continue;
+    }
+    const periodStart = timestamp(periodStartV1(calendar, period));
+    if (at === null || periodStart === null) continue;
+    const opens = Math.max(periodStart, at);
+    if (opens > current && (release === null || opens < release)) release = opens;
+  }
+  const iso = (time: number | null) => (time === null ? null : new Date(time).toISOString());
+  return portalNoticesV1.parse({
+    access: open ? 'open' : 'closed',
+    accessOpensAt:
+      !open && value.accessEnabled && accessStart !== null && accessStart > current
+        ? iso(accessStart)
+        : null,
+    gradesReleaseAt: value.accessEnabled ? iso(release) : null,
+    disclosureEnded: ended === null ? null : { period: ended.period, at: iso(ended.at)! },
+  });
 }
 
 export function mayDiscloseFinalV1(

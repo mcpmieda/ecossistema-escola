@@ -6,6 +6,7 @@ import {
   StudentEntryLayoutV1,
   StudentSplashV1,
 } from '../features/student-portal/auth/student-entry-layout-v1';
+import { PortalClosedNoticeV1 } from '../features/student-portal/shell/portal-notices-v1';
 import { createPortalSelfClientV1 } from '../features/student-portal/shared/self-client-v1';
 import { PORTAL_ORIGIN_V1 } from '../../shared/student-portal-contracts/core-v1';
 import '../features/student-portal/shared/styles.css';
@@ -43,6 +44,8 @@ interface ScreenV1 {
   type?: readonly string[];
   submit?: boolean;
   splash?: 'checking' | 'entered';
+  /** Portal closed by the school: what to count down to (relative to now). */
+  closed?: 'grades' | 'opening' | 'none';
 }
 const SCREENS_V1: readonly ScreenV1[] = [
   { label: 'Cartão: ler o QR', camera: 'allowed' },
@@ -95,6 +98,9 @@ const SCREENS_V1: readonly ScreenV1[] = [
   { label: 'Cartão: muitas tentativas (contagem)', challenge: 'rate-limited', qr: PREVIEW_QR_V1 },
   { label: 'Cartão: portal fora do ar', challenge: 'unavailable', qr: PREVIEW_QR_V1 },
   { label: 'Cartão: sem internet', challenge: 'network', qr: PREVIEW_QR_V1 },
+  { label: 'Portal fechado: contagem para as notas', closed: 'grades' },
+  { label: 'Portal fechado: data de abertura', closed: 'opening' },
+  { label: 'Portal fechado: sem data', closed: 'none' },
   { label: 'Abertura: verificando acesso', splash: 'checking' },
   { label: 'Depois de entrar: Tudo certo!', splash: 'entered' },
 ];
@@ -311,7 +317,23 @@ function LoginPreviewV1() {
           <span style={{ opacity: 0.75 }}>Ano: 2012 · Senha: 123456</span>
         </div>
       </details>
-      {screen.splash ? (
+      {screen.closed ? (
+        <StudentEntryLayoutV1>
+          <PortalClosedNoticeV1
+            key={`${index}-${run}`}
+            notices={{
+              access: 'closed',
+              accessOpensAt:
+                screen.closed === 'opening' ? new Date(Date.now() + 3 * 86400_000).toISOString() : null,
+              gradesReleaseAt:
+                screen.closed === 'grades'
+                  ? new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60 + 9) * 1000).toISOString()
+                  : null,
+              disclosureEnded: null,
+            }}
+          />
+        </StudentEntryLayoutV1>
+      ) : screen.splash ? (
         <StudentSplashV1 entered={screen.splash === 'entered'} />
       ) : authenticated ? (
         <StudentSplashV1 entered />

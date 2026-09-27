@@ -16,6 +16,13 @@ import {
   StudentSplashV1,
 } from '../features/student-portal/auth/student-entry-layout-v1';
 import type { PortraitClientV1 } from '../features/student-portal/photos/portrait-client-v1';
+import {
+  createPortalStatusClientV1,
+  PortalClosedNoticeV1,
+  PortalSignedInNoticesV1,
+  usePortalNoticesV1,
+  type PortalStatusClientV1,
+} from '../features/student-portal/shell/portal-notices-v1';
 import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
 
 const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
@@ -28,6 +35,8 @@ export interface StudentEntryV1 {
 }
 const PUBLIC_SITEKEY = '0x4AAAAAAExp0Fw2x5lR3luX';
 const defaultClient = createPortalSelfClientV1({ respectRetryAfter: true, fetch: diagnosticStudentFetchV1 });
+// Notices are optional: a failed read shows none and is not reported as a Portal failure.
+const defaultStatusClient = createPortalStatusClientV1();
 const defaultEntry: StudentEntryV1 = { qr: null, invalidQr: false, route: 'root' };
 
 /** Entry is a private, disposable holder. It never becomes a URL, DOM attribute or storage item. */
@@ -35,10 +44,12 @@ export function StudentPortalApp({
   entry = defaultEntry,
   client = defaultClient,
   portraitClient,
+  statusClient = defaultStatusClient,
 }: {
   entry?: StudentEntryV1;
   client?: PortalSelfClientV1;
   portraitClient?: PortraitClientV1;
+  statusClient?: PortalStatusClientV1;
 }) {
   const [initialQr, setInitialQr] = useState(entry.qr);
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
@@ -67,6 +78,12 @@ export function StudentPortalApp({
     },
     [entry],
   );
+  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
+  const signingIn = access || session.logoutState === 'done' || anonymous;
+  const notices = usePortalNoticesV1(
+    statusClient,
+    session.load.state === 'ready' && !signingIn ? 'student' : signingIn ? 'anonymous' : null,
+  )?.value;
   if (entry.route === 'unknown')
     return (
       <StudentPortalShellV1>
@@ -96,7 +113,6 @@ export function StudentPortalApp({
         </Alert>
       </StudentPortalShellV1>
     );
-  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
   if (access && session.logoutState !== 'done') {
     if (session.load.state === 'idle' || session.load.state === 'loading')
       return <StudentSplashV1 />;
@@ -134,7 +150,13 @@ export function StudentPortalApp({
         />
       );
   }
-  if (access || session.logoutState === 'done' || anonymous)
+  if (signingIn && notices?.access === 'closed')
+    return (
+      <StudentEntryLayoutV1>
+        <PortalClosedNoticeV1 notices={notices} />
+      </StudentEntryLayoutV1>
+    );
+  if (signingIn)
     return (
       <StudentEntryLayoutV1>
         {invalidQr && (
@@ -160,6 +182,10 @@ export function StudentPortalApp({
     return <StudentSplashV1 entered={entered} />;
   return (
     <StudentPortalPageV1 load={session.load} portraitSrc={portraitSrc}
+      status={notices && session.load.state === 'ready' ? (
+        <PortalSignedInNoticesV1 notices={notices}
+          hasGrades={session.load.data.state !== 'no-publication' && session.load.data.subjects.length > 0} />
+      ) : undefined}
       onRetry={() => { void session.refresh(); }}
       onLogin={() => { discardQr(); setAccess(true); }}
       onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}

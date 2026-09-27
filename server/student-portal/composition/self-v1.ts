@@ -15,6 +15,10 @@ import { SelfProjectionReaderV1 } from '../publication/self-projection-reader-v1
 import { scopedPublicationEnabledV2 } from '../publication/scoped-source-v2';
 import { portalFailureV1, portalJsonV1, portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from './config-v1';
+import { portalStatusResponseV1 } from '../../../shared/student-portal-contracts/notices-v1';
+import { PolicyServiceV1 } from '../policies/policy-service-v1';
+import { portalNoticesForPolicyV1 } from '../policies/calendar-v1';
+import { accountScopeV1, authNowV1 } from '../auth/transaction-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { connectPortalLiveV1 } from '../live/live-connect-v1';
 import { servePortalPhotoV1 } from '../photos/http-v1';
@@ -31,6 +35,7 @@ const paths = new Set([
   '/api/student/session',
   '/api/student/me',
   '/api/student/live',
+  '/api/student/status',
 ]);
 
 export async function servePortalSelfV1(
@@ -151,6 +156,48 @@ export async function servePortalSelfV1(
         new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId),
       );
     };
+    if (path === '/api/student/status') {
+      // Public and read-only: before sign-in it answers with the school policy; with a valid
+      // session, with that student's policy. It carries dates and switches, never grades.
+      if (request.method !== 'GET') return portalJsonV1(portalFailureV1('invalid-request'), 400);
+      const closed = portalServingGateV1(env.PORTAL_SERVING_ENABLED);
+      if (closed) return closed;
+      const keys = portalKeysV1(env);
+      const token = sessionCookieTokenV1(request);
+      const status = await portalDatabaseV1(env, 'self', async (sql) => {
+        const policies = new PolicyServiceV1(sql);
+        const now = new Date();
+        const student = token
+          ? await new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads)
+              .withAuthorized(token, async (context, tx) =>
+                portalNoticesForPolicyV1(
+                  (await policies.readSnapshotInTransaction(tx, accountScopeV1(context.account.id)))
+                    .enforcedValue,
+                  await authNowV1(tx),
+                ),
+              )
+              .catch(() => null)
+          : null;
+        if (student) return { scope: 'student' as const, notices: student, now };
+        const school = await policies.readSnapshot({ kind: 'school', academicYear: 2026 });
+        return {
+          scope: 'school' as const,
+          notices: portalNoticesForPolicyV1(school.enforcedValue, now),
+          now,
+        };
+      });
+      return portalJsonV1(
+        portalStatusResponseV1.parse({
+          contractVersion: 1,
+          requestId: crypto.randomUUID(),
+          state: 'status',
+          scope: status.scope,
+          notices: status.notices,
+          serverNow: status.now.toISOString(),
+        }),
+        200,
+      );
+    }
     if (path === '/api/student/me') {
       if (request.method !== 'GET') return portalJsonV1(portalFailureV1('invalid-request'), 400);
       const closed = portalServingGateV1(env.PORTAL_SERVING_ENABLED);
