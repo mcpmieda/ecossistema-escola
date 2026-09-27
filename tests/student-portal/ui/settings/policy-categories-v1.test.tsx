@@ -116,6 +116,21 @@ describe('policy categories preserve editing and inheritance', () => {
     expect(mock.writes).toHaveLength(0);
   });
 
+  it('tells a class on Notas whether its dates follow the school, with the way back', async () => {
+    const user = userEvent.setup();
+    const owned = settingsFixtureV1(SETTINGS_CLASS_V1);
+    owned.sources.calendar = SETTINGS_CLASS_V1;
+    const mock = setup(owned);
+    await user.click(await screen.findByRole('tab', { name: 'Notas' }));
+    expect(screen.getByText('Datas próprias')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Usar padrão das datas' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }));
+    await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
+    expect(mock.writes[0]).toMatchObject({ operation: 'settings-inherit', keys: ['calendar'] });
+    await screen.findByText('Esta turma segue as datas da escola. Salvar um agendamento aqui cria datas próprias para ela.');
+    expect(screen.getByRole('tab', { name: 'Relatório de notas' })).toBeTruthy();
+  });
+
   it('personalizes the inherited access of a class with one confirmed command', async () => {
     const initial = settingsFixtureV1(SETTINGS_CLASS_V1);
     initial.value.accessEnabled = true;

@@ -62,7 +62,7 @@ const slotLabels = {
   credentials: 'QR code',
   sessions: 'Sessões',
   publication: 'Notas publicadas',
-  closing: 'Fechamento',
+  closing: 'Relatório de notas',
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;

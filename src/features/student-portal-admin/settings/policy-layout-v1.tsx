@@ -23,10 +23,10 @@ const categories = [
   },
   {
     id: 'closing',
-    label: 'Fechamento',
+    label: 'Relatório de notas',
     icon: GraduationCap,
-    title: 'Fechamento e resultado',
-    description: 'Defina o que o aluno vê sobre o trimestre e o resultado anual.',
+    title: 'Relatório de notas',
+    description: 'A orientação por disciplina que o aluno lê sobre o trimestre.',
     fields: ['showTermClosing', 'termClosingConclusive'],
   },
   {
