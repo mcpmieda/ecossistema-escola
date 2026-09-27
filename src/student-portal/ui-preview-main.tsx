@@ -79,11 +79,11 @@ const previewData = selfResponseV1.parse({
       order: 1,
       periods: [
         term('T1', 16.5, [
-          partial('Avaliação 1', 4.5, 10),
+          partial('Avaliação 1', 5, 10),
           partial('Avaliação 2', 5, 10),
           partial('Lista de exercícios: conjuntos numéricos', 2, 3),
           partial('Trabalho: porcentagem no dia a dia', 3.5, 4),
-          partial('Participação em sala', 1.5, 3),
+          partial('Participação em sala', 1, 3),
         ]),
         term('T2', 19.8, [
           partial('Avaliação 1', 7, 10),
@@ -228,7 +228,7 @@ const previewData = selfResponseV1.parse({
  * - only T1 is published; term maximum 30 = AV1 8,5 + AV2 5 + JOGOS 3 + PARTICIPAÇÃO 4,5 + activities;
  * - T1 AV1/AV2 carry the school's configured names (1ª AVALIAÇÃO, SIMULADO);
  * - 6–9 activities per subject with the teachers' own upper-case, abbreviated labels;
- * - "Prova paralela" (no maximum) appears only when eligible (BN-DEC-035: AV1+AV2 and the total
+ * - "Prova paralela" (graded out of AV1+AV2, 13,5) appears only when eligible (BN-DEC-035: AV1+AV2 and the total
  *   before it both below 60%) or already scored; a higher score replaces AV1+AV2 in the final;
  * - a few scores have no maximum (meetsMinimum null), and a few are zero.
  */
@@ -250,6 +250,7 @@ const realSubject = (
           : score(value, maximum),
     // A blank activity is an observed "não fez" (D1); a pending parallel exam is not.
     ...(value === null && activity !== PARALLEL_LABEL ? { notDone: true as const } : {}),
+    ...(activity === PARALLEL_LABEL ? { parallel: true as const } : {}),
   }));
   const valueOf = (name: string) => activities.find(([activity]) => activity === name)?.[2] ?? null;
   const quantitative = (valueOf(AV1_LABEL) ?? 0) + (valueOf(AV2_LABEL) ?? 0);
@@ -275,7 +276,7 @@ const realPreviewData = selfResponseV1.parse({
       ['PARTICIPAÇÃO', 4.5, 3],
       ['1ª ATIVIDADE AVALIATIVA', 6, null],
       ['PRODUÇÃO DE TEXTO', 3, 1.5],
-      [PARALLEL_LABEL, null, null],
+      [PARALLEL_LABEL, 13.5, null],
     ]),
     realSubject(910002, 'MATEMÁTICA', 1, [
       [AV1_LABEL, 8.5, 7.5],
@@ -292,7 +293,7 @@ const realPreviewData = selfResponseV1.parse({
       ['PARTICIPAÇÃO', 4.5, 2],
       ['1ª ATIVIDADE', 6, 3],
       ['2ª ATIVIDADE', 3, 0],
-      [PARALLEL_LABEL, null, 7],
+      [PARALLEL_LABEL, 13.5, 7],
     ]),
     realSubject(910004, 'GEOGRAFIA', 3, [
       [AV1_LABEL, 8.5, 6],

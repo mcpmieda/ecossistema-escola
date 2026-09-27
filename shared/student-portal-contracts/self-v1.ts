@@ -36,6 +36,8 @@ export const subjectV1 = z
                     label: z.string().min(1).max(120),
                     mark: markV1,
                     notDone: z.literal(true).optional(),
+                    // The parallel exam (slot 3), whatever the teacher named it.
+                    parallel: z.literal(true).optional(),
                   })
                   .strict()
                   .refine(

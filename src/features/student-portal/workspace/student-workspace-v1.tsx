@@ -29,8 +29,10 @@ import {
   Palette,
   PenLine,
   Scale,
+  Sparkles,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
@@ -47,12 +49,12 @@ type WorkspaceAreaV1 = 'summary' | 'subject';
 
 const MAIN_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3'];
 const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
-  T1: '1º Tri',
-  T2: '2º Tri',
-  T3: '3º Tri',
-  REC1: 'REC 1º',
-  REC2: 'REC 2º',
-  REC3: 'REC 3º',
+  T1: '1º Trimestre',
+  T2: '2º Trimestre',
+  T3: '3º Trimestre',
+  REC1: 'REC 1º Trimestre',
+  REC2: 'REC 2º Trimestre',
+  REC3: 'REC 3º Trimestre',
 };
 const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
   T1: 'I Trimestre',
@@ -327,10 +329,14 @@ function PageIntroV1({
 function SummaryV1({
   data,
   profile,
+  selected,
+  onSelect,
   onOpenSubject,
 }: {
   data: SelfResponseV1;
   profile: ReactNode;
+  selected: SummaryKeyV1 | undefined;
+  onSelect: (key: SummaryKeyV1) => void;
   onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
@@ -343,8 +349,7 @@ function SummaryV1({
     ...visibleMainPeriodsV1(subjects),
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
-  const [selected, setSelected] = useState<SummaryKeyV1>(available[0] ?? 'T1');
-  const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
+  const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
   // Null until the first switch, so the list does not animate twice on mount.
   const [listMotion, setListMotion] = useState<'forward' | 'back' | null>(null);
   const recoveryPeriodsOf = (subject: SubjectV1) =>
@@ -402,7 +407,7 @@ function SummaryV1({
             onSelectionChange={(key) => {
               const next = String(key) as SummaryKeyV1;
               setListMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
-              setSelected(next);
+              onSelect(next);
             }}
           >
             <Tabs.ListContainer>
@@ -450,12 +455,16 @@ function SummaryV1({
         >
           {published.map((subject) => {
             const outcome = subjectSituationV1(subject);
+            // Below the minimum on this trimester: a soft red band runs from the icon to the mark.
+            const below =
+              active !== 'REC' && scoreOfV1(subjectPeriodV1(subject, active))?.meetsMinimum === false;
             return (
               <ListBox.Item
                 id={String(subject.subjectId)}
                 key={subject.subjectId}
                 textValue={subject.label}
               >
+                <span className={'pa-list-band' + (below ? ' pa-list-band--below' : '')}>
                 <SubjectIconV1 label={subject.label} />
                 <div className="pa-workspace-list-copy">
                   <Label>{subject.label}</Label>
@@ -471,7 +480,7 @@ function SummaryV1({
                     {recoveryPeriodsOf(subject).map((period) => (
                       <span key={period.period} className="pa-recovery-mark">
                         <span className="pa-recovery-mark-label">
-                          {PERIOD_LABELS_V1[period.period].replace('REC ', '')} tri
+                          {PERIOD_LABELS_V1[period.period].replace('REC ', '')}
                         </span>
                         <strong><StudentMarkV1 mark={period.final} /></strong>
                       </span>
@@ -482,6 +491,7 @@ function SummaryV1({
                     <StudentMarkV1 mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }} />
                   </strong>
                 )}
+                </span>
                 {/* Each row opens its discipline. */}
                 <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
               </ListBox.Item>
@@ -543,23 +553,46 @@ function PartialLabelV1({ label, feedback }: { label: string; feedback?: ReactNo
   );
 }
 
-/**
- * Small tag under each activity, restating the server's `meetsMinimum` in the student's words.
+/*
+ * Tag under each activity, in four bands of the activity's own maximum (owner decision
+ * 2026-09-27): below 40% Precisa melhorar, 40–59% Não foi muito bem, 60–79% Foi bem,
+ * 80–100% Excelente. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
+ * mark's colour; only the split inside each side is computed here, by exact cross-multiplication.
  * Não fez / Tirou zero already speak for themselves on the right, and a mark without a
- * classification gets nothing.
+ * classification or maximum gets nothing.
  */
-function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
+type PartialBandV1 = 'needs-work' | 'below' | 'good' | 'excellent';
+const PARTIAL_BANDS_V1: Record<PartialBandV1, { label: string; color: 'danger' | 'warning' | 'success' | 'default' }> = {
+  'needs-work': { label: 'Precisa melhorar', color: 'danger' },
+  below: { label: 'Não foi muito bem', color: 'warning' },
+  good: { label: 'Foi bem', color: 'success' },
+  excellent: { label: 'Excelente', color: 'default' },
+};
+function partialBandV1(partial: PartialV1): PartialBandV1 | null {
   if (partial.notDone || partial.mark.kind !== 'score' || partial.mark.value === 0) return null;
-  if (partial.mark.meetsMinimum === null) return null;
-  const met = partial.mark.meetsMinimum;
+  const { value, maximum, meetsMinimum } = partial.mark;
+  if (meetsMinimum === null || !maximum) return null;
+  const milli = (amount: number) => Math.round(amount * 1000);
+  // value / maximum >= 80%  ⇔  5·value >= 4·maximum;  < 40%  ⇔  5·value < 2·maximum.
+  if (meetsMinimum) return milli(value) * 5 >= milli(maximum) * 4 ? 'excellent' : 'good';
+  return milli(value) * 5 < milli(maximum) * 2 ? 'needs-work' : 'below';
+}
+
+function PartialFeedbackV1({ partial }: { partial: PartialV1 }) {
+  const band = partialBandV1(partial);
+  if (!band) return null;
+  const { label, color } = PARTIAL_BANDS_V1[band];
   return (
     <Chip
       size="sm"
       variant="soft"
-      color={met ? 'success' : 'warning'}
-      className="pa-partial-feedback"
+      color={color}
+      className={'pa-partial-feedback pa-partial-feedback--' + band}
     >
-      {met ? 'Foi bem' : 'Não foi muito bem'}
+      {band === 'excellent' ? (
+        <Sparkles className="pa-excellent-star" size={11} strokeWidth={2.4} aria-hidden="true" />
+      ) : null}
+      {label}
     </Chip>
   );
 }
@@ -579,7 +612,8 @@ function SubjectV1View({
   subjects,
   onSubjectChange,
   onBack,
-  initialPeriod,
+  selected,
+  onSelect,
   accountId,
   academicState,
 }: {
@@ -587,15 +621,14 @@ function SubjectV1View({
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
   onBack: () => void;
-  initialPeriod?: PeriodIdV1;
+  /** Chosen period, kept across subjects; a subject without it falls back to its first one. */
+  selected: PeriodIdV1 | undefined;
+  onSelect: (period: PeriodIdV1) => void;
   accountId: string;
   academicState: SelfResponseV1['profile']['academicState'];
 }) {
   const available = subjectPeriodsV1(subject);
-  const [selected, setSelected] = useState<PeriodIdV1>(
-    initialPeriod && available.includes(initialPeriod) ? initialPeriod : (available[0] ?? 'T1'),
-  );
-  const active = available.includes(selected) ? selected : (available[0] ?? 'T1');
+  const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
   // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
   // whole view already slides in when it opens.
   const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
@@ -669,11 +702,12 @@ function SubjectV1View({
       </div>
 
       <Tabs
+        className="pa-period-tabs"
         selectedKey={active}
         onSelectionChange={(key) => {
           const next = String(key) as PeriodIdV1;
           setPeriodMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
-          setSelected(next);
+          onSelect(next);
         }}
       >
         <Tabs.ListContainer>
@@ -704,7 +738,9 @@ function SubjectV1View({
             <Card.Content className="pa-score-card-content">
               <div className="pa-score-card-copy">
                 <span className="pa-score-card-label">
-                  {recoveryOf ? `Recuperação do ${recoveryOf}` : 'Sua nota do trimestre'}
+                  {recoveryOf
+                    ? `Recuperação do ${recoveryOf}`
+                    : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
                 </span>
               </div>
               {/* The status (Parabéns, Abaixo do esperado...) sits beside the heading. */}
@@ -743,9 +779,28 @@ function SubjectV1View({
                         <li key={partial.assessmentId}>
                           <PartialLabelV1
                             label={partial.label}
-                            feedback={<PartialFeedbackV1 partial={partial} />}
+                            feedback={
+                              <>
+                                <PartialFeedbackV1 partial={partial} />
+                                {/* A taken parallel exam (a score, zero included) was a second chance. */}
+                                {partial.parallel && partial.mark.kind === 'score' ? (
+                                  <span className="pa-partial-second-chance">
+                                    <TriangleAlert size={14} strokeWidth={2.2} aria-hidden="true" />
+                                    Foi uma segunda chance
+                                  </span>
+                                ) : null}
+                              </>
+                            }
                           />
-                          <strong>
+                          <strong
+                            className={
+                              partial.notDone
+                                ? 'pa-partial-status pa-partial-status--not-done'
+                                : zero
+                                  ? 'pa-partial-status pa-partial-status--zero'
+                                  : undefined
+                            }
+                          >
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
                             ) : (
@@ -780,6 +835,31 @@ function SubjectV1View({
   );
 }
 
+type WorkspaceEntryV1 = {
+  area: WorkspaceAreaV1;
+  subjectId: number;
+  period?: PeriodIdV1;
+  summary?: SummaryKeyV1;
+};
+const SUMMARY_KEYS_V1: readonly SummaryKeyV1[] = [...ALL_PERIODS_V1, 'REC'];
+
+/** Reads a workspace entry from history; anything unknown is dropped, never trusted. */
+function readWorkspaceEntryV1(state: unknown): WorkspaceEntryV1 | null {
+  const entry =
+    state && typeof state === 'object'
+      ? (state as Record<string, unknown>)[WORKSPACE_HISTORY_KEY_V1]
+      : undefined;
+  if (!entry || typeof entry !== 'object') return null;
+  const { area, subjectId, period, summary } = entry as Record<string, unknown>;
+  if (area !== 'summary' && area !== 'subject') return null;
+  return {
+    area,
+    subjectId: Number(subjectId),
+    period: ALL_PERIODS_V1.includes(period as PeriodIdV1) ? (period as PeriodIdV1) : undefined,
+    summary: SUMMARY_KEYS_V1.includes(summary as SummaryKeyV1) ? (summary as SummaryKeyV1) : undefined,
+  };
+}
+
 export function StudentPortalWorkspaceV1({
   data,
   profile,
@@ -789,100 +869,69 @@ export function StudentPortalWorkspaceV1({
 }) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
   const firstSubjectId = subjects[0]?.subjectId ?? 0;
+  // Everything the student chose lives here and in the history entry, so it survives moving
+  // between Boletim and Disciplina, switching subjects, Back/Forward and a page reload.
   const [area, setArea] = useState<WorkspaceAreaV1>('summary');
   const [selectedSubjectId, setSelectedSubjectId] = useState(firstSubjectId);
+  const [subjectPeriod, setSubjectPeriod] = useState<PeriodIdV1 | undefined>();
+  const [summaryTab, setSummaryTab] = useState<SummaryKeyV1 | undefined>();
   const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
-  const [openPeriod, setOpenPeriod] = useState<PeriodIdV1 | undefined>();
   const previousArea = useRef<WorkspaceAreaV1>('summary');
   const selectedSubject =
     subjects.find((subject) => subject.subjectId === selectedSubjectId) ?? subjects[0];
+  const current = { area, subjectId: selectedSubjectId, period: subjectPeriod, summary: summaryTab };
 
-  const applyWorkspaceState = (
-    nextArea: WorkspaceAreaV1,
-    subjectId = selectedSubjectId,
-    direction?: 'forward' | 'back',
-  ) => {
-    const nextSubjectId = subjects.some((subject) => subject.subjectId === subjectId)
-      ? subjectId
-      : firstSubjectId;
+  const validSubjectIdV1 = (subjectId: number) =>
+    subjects.some((subject) => subject.subjectId === subjectId) ? subjectId : firstSubjectId;
+
+  const applyEntry = (entry: WorkspaceEntryV1, direction?: 'forward' | 'back') => {
     const resolvedDirection =
-      direction ?? (previousArea.current === 'subject' && nextArea === 'summary' ? 'back' : 'forward');
-    previousArea.current = nextArea;
+      direction ?? (previousArea.current === 'subject' && entry.area === 'summary' ? 'back' : 'forward');
+    previousArea.current = entry.area;
     setMotionDirection(resolvedDirection);
-    setSelectedSubjectId(nextSubjectId);
-    setArea(nextArea);
+    setSelectedSubjectId(validSubjectIdV1(entry.subjectId));
+    setSubjectPeriod(entry.period);
+    setSummaryTab(entry.summary);
+    setArea(entry.area);
   };
 
-  const pushWorkspaceState = (nextArea: WorkspaceAreaV1, subjectId = selectedSubjectId) => {
-    if (typeof window !== 'undefined') {
-      const current = window.history.state && typeof window.history.state === 'object'
-        ? window.history.state
-        : {};
-      window.history.pushState(
-        {
-          ...current,
-          [WORKSPACE_HISTORY_KEY_V1]: { area: nextArea, subjectId },
-        },
-        '',
-      );
-    }
-    applyWorkspaceState(nextArea, subjectId);
+  const writeEntry = (entry: WorkspaceEntryV1, mode: 'push' | 'replace') => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state && typeof window.history.state === 'object'
+      ? window.history.state
+      : {};
+    const next = { ...state, [WORKSPACE_HISTORY_KEY_V1]: entry };
+    if (mode === 'push') window.history.pushState(next, '');
+    else window.history.replaceState(next, '');
+  };
+
+  /** A new place (area or subject) gets its own Back step. */
+  const go = (patch: Partial<WorkspaceEntryV1>) => {
+    const entry = { ...current, ...patch };
+    writeEntry(entry, 'push');
+    applyEntry(entry);
+  };
+  /** A tab inside the same place only updates the current step. */
+  const remember = (patch: Partial<WorkspaceEntryV1>) => {
+    const entry = { ...current, ...patch };
+    writeEntry(entry, 'replace');
+    if (patch.period !== undefined) setSubjectPeriod(patch.period);
+    if (patch.summary !== undefined) setSummaryTab(patch.summary);
   };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const current = window.history.state && typeof window.history.state === 'object'
-      ? window.history.state
-      : {};
-    const initial = current[WORKSPACE_HISTORY_KEY_V1];
-
-    if (initial && (initial.area === 'summary' || initial.area === 'subject')) {
-      const initialSubjectId = Number(initial.subjectId);
-      const validSubjectId = subjects.some((subject) => subject.subjectId === initialSubjectId)
-        ? initialSubjectId
-        : firstSubjectId;
-      previousArea.current = initial.area;
-      setSelectedSubjectId(validSubjectId);
-      setArea(initial.area);
-    } else {
-      window.history.replaceState(
-        {
-          ...current,
-          [WORKSPACE_HISTORY_KEY_V1]: { area: 'summary', subjectId: firstSubjectId },
-        },
-        '',
-      );
-    }
+    const initial = readWorkspaceEntryV1(window.history.state);
+    if (initial) applyEntry(initial);
+    else writeEntry({ area: 'summary', subjectId: firstSubjectId }, 'replace');
 
     const restore = (event: PopStateEvent) => {
-      const state =
-        event.state && typeof event.state === 'object'
-          ? event.state[WORKSPACE_HISTORY_KEY_V1]
-          : undefined;
-      if (!state || (state.area !== 'summary' && state.area !== 'subject')) return;
-      const requestedSubjectId = Number(state.subjectId);
-      const nextSubjectId = subjects.some((subject) => subject.subjectId === requestedSubjectId)
-        ? requestedSubjectId
-        : firstSubjectId;
-      previousArea.current = state.area;
-      setMotionDirection(state.area === 'summary' ? 'back' : 'forward');
-      setSelectedSubjectId(nextSubjectId);
-      setArea(state.area);
+      const entry = readWorkspaceEntryV1(event.state);
+      if (entry) applyEntry(entry, entry.area === 'summary' ? 'back' : 'forward');
     };
-
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
   }, [firstSubjectId, subjects]);
-
-  const openSubject = (subjectId: number, period?: PeriodIdV1) => {
-    setOpenPeriod(period);
-    pushWorkspaceState('subject', subjectId);
-  };
-
-  const selectSubject = (subjectId: number) => {
-    setOpenPeriod(undefined);
-    pushWorkspaceState('subject', subjectId);
-  };
 
   return (
     <Tabs
@@ -890,7 +939,7 @@ export function StudentPortalWorkspaceV1({
       selectedKey={area}
       onSelectionChange={(key) => {
         const nextArea = String(key) as WorkspaceAreaV1;
-        if (nextArea !== area) pushWorkspaceState(nextArea, selectedSubject?.subjectId ?? firstSubjectId);
+        if (nextArea !== area) go({ area: nextArea, subjectId: selectedSubject?.subjectId ?? firstSubjectId });
       }}
     >
       <Surface variant="default" className="pa-workspace-nav-surface">
@@ -915,21 +964,30 @@ export function StudentPortalWorkspaceV1({
           key={'summary-' + area}
           className={'pa-tab-motion pa-tab-motion--' + motionDirection}
         >
-          <SummaryV1 data={data} profile={profile} onOpenSubject={openSubject} />
+          <SummaryV1
+            data={data}
+            profile={profile}
+            selected={summaryTab}
+            onSelect={(summary) => remember({ summary })}
+            // Opening from a trimester tab lands on that trimester (first recovery for REC).
+            onOpenSubject={(subjectId, period) => go({ area: 'subject', subjectId, period })}
+          />
         </div>
       </Tabs.Panel>
       <Tabs.Panel id="subject">
         {selectedSubject ? (
           <div
-            key={'subject-' + selectedSubject.subjectId + '-' + (openPeriod ?? '')}
+            key={'subject-' + selectedSubject.subjectId}
             className={'pa-tab-motion pa-tab-motion--' + motionDirection}
           >
             <SubjectV1View
               subject={selectedSubject}
               subjects={subjects}
-              onSubjectChange={selectSubject}
-              onBack={() => pushWorkspaceState('summary', selectedSubject.subjectId)}
-              initialPeriod={openPeriod}
+              // Switching subjects keeps the trimester being read.
+              onSubjectChange={(subjectId) => go({ area: 'subject', subjectId })}
+              onBack={() => go({ area: 'summary', subjectId: selectedSubject.subjectId })}
+              selected={subjectPeriod}
+              onSelect={(period) => remember({ period })}
               accountId={data.profile.accountId}
               academicState={data.profile.academicState}
             />

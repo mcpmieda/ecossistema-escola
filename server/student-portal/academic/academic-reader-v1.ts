@@ -243,6 +243,7 @@ export function academicToSelfV1(
                 label: assessment.label,
                 mark: convert(assessment.mark),
                 ...(assessment.notDone ? { notDone: true as const } : {}),
+                ...(assessment.parallel ? { parallel: true as const } : {}),
               })),
             }),
       })),
@@ -394,8 +395,17 @@ export class AcademicStudentReaderPostgresV1
             .map((item) => ({
               assessmentId: item.id,
               label: assessmentLabelV1(item.slot, term, names, item.label),
-              mark: mark(item.value, item.maximum, minimum),
+              // The parallel exam has no maximum of its own: it stands in for AV1+AV2, so the
+              // engine grades it against their combined maximum and the student sees that one.
+              mark: mark(
+                item.value,
+                item.slot === 3
+                  ? (item.maximum ?? terms[term - 1]!.quantitativeMaximumMilli)
+                  : item.maximum,
+                minimum,
+              ),
               ...(item.observed && item.value === null ? { notDone: true as const } : {}),
+              ...(item.slot === 3 ? { parallel: true as const } : {}),
             })),
         }),
       );
