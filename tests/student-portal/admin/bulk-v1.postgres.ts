@@ -132,6 +132,21 @@ afterAll(async () => {
   await cluster.end({ timeout: 2 });
 });
 
+it.each([2, 3, 4, 5])(
+  'leaves status %i (assistido or exit) out of bulk operations',
+  async (status) => {
+    // Owner decision (26/09/2026): only em curso, especial and estava no are operated on.
+    await owner.unsafe('UPDATE gradebook.vinculo SET situacao=$1 WHERE aluno_id=910002', [status], {
+      prepare: false,
+    });
+    try {
+      const preview = await bulk.preview(context, query);
+      expect(preview.items.map((item) => item.name)).toEqual(['SYNTHETIC ACADEMIC ONE']);
+    } finally {
+      await owner.unsafe('UPDATE gradebook.vinculo SET situacao=NULL', [], { prepare: false });
+    }
+  },
+);
 it('checks CAS after a transfer under the native academic lock', async () => {
   const command = await input();
   let release!: () => void;

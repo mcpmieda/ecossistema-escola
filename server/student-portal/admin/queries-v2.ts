@@ -12,7 +12,12 @@ import {
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1 } from './common-v1';
-import { ACCOUNT_JOIN_V1, readAdminHealthV1, studentNameOrderSqlV1 } from './queries-v1';
+import {
+  ACCOUNT_JOIN_V1,
+  ENROLLED_ACCOUNT_SQL_V1,
+  readAdminHealthV1,
+  studentNameOrderSqlV1,
+} from './queries-v1';
 import type { AdminCursorV1 } from './cursor-v1';
 
 /** Fixed query count: one bounded account/policy batch, one session aggregate.
@@ -43,7 +48,7 @@ export async function readAdminV2(
     values.push(value);
     return `$${values.length}`;
   };
-  const where = ['a.academic_year=2026'];
+  const where = ['a.academic_year=2026', ENROLLED_ACCOUNT_SQL_V1];
   if (query.scope.kind === 'account') where.push(`a.id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') where.push(`b.class_id=${bind(query.scope.classId)}`);
   if (query.accountState !== undefined) where.push(`a.auth_state=${bind(query.accountState)}`);
