@@ -560,3 +560,14 @@
   font-size: 1rem;
   font-weight: 650;
 }
+.pa-grades-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+.pa-grades-scope p {
+  flex: 1 1 18rem;
+  margin: 0;
+}

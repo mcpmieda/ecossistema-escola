@@ -42,6 +42,7 @@ import {
   GradeShowV1,
   GradeStatusChipV1,
   GradesIntroV1,
+  GradesScopeNoteV1,
   type GradeReviewIntentV1,
 } from './grades-tab-v1';
 import type { PublicationItemV1 } from '../publication/publication-values-v1';
@@ -529,6 +530,15 @@ function SettingsReadyV1({
           grades={
             <>
               <GradesIntroV1 />
+              <GradesScopeNoteV1
+                settings={data}
+                sourceLabel={sourceLabel(data.sources.calendar)}
+                canWrite={canWrite}
+                disabled={fieldDisabled}
+                onInherit={() =>
+                  onReview({ field: 'calendar', inherit: true, expectedVersion: data.version })
+                }
+              />
               {typeof publication === 'function'
                 ? publication({
                     periodStatus: (item) => (

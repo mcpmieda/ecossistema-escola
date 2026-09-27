@@ -11,6 +11,7 @@ import {
   type AccessPlanV1,
 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { AccessPlanSummaryV1, type PlanWordsV1 } from './access-plan-v1';
+import { ownsSettingV1 } from './settings-values-v1';
 import {
   calendarWithGradePlanV1,
   gradeOfV1,
@@ -130,12 +131,21 @@ export function GradeShowV1({
       presentation: {
         title: gradeKey === 'final' ? 'Resultado anual' : `Notas ${gradeOfV1(gradeKey)}`,
         body: (
-          <AccessPlanSummaryV1
-            plan={next}
-            now={Date.now()}
-            wasOpen={accessOpenAtV1(plan, Date.now())}
-            words={GRADE_WORDS_V1}
-          />
+          <>
+            <AccessPlanSummaryV1
+              plan={next}
+              now={Date.now()}
+              wasOpen={accessOpenAtV1(plan, Date.now())}
+              words={GRADE_WORDS_V1}
+            />
+            {settings.scope.kind !== 'school' && !ownsSettingV1(settings, 'calendar') ? (
+              <p className="pa-access-consequence">
+                {settings.scope.kind === 'class' ? 'Esta turma' : 'Este aluno'} passa a ter datas
+                próprias: as mudanças que a escola fizer no Calendário e nas Notas deixam de valer
+                aqui até alguém usar “Usar padrão”.
+              </p>
+            ) : null}
+          </>
         ),
       },
     });
@@ -209,7 +219,7 @@ export function GradeShowV1({
           <Button
             size="sm"
             variant="secondary"
-            isDisabled={disabled || (!dirty && !fromCalendar)}
+            isDisabled={disabled || !dirty}
             aria-label={`Salvar agendamentos ${gradeOfV1(gradeKey)}`}
             onPress={save}
           >
@@ -252,6 +262,55 @@ export function GradesIntroV1() {
         <strong>2. mostre</strong> agora ou agende. Antes de um “Mostrar”, as notas ficam ocultas;
         antes de um “Ocultar”, ficam visíveis. Horários de Brasília.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Class or student level: whether these dates follow the school, and the way back. Grade agendas
+ * live in the calendar, so saving here gives this level its own whole calendar.
+ */
+export function GradesScopeNoteV1({
+  settings,
+  sourceLabel,
+  canWrite,
+  disabled,
+  onInherit,
+}: Readonly<{
+  settings: EffectiveSettingsV1;
+  sourceLabel: string;
+  canWrite: boolean;
+  disabled: boolean;
+  onInherit: () => void;
+}>) {
+  if (settings.scope.kind === 'school') return null;
+  const level = settings.scope.kind === 'class' ? 'Esta turma' : 'Este aluno';
+  const owns = ownsSettingV1(settings, 'calendar');
+  return (
+    <div className="pa-grades-scope" role="note">
+      <Chip size="sm" variant="soft" color={owns ? 'warning' : 'default'}>
+        {owns
+          ? 'Datas próprias'
+          : settings.sources.calendar.kind === 'school'
+            ? 'Padrão da escola'
+            : 'Padrão de ' + sourceLabel}
+      </Chip>
+      <p>
+        {owns
+          ? `${level} tem datas próprias: mudanças da escola no Calendário e nas Notas não valem aqui.`
+          : `${level} segue as datas da escola. Salvar um agendamento aqui cria datas próprias para ${level === 'Esta turma' ? 'ela' : 'ele'}.`}
+      </p>
+      {owns && canWrite ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          isDisabled={disabled}
+          aria-label="Usar padrão das datas"
+          onPress={onInherit}
+        >
+          Usar padrão
+        </Button>
+      ) : null}
     </div>
   );
 }
