@@ -48,7 +48,7 @@ describe('student portal grade workspace', () => {
     const first = [...data.subjects].sort((a, b) => a.order - b.order)[0]!;
     const option = screen.getByRole('option', { name: new RegExp(first.label, 'u') });
 
-    expect(within(option).queryByText('1º Tri')).toBeNull();
+    expect(within(option).queryByText('1º Trimestre')).toBeNull();
     await user.click(option);
 
     expect(
@@ -57,7 +57,7 @@ describe('student portal grade workspace', () => {
     expect(screen.getByRole('heading', { name: first.label })).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
     // The trimester mark is shown once, heading the partials card.
-    expect(screen.getAllByText('Sua nota do trimestre')).toHaveLength(1);
+    expect(screen.getAllByText('Sua nota do 1º trimestre')).toHaveLength(1);
     expect(screen.getByText('Abaixo do esperado')).toBeTruthy();
     expect(screen.getByText('Resultado oficial:', { exact: false })).toBeTruthy();
   });
@@ -81,7 +81,7 @@ describe('student portal grade workspace', () => {
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
   });
 
-  it('tags each activity with Foi bem / Não foi muito bem from the server classification only', async () => {
+  it('tags each activity in four bands around the server minimum', async () => {
     const data = gradesFixtureV1(true);
     const first = data.subjects.find((subject) => subject.order === 1)!;
     const partials = first.periods.find((p) => p.period === 'T1')!.partials!;
@@ -91,18 +91,86 @@ describe('student portal grade workspace', () => {
       label: 'Atividade abaixo',
       mark: { kind: 'score', value: 0.5, maximum: 2, meetsMinimum: false },
     };
+    const band = (id: number, label: string, value: number, maximum: number, meetsMinimum: boolean) => ({
+      assessmentId: id,
+      label,
+      mark: { kind: 'score' as const, value, maximum, meetsMinimum },
+    });
+    partials.push(
+      band(900101, 'Faixa 40', 0.8, 2, false), // exactly 40%: Não foi muito bem
+      band(900102, 'Faixa 79', 3.95, 5, true), // 79%: Foi bem
+      band(900103, 'Faixa 80', 4, 5, true), // exactly 80%: Excelente
+    );
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
     const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
     const tag = (label: string) =>
       rows.find((item) => within(item).queryByText(label))!.querySelector('.pa-partial-feedback')?.textContent ?? null;
-    expect(tag('Atividade 4')).toBe('Foi bem');
-    expect(tag('Atividade abaixo')).toBe('Não foi muito bem');
+    expect(tag('Atividade abaixo')).toBe('Precisa melhorar'); // 25%
+    expect(tag('Faixa 40')).toBe('Não foi muito bem');
+    expect(tag('Faixa 79')).toBe('Foi bem');
+    expect(tag('Faixa 80')).toBe('Excelente');
     expect(tag('I AVALIAÇÃO')).toBeNull(); // Tirou zero already says it
     expect(tag('AV2 SYNTHETIC')).toBeNull(); // Não fez already says it
     expect(tag('Atividade 3')).toBeNull(); // no maximum → no classification
     expect(tag('Atividade 2')).toBeNull(); // not yet recorded
+  });
+
+  it('marks a taken parallel exam as a second chance, and a pending one not at all', async () => {
+    const data = gradesFixtureV1(true);
+    const first = data.subjects.find((subject) => subject.order === 1)!;
+    const partials = first.periods.find((p) => p.period === 'T1')!.partials!;
+    partials.push(
+      {
+        assessmentId: 900201,
+        label: 'PARALELA FEITA',
+        parallel: true,
+        mark: { kind: 'score', value: 7, maximum: 13.5, meetsMinimum: false },
+      },
+      { assessmentId: 900202, label: 'PARALELA PENDENTE', parallel: true, mark: { kind: 'absent' } },
+    );
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+
+    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
+    const row = (label: string) => rows.find((item) => within(item).queryByText(label))!;
+    expect(within(row('PARALELA FEITA')).getByText('Foi uma segunda chance')).toBeTruthy();
+    expect(within(row('PARALELA PENDENTE')).queryByText('Foi uma segunda chance')).toBeNull();
+  });
+
+  it('keeps the chosen trimester across subjects, the Boletim tab on return and a reload', async () => {
+    const data = gradesFixtureV1(false);
+    const subjects = [...data.subjects].sort((a, b) => a.order - b.order);
+    for (const subject of subjects.slice(0, 2)) {
+      subject.periods = [
+        { period: 'T1', final: { kind: 'score', value: 20, maximum: 30, meetsMinimum: true } },
+        { period: 'T2', final: { kind: 'score', value: 21, maximum: 30, meetsMinimum: true } },
+      ];
+    }
+    const [first, second] = subjects as [(typeof subjects)[number], (typeof subjects)[number]];
+    const view = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const user = userEvent.setup();
+    const selected = (name: string) =>
+      within(screen.getByRole('tablist', { name })).getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')!
+        .textContent;
+
+    await user.click(screen.getByRole('tab', { name: 'II Trimestre' }));
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    expect(selected('Períodos de ' + first.label)).toContain('2º Trimestre');
+
+    await user.click(within(screen.getByRole('tablist', { name: 'Trocar disciplina' })).getByRole('tab', { name: second.label }));
+    expect(selected('Períodos de ' + second.label)).toContain('2º Trimestre');
+
+    await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
+    expect(selected('Período das notas')).toBe('II Trimestre');
+
+    // A reload restores the same place from the history entry.
+    await user.click(screen.getByRole('option', { name: new RegExp(second.label, 'u') }));
+    view.unmount();
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await act(async () => {});
+    expect(selected('Períodos de ' + second.label)).toContain('2º Trimestre');
   });
 
   it('clamps an overflowing activity description to two lines and reveals it on demand', async () => {
@@ -147,7 +215,7 @@ describe('student portal grade workspace', () => {
 
     expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[1]!);
-    const trend = screen.getByRole('button', { name: 'Subiu em relação ao 1º Tri' });
+    const trend = screen.getByRole('button', { name: 'Subiu em relação ao 1º Trimestre' });
     await user.click(trend);
     expect(screen.getByRole('tooltip').textContent).toContain('A nota do 2º trimestre foi maior que a do 1º.');
     await user.keyboard('{Escape}');
@@ -156,7 +224,7 @@ describe('student portal grade workspace', () => {
     await user.click(screen.getByRole('heading', { name: first.label }));
     expect(screen.queryByRole('tooltip')).toBeNull();
     await user.click(within(periods).getAllByRole('tab')[2]!);
-    expect(screen.getByRole('button', { name: 'Caiu em relação ao 2º Tri' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Caiu em relação ao 2º Trimestre' })).toBeTruthy();
     await user.click(within(periods).getAllByRole('tab')[3]!);
     expect(screen.queryByRole('button', { name: /em relação ao/u })).toBeNull();
   });

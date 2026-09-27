@@ -43,6 +43,7 @@ export const academicSubjectSchemaV1 = z
                     label,
                     mark: academicMarkSchemaV1,
                     notDone: z.literal(true).optional(),
+                    parallel: z.literal(true).optional(),
                   })
                   .strict()
                   .refine(

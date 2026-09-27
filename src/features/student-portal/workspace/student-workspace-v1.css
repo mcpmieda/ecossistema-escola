@@ -1318,3 +1318,239 @@
     animation: none;
   }
 }
+
+/* Icon, name and mark share one band; below the minimum it turns soft red (owner request, redesign 6). */
+.pa-workspace-list .pa-list-band {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block: -0.3rem;
+  margin-left: -0.3rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  border-radius: 0.8rem;
+}
+.pa-workspace-list .pa-list-band--below {
+  background: rgb(254 226 226 / 0.55);
+  box-shadow: inset 0 0 0 1px rgb(252 202 202 / 0.6);
+}
+.pa-workspace-list .pa-list-band--below .pa-subject-icon {
+  border-color: rgb(252 202 202 / 0.8);
+  background: linear-gradient(145deg, #fffafa, #fdeeee);
+}
+.pa-workspace-list .pa-list-band--below .pa-mark[data-minimum='below'] .pa-mark-value {
+  color: #b91c1c;
+}
+
+/* Each trimester is its own card, so the chosen one stands out (owner request, redesign 6). */
+.pa-student-workspace .pa-period-tabs .tabs__list {
+  gap: 0.5rem;
+  padding: 0.15rem;
+  background: transparent;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab {
+  height: 2.75rem;
+  min-height: 2.75rem;
+  gap: 0.1rem;
+  border: 1px solid #dbe3ef;
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 4px 12px -10px rgb(15 46 101 / 0.45);
+  color: #475569;
+  transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'] {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #1d4ed8, 0 6px 16px -10px rgb(29 78 216 / 0.55);
+  color: #1e3a8a;
+}
+.pa-student-workspace .pa-period-tabs .pa-period-tab[aria-selected='true'] .pa-period-tab-label {
+  font-weight: 750;
+}
+.pa-student-workspace .pa-period-tabs .tabs__indicator {
+  display: none;
+}
+.pa-student-workspace .pa-period-tabs.tabs[data-orientation='horizontal'] > .tabs__list-container {
+  /* As wide as the score card below, so the cards can use the room. */
+  width: 100%;
+  max-width: 40rem;
+  background: transparent;
+  box-shadow: none;
+}
+/* Full names ("REC 1º Trimestre") share the width and wrap on narrow phones instead of scrolling. */
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal'] {
+  width: 100%;
+  min-width: 0;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 10.5rem;
+  height: auto;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.3rem;
+  text-align: center;
+  white-space: normal;
+}
+.pa-student-workspace .pa-period-tabs .pa-period-tab-label {
+  line-height: 1.15;
+  text-wrap: balance;
+}
+/* The period cards always fit, so no scroll arrows or edge fade. */
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroll-prev,
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroll-next {
+  display: none;
+}
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroller {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+/* Excelente: the rarest activity tag. It pops in, its purple flows, a star twinkles, a shine
+   sweeps across and a soft aura breathes around it. All of it stops under reduced motion. */
+.pa-partial-feedback--excellent {
+  position: relative;
+  overflow: hidden;
+  gap: 0.25rem;
+  border: 1px solid rgb(216 180 254 / 0.7);
+  background: linear-gradient(120deg, #5b21b6, #9333ea, #c026d3, #7c3aed, #5b21b6);
+  background-size: 300% 100%;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 10px -4px rgb(124 58 237 / 0.8);
+  animation:
+    pa-excellent-pop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) 250ms both,
+    pa-excellent-flow 4s linear infinite,
+    pa-excellent-aura 2.4s ease-in-out 900ms infinite;
+}
+.pa-partial-feedback--excellent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 28%,
+    rgb(255 255 255 / 0.7) 48%,
+    transparent 68%
+  );
+  transform: translateX(-130%);
+  animation: pa-excellent-shine 2.2s ease-in-out 900ms infinite;
+  pointer-events: none;
+}
+.pa-excellent-star {
+  flex: none;
+  color: #fef08a;
+  filter: drop-shadow(0 0 3px rgb(254 240 138 / 0.9));
+  animation: pa-excellent-twinkle 1.6s ease-in-out 700ms infinite;
+}
+@keyframes pa-excellent-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes pa-excellent-flow {
+  to {
+    background-position: 300% 0;
+  }
+}
+@keyframes pa-excellent-aura {
+  0%,
+  100% {
+    box-shadow: 0 2px 10px -4px rgb(124 58 237 / 0.8), 0 0 0 0 rgb(168 85 247 / 0);
+  }
+  50% {
+    box-shadow: 0 2px 14px -3px rgb(147 51 234 / 0.95), 0 0 0 4px rgb(168 85 247 / 0.18);
+  }
+}
+@keyframes pa-excellent-shine {
+  0% {
+    transform: translateX(-130%);
+  }
+  55%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+@keyframes pa-excellent-twinkle {
+  0%,
+  100% {
+    transform: scale(0.8) rotate(0);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.25) rotate(20deg);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-partial-feedback--excellent,
+  .pa-excellent-star {
+    animation: none;
+  }
+  .pa-partial-feedback--excellent::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Under a taken parallel exam: it was a second chance (owner request, redesign 6). */
+.pa-partial-second-chance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #92400e;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.pa-partial-second-chance > svg {
+  flex: none;
+  color: #d97706;
+}
+
+/* Não fez / Tirou zero wear the same outlined pill as the marks beside them (redesign 6). */
+.pa-partials-list .pa-partial-status .chip {
+  min-height: 0;
+  height: auto;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+.pa-partials-list .pa-partial-status--not-done .chip {
+  background: #fef3c7;
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px rgb(180 83 9 / 0.25);
+}
+.pa-partials-list .pa-partial-status--zero .chip {
+  background: #fee2e2;
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px rgb(185 28 28 / 0.25);
+}
