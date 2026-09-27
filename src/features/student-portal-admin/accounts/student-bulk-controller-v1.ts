@@ -19,9 +19,16 @@ export type BulkStateV1 = {
   phase: 'idle' | 'loading' | 'review' | 'running' | 'paused' | 'unknown' | 'done' | 'error';
   items: BulkItemV1[];
   total: number;
+  /** Accounts the operation writes to: the whole class, or only the rows selected in the table. */
+  targets?: number;
   error?: string;
   retryAt?: number;
 };
+/** Accounts written at once. Each write stays an independent, idempotent command with its own
+ * CAS version, so running a few in parallel only removes waiting between them.
+ */
+export const BULK_CONCURRENCY_V1 = 6;
+
 export function createStudentBulkControllerV1(
   client: PortalAdminClientV1,
   publish: (state: BulkStateV1) => void,
@@ -31,8 +38,8 @@ export function createStudentBulkControllerV1(
   let disposed = false,
     stop = false;
   let active: AbortController | undefined;
-  let prepared: { index: number; command: ReturnType<PortalAdminClientV1['prepareCommand']> }[] = [];
-  let position = 0;
+  let prepared: { index: number; command: ReturnType<PortalAdminClientV1['prepareCommand']> }[] =
+    [];
   const emit = (next: BulkStateV1) => {
     state = next;
     if (!disposed) publish(next);
@@ -41,13 +48,16 @@ export function createStudentBulkControllerV1(
     error.state === 'unauthenticated' || error.state === 'forbidden';
   const failure = (error: unknown) =>
     error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
-  const preview = async (query: Omit<BulkPreviewQueryV1, 'page'>) => {
+  /** With `selected` (non-empty), only those accounts are written; otherwise the whole class. */
+  const preview = async (
+    query: Omit<BulkPreviewQueryV1, 'page'>,
+    selected?: ReadonlySet<string>,
+  ) => {
     if (disposed || state.phase === 'running' || state.phase === 'unknown') return;
     active?.abort();
     const controller = new AbortController();
     active = controller;
     prepared = [];
-    position = 0;
     stop = false;
     emit({ phase: 'loading', items: [], total: 0 });
     try {
@@ -85,7 +95,10 @@ export function createStudentBulkControllerV1(
           )
             throw new PortalClientErrorV1('invalid-response');
           ids.add(item.accountId);
-          all.push({ item: { ...item, result: item.ineligibility ? 'skipped' : 'pending' }, proof: response.proof });
+          all.push({
+            item: { ...item, result: item.ineligibility ? 'skipped' : 'pending' },
+            proof: response.proof,
+          });
         }
         if (
           all.length > first.totalCount ||
@@ -98,20 +111,33 @@ export function createStudentBulkControllerV1(
       } while (cursor);
       if (!first || all.length !== first.totalCount)
         throw new PortalClientErrorV1('invalid-response');
-      prepared = all.flatMap(({ item, proof }, index) => item.ineligibility ? [] : [{
-        index,
-        command: client.prepareCommand({
-          contractVersion: 1,
-          operation: 'bulk-execute',
-          action: query.action,
-          proof,
-          accountId: item.accountId,
-          expectedVersion: item.version,
-          idempotencyKey: crypto.randomUUID(),
-          confirmed: true,
-        }),
-      }]);
-      emit({ phase: 'review', items: all.map(({ item }) => item), total: first.totalCount });
+      const chosen =
+        selected && selected.size ? all.filter(({ item }) => selected.has(item.accountId)) : all;
+      prepared = chosen.flatMap(({ item, proof }, index) =>
+        item.ineligibility
+          ? []
+          : [
+              {
+                index,
+                command: client.prepareCommand({
+                  contractVersion: 1,
+                  operation: 'bulk-execute',
+                  action: query.action,
+                  proof,
+                  accountId: item.accountId,
+                  expectedVersion: item.version,
+                  idempotencyKey: crypto.randomUUID(),
+                  confirmed: true,
+                }),
+              },
+            ],
+      );
+      emit({
+        phase: 'review',
+        items: chosen.map(({ item }) => item),
+        total: chosen.length,
+        targets: prepared.length,
+      });
     } catch (error) {
       if (controller.signal.aborted || disposed) return;
       const issue = failure(error);
@@ -132,52 +158,64 @@ export function createStudentBulkControllerV1(
     stop = false;
     const controller = new AbortController();
     active = controller;
-    emit({ ...state, phase: 'running', error: undefined });
-    while (!disposed && position < prepared.length && !stop) {
-      try {
-        await prepared[position]!.command.execute(controller.signal);
-        controller.signal.throwIfAborted();
-        const items = state.items.slice();
-        const index = prepared[position]!.index;
-        items[index] = { ...items[index]!, result: 'committed', error: undefined };
-        emit({ ...state, items });
-        position += 1;
-      } catch (error) {
-        if (disposed || controller.signal.aborted) return;
-        const issue = failure(error);
-        const uncertain =
-          issue.state === 'rate-limited' ||
-          issue.state === 'unavailable' ||
-          isAmbiguousPortalResponseV1(issue);
-        const items = state.items.slice();
-        const index = prepared[position]!.index;
-        items[index] = {
-          ...items[index]!,
-          result: uncertain ? 'unknown' : 'failed',
-          error: issue.state,
-        };
-        if (denied(issue)) {
-          emit({ phase: 'error', items: [], total: 0, error: issue.state });
-          prepared = [];
-          onAuthorizationLost(issue);
-          return;
+    emit({ ...state, phase: 'running', error: undefined, retryAt: undefined });
+    const mark = (index: number, change: Partial<BulkItemV1>) => {
+      const items = state.items.slice();
+      items[index] = { ...items[index]!, ...change };
+      emit({ ...state, items });
+    };
+    // Pending and uncertain items resume with their original prepared command (same key/bytes).
+    const queue = prepared.filter(({ index }) =>
+      ['pending', 'unknown'].includes(state.items[index]!.result),
+    );
+    let uncertain: PortalClientErrorV1 | undefined;
+    let lost: PortalClientErrorV1 | undefined;
+    const worker = async () => {
+      while (!disposed && !stop && !uncertain && !lost && !controller.signal.aborted) {
+        const entry = queue.shift();
+        if (!entry) return;
+        try {
+          await entry.command.execute(controller.signal);
+          controller.signal.throwIfAborted();
+          mark(entry.index, { result: 'committed', error: undefined });
+        } catch (error) {
+          if (disposed || controller.signal.aborted) return;
+          const issue = failure(error);
+          if (denied(issue)) {
+            lost = issue;
+            return;
+          }
+          const unclear =
+            issue.state === 'rate-limited' ||
+            issue.state === 'unavailable' ||
+            isAmbiguousPortalResponseV1(issue);
+          mark(entry.index, { result: unclear ? 'unknown' : 'failed', error: issue.state });
+          if (unclear) uncertain = issue;
         }
-        if (uncertain) {
-          emit({
-            ...state,
-            phase: 'unknown',
-            items,
-            error: issue.state,
-            retryAt: Date.now() + (issue.retryAfterSeconds ?? 0) * 1000,
-          });
-          return;
-        }
-        emit({ ...state, items });
-        position += 1;
       }
-    }
-    if (!disposed) emit({ ...state, phase: position === prepared.length ? 'done' : 'paused' });
+    };
+    await Promise.all(Array.from({ length: BULK_CONCURRENCY_V1 }, () => worker()));
     if (active === controller) active = undefined;
+    if (disposed || controller.signal.aborted) return;
+    if (lost) {
+      emit({ phase: 'error', items: [], total: 0, error: lost.state });
+      prepared = [];
+      onAuthorizationLost(lost);
+      return;
+    }
+    if (uncertain) {
+      emit({
+        ...state,
+        phase: 'unknown',
+        error: uncertain.state,
+        retryAt: Date.now() + (uncertain.retryAfterSeconds ?? 0) * 1000,
+      });
+      return;
+    }
+    const left = prepared.some(({ index }) =>
+      ['pending', 'unknown'].includes(state.items[index]!.result),
+    );
+    emit({ ...state, phase: left ? 'paused' : 'done' });
   };
   return {
     preview,
@@ -186,6 +224,13 @@ export function createStudentBulkControllerV1(
       if (state.phase === 'paused') {
         prepared = [];
         emit({ ...state, phase: 'done' });
+      }
+    },
+    /** Leaves a finished or failed operation; nothing is running at that point. */
+    close() {
+      if (['done', 'error'].includes(state.phase)) {
+        prepared = [];
+        emit({ phase: 'idle', items: [], total: 0 });
       }
     },
     cancel() {

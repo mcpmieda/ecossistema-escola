@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentBulkV1 } from '../../../../src/features/student-portal-admin/accounts/student-bulk-v1';
 import {
+  BULK_CONCURRENCY_V1,
   createStudentBulkControllerV1,
   type BulkStateV1,
 } from '../../../../src/features/student-portal-admin/accounts/student-bulk-controller-v1';
@@ -111,9 +112,12 @@ describe('bulk preview and execution', () => {
     const bodies: string[] = [];
     const s = setup(async (_path, init) => {
       const body = JSON.parse(init.body as string);
-      if (body.operation === 'bulk-preview') return opJsonV1(preview([1, 2], 2, {
-        items: [{ ...item(1), ineligibility: 'recovery-unavailable' }, item(2)],
-      }));
+      if (body.operation === 'bulk-preview')
+        return opJsonV1(
+          preview([1, 2], 2, {
+            items: [{ ...item(1), ineligibility: 'recovery-unavailable' }, item(2)],
+          }),
+        );
       bodies.push(init.body as string);
       return committed();
     });
@@ -146,29 +150,56 @@ describe('bulk preview and execution', () => {
     expect(s.state().phase).toBe('done');
     s.controller.dispose();
   });
-  it('cancels future items without rolling back the in-flight item and resumes the same prepared commands', async () => {
-    let resolve!: (response: Response) => void;
+  it('runs a bounded batch in parallel; cancel stops unstarted items and resume reuses the same commands', async () => {
+    const release: (() => void)[] = [];
     const bodies: string[] = [];
+    let active = 0,
+      peak = 0;
     const s = setup(async (_path, init) => {
       const body = JSON.parse(init.body as string);
-      if (body.operation === 'bulk-preview') return opJsonV1(preview([1, 2]));
+      if (body.operation === 'bulk-preview') return opJsonV1(preview([1, 2, 3, 4, 5, 6, 7, 8]));
       bodies.push(init.body as string);
-      if (bodies.length === 1)
-        return new Promise((done) => {
-          resolve = done;
-        });
+      peak = Math.max(peak, ++active);
+      await new Promise<void>((done) => release.push(done));
+      active--;
       return committed();
     });
     await s.controller.preview(query);
     const running = s.controller.run();
+    await vi.waitFor(() => expect(bodies).toHaveLength(BULK_CONCURRENCY_V1));
+    // Stop scheduling: in-flight writes finish and are kept; the rest wait for "continue".
     s.controller.cancel();
-    resolve(committed());
+    release.splice(0).forEach((done) => done());
     await running;
+    expect(peak).toBe(BULK_CONCURRENCY_V1);
     expect(s.state().phase).toBe('paused');
-    expect(bodies).toHaveLength(1);
-    expect(s.state().items[0]!.result).toBe('committed');
+    expect(s.state().items.filter((entry) => entry.result === 'committed')).toHaveLength(
+      BULK_CONCURRENCY_V1,
+    );
+    const resumed = s.controller.run();
+    await vi.waitFor(() => expect(bodies).toHaveLength(8));
+    release.splice(0).forEach((done) => done());
+    await resumed;
+    expect(new Set(bodies).size).toBe(8);
+    expect(s.state().phase).toBe('done');
+    s.controller.dispose();
+  });
+  it('writes only the rows selected in the table, or the whole class when none is selected', async () => {
+    const written: string[] = [];
+    const s = setup(async (_path, init) => {
+      const body = JSON.parse(init.body as string);
+      if (body.operation === 'bulk-preview') return opJsonV1(preview([1, 2, 3]));
+      written.push(body.accountId);
+      return committed();
+    });
+    await s.controller.preview(query, new Set([opIdV1(2)]));
+    expect(s.state()).toMatchObject({ phase: 'review', total: 1, targets: 1 });
     await s.controller.run();
-    expect(bodies).toHaveLength(2);
+    expect(written).toEqual([opIdV1(2)]);
+    await s.controller.preview(query, new Set());
+    expect(s.state()).toMatchObject({ total: 3, targets: 3 });
+    await s.controller.run();
+    expect(written.slice(1).sort()).toEqual([opIdV1(1), opIdV1(2), opIdV1(3)].sort());
     s.controller.dispose();
   });
   it('records conflicts per item and clears protected data on lost authorization', async () => {
@@ -222,7 +253,10 @@ describe('bulk preview and execution', () => {
       fireEvent.click(confirm);
     });
     expect(writes).toBe(1);
-    expect(await screen.findByText(/Concluído/)).toBeTruthy();
+    // Full-screen dialog: counts and a progress bar instead of a list of names.
+    expect(await screen.findByText(/1 concluídos/)).toBeTruthy();
+    expect(screen.getByRole('progressbar', { name: /Progresso da operação/ })).toBeTruthy();
+    expect(screen.queryByText('SYNTHETIC BULK 1 · SYNTHETIC CLASS')).toBeNull();
     s.controller.dispose();
   });
   it('prepares each clicked action directly and requires its own command before writing', async () => {
@@ -244,13 +278,19 @@ describe('bulk preview and execution', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Mudar QR' }));
-    expect(await screen.findByRole('textbox', { name: 'Digite MUDAR QR para confirmar' })).toBeTruthy();
+    expect(
+      await screen.findByRole('textbox', { name: 'Digite MUDAR QR para confirmar' }),
+    ).toBeTruthy();
     expect(writes).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
+    // The dialog owns the screen: leave it before choosing another operation.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Bloquear acesso' }));
     const input = await screen.findByRole('textbox', {
       name: 'Digite BLOQUEAR ACESSO para confirmar',
     });
-    const confirm = screen.getByRole('button', { name: 'Confirmar bloquear acesso' }) as HTMLButtonElement;
+    const confirm = screen.getByRole('button', {
+      name: 'Confirmar bloquear acesso',
+    }) as HTMLButtonElement;
     fireEvent.change(input, { target: { value: 'MUDAR QR' } });
     expect(confirm.disabled).toBe(true);
     expect(writes).toHaveLength(0);
