@@ -185,9 +185,26 @@ export function periodDisclosureV1(
   const end = timestamp(
     (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
   );
-  if (end !== null && now.getTime() >= end) return 'disabled';
+  if (!disclosureShownAtV1(at, end, now.getTime()))
+    return at !== null && at > now.getTime() ? 'not-yet' : 'disabled';
   if (start === null) return 'unavailable';
-  return now.getTime() >= Math.max(start, at ?? start) ? 'allowed' : 'not-yet';
+  return now.getTime() >= start ? 'allowed' : 'not-yet';
+}
+
+/**
+ * Grades follow their agenda like access (owner decision 2026-09-27): "Liberar notas em" shows and
+ * "Ocultar notas em" hides. Before an action the grades are in its opposite state, after the last
+ * one they stay as it left them, and with neither they show once the period starts. So a new
+ * "Liberar" after an "Ocultar" shows them again at its time.
+ */
+function disclosureShownAtV1(at: number | null, end: number | null, time: number): boolean {
+  const schedule = [
+    ...(at === null ? [] : [{ at, action: 'open' as const }]),
+    ...(end === null ? [] : [{ at: end, action: 'close' as const }]),
+  ]
+    .sort((left, right) => left.at - right.at)
+    .map((event) => ({ at: new Date(event.at).toISOString(), action: event.action }));
+  return accessOpenAtV1({ enabled: true, schedule }, time);
 }
 
 /** Notices for the Portal pages: access state, the next configured grade release and the latest
@@ -216,9 +233,13 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
       (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
     );
     if (until !== null && until <= current) {
-      if (ended === null || until > ended.at)
-        ended = { period: disclosure.mode === 'single' ? null : period, at: until };
-      continue;
+      // A later "Liberar" shows the grades again: count down to it instead of announcing an end.
+      const releasedAgain = at !== null && at > until;
+      if (!releasedAgain) {
+        if (ended === null || until > ended.at)
+          ended = { period: disclosure.mode === 'single' ? null : period, at: until };
+        continue;
+      }
     }
     const periodStart = timestamp(periodStartV1(calendar, period));
     if (at === null || periodStart === null) continue;

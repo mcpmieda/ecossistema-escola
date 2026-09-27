@@ -85,11 +85,21 @@ export const calendarV1 = z
     };
     interval(v.accessStartsAt ?? v.yearStartsAt, v.accessEndsAt ?? v.yearEndsAt, ['accessEndsAt']);
     interval(v.finalDisclosureAt, v.finalDisclosureEndsAt, ['finalDisclosureEndsAt']);
+    // Grades follow their agenda: an "Ocultar" before a later "Liberar" hides them and the
+    // "Liberar" shows them again. Only the same instant for both is ambiguous.
+    const distinct = (
+      at: string | null | undefined,
+      end: string | null | undefined,
+      path: string[],
+    ) => {
+      if (at && end && Date.parse(end) === Date.parse(at))
+        ctx.addIssue({ code: 'custom', path, message: 'Show and hide need different times' });
+    };
     if (v.disclosure.mode === 'single')
-      interval(v.disclosure.at, v.disclosure.endsAt, ['disclosure', 'endsAt']);
+      distinct(v.disclosure.at, v.disclosure.endsAt, ['disclosure', 'endsAt']);
     else
       for (const period of periodV1.options)
-        interval(v.disclosure.at[period], v.disclosure.endsAt?.[period], [
+        distinct(v.disclosure.at[period], v.disclosure.endsAt?.[period], [
           'disclosure',
           'endsAt',
           period,
