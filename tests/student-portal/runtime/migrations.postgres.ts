@@ -1035,6 +1035,11 @@ describe('native administrative facade and atomic batch receipts', () => {
   const scope = { kind: 'class', academicYear: 2026, classId: 910001 } as const;
   const school = { kind: 'school', academicYear: 2026 } as const;
   let accountIds: string[];
+  // An earlier suite marks 910001 as desistente; the admin lists hide students who left the school,
+  // so this suite starts from both synthetic students enrolled again.
+  beforeAll(async () => {
+    await admin`UPDATE gradebook.vinculo SET situacao=NULL WHERE aluno_id IN (910001,910002)`;
+  });
 
   it('executes the accounts SQL under the restricted role and commits one QR batch across competing connections', async () => {
     const accounts = await api.query(context(), { contractVersion: 1, operation: 'accounts', scope, page: { limit: 100 } });
