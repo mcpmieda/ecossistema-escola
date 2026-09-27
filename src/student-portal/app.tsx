@@ -79,7 +79,10 @@ export function StudentPortalApp({
     [entry],
   );
   const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
-  const signingIn = access || session.logoutState === 'done' || anonymous;
+  // Access closed while signed in (e.g. the school scheduled a later opening): back to the login
+  // page, which shows the closed notice with its countdown instead of a bare error.
+  const accessClosed = session.load.state === 'error' && session.load.error.state === 'access-closed';
+  const signingIn = access || session.logoutState === 'done' || anonymous || accessClosed;
   const notices = usePortalNoticesV1(
     statusClient,
     session.load.state === 'ready' && !signingIn ? 'student' : signingIn ? 'anonymous' : null,
@@ -150,6 +153,8 @@ export function StudentPortalApp({
         />
       );
   }
+  // Wait for the notices rather than flashing the card reader at a student who cannot enter.
+  if (accessClosed && notices === undefined) return <StudentSplashV1 />;
   if (signingIn && notices?.access === 'closed')
     return (
       <StudentEntryLayoutV1>
