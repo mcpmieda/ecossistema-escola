@@ -237,6 +237,7 @@ function AccountsResultsV1(
             scope={props.query.scope}
             scopeLabel={props.bulkScopeLabel}
             canWrite={props.canWrite}
+            selected={selectedQr}
             onAuthorizationLost={onAuthorizationLost}
           />,
           props.bulkMount,

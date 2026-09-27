@@ -465,3 +465,46 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Full-screen bulk dialog: the count, the consequence and the typed confirmation get the focus. */
+.pa-bulk-dialog__body {
+  display: grid;
+  align-content: start;
+  align-items: start;
+  gap: 1.25rem;
+  width: min(100%, 40rem);
+  margin-inline: auto;
+  padding-block: 1rem;
+}
+.pa-bulk-dialog__count {
+  font-size: 1.125rem;
+}
+.pa-bulk-dialog__count strong {
+  display: block;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+.pa-bulk-dialog__consequence {
+  padding: 0.875rem 1rem;
+  border-radius: 0.875rem;
+  background: var(--danger-soft, #fdecec);
+  color: var(--danger-soft-foreground, #9f1d1d);
+  font-weight: 500;
+}
+.pa-bulk-dialog__confirm {
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pa-bulk-dialog__problems {
+  display: grid;
+  gap: 0.375rem;
+  max-height: 14rem;
+  overflow: auto;
+  font-size: 0.875rem;
+}
+.pa-bulk-dialog__edge {
+  width: min(100%, 40rem);
+  margin-inline: auto;
+}
