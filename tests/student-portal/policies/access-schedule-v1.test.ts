@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   accessOpenAtV1,
   accessScheduleV1,
+  anticipateAccessV1,
   combineAccessPlansV1,
   legacyAccessPlanV1,
   nextAccessChangeV1,
@@ -13,6 +14,7 @@ import { enforceSchoolAccessV1 } from '../../../server/student-portal/policies/s
 import {
   accessEndV1,
   accessGateV1,
+  periodDisclosureV1,
   portalNoticesForPolicyV1,
   sessionExpiryV1,
 } from '../../../server/student-portal/policies/calendar-v1';
@@ -28,7 +30,7 @@ const scheduled = (enabled: boolean, ...events: [string, 'open' | 'close'][]): A
 });
 
 describe('access plan', () => {
-  it('follows the last action reached: the switch until the first schedule, then each schedule', () => {
+  it('follows the agenda: opposite before each action, as the last one left it afterwards', () => {
     const plan = scheduled(false, [OPEN, 'open'], [CLOSE, 'close'], [REOPEN, 'open']);
     expect(accessOpenAtV1(plan, t(OPEN) - 1)).toBe(false);
     expect(accessOpenAtV1(plan, t(OPEN))).toBe(true); // an action applies from its own instant
@@ -43,6 +45,27 @@ describe('access plan', () => {
     expect(nextAccessChangeV1(plan, t(CLOSE), true)).toBeNull();
     const closed = scheduled(false, [CLOSE, 'close'], [REOPEN, 'open']);
     expect(nextAccessChangeV1(closed, t('2026-09-28T00:00:00Z'), true)).toBe(t(REOPEN));
+  });
+
+  it('closes now for an Abrir later, and opens now for a Fechar later (owner rule)', () => {
+    const now = t('2026-09-28T12:00:00Z');
+    const openedLater = scheduled(true, [OPEN, 'open']);
+    expect(accessOpenAtV1(openedLater, now)).toBe(false);
+    expect(nextAccessChangeV1(openedLater, now, true)).toBe(t(OPEN));
+    const closedLater = scheduled(false, [OPEN, 'close']);
+    expect(accessOpenAtV1(closedLater, now)).toBe(true);
+    expect(accessOpenAtV1(closedLater, t(OPEN))).toBe(false);
+    // With nothing scheduled, the switch decides.
+    expect(accessOpenAtV1(scheduled(true), now)).toBe(true);
+  });
+
+  it('brings the next action forward when the switch is used', () => {
+    const now = t('2026-09-28T12:00:00Z');
+    const plan = scheduled(true, [OPEN, 'open'], [CLOSE, 'close']);
+    // Closed now, waiting for the Abrir: opening by the switch replaces it; the Fechar stays.
+    expect(anticipateAccessV1(plan, now, true)).toEqual(scheduled(true, [CLOSE, 'close']));
+    const onlyClose = scheduled(false, [CLOSE, 'close']);
+    expect(anticipateAccessV1(onlyClose, now, false)).toEqual(scheduled(false));
   });
 
   it('opens both-or-nothing when combining the school with a class', () => {
@@ -158,5 +181,42 @@ describe('enforced access with schedules', () => {
     expect(enforced.accessSchedule).toBeNull();
     expect(accessGateV1(enforced, new Date('2026-10-01T00:00:00Z'))).toBe(true);
     expect(sessionExpiryV1(enforced, new Date('2026-12-18T21:00:00Z'), false)).toBeNull();
+  });
+});
+
+describe('grade disclosure follows its agenda', () => {
+  const grades = (at: string | null, endsAt: string | null) => {
+    const value = initialPolicyDefaultsV1();
+    return {
+      ...value,
+      allowedPeriods: ['T1' as const],
+      calendar: {
+        ...value.calendar,
+        yearStartsAt: '2026-02-23T03:00:00Z',
+        yearEndsAt: '2026-12-18T21:00:00Z',
+        disclosure: { mode: 'single' as const, at, endsAt, periods: ['T1' as const] },
+      },
+    };
+  };
+  const HIDE = '2026-10-10T21:00:00Z';
+  const SHOW = '2026-10-20T10:00:00Z';
+
+  it('keeps the usual window: hidden before Liberar, shown until Ocultar', () => {
+    const value = grades('2026-10-01T10:00:00Z', HIDE);
+    expect(periodDisclosureV1(value, 'T1', new Date('2026-09-30T00:00:00Z'))).toBe('not-yet');
+    expect(periodDisclosureV1(value, 'T1', new Date('2026-10-05T00:00:00Z'))).toBe('allowed');
+    expect(periodDisclosureV1(value, 'T1', new Date(HIDE))).toBe('disabled');
+  });
+
+  it('shows the grades again at a Liberar scheduled after an Ocultar, with its countdown', () => {
+    const value = grades(SHOW, HIDE);
+    expect(periodDisclosureV1(value, 'T1', new Date('2026-10-05T00:00:00Z'))).toBe('allowed');
+    const hidden = new Date('2026-10-15T00:00:00Z');
+    expect(periodDisclosureV1(value, 'T1', hidden)).toBe('not-yet');
+    expect(portalNoticesForPolicyV1({ ...value, accessEnabled: true }, hidden)).toMatchObject({
+      gradesReleaseAt: new Date(SHOW).toISOString(),
+      disclosureEnded: null,
+    });
+    expect(periodDisclosureV1(value, 'T1', new Date(SHOW))).toBe('allowed');
   });
 });

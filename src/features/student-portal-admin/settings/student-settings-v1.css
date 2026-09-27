@@ -460,3 +460,7 @@
   color: var(--warning-soft-foreground);
   font-weight: 600;
 }
+.pa-access-row-note {
+  grid-column: 1 / -1;
+  margin: -0.25rem 0 0;
+}

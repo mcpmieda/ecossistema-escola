@@ -7,6 +7,7 @@ import {
 } from '../../../../shared/student-portal-contracts/policy-v1';
 import {
   accessOpenAtV1,
+  anticipateAccessV1,
   legacyAccessPlanV1,
   nextAccessChangeV1,
   settleAccessPlanV1,
@@ -102,6 +103,29 @@ let nextRowId = 1;
 const rowsOfV1 = (events: readonly AccessEventV1[]): RowV1[] =>
   events.map((event) => ({ id: nextRowId++, at: calendarInputV1(event.at), action: event.action }));
 
+/**
+ * Rows followed by the same action: following the agenda, the state before an action is already
+ * its opposite, so the earlier of two equal actions changes nothing.
+ */
+function redundantRowsV1(rows: readonly RowV1[]): Set<number> {
+  const instant = (input: string) => {
+    try {
+      return calendarInstantV1(input);
+    } catch {
+      return null;
+    }
+  };
+  const dated = rows
+    .map((row) => ({ row, at: instant(row.at) }))
+    .filter((item): item is { row: RowV1; at: string } => item.at !== null)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  return new Set(
+    dated
+      .filter((item, index) => dated[index + 1]?.row.action === item.row.action)
+      .map((item) => item.row.id),
+  );
+}
+
 /** Validates the rows into a time-ordered schedule; every action must still be ahead. */
 function parseRowsV1(rows: readonly RowV1[], now: number): AccessEventV1[] {
   const events = rows.map((row) => {
@@ -163,6 +187,7 @@ export function AccessPlanCardV1({
   }, [dirty, onDirtyChange]);
 
   const openNow = accessOpenAtV1(plan, now);
+  const redundant = redundantRowsV1(rows);
   // The next real change (an Abrir while already open changes nothing).
   const nextChange = nextAccessChangeV1(plan, now, !openNow);
   const submit = (enabled: boolean, schedule: AccessEventV1[]) =>
@@ -226,7 +251,10 @@ export function AccessPlanCardV1({
               aria-label="Portal aberto agora"
               isSelected={openNow}
               isDisabled={disabled || dirty}
-              onChange={(value) => submit(value, [...saved.schedule])}
+              onChange={(value) => {
+                const anticipated = anticipateAccessV1(plan, Date.now(), value);
+                submit(anticipated.enabled, [...anticipated.schedule]);
+              }}
             >
               <Switch.Content>
                 <Switch.Control>
@@ -292,6 +320,11 @@ export function AccessPlanCardV1({
                       setError(null);
                     }}
                   />
+                  {redundant.has(row.id) ? (
+                    <p className="pa-settings-hint pa-access-row-note">
+                      Sem efeito: a ação seguinte é igual, então o Portal só muda no horário dela.
+                    </p>
+                  ) : null}
                   {canWrite ? (
                     <Button
                       isIconOnly
@@ -361,18 +394,24 @@ export function AccessPlanCardV1({
         <div className="pa-access-help">
           <p className="pa-access-help-title">Como funciona</p>
           <ul>
-            <li>A chave mostra se o Portal está aberto agora. Você pode abrir ou fechar quando quiser.</li>
             <li>
-              Um agendamento muda a chave sozinho no horário marcado: <strong>Abrir</strong> abre o
-              Portal e <strong>Fechar</strong> fecha, mesmo que a chave esteja em outra posição.
+              O Portal segue a agenda. Antes de um <strong>Abrir</strong>, ele fica fechado; antes
+              de um <strong>Fechar</strong>, fica aberto. Isso vale assim que você salvar.
             </li>
             <li>
-              Vale sempre a última ação que aconteceu: a sua, na chave, ou a de um agendamento. Os
-              agendamentos seguintes continuam valendo.
+              Exemplo: com o Portal aberto, agendar “Abrir às 10:00” fecha agora e abre às 10:00.
+              Com ele fechado, agendar “Fechar às 18:00” abre agora e fecha às 18:00.
             </li>
             <li>
-              Com o Portal fechado e uma abertura agendada, os alunos veem a contagem regressiva na
-              tela de entrada.
+              Depois do último agendamento, o Portal fica como ele deixou, até alguém usar a chave.
+            </li>
+            <li>
+              A chave mostra o estado agora. Usá-la antecipa o próximo agendamento, e os seguintes
+              continuam valendo.
+            </li>
+            <li>
+              Enquanto o Portal estiver fechado com uma abertura agendada, os alunos veem a contagem
+              regressiva na tela de entrada.
             </li>
             <li>No horário de Fechar, quem estiver conectado sai do Portal.</li>
             {school ? (

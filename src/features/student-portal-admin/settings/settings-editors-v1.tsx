@@ -285,7 +285,9 @@ export function CalendarEditorV1({
         <CalendarSectionV1 label="Divulgação das notas" compact={compact}>
           <div className="pa-calendar-disclosure">
             <p className="pa-settings-hint">
-              Trocar o modo limpa as datas de divulgação. Publique as notas na categoria Notas.
+              As notas seguem a agenda: antes de “Liberar” ficam ocultas e antes de “Ocultar” ficam
+              visíveis. Para mostrar de novo depois de ocultar, use um “Liberar” posterior. Trocar
+              o modo limpa as datas de divulgação. Publique as notas na categoria Notas.
             </p>
             <Select
               className="max-w-72"

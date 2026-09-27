@@ -294,7 +294,7 @@ describe('explicit access and publication windows #1101', () => {
     expect(mayDiscloseFinalV1(current, new Date('2026-12-20T12:00:00Z'), false)).toBe(false);
     expect(mayDiscloseFinalV1(current, new Date('2026-12-21T00:00:00Z'), true)).toBe(false);
   });
-  it('rejects inverted or empty intervals rather than normalizing them into valid policies', () => {
+  it('rejects inverted or empty access intervals, and grades shown and hidden at the same instant', () => {
     const calendar = policy().calendar;
     expect(() =>
       normalizeCalendarV1({
@@ -303,12 +303,24 @@ describe('explicit access and publication windows #1101', () => {
         accessEndsAt: '2026-09-22T12:00:00Z',
       }),
     ).toThrow();
+    // Grades follow their agenda (27/09/2026): Ocultar at 12:00 then Liberar again at 13:00 is valid.
     expect(() =>
       normalizeCalendarV1({
         ...calendar,
         disclosure: {
           mode: 'single',
           at: '2026-09-22T13:00:00Z',
+          endsAt: '2026-09-22T12:00:00Z',
+          periods: ['T1'],
+        },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      normalizeCalendarV1({
+        ...calendar,
+        disclosure: {
+          mode: 'single',
+          at: '2026-09-22T12:00:00Z',
           endsAt: '2026-09-22T12:00:00Z',
           periods: ['T1'],
         },
