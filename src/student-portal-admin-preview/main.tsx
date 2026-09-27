@@ -169,6 +169,12 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
           })),
         });
     }
+    if (command.operation === 'bulk-execute') {
+      // Each write answers like a production round trip, so the progress bar is visible.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      init.signal?.throwIfAborted();
+      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9950), version: 4 });
+    }
     const account = mock.accounts.find((item) => item.accountId === command.accountId);
     if (
       command.operation === 'qr-reprint' &&
@@ -318,6 +324,29 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
       expiresAt: new Date(Date.now() + 600_000).toISOString(),
       version: 7,
     });
+  if (query.operation === 'bulk-preview' && scope.kind === 'class') {
+    const items = inScope(scope).map((account) => ({
+      accountId: account.accountId,
+      version: account.version,
+      classId: scope.classId,
+      name: account.name,
+      classLabel: account.classLabel,
+      ineligibility: null,
+    }));
+    return opJsonV1({
+      ...meta,
+      state: 'bulk-preview',
+      action: query.action,
+      scope,
+      scopeVersion: 7,
+      totalCount: items.length,
+      items: items.slice(0, 100),
+      proof: 'synthetic_preview_proof_'.repeat(3),
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+      nextCursor: null,
+    });
+  }
   if (query.operation === 'accounts')
     return opJsonV1({
       ...meta,
