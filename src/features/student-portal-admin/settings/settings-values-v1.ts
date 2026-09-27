@@ -11,8 +11,8 @@ export type CalendarV1 = z.infer<typeof calendarV1>;
 export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   accessEnabled: 'Acesso ao Portal',
   accessSchedule: 'Agendamentos de acesso',
-  showPartials: 'Notas parciais',
-  autoUpdate: 'Atualizar notas já publicadas',
+  showPartials: 'Notas de cada atividade',
+  autoUpdate: 'Publicar notas novas sozinho',
   showFinalResult: 'Resultado anual',
   showTermClosing: 'Fechamento do trimestre',
   termClosingConclusive: 'Tipo de orientação',

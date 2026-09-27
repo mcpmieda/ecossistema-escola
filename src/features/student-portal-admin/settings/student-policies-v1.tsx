@@ -11,7 +11,7 @@ export function StudentPoliciesV1(
       <StudentSettingsV1
         {...props}
         area="policies"
-        publication={
+        publication={(slots) => (
           <PersonalizedPublicationV1
             client={props.client}
             reader={props.reader}
@@ -19,8 +19,9 @@ export function StudentPoliciesV1(
             scopeLabel={props.scopeLabel}
             canWrite={props.canWrite}
             embedded
+            {...slots}
           />
-        }
+        )}
       />
     </section>
   );

@@ -17,6 +17,11 @@ export interface CalendarDraftV1 {
   singlePeriods: CalendarPeriodV1[];
   periodAt: Record<CalendarPeriodV1, string>;
   periodUntil?: Record<CalendarPeriodV1, string>;
+  /** Agendas edited on the Notas tab: carried through untouched when the Calendário is saved. */
+  agenda?: {
+    disclosure?: Extract<CalendarV1['disclosure'], { mode: 'agenda' }>;
+    finalAgenda?: CalendarV1['finalAgenda'];
+  };
 }
 const emptyPeriodDates = (): Record<CalendarPeriodV1, string> => ({
   T1: '',
@@ -34,7 +39,11 @@ export function calendarDraftV1(value: CalendarV1): CalendarDraftV1 {
         calendarInputV1(value[key as CalendarDateKeyV1] ?? null),
       ]),
     ) as CalendarDraftV1['dates'],
-    mode: value.disclosure.mode,
+    mode: value.disclosure.mode === 'agenda' ? 'single' : value.disclosure.mode,
+    agenda: {
+      ...(value.disclosure.mode === 'agenda' ? { disclosure: value.disclosure } : {}),
+      ...(value.finalAgenda ? { finalAgenda: value.finalAgenda } : {}),
+    },
     singleUntil:
       value.disclosure.mode === 'single' ? calendarInputV1(value.disclosure.endsAt ?? null) : '',
     periodUntil: Object.fromEntries(
@@ -93,8 +102,10 @@ export function parseCalendarDraftV1(draft: CalendarDraftV1): CalendarV1 {
   return calendarV1.parse({
     timezone: 'America/Sao_Paulo',
     ...dates,
-    disclosure:
-      draft.mode === 'single'
+    ...(draft.agenda?.finalAgenda ? { finalAgenda: draft.agenda.finalAgenda } : {}),
+    disclosure: draft.agenda?.disclosure
+      ? draft.agenda.disclosure
+      : draft.mode === 'single'
         ? {
             mode: 'single',
             at: calendarInstantV1(draft.singleAt),

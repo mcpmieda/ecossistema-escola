@@ -17,9 +17,9 @@ const categories = [
     id: 'grades',
     label: 'Notas',
     icon: NotebookPen,
-    title: 'Notas e publicação',
-    description: 'Escolha o conteúdo e publique as notas de cada período.',
-    fields: ['showPartials', 'autoUpdate', 'allowedPeriods'],
+    title: 'Notas',
+    description: 'Publique as notas de cada período e escolha quando os alunos as veem.',
+    fields: [],
   },
   {
     id: 'closing',
@@ -27,14 +27,14 @@ const categories = [
     icon: GraduationCap,
     title: 'Fechamento e resultado',
     description: 'Defina o que o aluno vê sobre o trimestre e o resultado anual.',
-    fields: ['showTermClosing', 'termClosingConclusive', 'showFinalResult'],
+    fields: ['showTermClosing', 'termClosingConclusive'],
   },
   {
     id: 'calendar',
     label: 'Calendário',
     icon: CalendarDays,
     title: 'Datas e horários',
-    description: 'Ano letivo, trimestres e divulgação. Horário de Brasília.',
+    description: 'Ano letivo e trimestres. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
     fields: ['calendar'],
   },
   {
@@ -49,11 +49,12 @@ const categories = [
 
 export function PolicyLayoutV1({
   field,
-  publication,
+  grades,
   disabled,
 }: {
   field: (name: SettingsFieldV1) => ReactNode;
-  publication?: ReactNode;
+  /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
+  grades?: ReactNode;
   disabled: boolean;
 }) {
   const [selected, setSelected] = useState<string>('access');
@@ -84,9 +85,13 @@ export function PolicyLayoutV1({
             <h2>{category.title}</h2>
             <p>{category.description}</p>
           </header>
-          <div className="pa-settings-fields">{category.fields.map(field)}</div>
+          {category.fields.length ? (
+            <div className="pa-settings-fields">{category.fields.map(field)}</div>
+          ) : null}
           {category.id === 'grades' && publicationVisited ? (
-            <LiveRefreshScopeV1 active={selected === 'grades'}>{publication}</LiveRefreshScopeV1>
+            <LiveRefreshScopeV1 active={selected === 'grades'}>
+              <div className="pa-grades">{grades}</div>
+            </LiveRefreshScopeV1>
           ) : null}
         </Tabs.Panel>
       ))}

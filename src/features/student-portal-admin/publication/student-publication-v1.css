@@ -175,3 +175,42 @@
     justify-content: flex-start;
   }
 }
+
+/* Aba Notas: a period card stacks its heading over the two steps (publish, show). */
+.pa-publication--embedded .pa-publication-card.pa-grade-period {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.pa-publication--embedded .pa-publication-card.pa-grade-period + .pa-publication-card {
+  border-top: 1px solid var(--border);
+}
+.pa-publication--embedded .pa-grade-period .pa-publication-heading {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.pa-publication--embedded .pa-grade-step .pa-publication-actions {
+  justify-content: flex-start;
+}
+.pa-grades .pa-publication--embedded .pa-publication-periods {
+  gap: 0.65rem;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.pa-grade-period > .card__header,
+.pa-grade-period > .card__content {
+  width: 100%;
+  padding: 0;
+}
+.pa-grade-period .pa-publication-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}

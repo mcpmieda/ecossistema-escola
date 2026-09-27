@@ -139,9 +139,12 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
     'finalDisclosureEndsAt',
   ] as const;
   if (dates.some((field) => changedDate(before[field] ?? null, after[field] ?? null))) return true;
+  // Agendas (Aba Notas) can change what students see right away: any change is immediate.
+  if (canonical(before.finalAgenda ?? null) !== canonical(after.finalAgenda ?? null)) return true;
   const left = before.disclosure;
   const right = after.disclosure;
   if (left.mode !== right.mode) return true;
+  if (left.mode === 'agenda' || right.mode === 'agenda') return canonical(left) !== canonical(right);
   if (left.mode === 'single' && right.mode === 'single') {
     return (
       changedDate(left.at, right.at) ||

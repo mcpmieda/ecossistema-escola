@@ -84,55 +84,42 @@ async function ready() {
   await screen.findByRole('heading', { name: 'Entrada no Portal' });
 }
 describe('administrative settings UI', () => {
-  describe('disclosure mode editing', () => {
-    let user: ReturnType<typeof userEvent.setup>;
-    let mock: ReturnType<typeof setup>;
-    beforeEach(async () => {
-      user = userEvent.setup({ delay: null });
-      mock = setup();
-      render(createElement(StudentSettingsV1, mock.props));
-      await ready();
-    }, 30_000);
-    it('cancels review without a command and discards inactive disclosure dates when switching mode', async () => {
-      await enterDateV1(user, 'Liberar notas em', '2026-12-01T08:00');
-      await user.click(
-        screen.getByRole('button', {
-          name: 'Data única Divulgação das notas',
-        }),
-      );
-      await user.click(screen.getByRole('option', { name: 'Por trimestre / recuperação' }));
-      expect(screen.queryByRole('spinbutton', { name: 'dia, Liberar notas em' })).toBeNull();
-      expect(
-        screen
-          .getByRole('spinbutton', { name: 'dia, Divulgação de T1' })
-          .getAttribute('aria-valuenow'),
-      ).toBeNull();
-      await enterDateV1(user, 'Divulgação de T1', '2026-12-02T08:00');
-      await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
-      await user.click(screen.getByRole('button', { name: 'Voltar' }));
-      expect(mock.writes).toHaveLength(0);
-      await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
-      await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
-      await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
-      expect(mock.writes[0]).toMatchObject({
-        value: {
-          calendar: {
-            disclosure: {
-              mode: 'per-period',
-              at: {
-                T1: '2026-12-02T11:00:00Z',
-                T2: null,
-                T3: null,
-                REC1: null,
-                REC2: null,
-                REC3: null,
-              },
-            },
-          },
+  it('keeps the Notas agendas untouched when the Calendário is saved', async () => {
+    const plan = (at: string) => ({ enabled: false, schedule: [{ at, action: 'open' as const }] });
+    const fixture = settingsFixtureV1();
+    fixture.value.calendar = {
+      ...fixture.value.calendar,
+      finalAgenda: plan('2026-12-20T13:00:00Z'),
+      disclosure: {
+        mode: 'agenda',
+        periods: {
+          T1: plan('2026-10-01T13:00:00Z'),
+          T2: plan('2026-11-01T13:00:00Z'),
+          T3: { enabled: false, schedule: [] },
+          REC1: { enabled: false, schedule: [] },
+          REC2: { enabled: false, schedule: [] },
+          REC3: { enabled: false, schedule: [] },
         },
-      });
-    }, 15000);
-  });
+      },
+    };
+    const user = userEvent.setup({ delay: null }),
+      mock = setup(fixture);
+    render(createElement(StudentSettingsV1, mock.props));
+    await ready();
+    await enterDateV1(user, 'Início do ano e 1º trimestre', '2026-02-23T08:00');
+    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
+    await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
+    expect(mock.writes[0]).toMatchObject({
+      value: {
+        calendar: {
+          yearStartsAt: '2026-02-23T11:00:00Z',
+          disclosure: fixture.value.calendar.disclosure,
+          finalAgenda: fixture.value.calendar.finalAgenda,
+        },
+      },
+    });
+  }, 20_000);
   it('removes protected settings and the review when write authorization expires', async () => {
     const user = userEvent.setup(),
       mock = setup(undefined, async () => json({ ...base, state: 'unauthenticated' }, 401));
@@ -207,14 +194,13 @@ describe('administrative settings UI', () => {
       value: { allowedPeriods: [] },
     });
   });
-  it('reviews a past calendar change with a full atomic payload, preserving nulls and the separate final disclosure', async () => {
+  it('reviews a past calendar change with a full atomic payload, preserving nulls', async () => {
     const user = userEvent.setup(),
       mock = setup();
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-13T12:00:00Z'));
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
     await enterDateV1(user, 'Início do ano e 1º trimestre', '2026-02-23T08:00');
-    await enterDateV1(user, 'Divulgação do resultado final', '2026-12-23T08:00');
     await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     expect(
       within(screen.getByRole('dialog')).getByText(
@@ -230,7 +216,6 @@ describe('administrative settings UI', () => {
           timezone: 'America/Sao_Paulo',
           yearStartsAt: '2026-02-23T11:00:00Z',
           t1EndsAt: null,
-          finalDisclosureAt: '2026-12-23T11:00:00Z',
         },
       },
     });
