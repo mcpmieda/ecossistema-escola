@@ -118,7 +118,7 @@ describe('publication interface', () => {
     await ready();
     expect(screen.getByRole('button', { name: 'Publicar notas de T1' })).toBeTruthy();
     expect(
-      screen.queryByRole('button', { name: 'Atualizar notas publicadas de T2' }),
+      screen.queryByRole('button', { name: 'Publicar notas novas de T2' }),
     ).toBeNull();
     expect(screen.queryByText('Publicar para todos')).toBeNull();
     cleanup();
@@ -128,13 +128,13 @@ describe('publication interface', () => {
     render(createElement(StudentPublicationV1, manual.props));
     await ready();
     expect(
-      screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }),
+      screen.getByRole('button', { name: 'Publicar notas novas de T2' }),
     ).toBeTruthy();
     const published = screen
       .getByRole('heading', { name: 'Recuperação 1' })
       .closest('.pa-publication-card')!;
     expect(
-      within(published as HTMLElement).queryByText('Atualizar notas publicadas'),
+      within(published as HTMLElement).queryByText('Publicar notas novas'),
     ).toBeNull();
   });
 
@@ -161,7 +161,7 @@ describe('publication interface', () => {
     const card = screen
       .getByRole('heading', { name: '1º trimestre' })
       .closest('.pa-publication-card')!;
-    expect(within(card as HTMLElement).getByText('Dados disponíveis')).toBeTruthy();
+    expect(within(card as HTMLElement).getByText('Pronta para publicar')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Parar acompanhamento' }));
     await screen.findByText(
       'Acompanhamento parado. Isso não cancela a decisão aceita nem o processamento no servidor.',
@@ -173,7 +173,7 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas novas de T2' }));
     await user.click(screen.getByRole('button', { name: 'Voltar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mock.writes).toHaveLength(0);
@@ -183,12 +183,12 @@ describe('publication interface', () => {
       mock = setup({ write: async () => json({ ...PUBLICATION_META_V1, state: 'conflict' }, 409) });
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas novas de T2' }));
     mock.fixture.items.forEach((item) => {
       item.version = 11;
       if (item.availableRevision) item.availableRevision = 'synthetic:2026:revision:3';
     });
-    await user.click(screen.getByRole('button', { name: 'Confirmar atualização' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas novas' }));
     await screen.findByText(
       'A fonte, o escopo ou a configuração mudou. Recarregue e revise uma nova decisão; a revisão não será substituída automaticamente.',
     );
@@ -202,9 +202,9 @@ describe('publication interface', () => {
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Recarregar' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Atualizar notas publicadas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas novas de T2' }));
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Confirmar atualização' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar notas novas' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
     expect(mock.writes[1]).toMatchObject({
       expectedVersion: 11,
@@ -236,7 +236,7 @@ describe('publication interface', () => {
     const remaining = (await screen.findByRole('heading', { name: 'Recuperação 1' })).closest(
       '.pa-publication-card',
     )!;
-    expect(within(remaining as HTMLElement).getByText('Publicado')).toBeTruthy();
+    expect(within(remaining as HTMLElement).getByText('Publicada')).toBeTruthy();
   });
   it('discards an open decision before painting a changed write capability', async () => {
     const user = userEvent.setup(),
@@ -315,6 +315,6 @@ describe('publication interface', () => {
     );
     await screen.findByText('Consulta indisponível. Tente novamente.');
     expect(screen.queryByRole('heading', { name: '1º trimestre' })).toBeNull();
-    expect(screen.queryByText('Sem dados')).toBeNull();
+    expect(screen.queryByText('Sem notas no Banco')).toBeNull();
   });
 });

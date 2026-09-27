@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
 import { StableReadStatusV1 } from '../../../shared/live-data/stable-read-status-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -32,6 +32,9 @@ export interface StudentPublicationPropsV1 {
   readonly scopeLabel?: string;
   readonly onOpenSettings?: () => void;
   readonly onOpenHealth?: () => void;
+  /** Aba Notas: what students see now (chip) and the "Mostrar para os alunos" part per period. */
+  readonly periodStatus?: (item: PublicationItemV1) => ReactNode;
+  readonly periodExtra?: (item: PublicationItemV1) => ReactNode;
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -48,12 +51,12 @@ const termLabel = (period: string) =>
   period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
 function operationLabel(command: PublicationCommandV1) {
   if (command.operation === 'unpublish') return 'Retirar publicação';
-  if (command.operation === 'publish-update') return 'Atualizar notas publicadas';
+  if (command.operation === 'publish-update') return 'Publicar notas novas';
   return 'Publicar notas';
 }
 function confirmationLabel(command: PublicationCommandV1) {
   if (command.operation === 'unpublish') return 'Confirmar retirada';
-  if (command.operation === 'publish-update') return 'Confirmar atualização';
+  if (command.operation === 'publish-update') return 'Publicar notas novas';
   return 'Confirmar publicação';
 }
 
@@ -96,10 +99,10 @@ function PublicationActionsV1({
         <Button
           size="sm"
           isDisabled={disabled}
-          aria-label={`Atualizar notas publicadas de ${item.period}`}
+          aria-label={`Publicar notas novas de ${item.period}`}
           onPress={() => review(item, 'publish-update')}
         >
-          Atualizar notas publicadas
+          Publicar notas novas
         </Button>
       ) : null}
       {published ? (
@@ -117,21 +120,85 @@ function PublicationActionsV1({
   );
 }
 
+function publicationStepTextV1(item: PublicationItemV1, autoUpdate: boolean) {
+  if (item.state === 'no-data') return 'Ainda não há notas deste período no Banco.';
+  if (item.state === 'available') return 'Há notas no Banco prontas para publicar.';
+  if (item.state === 'update-pending')
+    return autoUpdate
+      ? 'Publicada. As notas novas do Banco serão publicadas sozinhas.'
+      : 'Publicada. O Banco tem notas mais novas que ainda não foram publicadas.';
+  return 'Publicada e igual ao Banco.';
+}
+
 function PublicationPeriodV1({
   item,
   data,
   canWrite,
   disabled,
   review,
+  status,
+  extra,
 }: Readonly<{
   item: PublicationItemV1;
   data: PublicationSnapshotV1;
   canWrite: boolean;
   disabled: boolean;
   review: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
+  status?: ReactNode;
+  extra?: ReactNode;
 }>) {
   const disclosure = disclosureAtV1(data.settings, item.period);
   const restriction = publicationRestrictionV1(data.settings, item.period);
+  const versions = (
+    <Tooltip>
+      <Tooltip.Trigger className="w-fit text-xs text-muted">Versões das notas</Tooltip.Trigger>
+      <Tooltip.Content>
+        Disponível: {revisionLabel(item.availableRevision)}
+        <br />
+        Publicada: {revisionLabel(item.publishedRevision)}
+      </Tooltip.Content>
+    </Tooltip>
+  );
+  // Aba Notas: two steps side by side, publish then show. A period without any data is one line.
+  if (extra !== undefined) {
+    const empty = item.state === 'no-data' && item.publishedRevision === null;
+    return (
+      <Card className={'pa-publication-card pa-grade-period' + (empty ? ' pa-grade-period--empty' : '')}>
+        <Card.Header>
+          <div className="pa-publication-heading">
+            <h3>{termLabel(item.period)}</h3>
+            {status}
+          </div>
+        </Card.Header>
+        {empty ? null : (
+          <Card.Content className="pa-grade-steps">
+            <section className="pa-grade-step" aria-label={`Publicação de ${termLabel(item.period)}`}>
+              <p className="pa-grade-step-title">1 · Publicação</p>
+              <p className="pa-grade-step-text">
+                <Chip size="sm" variant="soft" color={publicationColorV1(item)}>
+                  {PUBLICATION_LABELS_V1[item.state]}
+                </Chip>{' '}
+                {publicationStepTextV1(item, data.settings.value.autoUpdate)}
+              </p>
+              {canWrite ? (
+                <PublicationActionsV1
+                  item={item}
+                  autoUpdate={data.settings.value.autoUpdate}
+                  disabled={disabled}
+                  review={review}
+                />
+              ) : null}
+              {versions}
+            </section>
+            <section className="pa-grade-step" aria-label={`Mostrar ${termLabel(item.period)}`}>
+              <p className="pa-grade-step-title">2 · Mostrar para os alunos</p>
+              {extra}
+            </section>
+          </Card.Content>
+        )}
+      </Card>
+    );
+  }
   return (
     <Card className="pa-publication-card">
       <Card.Header>
@@ -165,14 +232,7 @@ function PublicationPeriodV1({
             </dd>
           </div>
         </dl>
-        <Tooltip>
-          <Tooltip.Trigger className="w-fit text-xs text-muted">Versões das notas</Tooltip.Trigger>
-          <Tooltip.Content>
-            Disponível: {revisionLabel(item.availableRevision)}
-            <br />
-            Publicada: {revisionLabel(item.publishedRevision)}
-          </Tooltip.Content>
-        </Tooltip>
+        {versions}
       </Card.Content>
       {canWrite ? (
         <PublicationActionsV1
@@ -509,6 +569,8 @@ function PublicationPolicyV1({
 
 function PublicationReadyV1({
   embedded,
+  periodStatus,
+  periodExtra,
   load,
   view,
   canWrite,
@@ -525,6 +587,8 @@ function PublicationReadyV1({
   review: PublicationCommandV1 | null;
   onOpenSettings?: () => void;
   prepare: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
+  periodStatus?: (item: PublicationItemV1) => ReactNode;
+  periodExtra?: (item: PublicationItemV1) => ReactNode;
 }>) {
   const disabled = busy || view.refreshing || review !== null || view.mutation.state === 'error';
   return (
@@ -549,6 +613,8 @@ function PublicationReadyV1({
             canWrite={canWrite}
             disabled={disabled}
             review={prepare}
+            status={periodStatus?.(item)}
+            extra={periodExtra?.(item)}
           />
         ))}
       </div>
@@ -558,6 +624,8 @@ function PublicationReadyV1({
 
 function PublicationLoadV1({
   embedded,
+  periodStatus,
+  periodExtra,
   view,
   canWrite,
   busy,
@@ -578,6 +646,8 @@ function PublicationLoadV1({
   reload: () => void;
   onOpenSettings?: () => void;
   prepare: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
+  periodStatus?: (item: PublicationItemV1) => ReactNode;
+  periodExtra?: (item: PublicationItemV1) => ReactNode;
 }>) {
   if (view.load.state === 'loading')
     return (
@@ -599,6 +669,8 @@ function PublicationLoadV1({
     return (
       <PublicationReadyV1
         embedded={embedded}
+        periodStatus={periodStatus}
+        periodExtra={periodExtra}
         load={view.load}
         view={view}
         canWrite={canWrite}
@@ -613,6 +685,8 @@ function PublicationLoadV1({
 
 function PublicationScopeV1({
   embedded,
+  periodStatus,
+  periodExtra,
   client,
   scope,
   canWrite,
@@ -684,10 +758,10 @@ function PublicationScopeV1({
     >
       <header className="pa-publication-heading">
         <div>
-          <h2>Notas publicadas</h2>
+          <h2>{periodExtra ? 'Trimestres e recuperações' : 'Notas publicadas'}</h2>
           {!embedded ? (
             <p>{label}</p>
-          ) : (
+          ) : periodExtra ? null : (
             <p>
               Publicar disponibiliza uma versão das notas. A exibição respeita as políticas e o
               calendário.
@@ -713,6 +787,8 @@ function PublicationScopeV1({
       />
       <PublicationLoadV1
         embedded={embedded}
+        periodStatus={periodStatus}
+        periodExtra={periodExtra}
         view={view}
         canWrite={canWrite}
         busy={busy}

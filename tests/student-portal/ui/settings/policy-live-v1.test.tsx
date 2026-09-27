@@ -132,7 +132,7 @@ it('does not load publication until visited and pauses retained hidden reads inc
     <PolicyLayoutV1
       disabled={false}
       field={(name) => <span key={name}>{name}</span>}
-      publication={<PublicationProbe read={read} />}
+      grades={<PublicationProbe read={read} />}
     />,
   );
   await advance(62_000);

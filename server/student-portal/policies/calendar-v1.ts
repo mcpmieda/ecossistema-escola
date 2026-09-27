@@ -1,5 +1,9 @@
 import type { z } from 'zod';
-import { calendarV1, settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import {
+  calendarV1,
+  settingsValueV1,
+  type AgendaPlanV1,
+} from '../../../shared/student-portal-contracts/policy-v1';
 import { periodV1 } from '../../../shared/student-portal-contracts/core-v1';
 import {
   selfResponseV1,
@@ -23,16 +27,21 @@ function timestamp(value: string | null): number | null {
   return value === null ? null : Date.parse(value);
 }
 
+const instant = (value: string | null): string | null => {
+  if (value === null) return null;
+  const date = new Date(value);
+  if (/\.\d*[1-9]\d*(?:Z|[+-]\d{2}:\d{2})$/u.test(value) || date.getUTCMilliseconds() !== 0)
+    throw new Error('student-portal-calendar-second-precision');
+  return date.toISOString().replace('.000Z', 'Z');
+};
+const agendaInstantsV1 = (plan: AgendaPlanV1): AgendaPlanV1 => ({
+  enabled: plan.enabled,
+  schedule: plan.schedule.map((event) => ({ at: instant(event.at)!, action: event.action })),
+});
+
 /** UTC persistence with second precision; dates are never filled from the current year. */
 export function normalizeCalendarV1(input: unknown): CalendarV1 {
   const parsed = calendarV1.parse(input);
-  const instant = (value: string | null): string | null => {
-    if (value === null) return null;
-    const date = new Date(value);
-    if (/\.\d*[1-9]\d*(?:Z|[+-]\d{2}:\d{2})$/u.test(value) || date.getUTCMilliseconds() !== 0)
-      throw new Error('student-portal-calendar-second-precision');
-    return date.toISOString().replace('.000Z', 'Z');
-  };
   return calendarV1.parse({
     ...parsed,
     ...(parsed.accessStartsAt === undefined
@@ -52,8 +61,19 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
     recoveriesStartAt: instant(parsed.recoveriesStartAt),
     yearEndsAt: instant(parsed.yearEndsAt),
     finalDisclosureAt: instant(parsed.finalDisclosureAt),
+    ...(parsed.finalAgenda === undefined ? {} : { finalAgenda: agendaInstantsV1(parsed.finalAgenda) }),
     disclosure:
-      parsed.disclosure.mode === 'single'
+      parsed.disclosure.mode === 'agenda'
+        ? {
+            mode: 'agenda',
+            periods: Object.fromEntries(
+              Object.entries(parsed.disclosure.periods).map(([key, plan]) => [
+                key,
+                agendaInstantsV1(plan),
+              ]),
+            ),
+          }
+        : parsed.disclosure.mode === 'single'
         ? {
             ...parsed.disclosure,
             at: instant(parsed.disclosure.at),
@@ -152,6 +172,8 @@ export function publicationWindowV1(
   let end = timestamp(calendar.accessEndsAt ?? calendar.yearEndsAt);
   if (!value.accessEnabled || start === null || end === null || periods.length === 0) return null;
   const disclosure = calendar.disclosure;
+  // An agenda is not a single window: there is no joint publication window to offer.
+  if (disclosure.mode === 'agenda') return null;
   for (const period of periods) {
     periodV1.parse(period);
     if (!value.allowedPeriods.includes(period)) return null;
@@ -176,10 +198,16 @@ export function periodDisclosureV1(
   const value = settingsValueV1.parse(input);
   periodV1.parse(period);
   if (!Number.isFinite(now.getTime())) throw new Error('student-portal-clock-invalid');
-  if (!value.allowedPeriods.includes(period)) return 'disabled';
   const calendar = value.calendar;
-  const start = timestamp(periodStartV1(calendar, period));
   const disclosure = calendar.disclosure;
+  if (disclosure.mode === 'agenda') {
+    // Aba Notas: only the period's own switch and schedule decide.
+    const plan = disclosure.periods[period];
+    if (accessOpenAtV1(plan, now.getTime())) return 'allowed';
+    return nextAccessChangeV1(plan, now.getTime(), true) !== null ? 'not-yet' : 'disabled';
+  }
+  if (!value.allowedPeriods.includes(period)) return 'disabled';
+  const start = timestamp(periodStartV1(calendar, period));
   if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return 'disabled';
   const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
   const end = timestamp(
@@ -226,6 +254,20 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   let release: number | null = null;
   let ended: { period: PeriodV1 | null; at: number } | null = null;
   for (const period of periodV1.options) {
+    if (disclosure.mode === 'agenda') {
+      const plan = disclosure.periods[period];
+      if (accessOpenAtV1(plan, current)) continue;
+      const opens = nextAccessChangeV1(plan, current, true);
+      if (opens !== null) {
+        if (release === null || opens < release) release = opens;
+        continue;
+      }
+      // Hidden for good: announce it only when a scheduled Ocultar did it.
+      const hidden = [...plan.schedule].reverse().find((event) => Date.parse(event.at) <= current);
+      if (hidden?.action === 'close' && (ended === null || Date.parse(hidden.at) > ended.at))
+        ended = { period, at: Date.parse(hidden.at) };
+      continue;
+    }
     if (!value.allowedPeriods.includes(period)) continue;
     if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) continue;
     const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
@@ -265,6 +307,10 @@ export function mayDiscloseFinalV1(
   officialSourceAuthorized: boolean,
 ): boolean {
   const value = settingsValueV1.parse(input);
+  const agenda = value.calendar.finalAgenda;
+  // Aba Notas: the Resultado anual agenda replaces showFinalResult and its two dates.
+  if (agenda)
+    return officialSourceAuthorized && Number.isFinite(now.getTime()) && accessOpenAtV1(agenda, now.getTime());
   const at = timestamp(value.calendar.finalDisclosureAt);
   const end = timestamp(value.calendar.finalDisclosureEndsAt ?? null);
   return (

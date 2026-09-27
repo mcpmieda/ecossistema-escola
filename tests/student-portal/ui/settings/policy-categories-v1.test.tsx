@@ -99,33 +99,19 @@ function setup(
 }
 
 describe('policy categories preserve editing and inheritance', () => {
-  it('keeps an unsaved period selection when visiting another category', async () => {
+  it('keeps an unsaved draft when visiting another category', async () => {
     const user = userEvent.setup();
     const mock = setup();
-    await user.click(await screen.findByRole('tab', { name: 'Notas' }));
-    const group = screen.getByRole('group', { name: 'Notas disponíveis' });
-    await user.click(within(group).getByRole('checkbox', { name: '2º trimestre' }));
+    await user.click(await screen.findByRole('tab', { name: 'Segurança' }));
+    const field = screen.getByRole('spinbutton', { name: 'Pedir verificação após' });
+    fireEvent.change(field, { target: { value: '4' } });
+    await user.click(screen.getByRole('tab', { name: 'Acesso' }));
+    expect(field.closest('.pa-policy-panel')?.hasAttribute('data-inert')).toBe(true);
+    expect(screen.getByRole('tab', { name: 'Acesso' }).getAttribute('aria-selected')).toBe('true');
     await user.click(screen.getByRole('tab', { name: 'Segurança' }));
-    expect(group.closest('.pa-policy-panel')?.hasAttribute('data-inert')).toBe(true);
-    expect(screen.getByRole('tab', { name: 'Segurança' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
-    await user.click(screen.getByRole('tab', { name: 'Notas' }));
-    const returned = screen.getByRole('group', { name: 'Notas disponíveis' });
     expect(
-      (
-        within(returned).getByRole('checkbox', {
-          name: '2º trimestre',
-        }) as HTMLInputElement
-      ).checked,
-    ).toBe(false);
-    expect(
-      (
-        within(returned).getByRole('checkbox', {
-          name: '1º trimestre',
-        }) as HTMLInputElement
-      ).checked,
-    ).toBe(true);
+      (screen.getByRole('spinbutton', { name: 'Pedir verificação após' }) as HTMLInputElement).value,
+    ).toBe('4');
     expect(screen.getByRole('button', { name: 'Desfazer edições' })).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
@@ -153,25 +139,18 @@ describe('policy categories preserve editing and inheritance', () => {
   });
 
   it.each([false, true])(
-    'restores the inherited value of a dirty field while retaining another draft (transient retry: %s)',
+    'restores the inherited value of one field while retaining another draft (transient retry: %s)',
     async (failFirstWrite) => {
       const initial = settingsFixtureV1(SETTINGS_CLASS_V1);
-      initial.sources.allowedPeriods = SETTINGS_CLASS_V1;
-      initial.value.allowedPeriods = ['T1'];
+      initial.sources.calendar = SETTINGS_CLASS_V1;
       const user = userEvent.setup();
       const mock = setup(initial, failFirstWrite);
-      await user.click(await screen.findByRole('tab', { name: 'Notas' }));
-      await user.click(
-        within(screen.getByRole('group', { name: 'Notas disponíveis' })).getByRole('checkbox', {
-          name: '2º trimestre',
-        }),
-      );
-      await user.click(screen.getByRole('tab', { name: 'Segurança' }));
+      await user.click(await screen.findByRole('tab', { name: 'Segurança' }));
       fireEvent.change(screen.getByRole('spinbutton', { name: 'Pedir verificação após' }), {
         target: { value: '4' },
       });
-      await user.click(screen.getByRole('tab', { name: 'Notas' }));
-      await user.click(screen.getByRole('button', { name: 'Usar padrão de Períodos permitidos' }));
+      await user.click(screen.getByRole('tab', { name: 'Calendário' }));
+      await user.click(screen.getByRole('button', { name: 'Usar padrão de Datas' }));
       expect(mock.writes).toHaveLength(0);
       await user.click(
         within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }),
@@ -185,24 +164,13 @@ describe('policy categories preserve editing and inheritance', () => {
         expect(mock.writes[1]).toEqual(mock.writes[0]);
         expect(mock.writes[2]).toEqual(mock.writes[0]);
       }
-      await vi.waitFor(() => {
-        const group = screen.getByRole('group', { name: 'Notas disponíveis' });
-        for (const period of ['1º trimestre', '2º trimestre', '3º trimestre'])
-          expect(
-            (within(group).getByRole('checkbox', { name: period }) as HTMLInputElement).checked,
-          ).toBe(true);
-        expect(
-          (
-            within(group).getByRole('checkbox', {
-              name: 'Recuperação 1',
-            }) as HTMLInputElement
-          ).checked,
-        ).toBe(false);
-      });
+      await vi.waitFor(() =>
+        expect(screen.queryByRole('button', { name: 'Usar padrão de Datas' })).toBeNull(),
+      );
       expect(mock.writes).toHaveLength(failFirstWrite ? 3 : 1);
       expect(mock.writes[0]).toMatchObject({
         operation: 'settings-inherit',
-        keys: ['allowedPeriods'],
+        keys: ['calendar'],
         expectedVersion: 7,
       });
       await user.click(screen.getByRole('tab', { name: 'Segurança' }));

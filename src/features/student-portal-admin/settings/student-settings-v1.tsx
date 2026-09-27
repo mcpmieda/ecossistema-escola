@@ -37,6 +37,14 @@ import {
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import { LinkClosureV1 } from './link-closure-v1';
 import { AccessPlanCardV1, AccessPlanSummaryV1, accessPlanOfSettingsV1 } from './access-plan-v1';
+import {
+  FinalResultCardV1,
+  GradeShowV1,
+  GradeStatusChipV1,
+  GradesIntroV1,
+  type GradeReviewIntentV1,
+} from './grades-tab-v1';
+import type { PublicationItemV1 } from '../publication/publication-values-v1';
 import { accessOpenAtV1 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -45,10 +53,21 @@ import './student-settings-v1.css';
 
 type ReviewIntentV1 =
   | { field: SettingsFieldV1; inherit: true }
-  | { field: SettingsFieldV1; inherit: false; value: ReturnType<typeof parseSettingsDraftV1> };
+  | {
+      field: SettingsFieldV1;
+      inherit: false;
+      value: ReturnType<typeof parseSettingsDraftV1>;
+      /** A plain-language confirmation instead of the raw value (Aba Notas agendas). */
+      presentation?: { title: string; body: ReactNode };
+    };
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
+/** What the Notas tab adds to each publication period card. */
+export type PublicationSlotsV1 = {
+  periodStatus: (item: PublicationItemV1) => ReactNode;
+  periodExtra: (item: PublicationItemV1) => ReactNode;
+};
 export interface StudentSettingsPropsV1 {
-  readonly publication?: ReactNode;
+  readonly publication?: ReactNode | ((slots: PublicationSlotsV1) => ReactNode);
   readonly area?: 'all' | 'policies' | 'general';
   readonly client: PortalAdminClientV1;
   readonly reader?: PortalAdminReadClientV2;
@@ -63,10 +82,10 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
     'Permite a entrada com senha ou QR. Agendamentos abrem e fecham sozinhos. O bloqueio da escola prevalece.',
   accessSchedule: 'Abrir e Fechar agendados, salvos junto com a entrada no Portal.',
-  showPartials: 'Inclui avaliações e atividades nas notas publicadas.',
+  showPartials: 'O aluno vê a nota de cada avaliação e atividade, além da nota do trimestre.',
   autoUpdate:
-    'Mantém as notas publicadas em dia com o Banco. A primeira publicação continua manual.',
-  showFinalResult: 'Exibe o resultado anual autorizado, nas datas definidas no Calendário.',
+    'Quando o Banco tiver notas mais novas de um período já publicado, elas são publicadas sem precisar clicar. A primeira publicação de cada período continua manual.',
+  showFinalResult: 'Exibe o resultado anual autorizado. Na aba Notas, use os agendamentos do Resultado anual.',
   showTermClosing: 'Exibe uma orientação por disciplina, com as frases aprovadas pela escola.',
   termClosingConclusive:
     'Escolha entre a conclusão do trimestre encerrado e a orientação durante o trimestre.',
@@ -128,7 +147,7 @@ function FieldCardV1({
   canWrite: boolean;
   sourceLabel: string;
   review: (review: ReviewIntentV1) => void;
-  onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
+  onDirtyChange: (key: string, dirty: boolean) => void;
   compact?: boolean;
 }>) {
   const sourceDraft = useMemo(() => settingsDraftV1(field, settings.value), [field, settings]);
@@ -324,7 +343,11 @@ function ReviewDialogV1({
           <Modal.Body className="pa-settings-review">
             <p>
               <strong>
-                {review.field === 'accessEnabled' ? 'Entrada no Portal' : SETTINGS_LABELS_V1[review.field]}
+                {!review.inherit && review.presentation
+                  ? review.presentation.title
+                  : review.field === 'accessEnabled'
+                    ? 'Entrada no Portal'
+                    : SETTINGS_LABELS_V1[review.field]}
               </strong>{' '}
               em {scopeLabel}.
             </p>
@@ -334,6 +357,8 @@ function ReviewDialogV1({
                   ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão da escola ou da turma.'
                   : 'Esta opção voltará a seguir o padrão da escola ou da turma.'}
               </p>
+            ) : review.presentation ? (
+              review.presentation.body
             ) : review.field === 'accessEnabled' ? (
               <>
                 <p>Como vai ficar:</p>
@@ -363,7 +388,8 @@ function ReviewDialogV1({
                 </ul>
               </div>
             ) : null}
-            {review.field === 'calendar' || review.field === 'autoUpdate' ? (
+            {(review.field === 'calendar' && (review.inherit || !review.presentation)) ||
+            review.field === 'autoUpdate' ? (
               <p>As notas já publicadas ou retiradas não serão restauradas por esta alteração.</p>
             ) : null}
           </Modal.Body>
@@ -435,7 +461,7 @@ function SettingsReadyV1({
   onReviewClose,
   onReviewConfirm,
 }: Readonly<{
-  publication?: ReactNode;
+  publication?: StudentSettingsPropsV1['publication'];
   fieldVersions: Partial<Record<SettingsFieldV1, number>>;
   area: 'all' | 'policies' | 'general';
   data: EffectiveSettingsV1;
@@ -449,7 +475,7 @@ function SettingsReadyV1({
   label: string;
   discardVersion: number;
   sourceLabel: (scope: ScopeV1) => string;
-  onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
+  onDirtyChange: (key: string, dirty: boolean) => void;
   onReview: (review: ReviewV1) => void;
   onRetry: () => void;
   onReload: () => void;
@@ -500,7 +526,44 @@ function SettingsReadyV1({
       {area === 'policies' ? (
         <PolicyLayoutV1
           field={renderField}
-          publication={publication}
+          grades={
+            <>
+              <GradesIntroV1 />
+              {typeof publication === 'function'
+                ? publication({
+                    periodStatus: (item) => (
+                      <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />
+                    ),
+                    periodExtra: (item) => (
+                      <GradeShowV1
+                        key={`${discardVersion}:${item.period}:${data.version}`}
+                        settings={data}
+                        gradeKey={item.period}
+                        canWrite={canWrite}
+                        disabled={fieldDisabled}
+                        review={(intent: GradeReviewIntentV1) =>
+                          onReview({ ...intent, expectedVersion: data.version })
+                        }
+                        onDirtyChange={onDirtyChange}
+                      />
+                    ),
+                  })
+                : publication}
+              <FinalResultCardV1
+                key={`${discardVersion}:final:${data.version}`}
+                settings={data}
+                canWrite={canWrite}
+                disabled={fieldDisabled}
+                review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+                onDirtyChange={onDirtyChange}
+              />
+              <section className="pa-grades-options" aria-labelledby="pa-grades-options-title">
+                <h3 id="pa-grades-options-title">Opções</h3>
+                {renderField('showPartials')}
+                {renderField('autoUpdate')}
+              </section>
+            </>
+          }
           disabled={busy || review !== null}
         />
       ) : area !== 'general' ? (
@@ -621,7 +684,7 @@ function SettingsScopeV1({
     field: SettingsFieldV1;
     version: number;
   } | null>(null);
-  const [dirtyFields, setDirtyFields] = useState<Set<SettingsFieldV1>>(() => new Set());
+  const [dirtyFields, setDirtyFields] = useState<Set<string>>(() => new Set());
   const request = useMemo(() => createLatestPortalRequestV1<EffectiveSettingsV1>(setLoad), []);
   const writer = useMemo(() => createSettingsMutationV1(client, setMutation), [client]);
   const label = scopeLabel ?? settingsScopeLabelV1(fixedScope);
@@ -698,7 +761,7 @@ function SettingsScopeV1({
   }, [canWrite, writer]);
   useDraftNavigationGuardV1(dirtyFields.size > 0 || mutation.state === 'pending');
   const busy = mutation.state === 'pending' || closing;
-  const onDirtyChange = useCallback((field: SettingsFieldV1, dirty: boolean) => {
+  const onDirtyChange = useCallback((field: string, dirty: boolean) => {
     setDirtyFields((previous) => {
       if (previous.has(field) === dirty) return previous;
       const next = new Set(previous);

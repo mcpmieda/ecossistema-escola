@@ -390,6 +390,7 @@
   margin: 0.15rem 0 0;
   font-size: 0.8rem;
 }
+.pa-access-schedule-title,
 .pa-access-schedule h4 {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
@@ -463,4 +464,99 @@
 .pa-access-row-note {
   grid-column: 1 / -1;
   margin: -0.25rem 0 0;
+}
+
+/* Aba Notas (27/09/2026): per period, publish then show; Resultado anual; options at the end. */
+.pa-grades {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.pa-grades-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft, var(--surface-secondary));
+  color: var(--accent-soft-foreground, var(--foreground));
+  font-size: 0.85rem;
+}
+.pa-grades-intro p {
+  margin: 0;
+}
+.pa-grades-intro svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.pa-grades .pa-publication-periods {
+  display: grid;
+  gap: 0.65rem;
+}
+.pa-grade-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: 0.75rem;
+}
+.pa-grade-step {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.pa-grade-step-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pa-grade-step-text {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.pa-grade-step .pa-publication-actions {
+  padding: 0;
+}
+.pa-grade-period--empty > .card__header {
+  padding-bottom: 0;
+}
+.pa-grade-show {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.pa-grade-show-now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.pa-grade-show-state {
+  margin: 0;
+  font-weight: 650;
+}
+.pa-grade-show .pa-access-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.pa-grade-show .pa-access-row > .pa-access-action {
+  grid-column: 1 / -1;
+}
+.pa-grade-card-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pa-grades-options {
+  display: grid;
+  gap: 0.5rem;
+}
+.pa-grades-options > h3 {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  font-weight: 650;
 }

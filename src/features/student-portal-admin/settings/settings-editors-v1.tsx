@@ -10,8 +10,6 @@ import {
   DatePicker,
   Input,
   Label,
-  ListBox,
-  Select,
   TextField,
   Switch,
 } from '@heroui/react';
@@ -26,7 +24,6 @@ import {
   type SettingsFieldV1,
 } from './settings-values-v1';
 import {
-  calendarDraftModeV1,
   type CalendarDraftV1,
   type CalendarDateKeyV1,
   type CalendarPeriodV1,
@@ -203,10 +200,6 @@ const DATE_GROUPS: { label: string; keys: CalendarDateKeyV1[] }[] = [
       'yearEndsAt',
     ],
   },
-  {
-    label: 'Resultado anual',
-    keys: ['finalDisclosureAt', 'finalDisclosureEndsAt'],
-  },
 ];
 function CalendarSectionV1({
   label,
@@ -282,99 +275,7 @@ export function CalendarEditorV1({
             </div>
           </CalendarSectionV1>
         ))}
-        <CalendarSectionV1 label="Divulgação das notas" compact={compact}>
-          <div className="pa-calendar-disclosure">
-            <p className="pa-settings-hint">
-              As notas seguem a agenda: antes de “Liberar” ficam ocultas e antes de “Ocultar” ficam
-              visíveis. Para mostrar de novo depois de ocultar, use um “Liberar” posterior. Trocar
-              o modo limpa as datas de divulgação. Publique as notas na categoria Notas.
-            </p>
-            <Select
-              className="max-w-72"
-              selectedKey={value.mode}
-              isDisabled={disabled}
-              onSelectionChange={(key) => {
-                if (key === 'single' || key === 'per-period')
-                  onChange(calendarDraftModeV1(value, key));
-              }}
-            >
-              <Label>Divulgação das notas</Label>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  <ListBox.Item id="single" textValue="Data única">
-                    Data única
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                  <ListBox.Item id="per-period" textValue="Por trimestre / recuperação">
-                    Por trimestre / recuperação
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                </ListBox>
-              </Select.Popover>
-            </Select>
-            {value.mode === 'single' ? (
-              <>
-                <DateInputV1
-                  label="Liberar notas em"
-                  value={value.singleAt}
-                  disabled={disabled}
-                  onChange={(singleAt) => onChange({ ...value, singleAt })}
-                />
-                <DateInputV1
-                  label="Ocultar notas em"
-                  value={value.singleUntil ?? ''}
-                  disabled={disabled}
-                  onChange={(singleUntil) => onChange({ ...value, singleUntil })}
-                />
-                <PeriodsEditorV1
-                  label="Notas incluídas"
-                  value={value.singlePeriods}
-                  disabled={disabled}
-                  onChange={(singlePeriods) => onChange({ ...value, singlePeriods })}
-                />
-              </>
-            ) : (
-              <div className="pa-settings-grid">
-                {PERIODS_V1.map((period) => (
-                  <div key={period} className="grid gap-2">
-                    <DateInputV1
-                      label={`Divulgação de ${period}`}
-                      value={value.periodAt[period]}
-                      disabled={disabled}
-                      onChange={(date) =>
-                        onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
-                      }
-                    />
-                    <DateInputV1
-                      label={`Ocultar ${period} em`}
-                      value={value.periodUntil?.[period] ?? ''}
-                      disabled={disabled}
-                      onChange={(date) =>
-                        onChange({
-                          ...value,
-                          periodUntil: {
-                            T1: '',
-                            T2: '',
-                            T3: '',
-                            REC1: '',
-                            REC2: '',
-                            REC3: '',
-                            ...value.periodUntil,
-                            [period]: date,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </CalendarSectionV1>
+        {/* Grade and annual result dates moved to the Notas tab (agendas), 27/09/2026. */}
       </Wrapper>
     </div>
   );

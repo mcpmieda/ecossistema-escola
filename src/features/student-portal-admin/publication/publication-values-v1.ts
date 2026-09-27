@@ -17,10 +17,10 @@ export interface PublicationSnapshotV1 {
   settings: EffectiveSettingsV1;
 }
 export const PUBLICATION_LABELS_V1 = {
-  'no-data': 'Sem dados',
-  available: 'Dados disponíveis',
-  published: 'Publicado',
-  'update-pending': 'Atualização pendente',
+  'no-data': 'Sem notas no Banco',
+  available: 'Pronta para publicar',
+  published: 'Publicada',
+  'update-pending': 'Há notas novas no Banco',
 } as const;
 export function publicationSnapshotV1(
   scope: ScopeV1,
@@ -83,6 +83,8 @@ export function publicationObservationV1(
 }
 export function disclosureAtV1(settings: EffectiveSettingsV1, period: PublicationItemV1['period']) {
   const disclosure = settings.value.calendar.disclosure;
+  // Aba Notas agendas have no single "Liberar a partir de" date.
+  if (disclosure.mode === 'agenda') return null;
   return disclosure.mode === 'single'
     ? disclosure.periods.includes(period)
       ? disclosure.at
@@ -94,8 +96,9 @@ export function publicationRestrictionV1(
   settings: EffectiveSettingsV1,
   period: PublicationItemV1['period'],
 ): 'period-disabled' | 'outside-single-schedule' | null {
-  if (!settings.value.allowedPeriods.includes(period)) return 'period-disabled';
   const disclosure = settings.value.calendar.disclosure;
+  if (disclosure.mode === 'agenda') return null;
+  if (!settings.value.allowedPeriods.includes(period)) return 'period-disabled';
   if (disclosure.mode === 'single' && !disclosure.periods.includes(period))
     return 'outside-single-schedule';
   return null;

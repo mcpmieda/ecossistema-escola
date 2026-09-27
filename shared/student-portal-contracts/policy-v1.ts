@@ -42,6 +42,11 @@ const periodDates = z
     REC3: instantV1.nullable(),
   })
   .strict();
+/** A switch plus scheduled Mostrar/Ocultar, following the agenda like access (access-schedule-v1). */
+export const agendaPlanV1 = z
+  .object({ enabled: z.boolean(), schedule: accessScheduleV1 })
+  .strict();
+export type AgendaPlanV1 = z.infer<typeof agendaPlanV1>;
 export const disclosureV1 = z.discriminatedUnion('mode', [
   z
     .object({
@@ -54,12 +59,31 @@ export const disclosureV1 = z.discriminatedUnion('mode', [
   z
     .object({ mode: z.literal('per-period'), at: periodDates, endsAt: periodDates.optional() })
     .strict(),
+  // Aba Notas (27/09/2026): each period follows its own agenda. "Períodos permitidos" no longer
+  // applies once a scope uses this mode; the switch of each period replaces it.
+  z
+    .object({
+      mode: z.literal('agenda'),
+      periods: z
+        .object({
+          T1: agendaPlanV1,
+          T2: agendaPlanV1,
+          T3: agendaPlanV1,
+          REC1: agendaPlanV1,
+          REC2: agendaPlanV1,
+          REC3: agendaPlanV1,
+        })
+        .strict(),
+    })
+    .strict(),
 ]);
 export const calendarV1 = z
   .object({
     accessStartsAt: instantV1.nullable().optional(),
     accessEndsAt: instantV1.nullable().optional(),
     finalDisclosureEndsAt: instantV1.nullable().optional(),
+    // Resultado anual on the Notas tab: when present it replaces showFinalResult and the two dates.
+    finalAgenda: agendaPlanV1.optional(),
     timezone: z.literal('America/Sao_Paulo'),
     enrollmentStartsAt: instantV1.nullable(),
     yearStartsAt: instantV1.nullable(),
@@ -97,7 +121,7 @@ export const calendarV1 = z
     };
     if (v.disclosure.mode === 'single')
       distinct(v.disclosure.at, v.disclosure.endsAt, ['disclosure', 'endsAt']);
-    else
+    else if (v.disclosure.mode === 'per-period')
       for (const period of periodV1.options)
         distinct(v.disclosure.at[period], v.disclosure.endsAt?.[period], [
           'disclosure',
