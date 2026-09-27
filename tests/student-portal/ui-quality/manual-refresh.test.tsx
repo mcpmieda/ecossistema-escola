@@ -29,7 +29,9 @@ it.each([204, 401, 503])('keeps notes manual and the security channel separate f
     ...SESSION,
     expiresAt: new Date(Date.now() + 3600_000).toISOString(),
   });
-  render(<StudentPortalApp client={client} />);
+  // Notices are read once per sign-in state, never on passive events.
+  const notices = vi.fn(() => Promise.reject(new Error('offline')));
+  render(<StudentPortalApp client={client} statusClient={notices} />);
   await screen.findByRole('heading', { name: 'Minhas notas' });
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
   expect(fetcher).toHaveBeenCalledWith('/api/student/photo', expect.objectContaining({
@@ -48,6 +50,7 @@ it.each([204, 401, 503])('keeps notes manual and the security channel separate f
   expect(url.searchParams.get('purpose')).toBe('security');
   // The one initial metadata read is not a license to refresh photos or notes on passive events.
   expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(notices).toHaveBeenCalledTimes(1);
   expect(client.session).toHaveBeenCalledTimes(1);
   expect(client.me).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('heading', { name: 'Minhas notas' })).toBeTruthy();

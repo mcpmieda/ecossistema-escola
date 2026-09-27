@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
+import { PortalSignedInNoticesV1 } from '../features/student-portal/shell/portal-notices-v1';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
@@ -505,6 +506,8 @@ interface AdminSimulationV1 {
   academicState: SelfResponseV1['profile']['academicState'];
   /** Two real students have a single published subject. */
   singleSubject: boolean;
+  /** Portal notices (/api/student/status): release countdown or grades hidden again. */
+  notice: 'none' | 'countdown' | 'ended';
 }
 // Short (regular), long and extra-long names exercise the hero's type-size tiers. Production
 // names are all upper-case, 20–39 characters, 3–6 words; the first one mirrors that.
@@ -695,6 +698,17 @@ function AdminSimulatorPanelV1({
         <label>{toggle('singleSubject')} Só 1 disciplina</label>
       </div>
       <div style={rowStyle}>
+        <span style={{ opacity: 0.7 }}>Aviso:</span>
+        <select
+          value={value.notice}
+          onChange={(event) => onChange({ ...value, notice: event.target.value as AdminSimulationV1['notice'] })}
+        >
+          <option value="none">Nenhum</option>
+          <option value="countdown">Contagem para liberar notas</option>
+          <option value="ended">Lançamento de notas encerrado</option>
+        </select>
+      </div>
+      <div style={rowStyle}>
         <span style={{ opacity: 0.7 }}>Aluno:</span>
         <select
           value={value.academicState}
@@ -808,16 +822,37 @@ function PreviewAppV1() {
     dataset: 'example',
     academicState: 'regular',
     singleSubject: false,
+    notice: 'none',
   });
   const data = useMemo(
-    () => simulateAdminV1(admin.dataset === 'real' ? realPreviewData : previewData, admin),
+    () =>
+      simulateAdminV1(
+        admin.dataset === 'real' ? realPreviewData : previewData,
+        admin.notice === 'countdown' ? { ...admin, periods: [] } : admin,
+      ),
     [admin],
   );
+  const [releaseAt] = useState(() => new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60) * 1000).toISOString());
   return (
     <>
       <AdminSimulatorPanelV1 value={admin} onChange={setAdmin} />
       <StudentPortalPageV1
         load={{ state: 'ready', data }}
+        status={
+          admin.notice === 'none' ? undefined : (
+            <PortalSignedInNoticesV1
+              key={admin.notice}
+              hasGrades={data.state !== 'no-publication' && data.subjects.length > 0}
+              notices={{
+                access: 'open',
+                accessOpensAt: null,
+                gradesReleaseAt: admin.notice === 'countdown' ? releaseAt : null,
+                disclosureEnded:
+                  admin.notice === 'ended' ? { period: 'T1', at: '2026-09-20T18:00:00-03:00' } : null,
+              }}
+            />
+          )
+        }
         onLogout={() => undefined}
         portraitSrc={admin.hasPortrait ? (localPortrait ?? previewPortrait) : undefined}
       />
