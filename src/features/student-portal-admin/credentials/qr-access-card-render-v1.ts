@@ -1,3 +1,4 @@
+import { SCHOOL_CARD_NAME_LINES_V1 } from '../../../shared/brand/school-name-v1';
 import { canvasBlobSyncV1 } from './canvas-encode-v1';
 import { QrArtifactErrorV1, type QrArtifactV1 } from './qr-values-v1';
 
@@ -315,10 +316,15 @@ function paintStaticLayer(
   context.restore();
   context.textBaseline = 'top';
   context.fillStyle = '#ffffff';
+  const [schoolFirst, schoolSecond] = SCHOOL_CARD_NAME_LINES_V1;
   context.font = '800 15px Inter, Arial, sans-serif';
-  context.fillText('ESCOLA MUNICIPAL', 134, 49);
-  context.font = '850 20px Inter, Arial, sans-serif';
-  context.fillText('PROFª IÊDA ALVES DE OLIVEIRA', 134, 68);
+  context.fillText(schoolFirst, 134, 49);
+  // The full official name must stay clear of the red panel that starts near x = 505.
+  let schoolSize = 23;
+  context.font = `850 ${schoolSize}px Inter, Arial, sans-serif`;
+  while (context.measureText(schoolSecond).width > 366 && schoolSize > 14)
+    context.font = `850 ${--schoolSize}px Inter, Arial, sans-serif`;
+  context.fillText(schoolSecond, 134, 68);
 
   context.fillStyle = '#ffffff';
   context.font = '700 18px Inter, Arial, sans-serif';

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ENROLLED_ACCOUNT_SQL_V1 } from '../admin/queries-v1';
 import { adminCommandV1, birthWriteV1, savedBirthV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
@@ -74,7 +75,8 @@ export class BirthYearServiceV1 {
           FROM student_portal.academic_binding_v1 WHERE student_id=a.gradebook_student_id
           AND academic_year=2026 AND status IS DISTINCT FROM 6) b ON b.matches=1 AND b.class_id=$1
         LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id
-        WHERE a.academic_year=2026 AND a.closed_at IS NULL AND ($2::uuid IS NULL OR a.id>$2::uuid)
+        WHERE a.academic_year=2026 AND a.closed_at IS NULL AND ${ENROLLED_ACCOUNT_SQL_V1}
+          AND ($2::uuid IS NULL OR a.id>$2::uuid)
         ORDER BY a.id LIMIT $3`, [classId, after, limit + 1]);
       const items = rows.slice(0, limit).map((row) => ({
         accountId: z.uuid().parse(row.account_id), name: z.string().max(200).parse(row.name),

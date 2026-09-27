@@ -1,4 +1,5 @@
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
+import { SCHOOL_CARD_NAME_LINES_V1, SCHOOL_NAME_V1 } from '../shared/brand/school-name-v1';
 import type { PrintModeV1 } from '../features/student-portal-admin/credentials/qr-values-v1';
 import crest from '../features/student-portal-admin/credentials/assets/school-crest.png';
 import emblem from '../features/student-portal-admin/credentials/assets/school-emblem-outline.png';
@@ -23,6 +24,21 @@ type QrAccessCardProps = {
   mode?: PrintModeV1;
   instruction?: string;
 };
+
+/** Crest and official name, shared by the card previews. */
+export function QrCardSchoolV1() {
+  return (
+    <>
+      <span className="qr-card__crest">
+        <img src={crest} alt={`Brasão da ${SCHOOL_NAME_V1}`} />
+      </span>
+      <div className="qr-card__brand-copy">
+        <span>{SCHOOL_CARD_NAME_LINES_V1[0]}</span>
+        <strong>{SCHOOL_CARD_NAME_LINES_V1[1]}</strong>
+      </div>
+    </>
+  );
+}
 
 export function QrAccessCard({
   name,
@@ -59,13 +75,7 @@ export function QrAccessCard({
             <img key={index} src={emblem} alt="" />
           ))}
         </div>
-        <span className="qr-card__crest">
-          <img src={crest} alt="Brasão da Escola Municipal Professora Iêda Alves de Oliveira" />
-        </span>
-        <div className="qr-card__brand-copy">
-          <span>ESCOLA MUNICIPAL</span>
-          <strong>PROFª IÊDA ALVES DE OLIVEIRA</strong>
-        </div>
+        <QrCardSchoolV1 />
         <div className="qr-card__access-copy">
           <span>Portal do Aluno</span>
           <strong>Cartão de acesso</strong>
