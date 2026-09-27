@@ -244,6 +244,7 @@ export function academicToSelfV1(
                 mark: convert(assessment.mark),
                 ...(assessment.notDone ? { notDone: true as const } : {}),
                 ...(assessment.parallel ? { parallel: true as const } : {}),
+                ...(assessment.assessment ? { assessment: true as const } : {}),
               })),
             }),
       })),
@@ -406,6 +407,8 @@ export class AcademicStudentReaderPostgresV1
               ),
               ...(item.observed && item.value === null ? { notDone: true as const } : {}),
               ...(item.slot === 3 ? { parallel: true as const } : {}),
+              // Columns R and S: the assessments, named in the Banco de Notas settings.
+              ...(item.slot === 1 || item.slot === 2 ? { assessment: true as const } : {}),
             })),
         }),
       );

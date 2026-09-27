@@ -29,7 +29,7 @@ A elegibilidade continua independente das notas ausentes nas duas avaliações. 
 | `performance-analytics-v6.ts` | Cobertura inclui PARA efetivamente aplicável. Resumos são omitidos somente sem elegíveis nem notas excepcionais no recorte. Estados, comparabilidade e parciais por estudante/docente seguem a matriz central. |
 | `relational-bulletin-v2.ts` | Novas prévias/materializações omitem PARA somente se não elegível e não registrada; recebem cobertura central. Leitura/reimpressão de snapshots anteriores permanece inalterada. |
 | `AcademicStudentReaderPostgresV1.projectPreparedSourceV2` | Filtra as parciais da mesma edição aprovada pela aplicabilidade efetiva, preservando zero, observado/null e AM/U oficial. REC e autoridade conservam a completude regular preexistente da edição oficial pelo adaptador privado `officialEditionTermV1`. |
-| `scopedSelfV2` → `StudentGradesV1` | O fluxo já projeta a edição aprovada em cada leitura; a tabela recebe a lista filtrada e usa os rótulos granulares existentes. Sem busca de notas atuais, nova publicação ou nova fórmula no React. |
+| `scopedSelfV2` → `StudentGradesV1` | O fluxo já projeta a edição aprovada em cada leitura; a tabela recebe a lista filtrada e usa os rótulos granulares existentes. Sem busca de notas atuais, nova publicação ou nova fórmula no React. Desde 27/09/2026 a tela do aluno é `StudentPortalWorkspaceV1` (a tabela foi removida); o teste da #848 abre a disciplina nela. |
 
 Em matriz de avaliações, a coluna comum existe quando há elegíveis ou notas excepcionais no recorte. Só as células sem elegibilidade e sem nota ficam neutras. A operação não apaga fatos armazenados nem o histórico de importação.
 

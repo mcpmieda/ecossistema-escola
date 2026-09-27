@@ -8,9 +8,15 @@ type MarkV1 = PeriodV1['final'];
 type StudentMarkPropsV1 = Readonly<{
   mark: MarkV1;
   showMaximum?: boolean;
+  /** Trimester marks: whole numbers read "27,0" (owner review 27/09/2026). */
+  oneDecimal?: boolean;
 }>;
 
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
+const oneDecimalNumber = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 20,
+});
 
 function classificationV1(meetsMinimum: boolean | null) {
   if (meetsMinimum === true) return 'Atinge o mínimo institucional';
@@ -24,9 +30,10 @@ function minimumStateV1(meetsMinimum: boolean | null) {
 }
 
 /** Text/colour mapping only. It never derives a threshold, average, result or new mark. */
-export function StudentMarkV1({ mark, showMaximum = false }: StudentMarkPropsV1) {
+export function StudentMarkV1({ mark, showMaximum = false, oneDecimal = false }: StudentMarkPropsV1) {
   if (mark.kind === 'recovery-pending')
     return (
+      // Red: a pending recovery is the below-minimum side of the portal's two colours.
       <Chip size="sm" color="danger" variant="soft" aria-label="Recuperação pendente de nota">
         REC
       </Chip>
@@ -40,7 +47,7 @@ export function StudentMarkV1({ mark, showMaximum = false }: StudentMarkPropsV1)
     );
   }
   const classification = classificationV1(mark.meetsMinimum);
-  const value = number.format(mark.value);
+  const value = (oneDecimal ? oneDecimalNumber : number).format(mark.value);
   const total = showMaximum && mark.maximum !== null ? number.format(mark.maximum) : null;
   const maximumLabel = total === null ? '' : ` de ${total}`;
   const ariaLabel = `${value}${maximumLabel}. ${classification}`;

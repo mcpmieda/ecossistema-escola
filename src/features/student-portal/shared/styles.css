@@ -25,9 +25,6 @@ body {
   place-items: center;
   padding: 1.5rem;
 }
-.pa-entry-card {
-  width: min(100%, 28rem);
-}
 .pa-access-check {
   box-sizing: border-box;
   min-height: 100dvh;
