@@ -11,13 +11,13 @@ export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
   LEFT JOIN LATERAL (SELECT min(class_id) AS class_id,min(class_name) AS class_name,count(*)::integer AS matches
     FROM student_portal.academic_binding_v1 WHERE student_id=a.gradebook_student_id AND academic_year=a.academic_year
       AND status IS DISTINCT FROM 6) b ON b.matches=1`;
-/** Students who left the school — desistente (3), transferido (4), falecido (5) — are hidden from
- * the admin lists and operations (owner decision, 26/09/2026). "Foi para" (6) is already history
- * outside the class binding. Needs the `a` account alias.
+/** The admin lists and operations show only em curso, especial and estava no (owner decision,
+ * 26/09/2026): assistido (2), desistente (3), transferido (4) and falecido (5) are hidden. "Foi
+ * para" (6) is already history outside the class binding. Needs the `a` account alias.
  */
 export const ENROLLED_ACCOUNT_SQL_V1 = `NOT EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 exit_b
   WHERE exit_b.student_id=a.gradebook_student_id AND exit_b.academic_year=a.academic_year
-    AND exit_b.status IN (3,4,5))`;
+    AND exit_b.status IN (2,3,4,5))`;
 export const studentNameOrderSqlV1 = (value: string) =>
   `translate(lower(${value}),'áàâãäéèêëíìîïóòôõöúùûüç','aaaaaeeeeiiiiooooouuuuc') COLLATE "C"`;
 function accountFilter(query: AdminQueryV1, parameters: unknown[]): string {
