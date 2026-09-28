@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
-import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1, ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1, PublicationContextItemV1 } from '../../../../shared/student-portal-contracts/customizations-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import { SETTINGS_LABELS_V1, type SettingsFieldV1 } from './settings-values-v1';
@@ -19,7 +19,7 @@ export interface CustomizationResetChoiceV1 {
 export const customizationPeriodV1 = (period: string) => period.startsWith('REC')
   ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
 export const publicationStateLabelV1 = (revision: string | null) => revision === null ? 'não publicado' : 'publicado';
-export function publicationDifferenceV1(item: PublicationContextItemV1, scope: ScopeV1) {
+export function publicationDifferenceV1(item: PublicationContextItemV1, scope: PolicyScopeV1) {
   const target = scope.kind === 'class' ? 'esta turma' : 'este aluno';
   const sameStatus = Boolean(item.current.revision) === Boolean(item.school.revision);
   return `${customizationPeriodV1(item.period)}: ${publicationStateLabelV1(item.current.revision)} para ${target}. Padrão da escola: ${publicationStateLabelV1(item.school.revision)}${sameStatus && item.current.revision !== item.school.revision ? ' em outra versão das notas' : ''}.`;
@@ -37,8 +37,10 @@ export function publicationResetChoiceV1(scope: Exclude<ScopeV1, { kind: 'school
   };
 }
 export function customizationResetChoicesV1(row: CustomizationRowV1): CustomizationResetChoiceV1[] {
-  const choices = row.publications.flatMap((item) => {
-    const choice = publicationResetChoiceV1(row.scope, item, row.publicationVersion);
+  const scope = row.scope;
+  // A shift owns options only: it never has publication choices to reset.
+  const choices = scope.kind === 'shift' ? [] : row.publications.flatMap((item) => {
+    const choice = publicationResetChoiceV1(scope, item, row.publicationVersion);
     return choice ? [choice] : [];
   });
   for (const field of Object.keys(row.value ?? {}) as SettingsFieldV1[]) {

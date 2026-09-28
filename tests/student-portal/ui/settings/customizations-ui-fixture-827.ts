@@ -94,6 +94,7 @@ export function customizationsUiFixture827(count = 1) {
           field === 'showPartials' && input.scope.kind === 'account' && state.extraSetting ? input.scope : ACCOUNT_SCHOOL_V1])),
       } });
     }
+    if (input.scope.kind === 'shift') return accountJsonV1({ ...meta, state: 'invalid-request' }, 400);
     if (input.operation === 'publication') return accountJsonV1({ ...meta, state: 'publication',
       items: contexts(input.scope).map((item) => ({ period: item.period,
         state: item.current.revision ? 'published' : 'available',

@@ -20,7 +20,11 @@ export const ADMIN_ACCOUNT_FIELDS_V2 = `a.id,a.gradebook_student_id,a.auth_state
     COALESCE((SELECT jsonb_agg(jsonb_build_object('scope_key',p.scope_key,'field_key',p.field_key,
       'value_json',p.value_json,'source_scope_json',p.source_scope_json,'version',p.version))
       FROM student_portal.setting p WHERE p.scope_key='school:2026'
-        OR p.scope_key='class:2026:'||b.class_id::text OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
+        OR p.scope_key='class:2026:'||b.class_id::text
+        OR p.scope_key='shift:2026:'||(SELECT c.shift FROM student_portal.academic_class_v1 c
+          WHERE c.academic_year=2026 AND c.class_id=b.class_id)
+        OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
+    (SELECT c.shift FROM student_portal.academic_class_v1 c WHERE c.academic_year=2026 AND c.class_id=b.class_id) AS shift,
     (SELECT d.birth_year FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_year,
     (SELECT d.confirmation FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_confirmation,
     EXISTS(SELECT 1 FROM student_portal.qr_credential q WHERE q.account_id=a.id AND q.state='active') AS qr_issued,

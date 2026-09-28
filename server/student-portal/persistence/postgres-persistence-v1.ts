@@ -4,6 +4,7 @@ import {
   eligibilityStateV1,
   scopeV1,
   type AcademicLinkV1,
+  type PolicyScopeV1,
   type ScopeV1,
 } from '../../../shared/student-portal-contracts/core-v1';
 import { auditEventV1 } from '../../../shared/student-portal-contracts/admin-v1';
@@ -113,18 +114,20 @@ function verifier(value: unknown, field: string): VerifierV1 | null {
   };
 }
 
-function scopeKey(scope: ScopeV1): string {
+function scopeKey(scope: PolicyScopeV1): string {
   switch (scope.kind) {
     case 'school':
       return `school:${String(scope.academicYear)}`;
     case 'class':
       return `class:${String(scope.academicYear)}:${String(scope.classId)}`;
+    case 'shift':
+      return `shift:${String(scope.academicYear)}:${scope.shift}`;
     case 'account':
       return `account:${String(scope.academicYear)}:${scope.accountId}`;
   }
 }
 
-function scopeColumns(scope: ScopeV1): readonly [string, number, number | null, string | null] {
+function scopeColumns(scope: PolicyScopeV1): readonly [string, number, number | null, string | null] {
   return [scope.kind, scope.academicYear, scope.kind === 'class' ? scope.classId : null, scope.kind === 'account' ? scope.accountId : null];
 }
 

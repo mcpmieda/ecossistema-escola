@@ -24,4 +24,18 @@ export async function installResetSchemaFixtureV1(database: {
     '0020_term_closing_policy_v1.sql',
   ])
     await database.exec(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
+  await installShiftReadViewFixtureV1(database);
+}
+
+/** This historical fixture predates atomic publication (0008). Current policy reads need the
+ * narrow class view, but installing the replacement pin function here would collide with the
+ * original CREATE FUNCTION in fixtures that subsequently install 0008. Reuse the actual view
+ * DDL; shift-policy tests apply the complete 0022 migration after 0008/0013/0021. */
+export async function installShiftReadViewFixtureV1(database: {
+  exec(sql: string): Promise<unknown>;
+}): Promise<void> {
+  const migration = readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8');
+  const view = migration.match(/CREATE OR REPLACE VIEW student_portal\.academic_class_v1[\s\S]+?GRANT SELECT ON student_portal\.academic_class_v1 TO student_portal_app;/u)?.[0];
+  if (!view) throw new Error('Missing shift-policy view migration');
+  await database.exec(view);
 }

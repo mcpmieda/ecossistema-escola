@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { settingsOverrideV1 } from './policy-v1';
-import { accountStateV1, commandMetaV1, instantV1, opaqueV1, periodV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
+import { accountStateV1, commandMetaV1, instantV1, opaqueV1, periodV1, policyScopeV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
 
 /** Current differences only. A publication decision is not a grant of student access. */
 export const publicationChoiceV1 = z.object({
@@ -11,8 +11,8 @@ export const publicationContextItemV1 = z.object({
   customized: z.boolean(), ownVersion: versionV1.nullable(),
 }).strict();
 export const customizationRowV1 = z.object({
-  id: z.string().regex(/^(?:class:2026:[1-9]\d*|account:2026:[0-9a-f-]{36})$/u),
-  scope: scopeV1.refine((scope) => scope.kind !== 'school'),
+  id: z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u),
+  scope: policyScopeV1.refine((scope) => scope.kind !== 'school'),
   label: z.string().max(200), classLabel: z.string().max(80),
   classId: z.number().int().positive().safe().nullable(),
   accountState: accountStateV1.nullable(), accountVersion: versionV1.nullable(),
@@ -20,9 +20,14 @@ export const customizationRowV1 = z.object({
   value: settingsOverrideV1.nullable(), inheritedValue: settingsOverrideV1.nullable(), schoolValue: settingsOverrideV1.nullable(),
   blocked: z.boolean(), publications: z.array(publicationContextItemV1).max(6), updatedAt: instantV1,
 }).strict().superRefine((row, ctx) => {
-  const id = row.scope.kind === 'class' ? `class:2026:${row.scope.classId}` : `account:2026:${row.scope.accountId.toLowerCase()}`;
+  const id = row.scope.kind === 'class' ? `class:2026:${row.scope.classId}`
+    : row.scope.kind === 'shift' ? `shift:2026:${row.scope.shift}`
+      : row.scope.kind === 'account' ? `account:2026:${row.scope.accountId.toLowerCase()}` : '';
   if (row.id !== id || (row.scope.kind === 'class' && (row.classId !== row.scope.classId || row.blocked)))
     ctx.addIssue({ code: 'custom', message: 'Invalid customization owner' });
+  // A shift owns options only (owner decision 28/09/2026): no class, block or publication.
+  if (row.scope.kind === 'shift' && (row.classId !== null || row.blocked || row.publications.length > 0))
+    ctx.addIssue({ code: 'custom', message: 'Invalid shift customization' });
   if (row.value === null && !row.blocked && row.publications.length === 0)
     ctx.addIssue({ code: 'custom', message: 'Empty customization row' });
   if (new Set(row.publications.map((item) => item.period)).size !== row.publications.length ||

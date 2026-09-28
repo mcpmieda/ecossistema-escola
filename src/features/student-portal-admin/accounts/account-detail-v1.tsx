@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertDialog, Button, Card, Drawer, Tabs, Tooltip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
-import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1, ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
@@ -54,7 +54,7 @@ export interface AccountDetailPropsV1 {
   onQr?: (result: AccountQrResultV1, signal: AbortSignal) => void | Promise<void>;
   onReprint?: (context: AccountSlotContextV1) => void;
   slots?: AccountSlotsV1;
-  describeScope?: (scope: ScopeV1) => string;
+  describeScope?: (scope: PolicyScopeV1) => string;
   initialSlot?: keyof AccountSlotsV1;
 }
 const slotLabels = {

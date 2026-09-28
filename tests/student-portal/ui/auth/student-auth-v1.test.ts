@@ -9,6 +9,8 @@ import {
 } from '../../../../src/features/student-portal/auth/turnstile-widget-v1';
 import { useStudentSessionV1 } from '../../../../src/features/student-portal/auth/student-session-v1';
 import { StudentQrReaderV1 } from '../../../../src/features/student-portal/auth/qr-reader-v1';
+import * as qrMediaV1 from '../../../../src/features/student-portal/auth/qr-media-v1';
+import { QrInputErrorV1 } from '../../../../src/features/student-portal/auth/qr-input-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { clientFixtureV1, NOW, PROOF, REQUIRED, SESSION } from './fixtures-v1';
 import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
@@ -40,13 +42,13 @@ afterEach(() => {
 afterAll(async () => {
   await new Promise((resolve) => setTimeout(resolve, 150));
 });
-function view(client = clientFixtureV1()) {
+function view(client = clientFixtureV1(), initialQr: string | null = SYNTHETIC_QR_V1) {
   const success = vi.fn();
   render(
     createElement(StudentAuthenticationV1, {
       client,
       onAuthenticated: success,
-      initialQr: SYNTHETIC_QR_V1,
+      initialQr,
       sitekey: 'synthetic-sitekey',
     }),
   );
@@ -67,6 +69,71 @@ describe('student authentication forms', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Cartão não reconhecido');
     expect(alert.textContent).not.toContain('Confira os números');
+  });
+  it('distinguishes an invalid gallery QR from a card refused by the server and allows another image', async () => {
+    vi.spyOn(qrMediaV1, 'readQrImageV1')
+      .mockRejectedValueOnce(new QrInputErrorV1('invalid'))
+      .mockResolvedValueOnce(SYNTHETIC_QR_V1);
+    const client = clientFixtureV1();
+    client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    const s = view(client, null);
+    const file = new File(['synthetic-image'], 'synthetic.png', { type: 'image/png' });
+    await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
+    expect((await screen.findByRole('alert')).textContent).toBe('Este QR não é um acesso válido ao Portal.');
+    expect(client.challenge).not.toHaveBeenCalled();
+    await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
+    expect((await screen.findByRole('alert')).textContent).toContain('Cartão não reconhecido');
+    expect(screen.getByRole('alert').textContent).not.toContain('Confira os números');
+    expect(client.challenge).toHaveBeenCalledOnce();
+  });
+  it('asks to read the QR again after a refused activation without declaring the card invalid', async () => {
+    const client = clientFixtureV1();
+    client.challenge.mockResolvedValueOnce(PROOF);
+    client.activate.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    const s = view(client);
+    await s.user.type(await screen.findByLabelText('Nova senha'), '482913');
+    await s.user.type(screen.getByLabelText('Confirmar senha'), '482913');
+    await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Leia o QR novamente');
+    expect(alert.textContent).not.toContain('Cartão não reconhecido');
+    expect(screen.getByRole('button', { name: 'Selecionar QR da galeria' })).toBeTruthy();
+  });
+  it('does not call a newly required security check a failed verification after a wrong password', async () => {
+    const client = clientFixtureV1();
+    client.challenge.mockResolvedValueOnce(REQUIRED('password')).mockResolvedValueOnce(REQUIRED('risk'));
+    client.login.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    render(createElement(StudentAuthenticationV1, {
+      client,
+      onAuthenticated: vi.fn(),
+      initialQr: SYNTHETIC_QR_V1,
+      sitekey: 'synthetic-sitekey',
+      riskMount: () => () => undefined,
+    }));
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Senha de 6 números'), '482913');
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    expect(await screen.findByRole('heading', { name: 'Verificação rápida' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it('keeps the verification error when the security check itself is refused', async () => {
+    const client = clientFixtureV1();
+    client.challenge.mockResolvedValueOnce(REQUIRED('risk'))
+      .mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    let callbacks!: Parameters<RiskMountV1>[2];
+    render(createElement(StudentAuthenticationV1, {
+      client,
+      onAuthenticated: vi.fn(),
+      initialQr: SYNTHETIC_QR_V1,
+      sitekey: 'synthetic-sitekey',
+      riskMount: (_container, _key, next) => {
+        callbacks = next;
+        return () => undefined;
+      },
+    }));
+    await screen.findByRole('heading', { name: 'Verificação rápida' });
+    act(() => callbacks.token('synthetic-risk-token'));
+    expect((await screen.findByRole('alert')).textContent).toContain('A verificação não foi concluída');
   });
   it.each([
     ['NotAllowedError', 'Você bloqueou a câmera'],

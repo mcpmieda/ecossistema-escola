@@ -19,7 +19,13 @@ runtime: production_composed_and_verified
 student_portal_schema: migrations_0001_through_0021_applied
 student_portal_schema_table_count: 27
 student_portal_schema_latest_migration: 0021_access_schedule_v1.sql
-student_portal_latest_migration_in_tree: 0021_access_schedule_v1.sql
+student_portal_latest_migration_in_tree: 0022_shift_policy_v1.sql
+shift_policy_0022:
+  status: candidate-not-published
+  production_migration_applied: false
+  production_deploy_verified: false
+  deploy_order: migration-before-compatible-worker
+  contract: docs/student-portal/SHIFT_POLICY_V1.md
 legacy_projection_removal_0019:
   pull_request: 1122
   migration: 0019_remove_legacy_projection_v1.sql

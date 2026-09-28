@@ -37,12 +37,15 @@ export const SCOPED_SELECTION_V2 = `SELECT p.period,p.mask,r.version AS decision
     AND automatic.student_id=t.student_id AND automatic.class_id=t.class_id AND automatic.generation=h.generation
   LEFT JOIN student_portal.setting sa ON sa.scope_key='account:2026:'||t.account_id::text AND sa.field_key='autoUpdate'
   LEFT JOIN student_portal.setting sc ON sc.scope_key='class:2026:'||t.class_id::text AND sc.field_key='autoUpdate'
+  -- Turnos (28/09/2026): the class's shift wins over the class, the account still over both.
+  LEFT JOIN student_portal.academic_class_v1 tcs ON tcs.academic_year=2026 AND tcs.class_id=t.class_id
+  LEFT JOIN student_portal.setting sh ON sh.scope_key='shift:2026:'||tcs.shift AND sh.field_key='autoUpdate'
   LEFT JOIN student_portal.setting ss ON ss.scope_key='school:2026' AND ss.field_key='autoUpdate'
   CROSS JOIN LATERAL (SELECT CASE WHEN r.scope_key IS NOT NULL THEN r.target_revision ELSE legacy.published_revision END AS revision) base
   CROSS JOIN LATERAL (SELECT CASE WHEN base.revision IS NULL THEN NULL
     WHEN split_part(base.revision,':',1)<>h.generation::text THEN NULL
     ELSE h.generation||':'||GREATEST(split_part(base.revision,':',2)::numeric,
-      COALESCE(automatic.revision,0),CASE WHEN COALESCE(sa.value_json,sc.value_json,ss.value_json,'false'::jsonb)='true'::jsonb
+      COALESCE(automatic.revision,0),CASE WHEN COALESCE(sa.value_json,sh.value_json,sc.value_json,ss.value_json,'false'::jsonb)='true'::jsonb
         THEN h.revision ELSE 0 END)::text END AS target_revision) chosen
   LEFT JOIN LATERAL (SELECT payload_json,class_id,revision FROM student_portal.publication_source_v2
     WHERE academic_year=2026 AND student_id=t.student_id AND generation=h.generation

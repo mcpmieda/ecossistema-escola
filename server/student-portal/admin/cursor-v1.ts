@@ -7,7 +7,7 @@ import type { AdminReadQueryV2 } from '../../../shared/student-portal-contracts/
 
 type Query = AdminQueryV1 | AdminReadQueryV2;
 const scopedInventory = (query: Query) => ['settings-overrides', 'customizations-read'].includes(query.operation);
-const settingsKeyV1 = z.string().regex(/^(?:class:2026:[1-9]\d*|account:2026:[0-9a-f-]{36})$/u);
+const settingsKeyV1 = z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u);
 const cursorV1 = z.object({
   v: z.literal(1), a: z.uuid(), q: z.string().regex(/^[A-Za-z0-9_-]{43}$/u), e: z.number().int().positive(),
   k: z.union([z.uuid(), settingsKeyV1]), t: z.iso.datetime().optional(),

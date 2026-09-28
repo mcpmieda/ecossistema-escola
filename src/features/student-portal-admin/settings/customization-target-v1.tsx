@@ -33,7 +33,10 @@ export function CustomizationTargetV1(props: Props) {
       }}
     >
       <Drawer.Content placement="right">
-        <Drawer.Dialog aria-label="Políticas da turma" className="pa-student-drawer">
+        <Drawer.Dialog
+          aria-label={row.scope.kind === 'shift' ? 'Políticas do turno' : 'Políticas da turma'}
+          className="pa-student-drawer"
+        >
           <Drawer.Header className="flex-row items-center justify-between">
             <Drawer.Heading>{row.label}</Drawer.Heading>
             <Button size="sm" variant="ghost" onPress={close}>

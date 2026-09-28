@@ -3,9 +3,11 @@ import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/
 import { readFileSync } from 'node:fs';
 import type postgres from 'postgres';
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
+import { installShiftReadViewFixtureV1 } from '../year-reset/schema-fixture';
 
 /** New synthetic namespace on each run; lives only in the disposable cluster. */
 export async function installIntegrationFixtureV1(sql: ReturnType<typeof postgres>) {
+  await installShiftReadViewFixtureV1({ exec: (query) => sql.unsafe(query, [], { prepare: false }) });
   await openSyntheticSchoolV1(sql as unknown as StudentPortalPostgresSqlV1);
   // Scoped V2 is the only publisher; the fixture is activated below, as in production.
   const migration = await sql.unsafe("SELECT to_regclass('student_portal.publication_control_v2') IS NOT NULL AS installed");

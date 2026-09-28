@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { instantV1, periodV1, scopeV1, versionV1 } from './core-v1';
+import { instantV1, periodV1, policyScopeV1, versionV1 } from './core-v1';
 import { accessScheduleV1 } from './access-schedule-v1';
 
 const seconds = z.number().int().min(60).max(31_536_000);
@@ -185,6 +185,13 @@ export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
   stored !== null && typeof stored === 'object' && !Array.isArray(stored)
     ? { ...OPTIONAL_STORED_POLICY_DEFAULTS_V1, ...stored }
     : stored;
+/** Every policy option, as stored one row per option and scope. */
+export const POLICY_FIELDS_V1 = [
+  'accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult',
+  'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar',
+] as const;
+export const policyFieldV1 = z.enum(POLICY_FIELDS_V1);
+export type PolicyFieldV1 = z.infer<typeof policyFieldV1>;
 // Complete value per scope: partial field inheritance is expressed by explicit keys.
 export const settingsOverrideV1 = settingsValueV1
   .partial()
@@ -192,21 +199,21 @@ export const settingsOverrideV1 = settingsValueV1
   .refine((v) => Object.keys(v).length > 0, 'Empty override');
 export const effectiveSettingsV1 = z
   .object({
-    scope: scopeV1,
+    scope: policyScopeV1,
     version: versionV1,
     value: settingsValueV1,
     sources: z
       .object({
-        accessEnabled: scopeV1,
-        accessSchedule: scopeV1,
-        showPartials: scopeV1,
-        autoUpdate: scopeV1,
-        showFinalResult: scopeV1,
-        showTermClosing: scopeV1,
-        termClosingConclusive: scopeV1,
-        allowedPeriods: scopeV1,
-        risk: scopeV1,
-        calendar: scopeV1,
+        accessEnabled: policyScopeV1,
+        accessSchedule: policyScopeV1,
+        showPartials: policyScopeV1,
+        autoUpdate: policyScopeV1,
+        showFinalResult: policyScopeV1,
+        showTermClosing: policyScopeV1,
+        termClosingConclusive: policyScopeV1,
+        allowedPeriods: policyScopeV1,
+        risk: policyScopeV1,
+        calendar: policyScopeV1,
       })
       .strict(),
   })

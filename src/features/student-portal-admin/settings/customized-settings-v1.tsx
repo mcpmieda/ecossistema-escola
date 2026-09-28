@@ -37,8 +37,9 @@ const valueLabel = (value: unknown) =>
     : Array.isArray(value) && value.some((item) => typeof item === 'object')
       ? `${value.length} ${value.length === 1 ? 'agendamento' : 'agendamentos'}`
       : Array.isArray(value)
-      ? value.map((period) => customizationPeriodV1(String(period))).join(', ') || 'Nenhum período'
-      : 'Personalizado';
+        ? value.map((period) => customizationPeriodV1(String(period))).join(', ') ||
+          'Nenhum período'
+        : 'Personalizado';
 function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, compact }: Props) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');
@@ -136,7 +137,13 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, co
                           <StudentAvatarV1 id={row.id} />
                           <span className="pa-custom-owner">
                             <strong>{row.label}</strong>
-                            <small>{row.scope.kind === 'class' ? 'Turma' : row.classLabel}</small>
+                            <small>
+                              {row.scope.kind === 'class'
+                                ? 'Turma'
+                                : row.scope.kind === 'shift'
+                                  ? 'Turno'
+                                  : row.classLabel}
+                            </small>
                           </span>
                         </Button>
                       </Table.Cell>
@@ -157,11 +164,13 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, co
                               ? 'Bloqueado'
                               : row.scope.kind === 'class'
                                 ? 'Turma'
-                                : row.accountState === 'active'
-                                  ? 'Ativa'
-                                  : row.accountState === 'reset-required'
-                                    ? 'Redefinição pendente'
-                                    : 'Primeiro acesso'}
+                                : row.scope.kind === 'shift'
+                                  ? 'Turno'
+                                  : row.accountState === 'active'
+                                    ? 'Ativa'
+                                    : row.accountState === 'reset-required'
+                                      ? 'Redefinição pendente'
+                                      : 'Primeiro acesso'}
                           </Chip.Label>
                         </Chip>
                       </Table.Cell>

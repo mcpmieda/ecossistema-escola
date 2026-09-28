@@ -13,6 +13,7 @@ import { ACCOUNT_JOIN_V1 } from './queries-v1';
 const source = (alias: string) => `CASE WHEN ${alias}.scope_key IS NULL THEN NULL
   WHEN ${alias}.scope_kind='school' THEN jsonb_build_object('kind','school','academicYear',2026)
   WHEN ${alias}.scope_kind='class' THEN jsonb_build_object('kind','class','academicYear',2026,'classId',${alias}.class_id)
+  WHEN ${alias}.scope_kind='shift' THEN jsonb_build_object('kind','shift','academicYear',2026,'shift',split_part(${alias}.scope_key,':',3))
   ELSE jsonb_build_object('kind','account','academicYear',2026,'accountId',${alias}.account_id::text) END`;
 const normalizedOption = (alias: string) => `CASE WHEN ${alias}.field_key='calendar'
   THEN ${alias}.value_json||jsonb_build_object('t2StartsAt',COALESCE(${alias}.value_json->'t2StartsAt','null'::jsonb),
@@ -39,13 +40,14 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     throw new Error('student-portal-preparation-unavailable');
   const meta = metadata[0]!;
   // Tolerates a school snapshot stored before migration 0020 (#1132): missing optional fields read as defaults.
-  settingsValueV1.parse(completeStoredPolicyValueV1(meta.defaults));
+  const schoolDefaults = settingsValueV1.parse(completeStoredPolicyValueV1(meta.defaults));
   const publicationVersion = versionV1.parse(Number(meta.version));
   const epoch = versionV1.parse(Number(meta.epoch));
   const generation = z.string().regex(/^[a-f0-9]{32}$/u).parse(meta.generation);
   const headRevision = z.string().regex(/^[1-9][0-9]{0,19}$/u).parse(meta.revision);
   const args: unknown[] = [generation, headRevision, epoch, publicationVersion];
   const bind = (value: unknown) => { args.push(value); return `$${args.length}`; };
+  const defaults = bind(JSON.stringify(schoolDefaults));
   const targetKey = query.scope.kind === 'school' ? null : scopedKeyV2(query.scope);
   const contextKey = bind(targetKey);
   const contextOwner = query.scope.kind === 'school' ? '' : `UNION SELECT ${contextKey}::text,
@@ -58,7 +60,11 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     where.push(`position(lower(${bind(query.nameSearch)}) in lower(s.label||' '||s.class_label))>0`);
   if (after) where.push(`s.scope_key COLLATE "C">${bind(after.id)} COLLATE "C"`);
   const limit = bind(query.page.limit + 1);
-  const auto = "COALESCE(oa.value_json,ca.value_json,sa.value_json,'false'::jsonb)='true'::jsonb";
+  // Turnos (28/09/2026): an account's own choice, then its shift, then its class, then the school;
+  // for a class, its shift wins over the class's own choice.
+  const auto = `CASE WHEN t.scope_kind='account'
+    THEN COALESCE(oa.value_json,sha.value_json,ca.value_json,sa.value_json,'false'::jsonb)
+    ELSE COALESCE(sha.value_json,oa.value_json,sa.value_json,'false'::jsonb) END='true'::jsonb`;
   const approved = (alias: string, school = false) => `CASE
     WHEN ${alias}.target_revision IS NULL OR split_part(${alias}.target_revision,':',1)<>$1 THEN NULL
     ELSE $1||':'||GREATEST(split_part(${alias}.target_revision,':',2)::numeric,
@@ -71,7 +77,10 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     WHERE st.academic_year=2026 AND st.source_scope_json=CASE st.scope_kind
       WHEN 'school' THEN jsonb_build_object('kind','school','academicYear',2026)
       WHEN 'class' THEN jsonb_build_object('kind','class','academicYear',2026,'classId',st.class_id)
+      WHEN 'shift' THEN jsonb_build_object('kind','shift','academicYear',2026,'shift',split_part(st.scope_key,':',3))
       ELSE jsonb_build_object('kind','account','academicYear',2026,'accountId',st.account_id::text) END
+  ), class_shifts AS (
+    SELECT class_id,shift FROM student_portal.academic_class_v1 WHERE academic_year=2026 AND shift IS NOT NULL
   ), accounts AS (
     SELECT a.id,a.gradebook_student_id,a.auth_state,a.version,a.blocked,a.closed_at,a.updated_at,
       s.name,b.class_id,b.class_name ${ACCOUNT_JOIN_V1} WHERE a.academic_year=2026
@@ -79,7 +88,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     SELECT class_id,min(class_name) AS name FROM student_portal.academic_binding_v1
     WHERE academic_year=2026 AND status IS DISTINCT FROM 6 GROUP BY class_id
   ), owners AS (
-    SELECT DISTINCT scope_key,scope_kind,class_id,account_id FROM own_settings WHERE scope_kind IN('class','account')
+    SELECT DISTINCT scope_key,scope_kind,class_id,account_id FROM own_settings WHERE scope_kind IN('class','shift','account')
     UNION SELECT scope_key,scope_kind,class_id,account_id FROM student_portal.publication_release_v2 r
       WHERE academic_year=2026 AND scope_kind IN('class','account')
         AND version>COALESCE((to_jsonb(r)->>'inherit_version')::bigint,0)
@@ -87,22 +96,31 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     ${contextOwner}
   ), targets AS (
     SELECT o.scope_key,o.scope_kind,o.account_id,
-      CASE WHEN o.scope_kind='class' THEN o.class_id ELSE a.class_id END AS class_id,
-      CASE WHEN o.scope_kind='class' THEN COALESCE(c.name,'Turma '||o.class_id::text) ELSE COALESCE(a.name,'Aluno sem vínculo atual') END AS label,
-      COALESCE(CASE WHEN o.scope_kind='class' THEN c.name ELSE a.class_name END,'') AS class_label,
+      CASE WHEN o.scope_kind='class' THEN o.class_id WHEN o.scope_kind='shift' THEN NULL ELSE a.class_id END AS class_id,
+      CASE WHEN o.scope_kind='shift' THEN split_part(o.scope_key,':',3) ELSE cs.shift END AS shift,
+      CASE WHEN o.scope_kind='class' THEN COALESCE(c.name,'Turma '||o.class_id::text)
+        WHEN o.scope_kind='shift' THEN 'Turno '||initcap(lower(split_part(o.scope_key,':',3)))
+        ELSE COALESCE(a.name,'Aluno sem vínculo atual') END AS label,
+      COALESCE(CASE WHEN o.scope_kind='class' THEN c.name WHEN o.scope_kind='shift' THEN NULL ELSE a.class_name END,'') AS class_label,
       a.gradebook_student_id,a.auth_state,a.version AS account_version,COALESCE(a.blocked,false) AS blocked,a.updated_at,
-      (o.scope_kind='class' OR (a.id IS NOT NULL AND a.closed_at IS NULL AND a.class_id IS NOT NULL)) AS resolved
+      (o.scope_kind IN ('class','shift') OR (a.id IS NOT NULL AND a.closed_at IS NULL AND a.class_id IS NOT NULL)) AS resolved
     FROM owners o LEFT JOIN accounts a ON a.id=o.account_id LEFT JOIN classes c ON c.class_id=o.class_id
+    LEFT JOIN class_shifts cs ON cs.class_id=CASE WHEN o.scope_kind='class' THEN o.class_id ELSE a.class_id END
   ), option_differences AS (
-    SELECT t.scope_key,o.field_key,o.normalized AS value,COALESCE(parent.normalized,school.normalized) AS inherited,
-      school.normalized AS school,o.updated_at
+    SELECT t.scope_key,o.field_key,o.normalized AS value,base.inherited,
+      baseline.school,o.updated_at
     FROM targets t JOIN own_settings o ON o.scope_key=t.scope_key
-    JOIN own_settings school ON school.scope_key='school:2026' AND school.field_key=o.field_key
+    LEFT JOIN own_settings school ON school.scope_key='school:2026' AND school.field_key=o.field_key
     LEFT JOIN own_settings parent ON t.scope_kind='account' AND parent.scope_key='class:2026:'||t.class_id::text
       AND parent.field_key=o.field_key
-    WHERE CASE WHEN o.field_key='allowedPeriods' THEN
-      NOT (o.normalized @> COALESCE(parent.normalized,school.normalized) AND o.normalized <@ COALESCE(parent.normalized,school.normalized))
-      ELSE o.normalized IS DISTINCT FROM COALESCE(parent.normalized,school.normalized) END
+    LEFT JOIN own_settings shift_parent ON t.scope_kind IN ('account','class') AND shift_parent.scope_key='shift:2026:'||t.shift
+      AND shift_parent.field_key=o.field_key
+    CROSS JOIN LATERAL (SELECT COALESCE(school.normalized,${defaults}::jsonb->o.field_key) AS school) baseline
+    CROSS JOIN LATERAL (SELECT COALESCE(shift_parent.normalized,parent.normalized,baseline.school) AS inherited) base
+    WHERE (t.scope_kind<>'class' OR shift_parent.scope_key IS NULL)
+      AND CASE WHEN o.field_key='allowedPeriods' THEN
+      NOT (o.normalized @> base.inherited AND o.normalized <@ base.inherited)
+      ELSE o.normalized IS DISTINCT FROM base.inherited END
   ), publication_context AS (
     SELECT t.scope_key,p.period,p.position,actual.released_at,
       jsonb_build_object('period',p.period,'current',${choice('actual', 'revisions.current_revision')},
@@ -116,12 +134,13 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     LEFT JOIN LATERAL (${releaseSelectionSqlV1(SCHOOL_RELEASE_KEYS_V1)}) school ON true
     LEFT JOIN own_settings oa ON oa.scope_key=t.scope_key AND oa.field_key='autoUpdate'
     LEFT JOIN own_settings ca ON t.scope_kind='account' AND ca.scope_key='class:2026:'||t.class_id::text AND ca.field_key='autoUpdate'
+    LEFT JOIN own_settings sha ON t.scope_kind IN ('account','class') AND sha.scope_key='shift:2026:'||t.shift AND sha.field_key='autoUpdate'
     LEFT JOIN own_settings sa ON sa.scope_key='school:2026' AND sa.field_key='autoUpdate'
     LEFT JOIN student_portal.publication_auto_approval_v2 automatic ON automatic.academic_year=2026
       AND automatic.student_id=t.gradebook_student_id AND automatic.class_id=t.class_id AND automatic.generation=$1
     CROSS JOIN LATERAL (SELECT ${approved('actual')} AS current_revision,${approved('parent')} AS parent_revision,
       ${approved('school', true)} AS school_revision) revisions
-    WHERE t.resolved
+    WHERE t.resolved AND t.scope_kind<>'shift'
   ), serialized AS (
     SELECT t.*,opts.value,opts.inherited,opts.school,
       COALESCE(pubs.publications,'[]'::jsonb) AS publications,COALESCE(pubs.context,'[]'::jsonb) AS context,
@@ -138,6 +157,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   ), page AS (SELECT s.* FROM serialized s WHERE ${where.join(' AND ')} ORDER BY s.scope_key COLLATE "C" LIMIT ${limit})
   SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'id',s.scope_key,'scope',CASE WHEN s.scope_kind='class' THEN jsonb_build_object('kind','class','academicYear',2026,'classId',s.class_id)
+      WHEN s.scope_kind='shift' THEN jsonb_build_object('kind','shift','academicYear',2026,'shift',s.shift)
       ELSE jsonb_build_object('kind','account','academicYear',2026,'accountId',s.account_id::text) END,
     'label',s.label,'classLabel',s.class_label,'classId',s.class_id,'accountState',s.auth_state,
     'accountVersion',s.account_version,'settingsVersion',$3::bigint+COALESCE(s.account_version,0),'publicationVersion',$4::bigint,

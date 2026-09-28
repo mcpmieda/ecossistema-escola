@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_MODES_V1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
-import { settingsOverrideV1 } from './policy-v1';
+import { policyFieldV1, settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
 import { customizationsResponseV1 } from './customizations-v1';
 import {
@@ -8,8 +8,10 @@ import {
   instantV1,
   opaqueV1,
   pageRequestV1,
+  policyScopeV1,
   portalIdV1,
   scopeV1,
+  shiftV1,
   versionV1,
 } from './core-v1';
 import type { OperationalWorkspaceRequestV2 } from '../gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
@@ -30,7 +32,7 @@ export function adminClassCatalogRequestV2(
 /** Opt-in reads only; every existing query/response and CAS meaning remains unchanged. */
 export const adminReadQueryV2 = z.object({
   contractVersion: z.literal(2),
-  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview']),
+  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read']),
   scope: scopeV1,
   page: pageRequestV1,
   accountState: accountStateV1.optional(),
@@ -47,10 +49,14 @@ export const adminReadQueryV2 = z.object({
   // Fechamento do trimestre preview (#1132 D12): one student's record only.
   .refine((value) => value.operation !== 'closing-preview' ||
     (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
-  'Closing preview is read for one account');
+  'Closing preview is read for one account')
+  // Turnos (owner decision 28/09/2026): the whole school's shifts, no filters.
+  .refine((value) => value.operation !== 'shifts-read' ||
+    (value.scope.kind === 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
+  'Shifts are read for the school');
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z.object({
-  state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: scopeV1.nullable(),
+  state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: policyScopeV1.nullable(),
   settingsVersion: versionV1.nullable(), accessPermitted: z.boolean(),
 }).strict();
 export const adminAccountReadV2 = accountSummaryV1.extend({
@@ -69,12 +75,26 @@ const base = { contractVersion: z.literal(2), requestId: portalIdV1, observedAt:
 const count = z.number().int().nonnegative().safe();
 export const ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 = 5_000;
 export const customizedSettingsRowV1 = z.object({
-  id: z.string().regex(/^(?:class:2026:[1-9]\d*|account:2026:[0-9a-f-]{36})$/u),
-  scope: scopeV1.refine((s) => s.kind !== 'school'), label: z.string().max(200), classLabel: z.string().max(80),
+  id: z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u),
+  scope: policyScopeV1.refine((s) => s.kind !== 'school'), label: z.string().max(200), classLabel: z.string().max(80),
   value: settingsOverrideV1, updatedAt: instantV1,
 }).strict();
+/**
+ * One shift that has classes this year: the options it sets itself, and each of its classes with
+ * the options that class sets itself (those the shift also sets are inactive while it does).
+ */
+export const shiftSummaryV1 = z.object({
+  shift: shiftV1,
+  ownFields: z.array(policyFieldV1).max(10),
+  classes: z.array(z.object({
+    classId: z.number().int().positive().safe(), label: z.string().max(80),
+    ownFields: z.array(policyFieldV1).max(10),
+  }).strict()).max(60),
+}).strict();
+export type ShiftSummaryV1 = z.infer<typeof shiftSummaryV1>;
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
+  z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
   z.object({ ...base, state: z.literal('closing-preview'), scope: scopeV1,
     available: z.boolean(), visibleToStudent: z.boolean(), mode: z.enum(TERM_CLOSING_MODES_V1),
     closedPeriods: z.array(z.enum(TERM_CLOSING_PERIODS_V1)).max(3),

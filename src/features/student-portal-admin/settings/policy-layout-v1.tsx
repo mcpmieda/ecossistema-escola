@@ -34,7 +34,8 @@ const categories = [
     label: 'Calendário',
     icon: CalendarDays,
     title: 'Datas e horários',
-    description: 'Ano letivo e trimestres. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
+    description:
+      'Ano letivo e trimestres. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
     fields: ['calendar'],
   },
   {
@@ -51,11 +52,13 @@ export function PolicyLayoutV1({
   field,
   grades,
   disabled,
+  shift = false,
 }: {
   field: (name: SettingsFieldV1) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
   grades?: ReactNode;
   disabled: boolean;
+  shift?: boolean;
 }) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
@@ -83,7 +86,11 @@ export function PolicyLayoutV1({
         <Tabs.Panel key={category.id} id={category.id} shouldForceMount className="pa-policy-panel">
           <header className="pa-policy-intro">
             <h2>{category.title}</h2>
-            <p>{category.description}</p>
+            <p>
+              {shift && category.id === 'grades'
+                ? 'Escolha quando os alunos deste turno veem as notas publicadas.'
+                : category.description}
+            </p>
           </header>
           {category.fields.length ? (
             <div className="pa-settings-fields">{category.fields.map(field)}</div>

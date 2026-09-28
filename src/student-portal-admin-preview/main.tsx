@@ -14,7 +14,7 @@ import {
   effectiveSettingsV1,
   type EffectiveSettingsV1,
 } from '../../shared/student-portal-contracts/policy-v1';
-import type { ScopeV1 } from '../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1, ScopeV1 } from '../../shared/student-portal-contracts/core-v1';
 
 /*
  * Settings the preview can save: the school value plus class/student overrides, resolved field by
@@ -36,16 +36,39 @@ const previewSchool = (() => {
 })();
 const previewOverrides = new Map<string, Partial<EffectiveSettingsV1['value']>>();
 let previewSettingsVersion = 7;
-const previewScopeKey = (scope: ScopeV1) =>
-  scope.kind === 'school' ? 'school' : scope.kind === 'class' ? `class:${scope.classId}` : `account:${scope.accountId}`;
-function previewSettingsV1(scope: ScopeV1): EffectiveSettingsV1 {
+const previewScopeKey = (scope: PolicyScopeV1) =>
+  scope.kind === 'school'
+    ? 'school'
+    : scope.kind === 'class'
+      ? `class:${scope.classId}`
+      : scope.kind === 'shift'
+        ? `shift:${scope.shift}`
+        : `account:${scope.accountId}`;
+function previewSettingsV1(scope: PolicyScopeV1): EffectiveSettingsV1 {
   const value: Record<string, unknown> = { ...previewSchool };
-  const sources: Record<string, ScopeV1> = Object.fromEntries(
+  const sources: Record<string, PolicyScopeV1> = Object.fromEntries(
     Object.keys(previewSchool).map((key) => [key, { kind: 'school', academicYear: 2026 }]),
   );
-  const chain: ScopeV1[] = scope.kind === 'school' ? [] : [scope];
+  const classId =
+    scope.kind === 'class'
+      ? scope.classId
+      : scope.kind === 'account'
+        ? mock.accounts.find((item) => item.accountId === scope.accountId)?.classId
+        : undefined;
+  const classroom = classes.find((item) => item.id === classId);
+  const chain: PolicyScopeV1[] = [
+    ...(classroom
+      ? [{ kind: 'class' as const, academicYear: 2026 as const, classId: classroom.id }]
+      : []),
+    ...(classroom?.shift
+      ? [{ kind: 'shift' as const, academicYear: 2026 as const, shift: classroom.shift }]
+      : []),
+    ...(scope.kind === 'account' || scope.kind === 'shift' ? [scope] : []),
+  ];
   for (const level of chain)
-    for (const [key, override] of Object.entries(previewOverrides.get(previewScopeKey(level)) ?? {})) {
+    for (const [key, override] of Object.entries(
+      previewOverrides.get(previewScopeKey(level)) ?? {},
+    )) {
       value[key] = override;
       sources[key] = level;
     }
@@ -62,6 +85,7 @@ type LocalStudent = {
   birthYear: string | null;
   classId: number | null;
   classLabel: string;
+  shift?: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO';
 };
 const syntheticView = new URLSearchParams(window.location.search).has('synthetic');
 const localStudents = syntheticView
@@ -123,12 +147,15 @@ const classes = localStudents?.length
           .filter((student) => student.classId !== null)
           .map((student) => [
             student.classId!,
-            { id: student.classId!, label: student.classLabel },
+            { id: student.classId!, label: student.classLabel, shift: student.shift },
           ]),
       ).values(),
     ]
-  : [{ id: 756001, label: '7º ANO A' }];
-const inScope = (scope: AdminQueryV1['scope']) =>
+  : [
+      { id: 756001, label: '7º ANO A', shift: 'MATUTINO' as const },
+      { id: 756002, label: '7º ANO B', shift: 'VESPERTINO' as const },
+    ];
+const inScope = (scope: ScopeV1) =>
   mock.accounts.filter(
     (account) =>
       scope.kind === 'school' ||
@@ -213,7 +240,7 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
     if (command.operation === 'settings-set' || command.operation === 'settings-inherit') {
       const settings = command as unknown as {
         operation: string;
-        scope: ScopeV1;
+        scope: PolicyScopeV1;
         value?: Partial<EffectiveSettingsV1['value']>;
         keys?: (keyof EffectiveSettingsV1['value'])[];
       };
@@ -227,7 +254,12 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
         previewOverrides.set(key, current);
       }
       previewSettingsVersion += 1;
-      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9960), version: previewSettingsVersion });
+      return opJsonV1({
+        ...meta,
+        state: 'committed',
+        operationId: opIdV1(9960),
+        version: previewSettingsVersion,
+      });
     }
     if (command.operation === 'bulk-execute') {
       // Each write answers like a production round trip, so the progress bar is visible.
@@ -256,6 +288,27 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
   const scope = query.scope;
   if (query.operation === 'settings')
     return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });
+  if (scope.kind === 'shift') return opJsonV1({ ...meta, state: 'not-found' }, 404);
+  if (query.operation === 'shifts-read') {
+    const shifts = [...new Set(classes.flatMap((item) => (item.shift ? [item.shift] : [])))];
+    return opJsonV1({
+      ...meta,
+      contractVersion: 2,
+      state: 'shifts-read',
+      observedAt,
+      items: shifts.map((shift) => ({
+        shift,
+        ownFields: Object.keys(previewOverrides.get(`shift:${shift}`) ?? {}),
+        classes: classes
+          .filter((item) => item.shift === shift)
+          .map((item) => ({
+            classId: item.id,
+            label: item.label,
+            ownFields: Object.keys(previewOverrides.get(`class:${item.id}`) ?? {}),
+          })),
+      })),
+    });
+  }
   if (query.operation === 'publication')
     return opJsonV1({ ...meta, state: 'publication', items: publicationFixtureV1(scope).items });
   if (query.operation === 'birth-years')

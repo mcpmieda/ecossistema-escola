@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Chip, Label, Switch } from '@heroui/react';
 import { CalendarClock, DoorClosed, DoorOpen } from 'lucide-react';
 import {
@@ -41,7 +41,10 @@ export function accessPlanOfSettingsV1(settings: EffectiveSettingsV1): {
   const sameLevel =
     settingsScopeKeyV1(sources.accessSchedule) === settingsScopeKeyV1(sources.accessEnabled);
   if (value.accessSchedule !== null && sameLevel)
-    return { plan: { enabled: value.accessEnabled, schedule: value.accessSchedule }, fromCalendar: false };
+    return {
+      plan: { enabled: value.accessEnabled, schedule: value.accessSchedule },
+      fromCalendar: false,
+    };
   const calendar = value.calendar;
   return {
     plan: legacyAccessPlanV1(
@@ -88,7 +91,9 @@ export function AccessPlanSummaryV1({
   const upcoming = plan.schedule.filter((event) => Date.parse(event.at) > now);
   return (
     <div className="pa-access-summary">
-      {wasOpen === false && open ? <p className="pa-access-consequence">{words.becameOpen}</p> : null}
+      {wasOpen === false && open ? (
+        <p className="pa-access-consequence">{words.becameOpen}</p>
+      ) : null}
       {wasOpen === true && !open ? (
         <p className="pa-access-consequence">{words.becameClosed}</p>
       ) : null}
@@ -134,9 +139,16 @@ export function AccessPlanCardV1({
   const owns = ownsSettingV1(settings, 'accessEnabled');
   const { plan, fromCalendar } = useMemo(() => accessPlanOfSettingsV1(settings), [settings]);
   // Settled when the card loads: the switch is the state now and the rows are what is still ahead.
-  const [saved] = useState(() => settleAccessPlanV1(plan, Date.now()));
+  const saved = useMemo(() => settleAccessPlanV1(plan, Date.now()), [plan]);
   const sourceRows = useMemo(() => scheduleRowsOfV1(saved.schedule), [saved]);
   const [rows, setRows] = useState(sourceRows);
+  const sourceKey = scheduleRowsKeyV1(sourceRows);
+  const precedingSource = useRef(sourceKey);
+  useEffect(() => {
+    const wasDirty = scheduleRowsKeyV1(rows) !== precedingSource.current;
+    precedingSource.current = sourceKey;
+    if (!wasDirty) setRows(sourceRows);
+  }, [sourceRows, sourceKey]);
   const [error, setError] = useState<string | null>(null);
   const dirty = scheduleRowsKeyV1(rows) !== scheduleRowsKeyV1(sourceRows);
   useEffect(() => {
@@ -181,12 +193,21 @@ export function AccessPlanCardV1({
         </div>
       </Card.Header>
       <Card.Content className="pa-access">
-        <div className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')} role="status">
-          {openNow ? <DoorOpen size={22} aria-hidden="true" /> : <DoorClosed size={22} aria-hidden="true" />}
+        <div
+          className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')}
+          role="status"
+        >
+          {openNow ? (
+            <DoorOpen size={22} aria-hidden="true" />
+          ) : (
+            <DoorClosed size={22} aria-hidden="true" />
+          )}
           <div>
             <p className="pa-access-status-title">
               {openNow ? 'O Portal está aberto agora' : 'O Portal está fechado agora'}
-              {school ? '' : ` para ${settings.scope.kind === 'class' ? 'esta turma' : 'este aluno'}`}
+              {school
+                ? ''
+                : ` para ${settings.scope.kind === 'class' ? 'esta turma' : settings.scope.kind === 'shift' ? 'este turno' : 'este aluno'}`}
             </p>
             <p className="pa-access-status-next">
               {nextChange !== null ? (
@@ -223,11 +244,15 @@ export function AccessPlanCardV1({
           ) : null}
         </div>
         {canWrite && dirty ? (
-          <p className="pa-settings-hint">Salve ou desfaça os agendamentos antes de usar a chave.</p>
+          <p className="pa-settings-hint">
+            Salve ou desfaça os agendamentos antes de usar a chave.
+          </p>
         ) : null}
 
         <section aria-labelledby="pa-access-schedule-title">
-          <h4 id="pa-access-schedule-title" className="pa-access-schedule-title">Agendamentos</h4>
+          <h4 id="pa-access-schedule-title" className="pa-access-schedule-title">
+            Agendamentos
+          </h4>
           <ScheduleEditorV1
             rows={rows}
             onRowsChange={(next) => {
@@ -237,7 +262,8 @@ export function AccessPlanCardV1({
             labels={{
               open: 'Abrir o Portal',
               close: 'Fechar o Portal',
-              noEffect: 'Sem efeito: a ação seguinte é igual, então o Portal só muda no horário dela.',
+              noEffect:
+                'Sem efeito: a ação seguinte é igual, então o Portal só muda no horário dela.',
             }}
             openNow={openNow}
             canWrite={canWrite}
@@ -309,8 +335,13 @@ export function AccessPlanCardV1({
               </li>
             ) : (
               <li>
-                A escola prevalece: {settings.scope.kind === 'class' ? 'esta turma' : 'este aluno'} só
-                entra enquanto a escola também estiver aberta.
+                A escola prevalece:{' '}
+                {settings.scope.kind === 'class'
+                  ? 'esta turma'
+                  : settings.scope.kind === 'shift'
+                    ? 'este turno'
+                    : 'este aluno'}{' '}
+                só entra enquanto a escola também estiver aberta.
               </li>
             )}
             <li>Horários de Brasília.</li>

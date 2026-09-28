@@ -251,6 +251,23 @@ describe('KDF transaction boundary', () => {
 });
 
 describe('auth with real schema, policies, birth service and scrypt', () => {
+  it('rejects a weak new password without consuming the proof or spending an attempt', async () => {
+    const challenge = await proof();
+    const input = {
+      contractVersion: 1,
+      challenge,
+      password: '123456',
+      confirmation: '123456',
+      keepConnected: false,
+    };
+    await expect(auth.activate(input, id())).rejects.toThrow('Weak password');
+    expect((await pg.query<{ consumed_at: string | null }>(
+      'SELECT consumed_at FROM student_portal.auth_challenge',
+    )).rows).toEqual([{ consumed_at: null }]);
+    expect((await pg.query('SELECT account_id FROM student_portal.auth_attempt')).rows).toEqual([]);
+    expect(await auth.activate({ ...input, password: '482913', confirmation: '482913' }, id()))
+      .toHaveProperty('token');
+  });
   it('requires QR/PIN, commits activation once, stores only hashes and requires password for an active account', async () => {
     expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({
       state: 'credential-required',

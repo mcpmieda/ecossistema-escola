@@ -7,7 +7,8 @@ import type { AdminCursorV1 } from './cursor-v1';
 import { adminInstantV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1 } from './queries-v1';
 
-/** Additive, read-only listing. Inherited snapshots are not personalized settings.
+/** Additive, read-only listing. Inherited snapshots are not personalized settings. Shift rules
+ * (owner decision 28/09/2026) are listed with the school, never under one class or account.
  * Authorization and repeatable-read transaction belong to the existing admin dispatcher. */
 export async function readSettingsOverridesV1(
   tx: StudentPortalPostgresQueryV1,
@@ -40,9 +41,11 @@ export async function readSettingsOverridesV1(
     SELECT st.scope_key,st.scope_kind,st.class_id,st.account_id,
       jsonb_object_agg(st.field_key,st.value_json) AS value,max(st.updated_at) AS updated_at
     FROM student_portal.setting st
-    WHERE st.academic_year=$1 AND st.scope_kind IN ('class','account')
+    WHERE st.academic_year=$1 AND st.scope_kind IN ('class','shift','account')
       AND st.source_scope_json = CASE WHEN st.scope_kind='class'
         THEN jsonb_build_object('kind','class','academicYear',st.academic_year,'classId',st.class_id)
+        WHEN st.scope_kind='shift'
+        THEN jsonb_build_object('kind','shift','academicYear',st.academic_year,'shift',split_part(st.scope_key,':',3))
         ELSE jsonb_build_object('kind','account','academicYear',st.academic_year,'accountId',st.account_id::text) END
     GROUP BY st.scope_key,st.scope_kind,st.class_id,st.account_id
   ), accounts AS (
@@ -51,6 +54,7 @@ export async function readSettingsOverridesV1(
     SELECT class_id,min(class_name) AS name FROM student_portal.academic_binding_v1
     WHERE academic_year=$1 AND status IS DISTINCT FROM 6 GROUP BY class_id
   ) SELECT g.*,CASE WHEN g.scope_kind='class' THEN COALESCE(c.name,'Turma '||g.class_id::text)
+    WHEN g.scope_kind='shift' THEN 'Turno '||initcap(lower(split_part(g.scope_key,':',3)))
     ELSE COALESCE(a.name,'Aluno indisponível') END AS label,
     COALESCE(CASE WHEN g.scope_kind='class' THEN c.name ELSE a.class_name END,'') AS class_label
   FROM personalized g LEFT JOIN accounts a ON a.id=g.account_id
@@ -70,7 +74,9 @@ export async function readSettingsOverridesV1(
       scope:
         row.scope_kind === 'class'
           ? { kind: 'class', academicYear: query.scope.academicYear, classId: row.class_id }
-          : { kind: 'account', academicYear: query.scope.academicYear, accountId: row.account_id },
+          : row.scope_kind === 'shift'
+            ? { kind: 'shift', academicYear: query.scope.academicYear, shift: String(row.scope_key).split(':')[2] }
+            : { kind: 'account', academicYear: query.scope.academicYear, accountId: row.account_id },
       label: row.label,
       classLabel: row.class_label,
       value: row.value,

@@ -1,5 +1,9 @@
 import type { z } from 'zod';
-import { scopeV1, type ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import {
+  policyScopeV1,
+  SHIFT_LABELS_V1,
+  type PolicyScopeV1,
+} from '../../../../shared/student-portal-contracts/core-v1';
 import {
   calendarV1,
   settingsOverrideV1,
@@ -36,20 +40,24 @@ export const CALENDAR_LABELS_V1 = {
   yearEndsAt: 'Encerramento do ano letivo',
   finalDisclosureAt: 'Divulgação do resultado final',
 } as const;
-export function settingsScopeKeyV1(input: ScopeV1): string {
-  const scope = scopeV1.parse(input);
+export function settingsScopeKeyV1(input: PolicyScopeV1): string {
+  const scope = policyScopeV1.parse(input);
   return scope.kind === 'school'
     ? 'school:2026'
     : scope.kind === 'class'
       ? `class:2026:${scope.classId}`
-      : `account:2026:${scope.accountId.toLowerCase()}`;
+      : scope.kind === 'shift'
+        ? `shift:2026:${scope.shift}`
+        : `account:2026:${scope.accountId.toLowerCase()}`;
 }
-export function settingsScopeLabelV1(scope: ScopeV1): string {
+export function settingsScopeLabelV1(scope: PolicyScopeV1): string {
   return scope.kind === 'school'
     ? 'Escola · 2026'
     : scope.kind === 'class'
       ? `Turma ${scope.classId} · 2026`
-      : 'Aluno · 2026';
+      : scope.kind === 'shift'
+        ? `Turno ${SHIFT_LABELS_V1[scope.shift]} · 2026`
+        : 'Aluno · 2026';
 }
 export function ownsSettingV1(settings: EffectiveSettingsV1, field: SettingsFieldV1) {
   return settingsScopeKeyV1(settings.sources[field]) === settingsScopeKeyV1(settings.scope);

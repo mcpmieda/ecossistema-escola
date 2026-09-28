@@ -57,24 +57,31 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0021_access_schedule_v1.sql');
+    expect(latest).toBe('0022_shift_policy_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0021-applied-after-worker-deploy',
+        student_portal_candidate_migrations_status: '0022-candidate-not-applied',
       },
       student_portal_integration: {
-        schema_migration_file: latest,
+        schema_migration_file: '0021_access_schedule_v1.sql',
         schema_migration_production_version: 20260927100854,
         schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
-      student_portal_schema_latest_migration: latest,
+      student_portal_schema_latest_migration: '0021_access_schedule_v1.sql',
       student_portal_schema_production_version: 20260927100854,
       student_portal_schema_table_count: 27,
+      shift_policy_0022: {
+        status: 'candidate-not-published',
+        production_migration_applied: false,
+        production_deploy_verified: false,
+        deploy_order: 'migration-before-compatible-worker',
+        contract: 'docs/student-portal/SHIFT_POLICY_V1.md',
+      },
       recovery_1101: {
         production_migrations_applied: true,
         production_migration_versions: [20260922150000, 20260922150001],

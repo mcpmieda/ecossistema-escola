@@ -164,6 +164,9 @@ beforeAll(async () => {
   await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
   // Fechamento do trimestre policy fields (#1132).
   await migrator.unsafe(readFileSync('migrations/student-portal/0020_term_closing_policy_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0021_access_schedule_v1.sql', 'utf8'));
+  // 0008's SECURITY DEFINER pin is owned by the schema owner in this fixture.
+  await admin.unsafe(readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
