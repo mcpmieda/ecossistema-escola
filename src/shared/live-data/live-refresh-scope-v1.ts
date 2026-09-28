@@ -25,3 +25,19 @@ export function useLiveRefreshScopeV1(): boolean {
 export function useLiveRefreshIntervalV1(): number | undefined {
   return useContext(LiveRefreshIntervalV1);
 }
+
+const LiveRefreshAutomaticV1 = createContext(true);
+
+/** Pauses only automatic reads (events and cadence). Unlike an inactive scope, visible content
+ * keeps its on-demand behavior, such as loading more rows while scrolling. */
+export function LiveRefreshAutomaticV1Provider({ enabled, children }: {
+  readonly enabled: boolean;
+  readonly children: ReactNode;
+}) {
+  const parent = useContext(LiveRefreshAutomaticV1);
+  return createElement(LiveRefreshAutomaticV1.Provider, { value: parent && enabled }, children);
+}
+
+export function useLiveRefreshAutomaticV1(): boolean {
+  return useContext(LiveRefreshAutomaticV1);
+}

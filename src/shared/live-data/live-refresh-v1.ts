@@ -14,6 +14,8 @@ interface Subscription {
   refresh: () => void | Promise<unknown>;
   canRefresh: () => boolean;
   isActive: () => boolean;
+  /** False pauses event and cadence reads; focus/return and failure retries still apply. */
+  automatic: () => boolean;
   interval: number;
   eventDriven: boolean;
   settledAt: number;
@@ -35,6 +37,9 @@ let listening = false;
 const visible = () => document.visibilityState !== 'hidden' && navigator.onLine !== false;
 const jitter = () => secureJitterV1(1_000);
 
+function nextCadenceAt(entry: Subscription, from: number) {
+  return entry.automatic() ? from + readInterval(entry) + jitter() : Number.POSITIVE_INFINITY;
+}
 function readInterval(entry: Pick<Subscription, 'domains' | 'interval' | 'eventDriven'>) {
   const covered =
     entry.domains.length > 0 &&
@@ -57,7 +62,7 @@ export function registerLiveConnectionV1(domains: readonly LiveDomainV1[]) {
     for (const entry of subscriptions) {
       // Never postpone an event, a focus request, or the reader's failure cooldown.
       if (!entry.pending && !entry.requested && entry.failures === 0)
-        entry.nextAt = entry.settledAt + readInterval(entry) + jitter();
+        entry.nextAt = nextCadenceAt(entry, entry.settledAt);
     }
     wake();
   };
@@ -111,7 +116,8 @@ function invalidate(domain: LiveDomainV1) {
       /* An observer must not prevent authorized revalidation. */
     }
   }
-  for (const entry of subscriptions) if (entry.domains.includes(domain)) request(entry);
+  for (const entry of subscriptions)
+    if (entry.domains.includes(domain) && entry.automatic()) request(entry);
   wake();
 }
 function resume() {
@@ -148,11 +154,12 @@ function tick() {
         entry.pending = false;
         if (!subscriptions.has(entry)) return;
         entry.settledAt = Date.now();
-        const delay =
+        entry.nextAt =
           entry.failures === 0
-            ? readInterval(entry)
-            : Math.min(MAX_RETRY_DELAY, entry.interval * 2 ** (entry.failures - 1));
-        entry.nextAt = Date.now() + delay + jitter();
+            ? nextCadenceAt(entry, Date.now())
+            : Date.now() +
+              Math.min(MAX_RETRY_DELAY, entry.interval * 2 ** (entry.failures - 1)) +
+              jitter();
         entry.retryAt = entry.failures === 0 ? 0 : entry.nextAt;
         if (entry.dirty) request(entry);
         wake();
@@ -222,6 +229,7 @@ export function subscribeLiveRefreshV1(options: {
   refresh: () => void | Promise<unknown>;
   canRefresh?: () => boolean;
   isActive?: () => boolean;
+  automatic?: () => boolean;
   intervalMs?: number;
   /** Time-driven values such as presence need their cadence even with a healthy channel. */
   eventDriven?: boolean;
@@ -234,6 +242,7 @@ export function subscribeLiveRefreshV1(options: {
     refresh: options.refresh,
     canRefresh: options.canRefresh ?? (() => true),
     isActive: options.isActive ?? (() => true),
+    automatic: options.automatic ?? (() => true),
     interval,
     eventDriven: options.eventDriven !== false,
     settledAt: Date.now(),
@@ -245,7 +254,7 @@ export function subscribeLiveRefreshV1(options: {
     pending: false,
     dirty: false,
   };
-  entry.nextAt = entry.settledAt + readInterval(entry) + jitter();
+  entry.nextAt = nextCadenceAt(entry, entry.settledAt);
   subscriptions.add(entry);
   start();
   wake();

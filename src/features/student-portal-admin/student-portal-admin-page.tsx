@@ -47,7 +47,10 @@ import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
 import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
-import { LiveRefreshScopeV1 } from '../../shared/live-data/live-refresh-scope-v1';
+import {
+  LiveRefreshAutomaticV1Provider,
+  LiveRefreshScopeV1,
+} from '../../shared/live-data/live-refresh-scope-v1';
 
 const StudentAccountsV1 = lazy(() =>
   import('./accounts/student-accounts-v1').then((module) => ({
@@ -102,6 +105,9 @@ const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
+/** Owner decision 28/09/2026: automatic reads paused during the first school-wide access; the
+ * administrator reloads manually. Initial reads and explicit reloads are unchanged. */
+export const PORTAL_ADMIN_AUTO_REFRESH_V1 = false;
 /** Administrative Portal entry; heavyweight sections load only when the selected route needs them. */
 export function StudentPortalAdminPage({
   fetcher,
@@ -147,12 +153,14 @@ export function StudentPortalAdminPage({
       </section>
     );
   return (
-    <PortalWorkspace
-      key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
-      identity={auth.state.identity}
-      onLost={auth.lost}
-      fetcher={fetcher}
-    />
+    <LiveRefreshAutomaticV1Provider enabled={PORTAL_ADMIN_AUTO_REFRESH_V1}>
+      <PortalWorkspace
+        key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
+        identity={auth.state.identity}
+        onLost={auth.lost}
+        fetcher={fetcher}
+      />
+    </LiveRefreshAutomaticV1Provider>
   );
 }
 /** Keeps identity, scope and drafts mounted while section bundles are loaded on demand. */
