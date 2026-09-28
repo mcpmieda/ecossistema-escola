@@ -191,7 +191,7 @@ describe('variants and summary (decision 7, D4)', () => {
 });
 
 describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
-  const { attachTermClosingsV1, termClosingTargetsV1 } = await import('../../../server/student-portal/publication/term-closing-self-v1');
+  const { attachTermClosingsV1, endedPeriodsV1, termClosingTargetsV1 } = await import('../../../server/student-portal/publication/term-closing-self-v1');
   const { initialPolicyDefaultsV1 } = await import('../../../server/student-portal/policies/defaults-v1');
   const { SYNTHETIC_SELF_V1 } = await import('../../../shared/student-portal-contracts/fixtures-v1');
   const now = new Date('2026-06-01T12:00:00Z');
@@ -226,6 +226,15 @@ describe('Self display rules (D2, D8, D9, R2, R3)', async () => {
     expect(termClosingTargetsV1(policy({}, { ...ended, ...later }), 'regular', now).periods).toEqual([]);
     const progress = policy({ termClosingConclusive: false, allowedPeriods: ['T1'] }, { t2EndsAt: '2026-09-01T03:00:00.000Z' });
     expect(termClosingTargetsV1(progress, 'regular', now)).toEqual({ mode: 'progress', periods: [] });
+  });
+
+  it('lists trimesters ended by the calendar for assessment seals, whatever the closing switches', () => {
+    expect(endedPeriodsV1(policy(), now)).toEqual(['T1']);
+    expect(endedPeriodsV1(policy({ showTermClosing: false, accessEnabled: false }), now)).toEqual(['T1']);
+    expect(endedPeriodsV1(policy({}, { t2EndsAt: '2026-05-30T03:00:00.000Z' }), now)).toEqual(['T1', 'T2']);
+    expect(endedPeriodsV1(policy({}, { t1EndsAt: null }), now)).toEqual([]);
+    expect(endedPeriodsV1(policy(), new Date('2026-05-15T03:00:00.000Z'))).toEqual(['T1']);
+    expect(endedPeriodsV1(policy(), new Date('2026-05-15T02:59:59.999Z'))).toEqual([]);
   });
 
   it('with conclusive terms off, reads only the trimester in progress', () => {
