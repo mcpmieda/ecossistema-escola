@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { adminReadQueryV2, type AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { readAdminV2 } from './queries-v2';
 import { adminCommandV1, adminQueryV1, adminResponseV1, trustedAdminContextV1, type AdminQueryV1, type AdminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
-import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
+import type { FailureV1, PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalAdminEntrypointV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { QrServiceV1 } from '../auth/qr-service-v1';
@@ -27,6 +27,13 @@ export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qr
   cursorSecret: string; scopedPublication?: boolean };
 
 /** Only the dedicated server-to-server ADM binding may invoke this facade. Shape validation is not authentication. */
+
+/** A shift is a policy level only: the query contract allows it for settings reads alone. */
+function plainScopeV1(scope: PolicyScopeV1): ScopeV1 {
+  if (scope.kind === 'shift') throw new Error('student-portal-admin-scope-invalid');
+  return scope;
+}
+
 export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
   private readonly cursor: AdminCursorV1;
   constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly options: AdminApiOptionsV1) {
@@ -74,7 +81,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         return await new BulkAdminV1(this.sql, this.options.cursorSecret,
           new QrServiceV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion)).preview(context, query);
       if (this.options.scopedPublication && query.operation === 'publication')
-        return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(query.scope)).items });
+        return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(plainScopeV1(query.scope))).items });
       if (this.options.scopedPublication && query.operation === 'settings')
         return adminResponseV1.parse({ ...base, settings: await new PolicyServiceV1(this.sql).read(query.scope) });
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
@@ -88,11 +95,11 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           case 'accounts': case 'birth-years':
             return adminResponseV1.parse({ ...base, ...await readAccountListV1(tx, query, context.actorId, now, this.cursor) });
           case 'sessions': {
-            const version = (await new SessionServiceV1(sql, this.options.cryptoPort).readRevocationScope(query.scope)).version;
+            const version = (await new SessionServiceV1(sql, this.options.cryptoPort).readRevocationScope(plainScopeV1(query.scope))).version;
             return adminResponseV1.parse({ ...base, version, ...await readAccountListV1(tx, query, context.actorId, now, this.cursor) });
           }
           case 'settings': return adminResponseV1.parse({ ...base, settings: await new PolicyServiceV1(sql).read(query.scope) });
-          case 'publication': return adminResponseV1.parse({ ...base, items: (await new PublicationServiceV1(sql).read(query.scope)).items });
+          case 'publication': return adminResponseV1.parse({ ...base, items: (await new PublicationServiceV1(sql).read(plainScopeV1(query.scope))).items });
           case 'audit': case 'audit-detail': return adminResponseV1.parse({ ...base, ...await readAuditV1(tx, query, context.actorId, now, this.cursor) });
           case 'links-preview':
             if (query.scope.kind !== 'school') throw new Error('student-portal-preview-forbidden');

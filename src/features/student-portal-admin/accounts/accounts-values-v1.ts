@@ -1,6 +1,6 @@
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
-import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import { SHIFT_LABELS_V1, type PolicyScopeV1, type ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { AccountsReadPageV2 } from './accounts-client-v2';
 
@@ -121,8 +121,8 @@ export function lastAuthenticationLabelV1(at: string | null) {
   return at === null ? 'Desconhecido nos últimos 12 meses' : dateFormatter.format(new Date(at));
 }
 export function accountAccessOriginV1(
-  source: ScopeV1 | null,
-  describeScope?: (scope: ScopeV1) => string,
+  source: PolicyScopeV1 | null,
+  describeScope?: (scope: PolicyScopeV1) => string,
 ) {
   if (source === null) return 'Origem não resolvida';
   if (describeScope) return describeScope(source);
@@ -130,5 +130,7 @@ export function accountAccessOriginV1(
     ? 'Escola · 2026'
     : source.kind === 'class'
       ? 'Turma'
-      : 'Individual';
+      : source.kind === 'shift'
+        ? `Turno ${SHIFT_LABELS_V1[source.shift]}`
+        : 'Individual';
 }

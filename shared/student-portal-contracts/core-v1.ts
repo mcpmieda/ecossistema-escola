@@ -14,6 +14,19 @@ export const scopeV1 = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('class'), academicYear: z.literal(PORTAL_YEAR_V1), classId: z.number().int().positive().safe() }).strict(),
   z.object({ kind: z.literal('account'), academicYear: z.literal(PORTAL_YEAR_V1), accountId: portalIdV1 }).strict(),
 ]);
+/**
+ * Turnos (owner decision 28/09/2026), from the Relação (INICIO!I7:I28 → gradebook.turma.turno).
+ * The shift level exists only for policies: between the school and its classes, a shift rule wins
+ * over its classes' rules for the same option, and an account rule still wins over both.
+ */
+export const SHIFTS_V1 = ['MATUTINO', 'VESPERTINO', 'NOTURNO'] as const;
+export const shiftV1 = z.enum(SHIFTS_V1);
+export type ShiftV1 = z.infer<typeof shiftV1>;
+export const shiftScopeV1 = z.object({ kind: z.literal('shift'), academicYear: z.literal(PORTAL_YEAR_V1), shift: shiftV1 }).strict();
+/** Scopes that own policy settings: every scope plus the shift level. */
+export const policyScopeV1 = z.discriminatedUnion('kind', [...scopeV1.options, shiftScopeV1]);
+export type PolicyScopeV1 = z.infer<typeof policyScopeV1>;
+export const SHIFT_LABELS_V1: Readonly<Record<ShiftV1, string>> = { MATUTINO: 'Matutino', VESPERTINO: 'Vespertino', NOTURNO: 'Noturno' };
 export const commandMetaV1 = { contractVersion: z.literal(1), expectedVersion: versionV1, idempotencyKey: portalIdV1 };
 export const pageRequestV1 = z.object({ cursor: opaqueV1.optional(), limit: z.number().int().min(1).max(100).default(50) }).strict();
 export const accountStateV1 = z.enum(['pending-activation', 'active', 'reset-required']);

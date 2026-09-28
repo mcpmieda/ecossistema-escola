@@ -22,13 +22,15 @@ export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
   needsRisk: false,
   revision: 0,
 };
-function failureMessage(error: unknown): string {
+function failureMessage(error: unknown, attemptedStep?: StudentAuthStepV1): string {
   if (error instanceof PortalClientErrorV1) {
     if (error.state === 'rate-limited') return 'Muitas tentativas. Aguarde antes de tentar novamente.';
     if (error.state === 'access-closed') return 'Acesso ao Portal fechado.';
     if (error.state === 'unavailable') return 'O serviço de acesso está temporariamente indisponível. Tente novamente.';
     if (error.state === 'network-error') return 'Não foi possível conectar. Tente novamente.';
   }
+  if (attemptedStep === 'create')
+    return 'Não foi possível concluir o acesso. Leia o QR novamente.';
   return 'Não foi possível entrar. Confira os dados e tente novamente.';
 }
 
@@ -90,6 +92,7 @@ export function createStudentAuthFlowV1(
     risk: boolean,
   ) => {
     if (disposed || state.pending || (state.retryAt && state.retryAt > now())) return;
+    const attemptedStep = state.step;
     const current = ++generation;
     active?.abort();
     const controller = new AbortController();
@@ -103,7 +106,7 @@ export function createStudentAuthFlowV1(
         emit({
           step: fallback,
           needsRisk: risk,
-          message: failureMessage(error),
+          message: failureMessage(error, attemptedStep),
           ...(delay ? { retryAt: now() + delay * 1000 } : {}),
         });
       }
@@ -223,7 +226,7 @@ export function createStudentAuthFlowV1(
             }
             ensureCurrent(signal);
             challengeResult(result, risk);
-            if (state.step !== 'create') emit({ ...state, message: failureMessage(error) });
+            if (state.step === 'password') emit({ ...state, message: failureMessage(error) });
           }
         },
         'password',

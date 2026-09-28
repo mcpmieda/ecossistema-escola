@@ -8,6 +8,7 @@ import { Label } from '@heroui/react/label';
 import { Spinner } from '@heroui/react/spinner';
 import { Check, CircleX, Info, ShieldCheck, TimerReset, WifiOff, CloudOff } from 'lucide-react';
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
+import { isWeakPasswordV1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import {
   createStudentAuthFlowV1,
   INITIAL_AUTH_STATE_V1,
@@ -141,7 +142,10 @@ function submitLabelV1(state: StudentAuthStateV1) {
  * number was wrong.
  */
 type NoticeToneV1 = 'wrong' | 'wait' | 'down' | 'net' | 'info';
-function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text: string } {
+function noticeOfV1(
+  message: string,
+  step: StudentAuthStateV1['step'],
+): { tone: NoticeToneV1; title: string; text: string } {
   if (message.startsWith('Muitas tentativas'))
     return {
       tone: 'wait',
@@ -162,6 +166,21 @@ function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text:
       title: 'Sem conexão com a internet',
       text: 'Confira o Wi-Fi ou os dados móveis e tente de novo.',
     };
+  // Refused at the card step (owner review 28/09/2026): nobody typed any numbers yet. The server
+  // does not say why (unknown, replaced or blocked card), so neither do we.
+  if (message.startsWith('Não foi possível entrar') && step === 'scan')
+    return {
+      tone: 'wrong',
+      title: 'Cartão não reconhecido',
+      text: 'Este cartão não dá acesso ao Portal agora. Confira se é o seu cartão mais recente ou procure a secretaria da escola.',
+    };
+  // The quick check (risk) has no numbers either.
+  if (message.startsWith('Não foi possível entrar') && step === 'risk')
+    return {
+      tone: 'wrong',
+      title: 'Não deu certo',
+      text: 'A verificação não foi concluída. Tente de novo.',
+    };
   if (message.startsWith('Não foi possível entrar'))
     return {
       tone: 'wrong',
@@ -173,8 +192,8 @@ function noticeOfV1(message: string): { tone: NoticeToneV1; title: string; text:
 
 const NOTICE_ICONS_V1 = { wrong: CircleX, wait: TimerReset, down: CloudOff, net: WifiOff, info: Info };
 
-function AuthNoticeV1({ message }: { message: string }) {
-  const notice = noticeOfV1(message);
+function AuthNoticeV1({ message, step }: { message: string; step: StudentAuthStateV1['step'] }) {
+  const notice = noticeOfV1(message, step);
   const Icon = NOTICE_ICONS_V1[notice.tone];
   return (
     <div className={'pa-auth-notice pa-auth-notice--' + notice.tone} role="alert">
@@ -302,8 +321,8 @@ function CredentialFieldsV1({
       ) : null}
       {state.step === 'create' ? (
         <Card.Description>
-          Escolha 6 números fáceis de lembrar para você e difíceis para os outros. Evite 123456 e a
-          sua data de nascimento.
+          Escolha 6 números fáceis de lembrar para você e difíceis para os outros. Evite números
+          repetidos ou em sequência, como 111111 ou 123456.
         </Card.Description>
       ) : null}
       {showCredential ? (
@@ -392,6 +411,11 @@ function CredentialFormV1({
     if (state.pending || blocked || !valid || (needsRisk && !riskToken)) return;
     if (state.step === 'create' && value !== confirmation) {
       setValidation('As senhas precisam ser iguais.');
+      return;
+    }
+    // Refused here at once (the server refuses it too), without spending a try.
+    if (state.step === 'create' && isWeakPasswordV1(value)) {
+      setValidation('Essa senha é fácil de adivinhar. Escolha outra combinação.');
       return;
     }
     const secret = value,
@@ -541,8 +565,8 @@ export function StudentAuthenticationV1({
         ) : null}
       </Card.Header>
       <Card.Content>
-        {invalidQr ? <AuthNoticeV1 message="Este QR não é um acesso válido ao Portal." /> : null}
-        {!invalidQr && state.message ? <AuthNoticeV1 message={state.message} /> : null}
+        {invalidQr ? <AuthNoticeV1 message="Este QR não é um acesso válido ao Portal." step={state.step} /> : null}
+        {!invalidQr && state.message ? <AuthNoticeV1 message={state.message} step={state.step} /> : null}
         {state.step === 'risk' ? (
           <div className="pa-risk-intro">
             <span className="pa-risk-shield" aria-hidden="true">

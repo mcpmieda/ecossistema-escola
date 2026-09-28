@@ -52,6 +52,8 @@ const SCREENS_V1: readonly ScreenV1[] = [
   { label: 'Cartão: câmera bloqueada', camera: 'denied' },
   { label: 'Cartão: lendo o QR (carregando)', challenge: 'slow', qr: PREVIEW_QR_V1 },
   { label: 'Cartão: QR inválido', qr: `${PORTAL_ORIGIN_V1}/access#invalido` },
+  // A well-formed card the server refuses (unknown, replaced or blocked): no numbers were typed yet.
+  { label: 'Cartão: não reconhecido (recusado)', challenge: 'unauthenticated', qr: PREVIEW_QR_V1 },
   { label: 'Primeiro acesso: ano de nascimento', challenge: 'pin', qr: PREVIEW_QR_V1 },
   {
     label: 'Primeiro acesso: ano errado',

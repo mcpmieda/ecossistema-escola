@@ -172,8 +172,8 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   await student.activate({
     contractVersion: 1,
     challenge: challenge.challenge,
-    password: '012345',
-    confirmation: '012345',
+    password: '013579',
+    confirmation: '013579',
     keepConnected: true,
   });
   const activeSession = await student.session();
@@ -243,7 +243,7 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   await student.login({
     contractVersion: 1,
     qr: qr.cards[0]!.qr,
-    password: '012345',
+    password: '013579',
     keepConnected: false,
   });
   expect((await student.session()).persistent).toBe(false);
@@ -298,10 +298,10 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
       state: 'unauthenticated',
     });
     await expect(
-      student.login({ contractVersion: 1, qr: activeQr, password: '012345', keepConnected: false }),
+      student.login({ contractVersion: 1, qr: activeQr, password: '013579', keepConnected: false }),
     ).rejects.toMatchObject({ state: 'unauthenticated' });
     await expect(
-      student.login({ contractVersion: 1, qr: newQr, password: '012345', keepConnected: false }),
+      student.login({ contractVersion: 1, qr: newQr, password: '013579', keepConnected: false }),
     ).rejects.toMatchObject({ state: 'unauthenticated' });
     expect(await student.challenge({ contractVersion: 1, qr: newQr })).toMatchObject({
       state: 'credential-required',
@@ -312,8 +312,8 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     await student.activate({
       contractVersion: 1,
       challenge: proof.challenge,
-      password: '012345',
-      confirmation: '012345',
+      password: '013579',
+      confirmation: '013579',
       keepConnected: false,
     });
     expect((await student.me()).profile.accountId).toBe(account.accountId);

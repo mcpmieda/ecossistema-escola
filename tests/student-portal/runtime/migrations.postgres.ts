@@ -164,6 +164,9 @@ beforeAll(async () => {
   await admin.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
   // Fechamento do trimestre policy fields (#1132).
   await migrator.unsafe(readFileSync('migrations/student-portal/0020_term_closing_policy_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0021_access_schedule_v1.sql', 'utf8'));
+  // 0008's SECURITY DEFINER pin is owned by the schema owner in this fixture.
+  await admin.unsafe(readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -922,7 +925,7 @@ describe('native authentication locks with real scrypt and separate connections'
     const qr = (await qrService.command(actor, await command('qr-issue'))).qr!;
     const challenge = await auth.challenge({ contractVersion: 1, qr, pin: '2001' }, crypto.randomUUID());
     if (challenge.state !== 'password-creation') throw new Error('synthetic-native-challenge-failed');
-    const activate = { contractVersion: 1, challenge: challenge.challenge, password: '123456', confirmation: '123456', keepConnected: false };
+    const activate = { contractVersion: 1, challenge: challenge.challenge, password: '482913', confirmation: '482913', keepConnected: false };
     return { accountId, scope, version, command, qr, activate };
   }
 
@@ -933,11 +936,11 @@ describe('native authentication locks with real scrypt and separate connections'
     if (!('token' in initial)) throw new Error('Synthetic activation failed');
     const pause = pausedPortalQueryV1(primary, (query) => query.includes('SELECT id FROM student_portal.account') && query.includes('FOR UPDATE'));
     const delayed = new AuthServiceV1(pause.sql, cryptography, 1, { verify: async () => true });
-    const pending = delayed.login({ contractVersion: 1, qr: first.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+    const pending = delayed.login({ contractVersion: 1, qr: first.qr, password: '482913', keepConnected: false }, crypto.randomUUID());
     try {
       await pause.entered(pending);
       await connection.unsafe("SET lock_timeout='1500ms'");
-      const login = await other.login({ contractVersion: 1, qr: second.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+      const login = await other.login({ contractVersion: 1, qr: second.qr, password: '482913', keepConnected: false }, crypto.randomUUID());
       expect(login).toHaveProperty('token');
       const concurrentSessions = new SessionServiceV1(secondary, cryptography);
       expect(await concurrentSessions.read(initial.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
@@ -968,13 +971,13 @@ describe('native authentication locks with real scrypt and separate connections'
       if (!('token' in initial)) throw new Error('synthetic-native-activation-failed');
       const command = await data.command(operation, { confirmed: true, ...(operation === 'block' ? { blocked: true } : {}) });
       const [login] = await Promise.all([
-        auth.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID()),
+        auth.login({ contractVersion: 1, qr: data.qr, password: '482913', keepConnected: false }, crypto.randomUUID()),
         qrService.command(actor, command),
       ]);
       expect(await sessions.read(initial.token, crypto.randomUUID())).toBeNull();
       if ('token' in login) expect(await sessions.read(login.token, crypto.randomUUID())).toBeNull();
       if (operation === 'qr-regenerate') {
-        const old = await auth.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+        const old = await auth.login({ contractVersion: 1, qr: data.qr, password: '482913', keepConnected: false }, crypto.randomUUID());
         expect(old).toMatchObject({ state: 'unauthenticated' });
       }
     }
@@ -990,7 +993,7 @@ describe('native authentication locks with real scrypt and separate connections'
     const signed = await auth.activate(active.activate, crypto.randomUUID());
     if (!('token' in signed)) throw new Error('synthetic-native-activation-failed');
     const [login] = await Promise.all([
-      auth.login({ contractVersion: 1, qr: active.qr, password: '123456', keepConnected: false }, crypto.randomUUID()),
+      auth.login({ contractVersion: 1, qr: active.qr, password: '482913', keepConnected: false }, crypto.randomUUID()),
       births.write(actor, { contractVersion: 1, operation: 'birth-write', expectedVersion: await active.version(), idempotencyKey: crypto.randomUUID(),
         item: { action: 'clear', accountId: active.accountId, expectedVersion: 1 } }),
     ]);
@@ -1006,7 +1009,7 @@ describe('native authentication locks with real scrypt and separate connections'
     const bad = { contractVersion: 1, qr: data.qr, password: '000000', keepConnected: false };
     await Promise.all([auth.login(bad, crypto.randomUUID()), other.login(bad, crypto.randomUUID())]);
     expect((await portal`SELECT failures FROM student_portal.auth_attempt WHERE account_id=${data.accountId}`)[0]?.failures).toBe(2);
-    const second = await auth.login({ ...bad, password: '123456' }, crypto.randomUUID());
+    const second = await auth.login({ ...bad, password: '482913' }, crypto.randomUUID());
     if (!('token' in second)) throw new Error('synthetic-native-login-failed');
     const hash = await cryptography.hashOpaqueToken(signed.token);
     const sessionId = String((await portal`SELECT id FROM student_portal.session WHERE token_hash=${hash}`)[0]!.id);
@@ -1211,7 +1214,7 @@ it('quarantines an old synthetic security snapshot before reopening and preserve
     await quarantineSyntheticRestoreV1(sql, 'closed');
     expect(await sessions.read(token, crypto.randomUUID())).toBeNull();
     expect((await new AuthServiceV1(sql, cryptography, 1, { verify: async () => false }).login(
-      { contractVersion: 1, qr: signedQr, password: '012345', keepConnected: false }, crypto.randomUUID()))).toMatchObject({ state: 'unauthenticated' });
+      { contractVersion: 1, qr: signedQr, password: '013579', keepConnected: false }, crypto.randomUUID()))).toMatchObject({ state: 'unauthenticated' });
     expect((await portal`SELECT count(*)::integer AS n FROM student_portal.qr_credential WHERE state='active'`)[0]!.n).toBe(0);
     expect((await portal`SELECT count(*)::integer AS n FROM student_portal.password_credential WHERE pin_verifier IS NOT NULL OR password_verifier IS NOT NULL`)[0]!.n).toBe(0);
     expect((await portal`SELECT population_enabled FROM student_portal.lifecycle_control WHERE academic_year=2026`)[0]!.population_enabled).toBe(false);

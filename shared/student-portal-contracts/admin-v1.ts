@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1 } from './core-v1';
+import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
@@ -31,8 +31,8 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('sessions-revoke'), scope: scopeV1, sessionId: portalIdV1.optional(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1, includeSavedBirth: z.literal(true).optional() }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-batch'), classId: z.number().int().positive(), expectedCount: z.number().int().min(1).max(100), items: z.array(birthWriteV1).min(1).max(100), confirmed: z.literal(true) }).strict(),
-  z.object({ ...commandMetaV1, operation: z.literal('settings-set'), scope: scopeV1, value: settingsOverrideV1, acknowledgeImmediateEffect: z.boolean() }).strict(),
-  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: scopeV1, keys: z.array(z.enum(['accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult', 'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(10) }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('settings-set'), scope: policyScopeV1, value: settingsOverrideV1, acknowledgeImmediateEffect: z.boolean() }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: policyScopeV1, keys: z.array(z.enum(['accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult', 'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(10) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish-update'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('unpublish'), scope: scopeV1, period: periodV1, confirmed: z.literal(true) }).strict(),
@@ -47,9 +47,11 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
 export const auditKindV1 = z.enum(['login', 'login-failed', 'activated', 'password-reset', 'account-reset', 'qr-issued', 'qr-reprinted', 'qr-regenerated', 'blocked', 'unblocked', 'session-revoked', 'birth-changed', 'settings-changed', 'published', 'unpublished', 'projection-updated', 'links-closed']);
 export const adminQueryV1 = z.object({
   contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'presence', 'health', 'links-preview', 'population', 'bulk-preview']),
-  scope: scopeV1, page: pageRequestV1.extend({ cursor: bulkCursorV1.optional() }), action: bulkActionV1.optional(), from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
+  scope: policyScopeV1, page: pageRequestV1.extend({ cursor: bulkCursorV1.optional() }), action: bulkActionV1.optional(), from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
   includeEntities: z.literal(true).optional(), eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
 }).strict().refine((v) => !v.from || !v.until || Date.parse(v.from) <= Date.parse(v.until), 'Invalid interval')
+  // A shift is a policy level only: its settings can be read, nothing else is scoped by shift.
+  .refine((v) => v.scope.kind !== 'shift' || v.operation === 'settings', 'Shift scope is only for settings')
   .refine((v) => v.operation !== 'audit-detail' || v.eventId !== undefined, 'Audit detail requires eventId')
   .refine((v) => !v.includeEntities || v.operation === 'audit' || v.operation === 'audit-detail', 'Entities require audit')
   .refine((v) => v.operation === 'bulk-preview' ? bulkPreviewQueryV1.safeParse(v).success : v.action === undefined && pageRequestV1.safeParse(v.page).success, 'Invalid bulk preview');
@@ -60,7 +62,7 @@ export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-name'), name: z.string().min(1).max(200) }).strict(),
   z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(200), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
-export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: scopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
+export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: policyScopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
 /** Opt-in acknowledgement read inside the write transaction; no credential material.
  * A replay after a later account change omits this snapshot and retains the original receipt.
  */

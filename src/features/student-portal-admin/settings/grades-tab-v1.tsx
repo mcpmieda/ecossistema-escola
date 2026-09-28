@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Label, Switch } from '@heroui/react';
 import { Award, CalendarClock, Eye, EyeOff, Info } from 'lucide-react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
@@ -33,6 +33,7 @@ import type { settingsOverrideV1 } from '../../../../shared/student-portal-contr
 type OverrideV1 = ReturnType<typeof settingsOverrideV1.parse>;
 export type GradeReviewIntentV1 = {
   field: 'calendar';
+  draftKey: string;
   inherit: false;
   value: OverrideV1;
   presentation: { title: string; body: ReactNode };
@@ -111,9 +112,16 @@ export function GradeShowV1({
   const now = useScheduleClockV1();
   const plan = useMemo(() => gradePlanOfV1(settings.value, gradeKey), [settings, gradeKey]);
   const fromCalendar = gradesFromCalendarV1(settings.value, gradeKey);
-  const [saved] = useState(() => settleAccessPlanV1(plan, Date.now()));
+  const saved = useMemo(() => settleAccessPlanV1(plan, Date.now()), [plan]);
   const sourceRows = useMemo(() => scheduleRowsOfV1(saved.schedule), [saved]);
   const [rows, setRows] = useState(sourceRows);
+  const sourceKey = scheduleRowsKeyV1(sourceRows);
+  const precedingSource = useRef(sourceKey);
+  useEffect(() => {
+    const wasDirty = scheduleRowsKeyV1(rows) !== precedingSource.current;
+    precedingSource.current = sourceKey;
+    if (!wasDirty) setRows(sourceRows);
+  }, [sourceRows, sourceKey]);
   const [error, setError] = useState<string | null>(null);
   const dirty = scheduleRowsKeyV1(rows) !== scheduleRowsKeyV1(sourceRows);
   const dirtyKey = 'grades:' + gradeKey;
@@ -126,6 +134,7 @@ export function GradeShowV1({
   const submit = (next: AccessPlanV1) =>
     review({
       field: 'calendar',
+      draftKey: dirtyKey,
       inherit: false,
       value: calendarWithGradePlanV1(settings.value, gradeKey, next, Date.now()),
       presentation: {
@@ -140,9 +149,13 @@ export function GradeShowV1({
             />
             {settings.scope.kind !== 'school' && !ownsSettingV1(settings, 'calendar') ? (
               <p className="pa-access-consequence">
-                {settings.scope.kind === 'class' ? 'Esta turma' : 'Este aluno'} passa a ter datas
-                próprias: as mudanças que a escola fizer no Calendário e nas Notas deixam de valer
-                aqui até alguém usar “Usar padrão”.
+                {settings.scope.kind === 'class'
+                  ? 'Esta turma'
+                  : settings.scope.kind === 'shift'
+                    ? 'Este turno'
+                    : 'Este aluno'}{' '}
+                passa a ter datas próprias: as mudanças que a escola fizer no Calendário e nas Notas
+                deixam de valer aqui até alguém usar “Usar padrão”.
               </p>
             ) : null}
           </>
@@ -210,9 +223,13 @@ export function GradeShowV1({
         empty="Nenhum agendamento."
         notice={
           canWrite && dirty ? (
-            <p className="pa-settings-hint">Salve ou desfaça os agendamentos antes de usar a chave.</p>
+            <p className="pa-settings-hint">
+              Salve ou desfaça os agendamentos antes de usar a chave.
+            </p>
           ) : fromCalendar && saved.schedule.length ? (
-            <p className="pa-settings-hint">Vieram das datas do Calendário. Ao salvar, passam a valer daqui.</p>
+            <p className="pa-settings-hint">
+              Vieram das datas do Calendário. Ao salvar, passam a valer daqui.
+            </p>
           ) : null
         }
         actions={
@@ -284,7 +301,12 @@ export function GradesScopeNoteV1({
   onInherit: () => void;
 }>) {
   if (settings.scope.kind === 'school') return null;
-  const level = settings.scope.kind === 'class' ? 'Esta turma' : 'Este aluno';
+  const level =
+    settings.scope.kind === 'class'
+      ? 'Esta turma'
+      : settings.scope.kind === 'shift'
+        ? 'Este turno'
+        : 'Este aluno';
   const owns = ownsSettingV1(settings, 'calendar');
   return (
     <div className="pa-grades-scope" role="note">
@@ -298,7 +320,9 @@ export function GradesScopeNoteV1({
       <p>
         {owns
           ? `${level} tem datas próprias: mudanças da escola no Calendário e nas Notas não valem aqui.`
-          : `${level} segue as datas da escola. Salvar um agendamento aqui cria datas próprias para ${level === 'Esta turma' ? 'ela' : 'ele'}.`}
+          : settings.scope.kind === 'class' && settings.sources.calendar.kind === 'shift'
+            ? `${level} segue as datas de ${sourceLabel}.`
+            : `${level} segue as datas ${settings.sources.calendar.kind === 'school' ? 'da escola' : 'de ' + sourceLabel}. Salvar um agendamento aqui cria datas próprias para ${level === 'Esta turma' ? 'ela' : 'ele'}.`}
       </p>
       {owns && canWrite ? (
         <Button

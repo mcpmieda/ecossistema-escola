@@ -1,5 +1,5 @@
 import { settingsValueV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
-import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import {
   combineAccessPlansV1,
   legacyAccessPlanV1,
@@ -7,12 +7,14 @@ import {
 } from '../../../shared/student-portal-contracts/access-schedule-v1';
 import type { PolicyValueV1 } from './calendar-v1';
 
-const scopeKeyV1 = (scope: ScopeV1) =>
+const scopeKeyV1 = (scope: PolicyScopeV1) =>
   scope.kind === 'school'
     ? 'school'
     : scope.kind === 'class'
       ? `class:${scope.classId}`
-      : `account:${scope.accountId.toLowerCase()}`;
+      : scope.kind === 'shift'
+        ? `shift:${scope.shift}`
+        : `account:${scope.accountId.toLowerCase()}`;
 
 /** The level's own plan, or null for a level still on the Calendário access window. */
 function scheduledPlanV1(value: PolicyValueV1): AccessPlanV1 | null {

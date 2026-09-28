@@ -52,7 +52,7 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
       const challenge = challengeResponseV1.parse((await call('/api/student/auth/challenge', { contractVersion: 1, qr: card.qr, pin: '2001' })).body);
       if (challenge.state !== 'password-creation') throw new Error('synthetic-harness-challenge-state');
       const activated = await call('/api/student/auth/activate', { contractVersion: 1, challenge: challenge.challenge,
-        password: '012345', confirmation: '012345', keepConnected: true });
+        password: '013579', confirmation: '013579', keepConnected: true });
       expect(sessionResponseV1.parse(activated.body).state).toBe('authenticated');
       expect(activated.cookie).toContain('; Secure; HttpOnly; SameSite=Strict');
       expect(activated.cookie).toContain('; Expires=');
@@ -65,7 +65,7 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
           expect((result.body as { state: string }).state).toBe('no-publication');
         }));
         await Promise.all(cards.cards.slice(0, concurrency).map(async (card) => {
-          const result = await call('/api/student/auth/login', { contractVersion: 1, qr: card.qr, password: '012345', keepConnected: false }, undefined, `login-${concurrency}`);
+          const result = await call('/api/student/auth/login', { contractVersion: 1, qr: card.qr, password: '013579', keepConnected: false }, undefined, `login-${concurrency}`);
           expect(sessionResponseV1.parse(result.body).state).toBe('authenticated');
           expect(result.cookie).not.toContain('Expires=');
         }));
@@ -74,10 +74,10 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
     // All five accounts share the same synthetic school NAT IP. Counters remain per account in PG.
     await Promise.all([0, 1, 2].map(() => call('/api/student/auth/login',
       { contractVersion: 1, qr: cards.cards[0]!.qr, password: '654321', keepConnected: false }, undefined, 'denied', 401)));
-    await call('/api/student/auth/login', { contractVersion: 1, qr: cards.cards[0]!.qr, password: '012345', keepConnected: false }, undefined, 'denied', 401);
+    await call('/api/student/auth/login', { contractVersion: 1, qr: cards.cards[0]!.qr, password: '013579', keepConnected: false }, undefined, 'denied', 401);
     expect(sessionResponseV1.parse((await call('/api/student/auth/login',
-      { contractVersion: 1, qr: cards.cards[1]!.qr, password: '012345', keepConnected: false }, undefined, 'nat-unaffected')).body).state).toBe('authenticated');
-    await call('/api/student/auth/login', { contractVersion: 1, qr: cards.cards[1]!.qr, password: '012345', keepConnected: false,
+      { contractVersion: 1, qr: cards.cards[1]!.qr, password: '013579', keepConnected: false }, undefined, 'nat-unaffected')).body).state).toBe('authenticated');
+    await call('/api/student/auth/login', { contractVersion: 1, qr: cards.cards[1]!.qr, password: '013579', keepConnected: false,
       accountId: cards.cards[0]!.accountId }, undefined, 'invalid-claim', 400);
     const csrf = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/login', {
       method: 'POST', headers: { origin: 'https://evil.invalid', 'content-type': 'application/json' }, body: '{}',
@@ -92,7 +92,7 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
     for (let attempt = 0; attempt < 61; attempt++) {
       const response = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/login', {
         method: 'POST', headers: { origin: 'https://aluno.escolaieda.com', 'content-type': 'application/json' },
-        body: JSON.stringify({ contractVersion: 1, qr: invalidQr, password: '012345', keepConnected: false }),
+        body: JSON.stringify({ contractVersion: 1, qr: invalidQr, password: '013579', keepConnected: false }),
       });
       await response.arrayBuffer();
       expect([401, 429]).toContain(response.status);

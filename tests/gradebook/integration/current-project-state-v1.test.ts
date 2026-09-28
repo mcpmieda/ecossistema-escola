@@ -57,29 +57,43 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0021_access_schedule_v1.sql');
+    expect(latest).toBe('0022_shift_policy_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
-        student_portal_candidate_migrations_status: '0021-applied-after-worker-deploy',
+        student_portal_candidate_migrations_status: 'none-pending',
       },
       student_portal_integration: {
         schema_migration_file: latest,
-        schema_migration_production_version: 20260927100854,
+        schema_migration_production_version: 20260928092734,
+        schema_migration_production_evidence: 'docs/student-portal/POSTFLIGHT_0022.md',
         schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
       student_portal_schema_latest_migration: latest,
-      student_portal_schema_production_version: 20260927100854,
+      student_portal_schema_production_version: 20260928092734,
+      student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0022.md',
       student_portal_schema_table_count: 27,
+      shift_policy_0022: {
+        status: 'migration-applied-runtime-deploy-pending',
+        production_migration_applied: true,
+        production_migration_version: 20260928092734,
+        production_deploy_verified: false,
+        evidence: 'docs/student-portal/POSTFLIGHT_0022.md',
+        deploy_order: 'migration-before-compatible-worker',
+        contract: 'docs/student-portal/SHIFT_POLICY_V1.md',
+      },
       recovery_1101: {
         production_migrations_applied: true,
         production_migration_versions: [20260922150000, 20260922150001],
       },
     });
+    const shiftEvidence = source('docs/student-portal/POSTFLIGHT_0022.md');
+    expect(shiftEvidence).toContain('20260928092734');
+    expect(shiftEvidence).toContain('4f380b4942c6b5f48f88fd80f70d8c6acf43779a');
     for (const state of [gradebookState, portalState]) {
       const identity = identityStateSchema.parse(state).shared_student_identity_1114;
       expect(identity.production_migration_applied).toBe(true);

@@ -4,7 +4,13 @@ import {
   adminCommandV1,
   type AdminCommandV1,
 } from '../../../shared/student-portal-contracts/admin-v1';
-import { scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import {
+  policyScopeV1,
+  shiftV1,
+  versionV1,
+  type PolicyScopeV1,
+  type ShiftV1,
+} from '../../../shared/student-portal-contracts/core-v1';
 import {
   completeStoredPolicyValueV1,
   effectiveSettingsV1,
@@ -51,19 +57,20 @@ const storedRow = z.object({
   scope_key: z.string(),
   field_key: z.enum(FIELDS),
   value_json: z.unknown(),
-  source_scope_json: scopeV1,
+  source_scope_json: policyScopeV1,
   version: versionV1,
 });
 type StoredRowV1 = z.infer<typeof storedRow>;
 
-function normalizedScope(input: ScopeV1): ScopeV1 {
-  const scope = scopeV1.parse(input);
+function normalizedScope(input: PolicyScopeV1): PolicyScopeV1 {
+  const scope = policyScopeV1.parse(input);
   return scope.kind === 'account' ? { ...scope, accountId: scope.accountId.toLowerCase() } : scope;
 }
 
-function key(scope: ScopeV1): string {
+function key(scope: PolicyScopeV1): string {
   if (scope.kind === 'school') return 'school:2026';
   if (scope.kind === 'class') return `class:2026:${scope.classId}`;
+  if (scope.kind === 'shift') return `shift:2026:${scope.shift}`;
   return `account:2026:${scope.accountId}`;
 }
 
@@ -93,7 +100,7 @@ async function lockYear(tx: StudentPortalPostgresQueryV1) {
 
 async function writeField(
   tx: StudentPortalPostgresQueryV1,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
   field: Field,
   value: unknown,
   version: number,
@@ -184,16 +191,22 @@ function schoolDefaultsV1(records: readonly StoredRowV1[]) {
   return school;
 }
 
-function scopeChainV1(scope: ScopeV1, classId: number | null): ScopeV1[] {
-  const chain: ScopeV1[] = [SCHOOL];
+/**
+ * Resolution order (owner decision 28/09/2026): school, then class, then shift, then account. The
+ * shift comes after its class, so for the same option a shift rule wins and the class's own rule
+ * stays stored but inactive; an account rule still wins over both.
+ */
+function scopeChainV1(scope: PolicyScopeV1, classId: number | null, shift: ShiftV1 | null): PolicyScopeV1[] {
+  const chain: PolicyScopeV1[] = [SCHOOL];
   if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
+  if (shift !== null) chain.push({ kind: 'shift', academicYear: 2026, shift });
   if (scope.kind === 'account') chain.push(scope);
   return chain;
 }
 
-function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly ScopeV1[]) {
+function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly PolicyScopeV1[]) {
   const value: Record<string, unknown> = {};
-  const sources: Record<string, ScopeV1> = {};
+  const sources: Record<string, PolicyScopeV1> = {};
   for (const origin of chain) {
     const originKey = key(origin);
     for (const row of records.filter((item) => item.scope_key === originKey)) {
@@ -209,7 +222,7 @@ function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly Scope
 
 /** Shared pure policy resolution for single-target and batched administrative reads. */
 export async function resolvePolicySnapshotRowsV1(
-  input: ScopeV1,
+  input: PolicyScopeV1,
   rows: readonly Record<string, unknown>[],
 ) {
   const scope = normalizedScope(input);
@@ -221,7 +234,14 @@ export async function resolvePolicySnapshotRowsV1(
   const epoch = school[0]!.version;
   const classId =
     target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
-  const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId));
+  // A shift scope is its own level; any other target takes the shift of its class, if known.
+  const shift =
+    scope.kind === 'shift'
+      ? scope.shift
+      : target.shift === null || target.shift === undefined
+        ? null
+        : shiftV1.parse(target.shift);
+  const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId, shift));
   for (const [field, fallback] of Object.entries(OPTIONAL_SCHOOL_DEFAULTS_V1))
     if (!(field in value)) {
       value[field] = fallback;
@@ -234,8 +254,9 @@ export async function resolvePolicySnapshotRowsV1(
     settings,
     enforcedValue: enforceSchoolAccessV1(settings, settingsValueV1.parse(schoolValueV1(school))),
     classId,
+    shift,
     epoch,
-    policyVersion: `policy:${await hash({ settings, classId })}`,
+    policyVersion: `policy:${await hash({ settings, classId, shift })}`,
   };
 }
 
@@ -281,7 +302,7 @@ async function receiptReplayV1(
 function storedMatchesV1(
   previous: Record<string, unknown> | undefined,
   value: unknown,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
 ) {
   return Boolean(
     previous &&
@@ -292,7 +313,7 @@ function storedMatchesV1(
 
 async function applySettingsSetV1(
   tx: StudentPortalPostgresQueryV1,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
   command: SettingsSetCommandV1,
   stored: readonly Record<string, unknown>[],
   nextEpoch: number,
@@ -327,7 +348,7 @@ async function applySettingsSetV1(
 
 async function applySettingsInheritV1(
   tx: StudentPortalPostgresQueryV1,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
   command: SettingsInheritCommandV1,
 ) {
   let changed = false;
@@ -343,7 +364,7 @@ async function applySettingsInheritV1(
 
 async function applySettingsCommandV1(
   tx: StudentPortalPostgresQueryV1,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
   command: SettingsCommandV1,
   stored: readonly Record<string, unknown>[],
   nextEpoch: number,
@@ -371,7 +392,7 @@ async function advancePolicyEpochV1(tx: StudentPortalPostgresQueryV1, nextEpoch:
 async function savePolicyMutationV1(
   persistence: PortalTransactionV1,
   actor: string,
-  scope: ScopeV1,
+  scope: PolicyScopeV1,
   command: SettingsCommandV1,
   receiptActor: string,
   requestDigest: string,
@@ -407,16 +428,16 @@ async function savePolicyMutationV1(
 export class PolicyServiceV1 implements EffectivePolicyPortV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
 
-  async read(scope: ScopeV1): Promise<EffectiveSettingsV1> {
+  async read(scope: PolicyScopeV1): Promise<EffectiveSettingsV1> {
     return (await this.readSnapshotInTransaction(this.sql, scope)).settings;
   }
 
-  async readSnapshot(scope: ScopeV1) {
+  async readSnapshot(scope: PolicyScopeV1) {
     return this.readSnapshotInTransaction(this.sql, scope);
   }
 
-  /** One SQL snapshot includes current class, account version, overrides and school epoch. */
-  async readSnapshotInTransaction(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
+  /** One SQL snapshot includes current class and shift, account version, overrides and school epoch. */
+  async readSnapshotInTransaction(tx: StudentPortalPostgresQueryV1, input: PolicyScopeV1) {
     const scope = normalizedScope(input);
     const rows = await tx.unsafe(
       `WITH current_account AS (
@@ -429,15 +450,21 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       SELECT CASE WHEN $1='account' THEN (SELECT class_id FROM current_account) ELSE $3::integer END AS class_id,
         CASE WHEN $1='account' THEN COALESCE((SELECT matches=1 FROM current_account),false) ELSE true END AS resolved,
         CASE WHEN $1='account' THEN COALESCE((SELECT account_version FROM current_account),'0') ELSE '0' END AS account_version
-    ) SELECT target.*,COALESCE((SELECT jsonb_agg(jsonb_build_object(
+    ), shifted AS (
+      SELECT target.*,CASE WHEN $1='shift' THEN $4::text
+        ELSE (SELECT c.shift FROM student_portal.academic_class_v1 c
+          WHERE c.academic_year=2026 AND c.class_id=target.class_id) END AS shift FROM target
+    ) SELECT shifted.*,COALESCE((SELECT jsonb_agg(jsonb_build_object(
       'scope_key',s.scope_key,'field_key',s.field_key,'value_json',s.value_json,'source_scope_json',s.source_scope_json,'version',s.version))
       FROM student_portal.setting s WHERE s.scope_key='school:2026'
-        OR s.scope_key='class:2026:'||target.class_id::text
-        OR ($1='account' AND s.scope_key='account:2026:'||$2::uuid::text)), '[]'::jsonb) AS settings_rows FROM target`,
+        OR s.scope_key='class:2026:'||shifted.class_id::text
+        OR s.scope_key='shift:2026:'||shifted.shift
+        OR ($1='account' AND s.scope_key='account:2026:'||$2::uuid::text)), '[]'::jsonb) AS settings_rows FROM shifted`,
       [
         scope.kind,
         scope.kind === 'account' ? scope.accountId : null,
         scope.kind === 'class' ? scope.classId : null,
+        scope.kind === 'shift' ? scope.shift : null,
       ],
     );
     return resolvePolicySnapshotRowsV1(scope, rows);
@@ -489,6 +516,13 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       );
       if (replay) return replay;
 
+      if (scope.kind === 'shift' && command.operation === 'settings-set') {
+        const existing = await tx.unsafe(
+          'SELECT 1 FROM student_portal.academic_class_v1 WHERE academic_year=2026 AND shift=$1 LIMIT 1',
+          [scope.shift],
+        );
+        if (existing.length === 0) throw new Error('student-portal-shift-invalid-request');
+      }
       if (scope.kind === 'account') await persistence.lockAccounts([scope.accountId]);
       const before = await this.readSnapshotInTransaction(tx, scope);
       if (before.settings.version !== command.expectedVersion)

@@ -1,6 +1,6 @@
 import { PanelScopeContextV1 } from './shared/panel-scope-v1';
 import { AccountClosingPreviewV1 } from './accounts/account-closing-preview-v1';
-import { ClassTabsV1 } from '../../shared/ui/class-tabs-v1';
+import { PortalScopeTabsV1 } from './settings/policy-scope-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
 import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
@@ -16,7 +16,7 @@ import {
 } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
-import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1 } from '../../../shared/student-portal-contracts/customizations-v1';
 import { notifyLiveChangeV1 } from '../../shared/live-data/live-refresh-v1';
 import type { CustomizationAreaV1 } from './settings/customization-values-v1';
@@ -42,7 +42,6 @@ import {
   type AccountSlotContextV1,
   type AccountSlotsV1,
 } from './accounts/account-detail-v1';
-import { OperationsScopeV1 } from './overview/operations-scope-v1';
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
@@ -172,6 +171,9 @@ function PortalWorkspace({
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
+  const [selectedShift, setSelectedShift] = useState<
+    Extract<PolicyScopeV1, { kind: 'shift' }>['shift'] | null
+  >(null);
   const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);
   const [customizationTarget, setCustomizationTarget] = useState<{
     row: CustomizationRowV1;
@@ -341,22 +343,21 @@ function PortalWorkspace({
       case 'publication':
       case 'policies':
         content = (
-          <OperationsScopeV1
-            {...common}
-            scope={sectionScope?.scope ?? common.scope}
-            scopeLabel={sectionScope?.label ?? common.scopeLabel}
-          >
-            {(scope, label) => (
-              <StudentPoliciesV1
-                client={common.client}
-                reader={common.reader}
-                scope={scope}
-                scopeLabel={label}
-                canWrite={common.canWrite}
-                onOpenCustomization={openCustomization}
-              />
-            )}
-          </OperationsScopeV1>
+          <>
+            <StudentPoliciesV1
+              client={common.client}
+              reader={common.reader}
+              scope={
+                selectedShift
+                  ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
+                  : (sectionScope?.scope ?? common.scope)
+              }
+              scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
+              onCommitted={customizationChanged}
+              canWrite={common.canWrite}
+              onOpenCustomization={openCustomization}
+            />
+          </>
         );
         break;
       case 'settings':
@@ -423,12 +424,26 @@ function PortalWorkspace({
               id={section === 'credentials' ? 'accounts' : section}
               className="pa-admin-content"
             >
-              <ClassTabsV1
+              <PortalScopeTabsV1
+                policies={section === 'policies' || section === 'publication'}
+                reader={clients.reader}
+                selectedShift={selectedShift}
+                onShiftChange={(shift) => {
+                  if (!allowDraftNavigationV1()) return;
+                  setSelectedShift(shift);
+                  setSelectedClass(null);
+                  setSectionScope(null);
+                  setTarget(null);
+                  setCustomizationTarget(null);
+                  setOpenedAccount(null);
+                  qr.clear();
+                }}
                 items={classItems}
                 selectedId={selectedClass?.id ?? null}
                 allLabel="Todas as turmas"
                 onChange={(id) => {
                   if (!allowDraftNavigationV1()) return;
+                  setSelectedShift(null);
                   setSelectedClass(classItems.find((item) => item.id === id) ?? null);
                   setSectionScope(null);
                   setTarget(null);
@@ -465,7 +480,7 @@ function PortalWorkspace({
                     <div key={section}>{content}</div>
                   </LiveRefreshScopeV1>
                 </Suspense>
-              </ClassTabsV1>
+              </PortalScopeTabsV1>
             </Tabs.Panel>
           </Tabs>
           {customizationTarget ? (

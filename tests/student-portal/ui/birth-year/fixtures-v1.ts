@@ -151,12 +151,15 @@ export function birthMockV1(
     return birthJsonV1({ ...BIRTH_META_V1, state: 'invalid-request' }, 400);
   }
   function defaultQuery(query: BirthQueryV1): Response {
+    const scope = query.scope;
+    if (scope.kind === 'shift')
+      return birthJsonV1({ ...BIRTH_META_V1, state: 'invalid-request' }, 400);
     let selected = accounts.filter(
       (account) =>
-        query.scope.kind === 'school' ||
-        (query.scope.kind === 'account'
-          ? account.accountId === query.scope.accountId
-          : account.classId === query.scope.classId),
+        scope.kind === 'school' ||
+        (scope.kind === 'account'
+          ? account.accountId === scope.accountId
+          : account.classId === scope.classId),
     );
     if (query.operation === 'birth-years') selected = selected.filter((a) => !a.linkClosed);
     const prefix = query.operation === 'birth-years' ? 'b' : 'a';

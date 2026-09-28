@@ -123,8 +123,8 @@ async function activate(accountId: string, student: ReturnType<typeof studentCli
   await student.client.activate({
     contractVersion: 1,
     challenge: challenge.challenge,
-    password: '012345',
-    confirmation: '012345',
+    password: '013579',
+    confirmation: '013579',
     keepConnected: false,
   });
   return qr.cards[0]!.qr;
@@ -245,7 +245,7 @@ it('keeps revocation and QR rotation effective across compatible runtime restart
     first.client.login({
       contractVersion: 1,
       qr: firstQr,
-      password: '012345',
+      password: '013579',
       keepConnected: false,
     }),
   ).rejects.toBeDefined();

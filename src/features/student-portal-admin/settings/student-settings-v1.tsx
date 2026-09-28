@@ -10,9 +10,10 @@ import {
   Select,
   Spinner,
 } from '@heroui/react';
+import { GRADE_LABELS_V1 } from './grades-agenda-v1';
 import { PolicyLayoutV1 } from './policy-layout-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
-import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import type { PolicyScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import {
   createLatestPortalRequestV1,
@@ -27,6 +28,7 @@ import { parseSettingsDraftV1, settingsDraftV1 } from './settings-draft-v1';
 import { createSettingsMutationV1, type SettingsMutationStateV1 } from './settings-mutation-v1';
 import {
   SETTINGS_LABELS_V1,
+  PERIODS_V1,
   changedPastDatesV1,
   calendarChangeLabelV1,
   ownsSettingV1,
@@ -61,7 +63,7 @@ type ReviewIntentV1 =
       /** A plain-language confirmation instead of the raw value (Aba Notas agendas). */
       presentation?: { title: string; body: ReactNode };
     };
-type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
+type ReviewV1 = ReviewIntentV1 & { expectedVersion: number; draftKey?: string };
 /** What the Notas tab adds to each publication period card. */
 export type PublicationSlotsV1 = {
   periodStatus: (item: PublicationItemV1) => ReactNode;
@@ -72,10 +74,10 @@ export interface StudentSettingsPropsV1 {
   readonly area?: 'all' | 'policies' | 'general';
   readonly client: PortalAdminClientV1;
   readonly reader?: PortalAdminReadClientV2;
-  readonly scope: ScopeV1;
+  readonly scope: PolicyScopeV1;
   readonly canWrite: boolean;
   readonly scopeLabel?: string;
-  readonly describeScope?: (scope: ScopeV1) => string;
+  readonly describeScope?: (scope: PolicyScopeV1) => string;
   readonly onCommitted?: () => void;
   readonly onOpenCustomization?: OpenCustomizationV1;
 }
@@ -86,7 +88,8 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
   showPartials: 'O aluno vê a nota de cada avaliação e atividade, além da nota do trimestre.',
   autoUpdate:
     'Quando o Banco tiver notas mais novas de um período já publicado, elas são publicadas sem precisar clicar. A primeira publicação de cada período continua manual.',
-  showFinalResult: 'Exibe o resultado anual autorizado. Na aba Notas, use os agendamentos do Resultado anual.',
+  showFinalResult:
+    'Exibe o resultado anual autorizado. Na aba Notas, use os agendamentos do Resultado anual.',
   showTermClosing: 'Exibe uma orientação por disciplina, com as frases aprovadas pela escola.',
   termClosingConclusive:
     'Escolha entre a conclusão do trimestre encerrado e a orientação durante o trimestre.',
@@ -94,7 +97,7 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
     'Define quais notas podem aparecer. Também é necessário publicar e respeitar as datas de divulgação.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',
   calendar:
-    'Campos vazios não definem datas. Personalizar substitui todo o calendário neste aluno ou turma.',
+    'Campos vazios não definem datas. Personalizar substitui todo o calendário neste nível.',
 };
 
 function sourceBadgeV1(
@@ -124,10 +127,10 @@ function mutationErrorLabelV1(error: PortalClientErrorV1) {
 }
 
 function sourceLabelV1(
-  source: ScopeV1,
-  fixedScope: ScopeV1,
+  source: PolicyScopeV1,
+  fixedScope: PolicyScopeV1,
   label: string,
-  describeScope?: (scope: ScopeV1) => string,
+  describeScope?: (scope: PolicyScopeV1) => string,
 ) {
   if (settingsScopeKeyV1(source) === settingsScopeKeyV1(fixedScope)) return label;
   return describeScope?.(source) ?? settingsScopeLabelV1(source);
@@ -355,8 +358,8 @@ function ReviewDialogV1({
             {review.inherit ? (
               <p>
                 {review.field === 'accessEnabled'
-                  ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão da escola ou da turma.'
-                  : 'Esta opção voltará a seguir o padrão da escola ou da turma.'}
+                  ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão aplicável.'
+                  : 'Esta opção voltará a seguir o padrão aplicável.'}
               </p>
             ) : review.presentation ? (
               review.presentation.body
@@ -463,19 +466,19 @@ function SettingsReadyV1({
   onReviewConfirm,
 }: Readonly<{
   publication?: StudentSettingsPropsV1['publication'];
-  fieldVersions: Partial<Record<SettingsFieldV1, number>>;
+  fieldVersions: Partial<Record<string, number>>;
   area: 'all' | 'policies' | 'general';
   data: EffectiveSettingsV1;
   mutation: SettingsMutationStateV1;
   client: PortalAdminClientV1;
   reader?: PortalAdminReadClientV2;
-  fixedScope: ScopeV1;
+  fixedScope: PolicyScopeV1;
   canWrite: boolean;
   busy: boolean;
   review: ReviewV1 | null;
   label: string;
   discardVersion: number;
-  sourceLabel: (scope: ScopeV1) => string;
+  sourceLabel: (scope: PolicyScopeV1) => string;
   onDirtyChange: (key: string, dirty: boolean) => void;
   onReview: (review: ReviewV1) => void;
   onRetry: () => void;
@@ -488,32 +491,40 @@ function SettingsReadyV1({
   onReviewConfirm: () => void;
 }>) {
   const fieldDisabled = busy || mutation.state === 'error' || review !== null;
+  const controlledByShift = (field: SettingsFieldV1) =>
+    fixedScope.kind === 'class' && data.sources[field].kind === 'shift';
+  const suspendedFields = (Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).filter(
+    controlledByShift,
+  );
+  const accessDisabled =
+    fieldDisabled || controlledByShift('accessEnabled') || controlledByShift('accessSchedule');
+  const gradesDisabled = fieldDisabled || controlledByShift('calendar');
   const [customizationsOpen, setCustomizationsOpen] = useState(false);
   const [customizationsVisited, setCustomizationsVisited] = useState(false);
   const renderField = (field: SettingsFieldV1) =>
     field === 'accessSchedule' ? null : field === 'accessEnabled' ? (
       // The switch and its schedules are one unit, edited on their own card.
       <AccessPlanCardV1
-        key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}:${data.version}`}
+        key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
         settings={data}
         canWrite={canWrite}
-        disabled={fieldDisabled}
+        disabled={accessDisabled}
         sourceLabel={sourceLabel(data.sources[field])}
         review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
         onDirtyChange={onDirtyChange}
       />
     ) : (
-    <FieldCardV1
-      key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
-      field={field}
-      settings={data}
-      canWrite={canWrite}
-      disabled={fieldDisabled}
-      compact={area === 'policies'}
-      sourceLabel={sourceLabel(data.sources[field])}
-      review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
-      onDirtyChange={onDirtyChange}
-    />
+      <FieldCardV1
+        key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
+        field={field}
+        settings={data}
+        canWrite={canWrite}
+        disabled={fieldDisabled || controlledByShift(field)}
+        compact={area === 'policies'}
+        sourceLabel={sourceLabel(data.sources[field])}
+        review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+        onDirtyChange={onDirtyChange}
+      />
     );
   return (
     <>
@@ -524,9 +535,17 @@ function SettingsReadyV1({
         retry={onRetry}
         reload={onReload}
       />
+      {suspendedFields.length ? (
+        <p className="pa-settings-hint" role="note">
+          Controlado pelo turno:{' '}
+          {suspendedFields.map((field) => SETTINGS_LABELS_V1[field]).join(', ')}. As regras da turma
+          foram preservadas.
+        </p>
+      ) : null}
       {area === 'policies' ? (
         <PolicyLayoutV1
           field={renderField}
+          shift={fixedScope.kind === 'shift'}
           grades={
             <>
               <GradesIntroV1 />
@@ -534,36 +553,61 @@ function SettingsReadyV1({
                 settings={data}
                 sourceLabel={sourceLabel(data.sources.calendar)}
                 canWrite={canWrite}
-                disabled={fieldDisabled}
+                disabled={gradesDisabled}
                 onInherit={() =>
                   onReview({ field: 'calendar', inherit: true, expectedVersion: data.version })
                 }
               />
-              {typeof publication === 'function'
-                ? publication({
-                    periodStatus: (item) => (
-                      <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />
-                    ),
-                    periodExtra: (item) => (
-                      <GradeShowV1
-                        key={`${discardVersion}:${item.period}:${data.version}`}
-                        settings={data}
-                        gradeKey={item.period}
-                        canWrite={canWrite}
-                        disabled={fieldDisabled}
-                        review={(intent: GradeReviewIntentV1) =>
-                          onReview({ ...intent, expectedVersion: data.version })
-                        }
-                        onDirtyChange={onDirtyChange}
-                      />
-                    ),
-                  })
-                : publication}
+              {fixedScope.kind === 'shift'
+                ? PERIODS_V1.map((period) => (
+                    <Card key={period} className="pa-settings-card pa-grade-card">
+                      <Card.Header>
+                        <h3>{GRADE_LABELS_V1[period]}</h3>
+                      </Card.Header>
+                      <Card.Content>
+                        <GradeShowV1
+                          key={`${discardVersion}:${period}:${fieldVersions['grades:' + period] ?? 0}`}
+                          settings={data}
+                          gradeKey={period}
+                          canWrite={canWrite}
+                          disabled={gradesDisabled}
+                          review={(intent) =>
+                            onReview({ ...intent, expectedVersion: data.version })
+                          }
+                          onDirtyChange={onDirtyChange}
+                        />
+                      </Card.Content>
+                    </Card>
+                  ))
+                : typeof publication === 'function'
+                  ? publication({
+                      periodStatus: (item) => (
+                        <GradeStatusChipV1
+                          settings={data}
+                          period={item.period}
+                          state={item.state}
+                        />
+                      ),
+                      periodExtra: (item) => (
+                        <GradeShowV1
+                          key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
+                          settings={data}
+                          gradeKey={item.period}
+                          canWrite={canWrite}
+                          disabled={gradesDisabled}
+                          review={(intent: GradeReviewIntentV1) =>
+                            onReview({ ...intent, expectedVersion: data.version })
+                          }
+                          onDirtyChange={onDirtyChange}
+                        />
+                      ),
+                    })
+                  : publication}
               <FinalResultCardV1
-                key={`${discardVersion}:final:${data.version}`}
+                key={`${discardVersion}:final:${fieldVersions['grades:final'] ?? 0}`}
                 settings={data}
                 canWrite={canWrite}
-                disabled={fieldDisabled}
+                disabled={gradesDisabled}
                 review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
                 onDirtyChange={onDirtyChange}
               />
@@ -581,7 +625,11 @@ function SettingsReadyV1({
           {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map(renderField)}
         </div>
       ) : null}
-      {area !== 'general' && reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
+      {area !== 'general' &&
+      reader &&
+      onOpenCustomization &&
+      fixedScope.kind !== 'account' &&
+      fixedScope.kind !== 'shift' ? (
         <Accordion className="pa-policy-customizations">
           <Accordion.Item
             id="customizations"
@@ -688,10 +736,10 @@ function SettingsScopeV1({
   const [closing, setClosing] = useState(false);
   const [clock, setClock] = useState(Date.now);
   const [discardVersion, setDiscardVersion] = useState(0);
-  const [fieldVersions, setFieldVersions] = useState<Partial<Record<SettingsFieldV1, number>>>({});
-  const submittedField = useRef<SettingsFieldV1 | null>(null);
+  const [fieldVersions, setFieldVersions] = useState<Partial<Record<string, number>>>({});
+  const submittedField = useRef<string | null>(null);
   const [pendingReset, setPendingReset] = useState<{
-    field: SettingsFieldV1;
+    field: string;
     version: number;
   } | null>(null);
   const [dirtyFields, setDirtyFields] = useState<Set<string>>(() => new Set());
@@ -814,14 +862,17 @@ function SettingsScopeV1({
       idempotencyKey: crypto.randomUUID(),
     };
     try {
-      submittedField.current = review.field;
+      submittedField.current = review.draftKey ?? review.field;
       await writer.submit(
         review.inherit
           ? {
               ...common,
               operation: 'settings-inherit',
               // The switch and its schedules return to the default together.
-              keys: review.field === 'accessEnabled' ? ['accessEnabled', 'accessSchedule'] : [review.field],
+              keys:
+                review.field === 'accessEnabled'
+                  ? ['accessEnabled', 'accessSchedule']
+                  : [review.field],
             }
           : {
               ...common,
@@ -834,7 +885,8 @@ function SettingsScopeV1({
       setNotice('Não foi possível preparar a alteração. Recarregue e revise os valores.');
     }
   }
-  const sourceLabel = (source: ScopeV1) => sourceLabelV1(source, fixedScope, label, describeScope);
+  const sourceLabel = (source: PolicyScopeV1) =>
+    sourceLabelV1(source, fixedScope, label, describeScope);
   return (
     <section
       className={`pa-settings${area === 'policies' ? ' pa-settings--policies' : ''}`}
