@@ -387,7 +387,7 @@ export function StudentPortalPageV1({
     load.state === 'ready' ? (
       <StudentProfileV1
         profile={load.data.profile}
-        seals={brilliantSealCountV1(load.data.subjects)}
+        seals={brilliantSealCountV1(load.data.subjects, load.data.endedPeriods)}
         schoolName={shell.schoolName}
         logo={shell.logo}
         onLogout={shell.onLogout}
