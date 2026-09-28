@@ -57,6 +57,19 @@ export function termClosingTargetsV1(
   return { mode, periods: current && released(current) ? [current] : [] };
 }
 
+/**
+ * Trimesters whose end date in the student's calendar has passed (owner decision 28/09/2026):
+ * seals from Brilhante assessments count only for these. Dates only, no marks or other students.
+ */
+export function endedPeriodsV1(policy: PolicyValueV1, now: Date): TermClosingPeriodV1[] {
+  const value = settingsValueV1.parse(policy);
+  return TERM_CLOSING_PERIODS_V1.filter((period) => {
+    const raw = value.calendar[END_FIELD_V1[period]];
+    const end = raw ? Date.parse(raw) : Number.NaN;
+    return Number.isFinite(end) && now.getTime() >= end;
+  });
+}
+
 /** Shared by the student page and the admin preview so both show the same codes and variants. */
 export function buildTermClosingsV1(input: {
   targets: TermClosingTargetsV1;

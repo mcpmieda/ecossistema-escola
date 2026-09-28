@@ -11,7 +11,12 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 import type { publicationContextV1 } from './self-projection-reader-v1';
 import { dataVectorV1, PERIODS_V1, publicationDigestV1 } from './state-v1';
 import { readLatestSourceV2, readScopedSourcesV2, readStudentKeyV2 } from './scoped-source-v2';
-import { attachTermClosingsV1, buildTermClosingsV1, termClosingTargetsV1 } from './term-closing-self-v1';
+import {
+  attachTermClosingsV1,
+  buildTermClosingsV1,
+  endedPeriodsV1,
+  termClosingTargetsV1,
+} from './term-closing-self-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 
 type ContextV2 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
@@ -209,7 +214,9 @@ export async function scopedSelfV2(
     context.now,
     finalAuthority,
   );
-  return termClosingsV2(tx, context, visible, reader, decoded);
+  const withClosings = await termClosingsV2(tx, context, visible, reader, decoded);
+  const endedPeriods = endedPeriodsV1(context.policy.enforcedValue, context.now);
+  return endedPeriods.length ? selfResponseV1.parse({ ...withClosings, endedPeriods }) : withClosings;
 }
 
 /** Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it. */
