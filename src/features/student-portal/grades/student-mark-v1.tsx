@@ -58,7 +58,8 @@ export function StudentMarkV1({ mark, showMaximum = false, oneDecimal = false }:
       aria-label={ariaLabel}
     >
       <span className="pa-mark-value">{value}</span>
-      {total === null ? null : <span className="pa-mark-maximum"> / {total}</span>}
+      {/* "8 de 10" reads as a sentence (owner review 27/09/2026); same size and colour as before. */}
+      {total === null ? null : <span className="pa-mark-maximum"> de {total}</span>}
     </span>
   );
 }

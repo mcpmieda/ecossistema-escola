@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1 } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1 } from 'react';
 import {
   Button,
   Card,
@@ -12,6 +12,8 @@ import {
 import {
   Atom,
   BookOpenCheck,
+  CircleAlert,
+  CircleCheck,
   BookOpenText,
   Calculator,
   ChevronLeft,
@@ -38,6 +40,7 @@ import {
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
 import { earnsSealV1 } from '../grades/brilliant-seal-v1';
+import { BrilliantSealBadgeV1 } from '../grades/brilliant-seal-badge-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
 import { TermClosingCardV1, TermClosingSummaryCardV1 } from './term-closing-v1';
@@ -58,6 +61,26 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC2: 'REC 2º Trimestre',
   REC3: 'REC 3º Trimestre',
 };
+/*
+ * What each trimester is worth, shown under its Boletim tab only ("vale 30 pontos", owner review
+ * 27/09/2026); inside a discipline the header already reads "de 30 pontos".
+ * A published mark carries its own maximum; this fallback mirrors the engine's term maxima
+ * (SIMPLIFIED_TERM_MAXIMUM_MILLI_V1), which the UI bundle may not import.
+ */
+const TERM_VALUE_V1: Partial<Record<PeriodIdV1, number>> = { T1: 30, T2: 30, T3: 40 };
+function termValueV1(subjects: readonly SubjectV1[], period: PeriodIdV1): number | null {
+  // Trimesters only: a recovery tab is not "worth" points of its own.
+  if (!MAIN_PERIODS_V1.includes(period)) return null;
+  for (const subject of subjects) {
+    const final = subjectPeriodV1(subject, period)?.final;
+    if (final?.kind === 'score' && final.maximum) return final.maximum;
+  }
+  return TERM_VALUE_V1[period] ?? null;
+}
+function TermValueV1({ subjects, period }: { subjects: readonly SubjectV1[]; period: PeriodIdV1 }) {
+  const value = termValueV1(subjects, period);
+  return value === null ? null : <span className="pa-term-value">vale {number.format(value)} pontos</span>;
+}
 const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
   T1: '1º Trimestre',
   T2: '2º Trimestre',
@@ -144,6 +167,11 @@ function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
  * Released periods only: a trimester's closing shows together with its marks, never alone
  * (owner decision 2026-09-24, replacing #1132 R2).
  */
+/** The period a discipline shows: the one chosen if it has it, else its first. */
+function shownPeriodV1(subject: SubjectV1, selected: PeriodIdV1 | undefined): PeriodIdV1 {
+  const available = subjectPeriodsV1(subject);
+  return selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
+}
 function subjectPeriodsV1(subject: SubjectV1): PeriodIdV1[] {
   return ALL_PERIODS_V1.filter((period) => subjectPeriodV1(subject, period) !== undefined);
 }
@@ -224,10 +252,12 @@ function TrendLineV1({
   drop: number;
 }) {
   const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
+  const text = trendTextV1(trend, reference, current, previous, drop);
+  const line = useFitLineV1<HTMLSpanElement>(text, 10);
   return (
-    <span className={'pa-score-head-trend pa-score-head-trend--' + trend}>
+    <span ref={line} className={'pa-score-head-trend pa-score-head-trend--' + trend}>
       <Icon size={15} strokeWidth={2.4} aria-hidden="true" />
-      {trendTextV1(trend, reference, current, previous, drop)}
+      {text}
     </span>
   );
 }
@@ -359,6 +389,19 @@ function SummaryV1({
   const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
   // Null until the first switch, so the list does not animate twice on mount.
   const [listMotion, setListMotion] = useState<'forward' | 'back' | null>(null);
+  const listStage = useSlideStageV1();
+  /** Tabs and swipes alike: the old list leaves to one side, the new one comes from the other. */
+  const choosePeriod = (next: SummaryKeyV1) => {
+    if (next === active) return;
+    const direction = available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward';
+    listStage.leave(direction);
+    setListMotion(direction);
+    onSelect(next);
+  };
+  const periodSwipe = useSubjectSwipeV1((step) => {
+    const next = available[available.indexOf(active) + step];
+    if (next) choosePeriod(next);
+  });
   const recoveryPeriodsOf = (subject: SubjectV1) =>
     subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
   const published = subjects.filter((subject) =>
@@ -418,19 +461,18 @@ function SummaryV1({
           <Tabs
             className="pa-boletim-period-tabs"
             selectedKey={active}
-            onSelectionChange={(key) => {
-              const next = String(key) as SummaryKeyV1;
-              setListMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
-              onSelect(next);
-            }}
+            onSelectionChange={(key) => choosePeriod(String(key) as SummaryKeyV1)}
           >
             <Tabs.ListContainer>
               <Tabs.List aria-label="Período das notas">
                 {available.map((period) => (
-                  <Tabs.Tab id={period} key={period}>
-                    {period === 'REC'
-                      ? 'Recuperação'
-                      : (BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period])}
+                  <Tabs.Tab id={period} key={period} className="pa-boletim-period-tab">
+                    <span>
+                      {period === 'REC'
+                        ? 'Recuperação'
+                        : (BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period])}
+                    </span>
+                    {period === 'REC' ? null : <TermValueV1 subjects={subjects} period={period} />}
                     <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
@@ -439,28 +481,31 @@ function SummaryV1({
           </Tabs>
         ) : null}
 
-        <div className="pa-workspace-heading-row">
-          <div>
-            <h2 id="pa-summary-title">Minhas notas</h2>
-            {available.length === 1 ? (
-              <p className="pa-summary-period">
-                {active === 'REC'
-                  ? 'Recuperação'
-                  : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active])}
-              </p>
-            ) : null}
-          </div>
-          <Chip size="sm" color="accent" variant="soft">
-            {published.length} {published.length === 1 ? 'disciplina' : 'disciplinas'}
-          </Chip>
+        {/* Column labels over the list (owner review 27/09/2026): "Disciplinas" over the names,
+            "Notas" over the marks. The section heading stays for screen readers. With a single
+            period there is no tab bar, so the marks' label names it. */}
+        <h2 id="pa-summary-title" className="pa-visually-hidden">
+          Minhas notas
+        </h2>
+        <div className="pa-list-columns" aria-hidden="true">
+          <span>Disciplinas</span>
+          <span>
+            {available.length === 1
+              ? `Notas · ${active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active])}`
+              : 'Notas'}
+          </span>
         </div>
 
         {/* Keyed by period so the list slides in from the side of the tab that was chosen. */}
         {/* Entering the Boletim: the subjects rise in one after another; switching trimesters
             keeps the sideways slide. */}
+        {/* With more than one period, a sideways swipe on the list moves between them. */}
+        <div className="pa-slide-stage" ref={listStage.stage} {...(available.length > 1 ? periodSwipe : {})}>
+        <div className="pa-slide-ghosts" ref={listStage.ghostLayer} aria-hidden="true" />
         <div
           key={active}
-          className={listMotion ? 'pa-tab-motion pa-tab-motion--' + listMotion : 'pa-list-enter'}
+          data-slide-live=""
+          className={listMotion ? 'pa-slide-in pa-slide-in--' + listMotion : 'pa-list-enter'}
         >
         <ListBox
           aria-label="Disciplinas publicadas"
@@ -524,9 +569,7 @@ function SummaryV1({
                 ) : (
                   <>
                     {brilliant ? (
-                      <span className="pa-seal" role="img" aria-label="Selo brilhante">
-                        <Star size={13} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-                      </span>
+                      <BrilliantSealBadgeV1 />
                     ) : null}
                     <strong>
                       <StudentMarkV1
@@ -536,13 +579,15 @@ function SummaryV1({
                     </strong>
                   </>
                 )}
-                </span>
-                {/* Each row opens its discipline. */}
+                {/* Each row opens its discipline. Inside the band, so a red or gold row runs to the
+                    arrow (owner review 27/09/2026). */}
                 <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
+                </span>
               </ListBox.Item>
             );
           })}
         </ListBox>
+        </div>
         </div>
         {/* Below the marks, like the subject closing under its breakdown. */}
         {activeSummary ? (
@@ -663,6 +708,46 @@ function PartialFeedbackV1({ partial, calm }: { partial: PartialV1; calm: boolea
  * Status copy restates the server's mark kind and classification in the same four bands as the
  * activities (owner decision 2026-09-27); it never infers a result.
  */
+/*
+ * Header status, a touch richer without more words (owner review 28/09/2026): a small emblem in
+ * the band's colour before the reading (the star stays Brilhante's), and under it a slim meter of
+ * the mark with a notch at the minimum and the share of the points, so even the 1º trimestre,
+ * which has no trend line, says at a glance how far above or below the minimum it is.
+ */
+function StatusEmblemV1({ band }: { band: PartialBandV1 | null }) {
+  if (band === 'brilliant')
+    return <Star className="pa-brilliant-star" size={16} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />;
+  if (band === 'excellent') return <Sparkles className="pa-status-emblem" size={17} strokeWidth={2.3} aria-hidden="true" />;
+  if (band === 'good') return <CircleCheck className="pa-status-emblem" size={17} strokeWidth={2.4} aria-hidden="true" />;
+  if (band === 'below' || band === 'needs-work')
+    return <CircleAlert className="pa-status-emblem" size={17} strokeWidth={2.4} aria-hidden="true" />;
+  return null;
+}
+/** The minimum line of the meter: 60% (the server's meetsMinimum decides the colours). */
+const METER_MINIMUM_PERCENT_V1 = 60;
+function ScoreMeterV1({ mark }: { mark: ScoreMarkV1 }) {
+  if (!mark.maximum || mark.meetsMinimum === null) return null;
+  // Floor, never round: 59,8% must not read as the minimum's 60%.
+  const percent = Math.max(0, Math.min(100, Math.floor((mark.value / mark.maximum) * 100)));
+  // The minimum in points, named under the notch: 18,0 of 30, 24,0 of 40 (owner review 28/09/2026).
+  const minimum = trimesterNumber.format((mark.maximum * METER_MINIMUM_PERCENT_V1) / 100);
+  return (
+    <span className="pa-score-meter" role="img" aria-label={`${percent}% dos pontos; o mínimo é ${minimum}`}>
+      <span className="pa-score-meter-track" aria-hidden="true">
+        <span className="pa-score-meter-fill" style={{ width: `${percent}%` }} />
+        {/* The notch at the minimum, named right under it so no parent has to guess. */}
+        <span className="pa-score-meter-minimum" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }} />
+        <span className="pa-score-meter-minimum-label" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }}>
+          mínimo {minimum}
+        </span>
+      </span>
+      <span className="pa-score-meter-value" aria-hidden="true">
+        {percent}%
+      </span>
+    </span>
+  );
+}
+
 function periodStatusV1(period: PeriodV1 | undefined) {
   const final = period?.final;
   if (!final || final.kind === 'absent') return { label: 'Ainda não lançada', band: null };
@@ -712,44 +797,147 @@ function useSubjectSwipeV1(onSwipe: (step: 1 | -1) => void) {
   };
 }
 
-function SubjectV1View({
+/*
+ * Sideways slide (owner review 27/09/2026): when the student swipes or picks the next discipline or
+ * trimester, the old content visibly leaves to one side while the new one comes in from the other,
+ * so the change is obvious. The old content is a static, inert copy of the DOM (never React), laid
+ * over the stage and animated out with the Web Animations API; without it (reduced motion, or a
+ * browser/jsdom lacking element.animate) only the new content slides in.
+ */
+type SlideV1 = 'forward' | 'back';
+function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
+  const stage = useRef<HTMLDivElement>(null);
+  const ghostLayer = useRef<HTMLDivElement>(null);
+  const leave = (direction: SlideV1) => {
+    const live = stage.current?.querySelector<HTMLElement>(liveSelector);
+    const layer = ghostLayer.current;
+    const frame = stage.current;
+    if (!live || !layer || !frame || typeof live.animate !== 'function') return;
+    if (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    // Clip sideways only while sliding: at rest nothing is cut (e.g. the round back button, which
+    // sits a little outside the view's edge).
+    frame.classList.add('is-sliding');
+    clearTimeout(Number(frame.dataset.slideTimer));
+    frame.dataset.slideTimer = String(setTimeout(() => frame.classList.remove('is-sliding'), 450));
+    const ghost = live.cloneNode(true) as HTMLElement;
+    ghost.removeAttribute('data-slide-live');
+    ghost.removeAttribute('data-area-live');
+    ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+    ghost.setAttribute('inert', '');
+    // A still frame of what was on screen: no entrance motion of its own replays while it leaves.
+    ghost.className = 'pa-slide-ghost';
+    // Exactly where the content was: the live element may sit inside a padded panel, and any offset
+    // here shows as a jump before the slide (owner review 28/09/2026).
+    const from = live.getBoundingClientRect();
+    const origin = layer.getBoundingClientRect();
+    Object.assign(ghost.style, {
+      position: 'absolute',
+      left: `${from.left - origin.left}px`,
+      top: `${from.top - origin.top}px`,
+      width: `${from.width}px`,
+    });
+    layer.replaceChildren(ghost);
+    // Safety net: never leave the copy behind, even if the animation never reports its end.
+    setTimeout(() => ghost.remove(), 1000);
+    const to = direction === 'forward' ? '-100%' : '100%';
+    ghost
+      .animate(
+        [
+          { transform: 'translateX(0)', opacity: 1 },
+          { transform: `translateX(${to})`, opacity: 0.2 },
+        ],
+        { duration: 340, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' },
+      )
+      .finished.then(
+        () => ghost.remove(),
+        () => ghost.remove(),
+      );
+  };
+  return { stage, ghostLayer, leave };
+}
+
+/*
+ * One line when it fits (owner review 28/09/2026): a header line that would wrap first shrinks,
+ * down to `minPx`; if it would need to get smaller than that, it keeps its size and wraps.
+ * Layout-only (jsdom skips).
+ */
+function useFitLineV1<T extends HTMLElement>(key: string, minPx: number) {
+  const line = useRef<T>(null);
+  useLayoutEffect(() => {
+    const element = line.current;
+    const room = element?.parentElement;
+    if (!element || !room) return;
+    const fit = () => {
+      element.style.fontSize = '';
+      element.style.whiteSpace = 'nowrap';
+      const available = room.clientWidth;
+      const needed = element.scrollWidth;
+      if (!available || !needed || needed <= available) return;
+      const size = (parseFloat(getComputedStyle(element).fontSize) * available) / needed;
+      // Too small to read on one line: keep the normal size and let it wrap instead.
+      if (size >= minPx) element.style.fontSize = `${size}px`;
+      else element.style.whiteSpace = 'normal';
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [key, minPx]);
+  return line;
+}
+
+/*
+ * "de 30 pontos" as wide as the mark above it (owner review 27/09/2026): the caption's font size is
+ * scaled so its text spans exactly the number's width. Layout-only; jsdom (no layout) skips it.
+ */
+function useCaptionFitV1(key: string) {
+  const block = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const figure = block.current?.querySelector('strong');
+    const caption = block.current?.querySelector<HTMLElement>(':scope > span');
+    if (!figure || !caption) return;
+    caption.style.fontSize = '';
+    const target = figure.getBoundingClientRect().width;
+    const natural = caption.scrollWidth;
+    if (!target || !natural) return;
+    const base = parseFloat(getComputedStyle(caption).fontSize);
+    caption.style.fontSize = `${Math.min(15, Math.max(9, (base * target) / natural))}px`;
+  }, [key]);
+  return block;
+}
+
+/*
+ * The discipline's header stays put while its body slides (owner review 28/09/2026): back button,
+ * title and the subject bar. The bar is one persistent Tabs, so its white pill glides to the
+ * discipline chosen; the icon replays its own motion for each discipline.
+ */
+function SubjectHeaderV1({
   subject,
   subjects,
   onSubjectChange,
   onBack,
-  selected,
-  onSelect,
-  accountId,
-  academicState,
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   onSubjectChange: (id: number) => void;
   onBack: () => void;
-  /** Chosen period, kept across subjects; a subject without it falls back to its first one. */
-  selected: PeriodIdV1 | undefined;
-  onSelect: (period: PeriodIdV1) => void;
-  accountId: string;
-  academicState: SelfResponseV1['profile']['academicState'];
 }) {
-  const available = subjectPeriodsV1(subject);
-  const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
-  // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
-  // whole view already slides in when it opens.
-  const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
-  // The view remounts per subject, resetting the horizontal scroller to its start; bring the
-  // chosen subject back into view (inline only, so the page itself does not jump).
+  // Keep the chosen discipline in view inside the bar (inline only, so the page itself never
+  // scrolls). On mount the panel is still being revealed and HeroUI's scroll shadow measures after
+  // paint, so the first reveal waits a frame and retries after the slide-in; later ones glide.
   const subjectTabs = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
   useEffect(() => {
-    // On mount the panel is still being revealed (and HeroUI's scroll shadow measures after
-    // paint), so an immediate scroll is dropped. Retry after paint and after the slide-in.
-    // Horizontal only: moving the bar's own scroller never scrolls the page vertically.
+    const smooth =
+      mounted.current && !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    mounted.current = true;
     const reveal = () => {
       const tab = subjectTabs.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
       const scroller = tab?.closest<HTMLElement>('.scroll-shadow') ?? tab?.parentElement?.parentElement;
       if (!tab || !scroller) return;
       const offset = tab.offsetLeft - (scroller.clientWidth - tab.offsetWidth) / 2;
-      scroller.scrollLeft = Math.max(0, Math.min(offset, scroller.scrollWidth - scroller.clientWidth));
+      const left = Math.max(0, Math.min(offset, scroller.scrollWidth - scroller.clientWidth));
+      if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+      else scroller.scrollLeft = left;
     };
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(reveal);
@@ -760,26 +948,12 @@ function SubjectV1View({
       clearTimeout(settled);
     };
   }, [subject.subjectId]);
-  const period = subjectPeriodV1(subject, active);
-  const mark = scoreOfV1(period);
-  const recoveryOf = RECOVERY_OF_V1[active];
-  const trendReference = TREND_REFERENCE_V1[active];
-  const trend = trendReference
-    ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
-    : null;
-  // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
-  const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
   // Only an official result earns a chip here; "Em curso" lives under the class in the hero.
   const official = subjectSituationV1(subject);
-  const swipe = useSubjectSwipeV1((step) => {
-    const index = subjects.findIndex((item) => item.subjectId === subject.subjectId);
-    const next = subjects[index + step];
-    if (index >= 0 && next) onSubjectChange(next.subjectId);
-  });
-
   return (
-    <div className="pa-workspace-view" {...swipe}>
+    <>
       <PageIntroV1
+        key={subject.subjectId}
         icon={<SubjectIconV1 label={subject.label} size={20} animated />}
         onBack={onBack}
         title={subject.label}
@@ -798,7 +972,7 @@ function SubjectV1View({
         }
       />
 
-      <div ref={subjectTabs}>
+      <div ref={subjectTabs} className="pa-subject-bar">
       <Tabs
         selectedKey={String(subject.subjectId)}
         onSelectionChange={(key) => onSubjectChange(Number(key))}
@@ -815,6 +989,46 @@ function SubjectV1View({
         </Tabs.ListContainer>
       </Tabs>
       </div>
+    </>
+  );
+}
+
+function SubjectV1View({
+  subject,
+  selected,
+  onSelect,
+  accountId,
+  academicState,
+  sealed,
+}: {
+  subject: SubjectV1;
+  /** Whether the student holds the selo brilhante of the trimester being read. */
+  sealed: (period: PeriodIdV1) => boolean;
+  /** Chosen period, kept across subjects; a subject without it falls back to its first one. */
+  selected: PeriodIdV1 | undefined;
+  onSelect: (period: PeriodIdV1) => void;
+  accountId: string;
+  academicState: SelfResponseV1['profile']['academicState'];
+}) {
+  const active = shownPeriodV1(subject, selected);
+  const available = subjectPeriodsV1(subject);
+  // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
+  // whole view already slides in when it opens.
+  const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
+  const period = subjectPeriodV1(subject, active);
+  const mark = scoreOfV1(period);
+  const recoveryOf = RECOVERY_OF_V1[active];
+  const trendReference = TREND_REFERENCE_V1[active];
+  const trend = trendReference
+    ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
+    : null;
+  // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
+  const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
+  const markBlock = useCaptionFitV1(`${subject.subjectId}:${active}:${mark?.value}:${mark?.maximum}`);
+  const statusLine = useFitLineV1<HTMLSpanElement>(`${subject.subjectId}:${active}:${periodStatusV1(period).label}`, 15);
+
+  return (
+    <div className="pa-subject-body">
 
       <Tabs
         className="pa-period-tabs"
@@ -829,7 +1043,13 @@ function SubjectV1View({
           <Tabs.List aria-label={'Períodos de ' + subject.label}>
             {/* Each period tab carries its own final mark, so the evolution reads at a glance. */}
             {available.map((item) => (
-              <Tabs.Tab id={item} key={item} className="pa-period-tab">
+              <Tabs.Tab
+                id={item}
+                key={item}
+                className="pa-period-tab"
+                // Each card wears its trimester's band (owner review 28/09/2026); gold shines.
+                data-tone={periodStatusV1(subjectPeriodV1(subject, item)).band ?? undefined}
+              >
                 <span className="pa-period-tab-label">{PERIOD_LABELS_V1[item]}</span>
                 {/* The chosen trimester's mark heads the card below; the others stay here so a
                     parent can compare (owner review 27/09/2026). */}
@@ -878,7 +1098,7 @@ function SubjectV1View({
                   : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
               </span>
               <div className="pa-score-head-row">
-                <div className="pa-score-head-mark" aria-label="Nota do período">
+                <div className="pa-score-head-mark" aria-label="Nota do período" ref={markBlock}>
                   {mark ? (
                     <>
                       <strong>{trimesterNumber.format(mark.value)}</strong>
@@ -893,12 +1113,25 @@ function SubjectV1View({
                   )}
                 </div>
                 <div className="pa-score-head-copy">
-                  <span className="pa-score-head-status" data-band={periodStatusV1(period).band ?? undefined}>
-                    {periodStatusV1(period).band === 'brilliant' ? (
-                      <Star className="pa-brilliant-star" size={16} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
-                    ) : null}
-                    {periodStatusV1(period).label}
+                  <span
+                    ref={statusLine}
+                    className="pa-score-head-status"
+                    data-band={periodStatusV1(period).band ?? undefined}
+                  >
+                    <StatusEmblemV1 band={periodStatusV1(period).band} />
+                    <span className="pa-status-word">
+                      {/* "selo" rides small above the word when the seal was earned (owner request
+                          28/09/2026); a Brilhante without the seal reads Brilhante alone. */}
+                      {sealed(active) ? (
+                        <span className="pa-status-seal" aria-hidden="true">
+                          selo
+                        </span>
+                      ) : null}
+                      {sealed(active) ? <span className="pa-visually-hidden">Selo </span> : null}
+                      {periodStatusV1(period).label}
+                    </span>
                   </span>
+                  {mark ? <ScoreMeterV1 mark={mark} /> : null}
                   {trend && trendReference ? (
                     <TrendLineV1
                       trend={trend}
@@ -917,7 +1150,7 @@ function SubjectV1View({
             <div className="pa-score-card-partials">
               {period.partials.length ? (
                 <>
-                  <p className="pa-score-card-partials-title">Como você foi em cada atividade</p>
+                  <p className="pa-score-card-partials-title">Como o aluno foi em cada atividade</p>
                   {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
                   <ul aria-label="Avaliações publicadas" className="pa-partials-list">
                     {period.partials.map((partial) => {
@@ -925,6 +1158,8 @@ function SubjectV1View({
                       const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
                       return (
                         <li key={partial.assessmentId}>
+                          {/* The description leads, its status chip right under it reads as its subtitle,
+                              and the mark sits on the description's line (owner review 27/09/2026). */}
                           <PartialLabelV1
                             label={partial.label}
                             feedback={
@@ -952,9 +1187,9 @@ function SubjectV1View({
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
                             ) : (
-                              // The mark pill wears its band colour, like the tag beside it.
+                              // The mark pill wears its band colour, like the tag under the description.
                               <span className="pa-mark-band" data-band={partialBandV1(partial) ?? undefined}>
-                                <StudentMarkV1 mark={partial.mark} showMaximum />
+                                <StudentMarkV1 mark={partial.mark} showMaximum oneDecimal />
                               </span>
                             )}
                           </strong>
@@ -1027,6 +1262,18 @@ export function StudentPortalWorkspaceV1({
   const [subjectPeriod, setSubjectPeriod] = useState<PeriodIdV1 | undefined>();
   const [summaryTab, setSummaryTab] = useState<SummaryKeyV1 | undefined>();
   const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
+  // Set only while moving from one discipline to another: then the view slides across.
+  const [subjectSlide, setSubjectSlide] = useState<SlideV1 | null>(null);
+  const subjectStage = useSlideStageV1();
+  // Boletim ⇄ Disciplina slide across too (owner review 27/09/2026): opening a discipline pushes the
+  // Boletim out to the left; going back brings it in from the left.
+  const [areaSlide, setAreaSlide] = useState<SlideV1 | null>(null);
+  const areaStage = useSlideStageV1(':scope > [role="tabpanel"] [data-area-live]');
+  const goArea = (patch: Partial<WorkspaceEntryV1> & { area: WorkspaceAreaV1 }) => {
+    const slide: SlideV1 = patch.area === 'subject' ? 'forward' : 'back';
+    areaStage.leave(slide);
+    go(patch, slide, null, slide);
+  };
   const previousArea = useRef<WorkspaceAreaV1>('summary');
   const selectedSubject =
     subjects.find((subject) => subject.subjectId === selectedSubjectId) ?? subjects[0];
@@ -1035,7 +1282,14 @@ export function StudentPortalWorkspaceV1({
   const validSubjectIdV1 = (subjectId: number) =>
     subjects.some((subject) => subject.subjectId === subjectId) ? subjectId : firstSubjectId;
 
-  const applyEntry = (entry: WorkspaceEntryV1, direction?: 'forward' | 'back') => {
+  const applyEntry = (
+    entry: WorkspaceEntryV1,
+    direction?: 'forward' | 'back',
+    slide: SlideV1 | null = null,
+    areaChange: SlideV1 | null = null,
+  ) => {
+    setSubjectSlide(slide);
+    setAreaSlide(areaChange);
     const resolvedDirection =
       direction ?? (previousArea.current === 'subject' && entry.area === 'summary' ? 'back' : 'forward');
     previousArea.current = entry.area;
@@ -1057,13 +1311,28 @@ export function StudentPortalWorkspaceV1({
   };
 
   /** A new place (area or subject) gets its own Back step. */
-  const go = (patch: Partial<WorkspaceEntryV1>, direction?: 'forward' | 'back') => {
+  const go = (
+    patch: Partial<WorkspaceEntryV1>,
+    direction?: 'forward' | 'back',
+    slide: SlideV1 | null = null,
+    areaChange: SlideV1 | null = null,
+  ) => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'push');
-    applyEntry(entry, direction);
+    applyEntry(entry, direction, slide, areaChange);
   };
   /** Another discipline slides in from the side it sits on in the subject bar. */
   const orderOf = (subjectId: number) => subjects.findIndex((subject) => subject.subjectId === subjectId);
+  const changeSubject = (subjectId: number) => {
+    if (!selectedSubject || subjectId === selectedSubject.subjectId) return;
+    const slide = orderOf(subjectId) < orderOf(selectedSubject.subjectId) ? 'back' : 'forward';
+    subjectStage.leave(slide);
+    go({ area: 'subject', subjectId }, slide, slide);
+  };
+  const subjectSwipe = useSubjectSwipeV1((step) => {
+    const next = selectedSubject && subjects[orderOf(selectedSubject.subjectId) + step];
+    if (next) changeSubject(next.subjectId);
+  });
   /** A tab inside the same place only updates the current step. */
   const remember = (patch: Partial<WorkspaceEntryV1>) => {
     const entry = { ...current, ...patch };
@@ -1092,7 +1361,7 @@ export function StudentPortalWorkspaceV1({
       selectedKey={area}
       onSelectionChange={(key) => {
         const nextArea = String(key) as WorkspaceAreaV1;
-        if (nextArea !== area) go({ area: nextArea, subjectId: selectedSubject?.subjectId ?? firstSubjectId });
+        if (nextArea !== area) goArea({ area: nextArea, subjectId: selectedSubject?.subjectId ?? firstSubjectId });
       }}
     >
       <Surface variant="default" className="pa-workspace-nav-surface">
@@ -1112,10 +1381,17 @@ export function StudentPortalWorkspaceV1({
         </Tabs.ListContainer>
       </Surface>
 
+      <div className="pa-slide-stage" ref={areaStage.stage}>
+      <div className="pa-slide-ghosts" ref={areaStage.ghostLayer} aria-hidden="true" />
       <Tabs.Panel id="summary">
         <div
           key={'summary-' + area}
-          className={'pa-tab-motion pa-tab-motion--' + motionDirection}
+          data-area-live=""
+          className={
+            areaSlide
+              ? 'pa-slide-in pa-slide-in--' + areaSlide
+              : 'pa-tab-motion pa-tab-motion--' + motionDirection
+          }
         >
           <SummaryV1
             data={data}
@@ -1123,35 +1399,51 @@ export function StudentPortalWorkspaceV1({
             selected={summaryTab}
             onSelect={(summary) => remember({ summary })}
             // Opening from a trimester tab lands on that trimester (first recovery for REC).
-            onOpenSubject={(subjectId, period) => go({ area: 'subject', subjectId, period })}
+            onOpenSubject={(subjectId, period) => goArea({ area: 'subject', subjectId, period })}
           />
         </div>
       </Tabs.Panel>
       <Tabs.Panel id="subject">
         {selectedSubject ? (
           <div
-            key={'subject-' + selectedSubject.subjectId}
-            className={'pa-tab-motion pa-tab-motion--' + motionDirection}
+            data-area-live=""
+            className={
+              'pa-workspace-view ' +
+              (areaSlide
+                ? 'pa-slide-in pa-slide-in--' + areaSlide
+                : 'pa-tab-motion pa-tab-motion--' + motionDirection)
+            }
+            {...subjectSwipe}
           >
-            <SubjectV1View
+            <SubjectHeaderV1
               subject={selectedSubject}
               subjects={subjects}
               // Switching subjects keeps the trimester being read.
-              onSubjectChange={(subjectId) =>
-                go(
-                  { area: 'subject', subjectId },
-                  orderOf(subjectId) < orderOf(selectedSubject.subjectId) ? 'back' : 'forward',
-                )
-              }
-              onBack={() => go({ area: 'summary', subjectId: selectedSubject.subjectId })}
-              selected={subjectPeriod}
-              onSelect={(period) => remember({ period })}
-              accountId={data.profile.accountId}
-              academicState={data.profile.academicState}
+              onSubjectChange={changeSubject}
+              onBack={() => goArea({ area: 'summary', subjectId: selectedSubject.subjectId })}
             />
+            {/* Only the body slides between disciplines; the header above stays. */}
+            <div className="pa-slide-stage" ref={subjectStage.stage}>
+              <div className="pa-slide-ghosts" ref={subjectStage.ghostLayer} aria-hidden="true" />
+              <div
+                key={'subject-' + selectedSubject.subjectId}
+                data-slide-live=""
+                className={subjectSlide ? 'pa-slide-in pa-slide-in--' + subjectSlide : undefined}
+              >
+                <SubjectV1View
+                  subject={selectedSubject}
+                  selected={subjectPeriod}
+                  onSelect={(period) => remember({ period })}
+                  accountId={data.profile.accountId}
+                  academicState={data.profile.academicState}
+                  sealed={(period) => earnsSealV1(subjects, selectedSubject, period)}
+                />
+              </div>
+            </div>
           </div>
         ) : null}
       </Tabs.Panel>
+      </div>
     </Tabs>
   );
 }

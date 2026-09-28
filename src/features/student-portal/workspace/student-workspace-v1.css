@@ -9,13 +9,15 @@
   min-width: 0;
 }
 
-.pa-workspace-view {
+.pa-workspace-view,
+.pa-subject-body {
   display: grid;
   min-width: 0;
   max-width: 100%;
   gap: 1rem;
 }
 
+.pa-subject-body > *,
 .pa-workspace-view > * {
   min-width: 0;
   max-width: 100%;
@@ -113,15 +115,6 @@
   white-space: nowrap;
 }
 
-.pa-workspace-heading-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.pa-workspace-heading-row h2,
 .pa-workspace-intro h2 {
   margin: 0;
   color: #0f2a5f;
@@ -369,8 +362,27 @@
 }
 
 .pa-partials-list .pa-mark-maximum {
+  min-width: 1.5rem;
+  color: #64748b;
   font-size: 0.72rem;
   font-weight: 500;
+  text-align: left;
+}
+
+/* Harmony between an activity's description and its status (owner review 27/09/2026): the
+   description is firmer, the chip sits right under it as its subtitle and is compact — same
+   shape, colours and motion, a smaller size — so the reading goes description → mark → status. */
+.pa-partials-list .pa-partial-feedback {
+  min-height: 1.1rem;
+  height: 1.1rem;
+  gap: 0.18rem;
+  padding: 0 0.4rem;
+  font-size: 0.6rem;
+  line-height: 1;
+}
+.pa-partials-list .pa-partial-feedback svg {
+  width: 0.62rem;
+  height: 0.62rem;
 }
 
 /* The mark the student got stands out as a tinted pill; the maximum stays quiet beside it. */
@@ -426,6 +438,20 @@
   font-size: 0.72rem;
 }
 
+/* "vale 30 pontos" under a trimester's name in the Boletim tabs, much smaller and quieter. */
+.pa-term-value {
+  display: block;
+  color: #64748b;
+  font-size: 0.52rem;
+  font-weight: 550;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.pa-boletim-period-tab {
+  flex-direction: column;
+  gap: 0.05rem;
+  line-height: 1.15;
+}
 .pa-period-tab-mark {
   font-size: 0.86rem;
   font-weight: 750;
@@ -564,6 +590,60 @@
   will-change: transform, opacity;
 }
 
+/* Sideways slide between disciplines and trimesters (owner review 27/09/2026): the new content
+   comes in from the side it sits on while a static copy of the old one leaves (see
+   useSlideStageV1). While sliding, the stage clips the two sideways so nothing scrolls the page. */
+.pa-slide-stage {
+  position: relative;
+}
+.pa-slide-stage.is-sliding {
+  overflow-x: clip;
+}
+.pa-slide-ghosts {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  pointer-events: none;
+}
+.pa-slide-ghost,
+.pa-slide-ghost *,
+.pa-slide-ghost *::before,
+.pa-slide-ghost *::after {
+  animation: none !important;
+}
+.pa-slide-in--forward {
+  animation: pa-slide-in-forward 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.pa-slide-in--back {
+  animation: pa-slide-in-back 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes pa-slide-in-forward {
+  from {
+    opacity: 0.2;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes pa-slide-in-back {
+  from {
+    opacity: 0.2;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-slide-in--forward,
+  .pa-slide-in--back {
+    animation: none;
+  }
+}
+
 .pa-tab-motion--forward {
   animation: pa-tab-enter-forward 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -609,7 +689,8 @@
 }
 
 @media (max-width: 420px) {
-  .pa-workspace-view {
+  .pa-workspace-view,
+  .pa-subject-body {
     gap: 0.8rem;
   }
 
@@ -623,7 +704,6 @@
     font-size: 0.68rem;
   }
 
-  .pa-workspace-heading-row h2,
   .pa-workspace-intro h2 {
     font-size: 1.15rem;
   }
@@ -862,7 +942,8 @@
 .pa-partials-list > li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
-  align-items: center;
+  /* The mark sits on the description's line; the chip hangs under the description. */
+  align-items: start;
   gap: 0.65rem;
   padding: 0.65rem 0;
   border: 0;
@@ -876,14 +957,14 @@
   grid-column: 1;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .pa-partials-list .pa-partial-label {
   width: 100%;
-  color: #0f2747;
+  color: #0b1f3a;
   font-size: 0.88rem;
-  font-weight: 550;
+  font-weight: 650;
   line-height: 1.4;
 }
 
@@ -894,6 +975,26 @@
 .pa-partials-list > li > strong {
   grid-column: 2;
   justify-self: end;
+  margin-top: -0.15rem;
+}
+/* The two loud chips come down a notch inside the list: Precisa melhorar turns soft red with a
+   firm edge (still the strongest red), and Brilhante keeps its gold, star and glint but loses the
+   pulsing halo — its big moment is the trimester header. */
+.pa-partials-list > li .pa-partial-feedback[data-band='needs-work'] {
+  background: #fcebeb;
+  box-shadow: inset 0 0 0 1.5px #e28b8b;
+  color: #791f1f;
+  font-weight: 650;
+}
+.pa-partials-list .pa-partial-feedback--brilliant {
+  box-shadow: 0 1px 5px -2px rgb(186 117 23 / 0.7);
+  font-weight: 700;
+  animation:
+    pa-brilliant-rise 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) 250ms both,
+    pa-gold-drift 14s ease-in-out infinite alternate;
+}
+.pa-partials-list .pa-partial-second-chance {
+  font-size: 0.68rem;
 }
 
 .pa-partials-list .pa-mark {
@@ -906,12 +1007,6 @@
   padding: 0.22rem 0.55rem;
   border-radius: 0.7rem;
   font-size: 1.25rem;
-}
-
-.pa-partials-list .pa-mark-maximum {
-  min-width: 1.5rem;
-  color: #64748b;
-  text-align: left;
 }
 
 .pa-closing-flag-cloth {
@@ -1068,8 +1163,15 @@
   gap: 0.75rem;
   margin-block: -0.3rem;
   margin-left: -0.3rem;
-  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.3rem;
   border-radius: 0.8rem;
+}
+/* The arrow sits inside the band: tinted to match a red or gold row. */
+.pa-workspace-list .pa-list-band--below .pa-list-chevron {
+  color: rgb(163 45 45 / 0.6);
+}
+.pa-workspace-list .pa-list-band--brilliant .pa-list-chevron {
+  color: #ba7517;
 }
 .pa-workspace-list .pa-list-band--below {
   background: rgb(252 235 235 / 0.8);
@@ -1116,6 +1218,126 @@
   background: #eff6ff;
   box-shadow: inset 0 0 0 1px #1d4ed8, 0 6px 16px -10px rgb(29 78 216 / 0.55);
   color: #1e3a8a;
+}
+/* Each trimester card is filled with its mark's band (owner review 28/09/2026), like the header:
+   blue at or above the minimum (a touch deeper for Excelente), red below it, and gold with a slow
+   drifting shine for Brilhante. The chosen card keeps its ring, in the band's own ink. */
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[data-tone='good'] {
+  border-color: #cfe2f6;
+  background: #eaf3fc;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[data-tone='excellent'] {
+  border-color: #b5d4f4;
+  background: #dcebfa;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[data-tone='below'],
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[data-tone='needs-work'] {
+  border-color: #f2cfcf;
+  background: #fcefef;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[data-tone='brilliant'] {
+  border-color: #fac775;
+  background: linear-gradient(120deg, #fff3d6, #fde9b5, #fac775, #fde9b5, #fff8e8, #fde9b5, #fff3d6);
+  background-size: 400% 100%;
+  background-position: 0% 50%;
+  color: #633806;
+  animation: pa-gold-drift 20s ease-in-out infinite alternate;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='good'],
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='excellent'] {
+  border-color: #185fa5;
+  box-shadow: inset 0 0 0 1px #185fa5, 0 6px 16px -10px rgb(24 95 165 / 0.55);
+  color: #0c447c;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='good'] {
+  background: #eaf3fc;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='excellent'] {
+  background: #dcebfa;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='below'],
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='needs-work'] {
+  border-color: #a32d2d;
+  background: #fcefef;
+  box-shadow: inset 0 0 0 1px #a32d2d, 0 6px 16px -10px rgb(163 45 45 / 0.5);
+  color: #791f1f;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab[aria-selected='true'][data-tone='brilliant'] {
+  border-color: #ba7517;
+  background: linear-gradient(120deg, #fff3d6, #fde9b5, #fac775, #fde9b5, #fff8e8, #fde9b5, #fff3d6);
+  background-size: 400% 100%;
+  box-shadow: inset 0 0 0 1px #ba7517, 0 6px 16px -10px rgb(186 117 23 / 0.6);
+  color: #633806;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-student-workspace
+    .pa-period-tabs.tabs[data-orientation='horizontal']
+    > .tabs__list-container
+    > .tabs__list-container__scroller
+    > .tabs__list[data-orientation='horizontal']
+    > .pa-period-tab[data-tone='brilliant'] {
+    animation: none;
+  }
 }
 .pa-student-workspace .pa-period-tabs .pa-period-tab[aria-selected='true'] .pa-period-tab-label {
   font-weight: 750;
@@ -1168,34 +1390,44 @@
   -webkit-mask-image: none;
 }
 
-/* Excelente: calm blue that celebrates once — it pops in, one shine sweeps across and the star
-   twinkles, then it rests. Many activities are Excelente, so nothing keeps moving (owner review
-   27/09/2026); only Brilhante keeps shining. Under a trimester below the minimum it does not
-   move at all (.is-calm). */
+/* Excelente: light blue that celebrates once — it pops in, one shine sweeps across and the star
+   twinkles, then it rests. Under a trimester below the minimum it does not move (.is-calm).
+   Hierarchy (owner review 27/09/2026): the activity name first, then its mark, then this status —
+   so a light surface, regular weight and a slightly smaller size, with the blue star and a
+   deeper blue edge keeping it a step above "Foi bem". */
 .pa-partial-feedback--excellent {
   position: relative;
   overflow: hidden;
   gap: 0.25rem;
-  border: 1px solid rgb(181 212 244 / 0.8);
-  background: linear-gradient(120deg, #185fa5, #2f79c4);
-  color: #fff;
-  font-weight: 700;
-  animation: pa-tag-pop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) 250ms both;
+  border: 1px solid rgb(24 95 165 / 0.45);
+  /* Option B (owner choice 27/09/2026): a clear-to-mid blue gradient with a thin white highlight on
+     top and a soft shadow — beauty back, still under the description. It fades in, no bounce. */
+  background: linear-gradient(115deg, #e6f0fd 0%, #a9cdf2 50%, #7cb0e9 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 1px 4px -1px rgb(24 95 165 / 0.45);
+  color: #06325f;
+  font-size: 0.7rem;
+  font-weight: 600;
+  animation: pa-tag-fade 500ms ease-out 200ms both;
 }
 .pa-partial-feedback--excellent::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, transparent 28%, rgb(255 255 255 / 0.7) 48%, transparent 68%);
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.85) 48%, transparent 66%);
   transform: translateX(-130%);
-  animation: pa-excellent-shine 1.8s ease-in-out 900ms 1 both;
+  /* A soft sheen crosses now and then (every 16 s); rows are staggered below so the Excelentes of a
+     list never shine all at once. */
+  animation: pa-excellent-sheen 16s ease-in-out 900ms infinite;
   pointer-events: none;
 }
 .pa-excellent-star {
   flex: none;
-  color: #fef08a;
-  filter: drop-shadow(0 0 3px rgb(254 240 138 / 0.9));
-  animation: pa-excellent-twinkle 2.4s cubic-bezier(0.45, 0, 0.55, 1) 900ms 1;
+  color: #0c447c;
+  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.95));
+  /* A slow, soft breath with a slight sway, over and over — no jump. */
+  animation: pa-excellent-twinkle 6s cubic-bezier(0.45, 0, 0.55, 1) 700ms infinite;
 }
 .pa-partial-feedback--excellent.is-calm,
 .pa-partial-feedback--excellent.is-calm .pa-excellent-star {
@@ -1219,10 +1451,13 @@
   color: #412402;
   font-weight: 800;
   box-shadow: 0 2px 12px -4px rgb(186 117 23 / 0.9);
+  /* Slow and natural (owner review 27/09/2026): the gold drifts across and eases back
+     (alternate), so the loop never cuts; the halo breathes slowly. */
+  background-position: 0% 50%;
   animation:
     pa-brilliant-rise 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) 250ms both,
-    pa-tag-flow 7s linear infinite,
-    pa-brilliant-halo 4s ease-in-out 1.2s infinite;
+    pa-gold-drift 14s ease-in-out infinite alternate,
+    pa-brilliant-halo 7s ease-in-out 1.2s infinite;
 }
 /* Two glints, the second a beat after the first. */
 .pa-partial-feedback--brilliant::after {
@@ -1234,7 +1469,7 @@
     linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.95) 45%, transparent 55%),
     linear-gradient(110deg, transparent 55%, rgb(255 255 255 / 0.6) 62%, transparent 70%);
   transform: translateX(-140%);
-  animation: pa-brilliant-glint 9s ease-in-out 1.2s infinite;
+  animation: pa-brilliant-glint 16s cubic-bezier(0.45, 0, 0.55, 1) 2s infinite;
   pointer-events: none;
 }
 /* Four tiny sparkles that blink inside the tag. */
@@ -1248,54 +1483,69 @@
     radial-gradient(circle at 42% 75%, #fff 0 1px, transparent 1.6px),
     radial-gradient(circle at 70% 25%, #fff 0 1.2px, transparent 1.8px),
     radial-gradient(circle at 88% 70%, #fff 0 1px, transparent 1.6px);
-  animation: pa-brilliant-sparkles 3.6s steps(1, end) 1.4s infinite;
+  animation: pa-brilliant-sparkles 7s ease-in-out 1.4s infinite;
   pointer-events: none;
 }
 .pa-brilliant-star {
   flex: none;
   color: #ba7517;
   filter: drop-shadow(0 0 3px rgb(255 243 214 / 0.95));
-  animation: pa-brilliant-flare 6s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite;
+  animation: pa-brilliant-flare 10s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite;
 }
 /* In the trimester header the star sits on a light surface: a warmer gold reads better. */
 .pa-score-head-status .pa-brilliant-star {
   color: #ef9f27;
 }
-@keyframes pa-tag-pop {
-  0% {
+@keyframes pa-tag-fade {
+  from {
     opacity: 0;
-    transform: scale(0.4) rotate(-8deg);
   }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0);
-  }
-}
-@keyframes pa-tag-flow {
   to {
-    background-position: 300% 0;
+    opacity: 1;
   }
 }
-@keyframes pa-excellent-shine {
+/* Pans the whole gradient from one end to the other; run it alternate so it eases back. */
+@keyframes pa-gold-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+@keyframes pa-excellent-sheen {
   0% {
     transform: translateX(-130%);
   }
-  55%,
+  11%,
   100% {
     transform: translateX(130%);
   }
+}
+.pa-partials-list > li:nth-child(3n + 2) .pa-partial-feedback--excellent::after {
+  animation-delay: 6s;
+}
+.pa-partials-list > li:nth-child(3n) .pa-partial-feedback--excellent::after {
+  animation-delay: 11s;
 }
 /* A slow breath with a slight sway, like a star catching the light. */
 @keyframes pa-excellent-twinkle {
   0%,
   100% {
-    transform: scale(0.92) rotate(-6deg);
-    opacity: 0.8;
+    transform: scale(0.94) rotate(-5deg);
+    opacity: 0.85;
   }
   50% {
-    transform: scale(1.12) rotate(8deg);
+    transform: scale(1.08) rotate(6deg);
     opacity: 1;
   }
+}
+/* The stars of a list breathe out of step, so they never pulse together. */
+.pa-partials-list > li:nth-child(3n + 2) .pa-excellent-star {
+  animation-delay: 2.7s;
+}
+.pa-partials-list > li:nth-child(3n) .pa-excellent-star {
+  animation-delay: 4.7s;
 }
 @keyframes pa-brilliant-rise {
   0% {
@@ -1331,16 +1581,16 @@
 @keyframes pa-brilliant-sparkles {
   0%,
   100% {
-    opacity: 0;
+    opacity: 0.15;
   }
-  25% {
+  30% {
     opacity: 1;
   }
-  50% {
-    opacity: 0.2;
+  60% {
+    opacity: 0.35;
   }
-  75% {
-    opacity: 0.9;
+  80% {
+    opacity: 0.8;
   }
 }
 /* A slow golden glow: the star swells a little, sways and brightens, then settles. */
@@ -1458,8 +1708,7 @@
 .pa-score-head-mark {
   display: grid;
   flex: none;
-  min-width: 5.2rem;
-  padding: 0.55rem 0.6rem;
+  padding: 0.55rem 0.85rem;
   border-radius: 0.9rem;
   background: var(--pa-head-surface);
   color: var(--pa-head-ink);
@@ -1473,15 +1722,24 @@
   letter-spacing: -0.04em;
 }
 .pa-score-head-mark > span {
+  /* Never widens the block: the number sets the width and the caption is fitted to it. */
+  width: 0;
+  min-width: 100%;
   margin-top: 0.25rem;
   color: var(--pa-head-soft);
   font-size: 0.75rem;
   font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
 }
 .pa-score-head-copy {
   display: grid;
+  flex: 1;
   min-width: 0;
-  gap: 0.2rem;
+  gap: 0.25rem;
+  /* The status is the reading of the mark: bigger and centred in the space beside it. */
+  justify-items: center;
+  text-align: center;
 }
 .pa-score-head-label {
   color: var(--pa-head-soft);
@@ -1492,7 +1750,7 @@
 }
 .pa-score-head-status {
   color: var(--pa-band-ink, var(--pa-head-ink));
-  font-size: 1.05rem;
+  font-size: 1.3rem;
   font-weight: 750;
   line-height: 1.2;
 }
@@ -1505,16 +1763,17 @@
   font-weight: 600;
 }
 .pa-score-card--positive {
-  --pa-head-fill: #f4f9fe;
-  --pa-head-line: #d6e7f8;
-  --pa-head-surface: #e6f1fb;
+  /* A notch stronger (owner review 28/09/2026); the mark block stays a step above the fill. */
+  --pa-head-fill: #eaf3fc;
+  --pa-head-line: #cfe2f6;
+  --pa-head-surface: #d8e9f9;
   --pa-head-ink: #0c447c;
   --pa-head-soft: #185fa5;
 }
 .pa-score-card--negative {
-  --pa-head-fill: #fdf6f6;
-  --pa-head-line: #f5d6d6;
-  --pa-head-surface: #fcebeb;
+  --pa-head-fill: #fcefef;
+  --pa-head-line: #f2cfcf;
+  --pa-head-surface: #f9e0e0;
   --pa-head-ink: #791f1f;
   --pa-head-soft: #a32d2d;
 }
@@ -1525,16 +1784,117 @@
   --pa-head-soft: #64748b;
 }
 
-.pa-summary-period {
-  margin: 0.1rem 0 0;
-  color: #475569;
-  font-size: 0.8rem;
-  font-weight: 650;
+.pa-list-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.25rem 0 0.4rem;
+  /* Lines up with the icon on the left and the mark on the right (the chevron column follows). */
+  padding: 0 2.35rem 0 0.35rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.pa-score-head-status[data-band='brilliant'] {
+.pa-score-head-status[data-band] {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.35rem;
+}
+.pa-status-word {
+  position: relative;
+}
+/* "selo" small at the top left of "Brilhante". */
+.pa-status-seal {
+  position: absolute;
+  bottom: 88%;
+  left: 0.05em;
+  color: #a2620f;
+  font-size: 0.48em;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+.pa-status-emblem {
+  flex: none;
+  opacity: 0.85;
+}
+/* Slim meter under the status: the mark's share of the points, a notch at the minimum. */
+.pa-score-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+  /* Room for the "mínimo" label under the notch. */
+  padding-bottom: 0.7rem;
+}
+.pa-score-meter-track {
+  position: relative;
+  width: 7.5rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.75);
+  box-shadow: inset 0 0 0 1px var(--pa-head-line, rgb(15 39 71 / 0.1));
+}
+.pa-score-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--pa-band-ink, var(--pa-head-soft));
+  animation: pa-meter-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both;
+  transform-origin: left center;
+}
+.pa-score-meter-minimum {
+  position: absolute;
+  top: -0.14rem;
+  bottom: -0.14rem;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--pa-head-ink, #0f2747);
+  opacity: 0.45;
+}
+.pa-score-meter-minimum-label {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  color: var(--pa-head-ink, #0f2747);
+  font-size: 0.55rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  opacity: 0.6;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.pa-score-meter-value {
+  color: var(--pa-head-soft);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.pa-score-head--brilliant .pa-score-meter-fill {
+  background: linear-gradient(90deg, #ef9f27, #ba7517);
+}
+.pa-score-head--brilliant .pa-score-meter-value,
+.pa-score-head--brilliant .pa-score-meter-minimum-label {
+  color: #854f0b;
+}
+.pa-score-head--brilliant .pa-score-meter-minimum {
+  background: #854f0b;
+}
+@keyframes pa-meter-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-score-meter-fill {
+    animation: none;
+  }
 }
 
 /* A Brilhante trimester (95%+) turns the whole header gold: a slow shining gradient, with the mark
@@ -1546,7 +1906,9 @@
   border-bottom-color: #fac775;
   background: linear-gradient(120deg, #fff3d6, #fde9b5, #fac775, #fde9b5, #fff8e8, #fde9b5, #fff3d6);
   background-size: 400% 100%;
-  animation: pa-tag-flow 12s linear infinite;
+  background-position: 0% 50%;
+  /* Eases back at each end instead of jumping to the start (owner review 27/09/2026). */
+  animation: pa-gold-drift 20s ease-in-out infinite alternate;
 }
 .pa-score-head--brilliant::after {
   content: '';
@@ -1555,7 +1917,7 @@
   z-index: -1;
   background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.65) 48%, transparent 60%);
   transform: translateX(-120%);
-  animation: pa-brilliant-glint 13s ease-in-out 1.5s infinite;
+  animation: pa-brilliant-glint 20s cubic-bezier(0.45, 0, 0.55, 1) 2.5s infinite;
   pointer-events: none;
 }
 /* Four-point white sparkles over the gold (owner request 27/09/2026): crisp, with a soft glow,
@@ -1573,7 +1935,7 @@
   /* A thin amber-gold edge and a warm glow make the white read on the light gold. */
   filter: drop-shadow(0 0 0.6px rgb(186 117 23 / 0.95)) drop-shadow(0 0 5px rgb(239 159 39 / 0.85));
   transform: scale(0);
-  animation: pa-head-sparkle 5s ease-in-out var(--delay) infinite;
+  animation: pa-head-sparkle 9s ease-in-out var(--delay) infinite;
 }
 .pa-head-sparkles i::before {
   content: '';
@@ -1582,25 +1944,26 @@
   background: #fff;
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
 }
-.pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 0.6s; top: 12%; left: 58%; }
-.pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 1.6s; top: 20%; left: 86%; }
-.pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 2.6s; top: 70%; left: 93%; }
-.pa-head-sparkles i:nth-child(4) { --size: 17px; --delay: 3.4s; top: 78%; left: 74%; }
-.pa-head-sparkles i:nth-child(5) { --size: 12px; --delay: 4.3s; top: 8%; left: 36%; }
+.pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 1s; top: 12%; left: 58%; }
+.pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 2.8s; top: 20%; left: 86%; }
+.pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 4.6s; top: 70%; left: 93%; }
+.pa-head-sparkles i:nth-child(4) { --size: 17px; --delay: 6.2s; top: 78%; left: 74%; }
+.pa-head-sparkles i:nth-child(5) { --size: 12px; --delay: 7.8s; top: 8%; left: 36%; }
+/* A slow, soft glint: grows, turns a little, fades. */
 @keyframes pa-head-sparkle {
   0%,
-  30%,
+  26%,
   100% {
     transform: scale(0) rotate(0deg);
     opacity: 0;
   }
-  12% {
-    transform: scale(1.15) rotate(45deg);
+  10% {
+    transform: scale(1) rotate(30deg);
     opacity: 1;
   }
-  20% {
-    transform: scale(0.85) rotate(70deg);
-    opacity: 0.9;
+  18% {
+    transform: scale(0.8) rotate(50deg);
+    opacity: 0.85;
   }
 }
 .pa-score-head--brilliant .pa-score-head-mark {
@@ -1640,6 +2003,43 @@
   box-shadow: inset 0 0 0 1px var(--pa-pill-line);
   background: var(--pa-pill-fill);
   color: var(--pa-pill-text);
+}
+/* A Brilhante mark pill: a few tiny white stars twinkle softly in its background, kept to the
+   edges so the number stays easy to read (owner review 28/09/2026). */
+.pa-partials-list .pa-mark-band[data-band='brilliant'] .pa-mark-value {
+  position: relative;
+  isolation: isolate;
+}
+.pa-partials-list .pa-mark-band[data-band='brilliant'] .pa-mark-value::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    /* Scattered, uneven sizes — stars, not rivets. */
+    radial-gradient(circle at 9% 34%, #fff 0 1.2px, rgb(186 117 23 / 0.35) 1.5px, transparent 2.3px),
+    radial-gradient(circle at 66% 12%, #fff 0 0.7px, rgb(186 117 23 / 0.3) 1px, transparent 1.7px),
+    radial-gradient(circle at 91% 26%, #fff 0 1px, rgb(186 117 23 / 0.35) 1.3px, transparent 2.1px),
+    radial-gradient(circle at 80% 86%, #fff 0 1.3px, rgb(186 117 23 / 0.35) 1.6px, transparent 2.4px),
+    radial-gradient(circle at 27% 88%, #fff 0 0.8px, rgb(186 117 23 / 0.3) 1.1px, transparent 1.8px);
+  animation: pa-pill-stars 5s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+@keyframes pa-pill-stars {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-partials-list .pa-mark-band[data-band='brilliant'] .pa-mark-value::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 .pa-partials-list [data-band='brilliant'] {
   --pa-pill-fill: linear-gradient(135deg, rgb(255 243 214 / 0.95), rgb(250 199 117 / 0.7));
@@ -1686,7 +2086,7 @@
   z-index: -1;
   background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.85) 48%, transparent 60%);
   transform: translateX(-120%);
-  animation: pa-brilliant-glint 10s ease-in-out 2s infinite;
+  animation: pa-brilliant-glint 16s cubic-bezier(0.45, 0, 0.55, 1) 2s infinite;
   pointer-events: none;
 }
 .pa-workspace-list .pa-list-band--brilliant .pa-subject-icon {
@@ -1695,30 +2095,34 @@
   color: #854f0b;
 }
 .pa-seal {
-  position: relative;
   display: inline-grid;
   flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  overflow: hidden;
+  width: 1.25rem;
+  height: 1.48rem;
+  margin-block: -0.1rem;
   place-items: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff3d6 0%, #fac775 45%, #ef9f27 100%);
-  box-shadow:
-    inset 0 0 0 2px rgb(255 255 255 / 0.55),
-    inset 0 0 0 3px rgb(186 117 23 / 0.5),
-    0 2px 6px -2px rgb(186 117 23 / 0.8);
-  color: #854f0b;
+  filter: drop-shadow(0 2px 3px rgb(133 79 11 / 0.35));
   animation: pa-seal-in 900ms cubic-bezier(0.34, 1.56, 0.64, 1) 300ms both;
 }
-.pa-seal::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.8) 50%, transparent 65%);
-  transform: translateX(-130%);
-  animation: pa-brilliant-glint 7s ease-in-out 1.5s infinite;
-  pointer-events: none;
+.pa-seal > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* A soft light crosses the rosette now and then (clipped to its scalloped edge in the SVG). */
+.pa-seal-shine {
+  transform-box: view-box;
+  animation: pa-seal-shine 12s cubic-bezier(0.45, 0, 0.55, 1) 1.5s infinite;
+}
+@keyframes pa-seal-shine {
+  0% {
+    translate: 0 0;
+  }
+  18%,
+  100% {
+    translate: 44px 0;
+  }
 }
 @keyframes pa-seal-in {
   0% {
@@ -1732,9 +2136,24 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pa-seal,
-  .pa-seal::after,
+  .pa-seal-shine,
   .pa-workspace-list .pa-list-band--brilliant::after {
     animation: none;
   }
 }
 
+
+/* The subject bar's edge fades are narrow (owner review 28/09/2026): HeroUI's 64px fade ate half a
+   tab on a phone, so a tab next to the edge looked cut. A thin fade still says "more this way". */
+.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='true'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+}
+.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='false'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
+  mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
+}
+.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='false'][data-right-scroll='true'] {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
+}

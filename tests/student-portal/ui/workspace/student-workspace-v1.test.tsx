@@ -186,7 +186,7 @@ describe('student portal grade workspace', () => {
       within(screen.getByRole('tablist', { name })).getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')!
         .textContent;
 
-    await user.click(screen.getByRole('tab', { name: '2º Trimestre' }));
+    await user.click(screen.getByRole('tab', { name: /^2º Trimestre/u }));
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     expect(selected('Períodos de ' + first.label)).toContain('2º Trimestre');
 
@@ -194,7 +194,7 @@ describe('student portal grade workspace', () => {
     expect(selected('Períodos de ' + second.label)).toContain('2º Trimestre');
 
     await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
-    expect(selected('Período das notas')).toBe('2º Trimestre');
+    expect(selected('Período das notas')).toContain('2º Trimestre');
 
     // A reload restores the same place from the history entry.
     await user.click(screen.getByRole('option', { name: new RegExp(second.label, 'u') }));
@@ -260,7 +260,7 @@ describe('student portal grade workspace', () => {
     const first = data.subjects.find((subject) => subject.order === 1)!;
     const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
-    expect(screen.queryByText('Como você foi em cada atividade')).toBeNull();
+    expect(screen.queryByText('Como o aluno foi em cada atividade')).toBeNull();
     expect(screen.queryByText('Nenhuma avaliação parcial publicada.')).toBeNull();
     unmount();
     window.history.replaceState(null, '', window.location.href);
@@ -413,7 +413,7 @@ describe('Relatório do trimestre summary on the Boletim', () => {
     const data = { ...withT2(), closingSummary: summary('T2') };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     expect(screen.queryByText(/Relatório do 2º trimestre/u)).toBeNull();
-    await userEvent.setup().click(screen.getByRole('tab', { name: '2º Trimestre' }));
+    await userEvent.setup().click(screen.getByRole('tab', { name: /^2º Trimestre/u }));
     expect(await screen.findByText(/Relatório do 2º trimestre/u)).toBeTruthy();
   });
 

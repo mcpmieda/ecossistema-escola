@@ -554,12 +554,21 @@ export function StudentAuthenticationV1({
             </Card.Description>
           </div>
         ) : null}
-        {state.step === 'scan' ? (
-          <fieldset
-            className="pa-qr-controls"
-            disabled={state.pending}
-            aria-busy={state.pending || undefined}
-          >
+        {/* Once the card is read, the reader gives way to its own "read" state until the next step
+            arrives, instead of flashing back to the opening screen (owner review 27/09/2026). */}
+        {state.step === 'scan' && state.pending ? (
+          <output className="pa-qr-accepted" aria-live="polite">
+            <span className="pa-qr-accepted-mark" aria-hidden="true">
+              <Check size={30} strokeWidth={3} />
+            </span>
+            <strong>Cartão lido!</strong>
+            <span className="pa-qr-accepted-note">
+              <Spinner size="sm" aria-hidden="true" />
+              Preparando a entrada…
+            </span>
+          </output>
+        ) : state.step === 'scan' ? (
+          <fieldset className="pa-qr-controls">
             {state.retryAt ? <RetryCountdownV1 retryAt={state.retryAt} /> : null}
             <StudentQrReaderV1
               onQr={(qr) => {
@@ -567,9 +576,6 @@ export function StudentAuthenticationV1({
                 void flow.current?.begin(qr).catch(() => setInvalidQr(true));
               }}
             />
-            {state.pending ? (
-              <output className="pa-qr-read">Cartão lido! Preparando a entrada…</output>
-            ) : null}
           </fieldset>
         ) : null}
         {['pin', 'password', 'risk', 'create'].includes(state.step) && flow.current ? (

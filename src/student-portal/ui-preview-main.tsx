@@ -322,6 +322,49 @@ const withRealCorrectionV1 = (data: typeof previewData, corrected: boolean) =>
         ),
       }
     : data;
+/*
+ * "Vitrine" (owner request 28/09/2026): the Brilhante situations and the trend cases in one place,
+ * the preview's default. The 1º trimestre has no red mark, so its two Brilhantes (MATEMÁTICA,
+ * INGLÊS) earn seals; the 2º has reds, so MATEMÁTICA is Brilhante again but earns no seal. Each
+ * activity set adds up to its trimester mark: Avaliação 1 and 2 of 10, Trabalho of 4, Lista of 3,
+ * Participação of 3.
+ */
+type ShowcaseTermV1 = readonly [av1: number, av2: number, work: number, list: number, class_: number];
+const showcaseTerm = (period: 'T1' | 'T2', [av1, av2, work, list, class_]: ShowcaseTermV1) =>
+  term(period, av1 + av2 + work + list + class_, [
+    partial('Avaliação 1', av1, 10),
+    partial('Avaliação 2', av2, 10),
+    partial('TRABALHO EM GRUPO', work, 4),
+    partial('LISTA DE EXERCÍCIOS', list, 3),
+    partial('PARTICIPAÇÃO', class_, 3),
+  ]);
+const SHOWCASE_CASES_V1: readonly [label: string, t1: ShowcaseTermV1, t2: ShowcaseTermV1][] = [
+  // Brilhante in both; the 2º has reds elsewhere, so only the 1º earns a seal. Subiu.
+  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5]],
+  // Brilhante (seal) in the 1º, Excelente in the 2º: "Porém caiu".
+  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5]],
+  // Foi bem → Excelente: "Subiu".
+  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5]],
+  // Foi bem → Não foi muito bem: "Caiu consideravelmente".
+  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2]],
+  // Foi bem → Precisa melhorar: "Caiu consideravelmente".
+  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2]],
+  // Same mark: "Se manteve igual".
+  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2]],
+  // Right at the minimum (18,0), then up.
+  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2]],
+];
+let showcaseDataV1: typeof previewData | undefined;
+const showcasePreviewData = () =>
+  (showcaseDataV1 ??= selfResponseV1.parse({
+    ...previewData,
+    subjects: SHOWCASE_CASES_V1.map(([label, t1, t2], order) => ({
+      subjectId: 940001 + order,
+      label,
+      order,
+      periods: [showcaseTerm('T1', t1), showcaseTerm('T2', t2)],
+    })),
+  }));
 const realPreviewData = selfResponseV1.parse({
   ...previewData,
   profile: { ...previewData.profile, classLabel: '7º ANO B' },
@@ -560,7 +603,7 @@ interface AdminSimulationV1 {
   hasPortrait: boolean;
   studentName: string;
   situation: AnnualSituationV1 | 'none';
-  dataset: 'real' | 'example' | 'trend';
+  dataset: 'showcase' | 'real' | 'example' | 'trend';
   academicState: SelfResponseV1['profile']['academicState'];
   /** Two real students have a single published subject. */
   singleSubject: boolean;
@@ -752,6 +795,7 @@ function AdminSimulatorPanelV1({
           value={value.dataset}
           onChange={(event) => onChange({ ...value, dataset: event.target.value as AdminSimulationV1['dataset'] })}
         >
+          <option value="showcase">Vitrine: Brilhante e tendências</option>
           <option value="real">Como na produção (7º ANO, só T1)</option>
           <option value="example">Exemplo completo (T1–T3 e REC)</option>
           <option value="trend">Casos de tendência (2º vs 1º)</option>
@@ -887,7 +931,7 @@ function PreviewAppV1() {
     hasPortrait: true,
     studentName: PREVIEW_NAMES_V1[0]!,
     situation: 'none',
-    dataset: 'example',
+    dataset: 'showcase',
     academicState: 'regular',
     singleSubject: false,
     notice: 'none',
@@ -900,6 +944,8 @@ function PreviewAppV1() {
           ? withRealCorrectionV1(realPreviewData, admin.correctedRed)
           : admin.dataset === 'trend'
             ? trendPreviewData()
+            : admin.dataset === 'showcase'
+              ? showcasePreviewData()
             : previewData,
         admin.notice === 'countdown' ? { ...admin, periods: [] } : admin,
       ),
