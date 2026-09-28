@@ -258,7 +258,7 @@ it('confirms ambiguous student challenge, login and logout responses once with t
     createPortalSelfClientV1({ fetch: loginFetch }).login({
       contractVersion: 1,
       qr: SYNTHETIC_QR_V1,
-      password: '123456',
+      password: '482913',
       keepConnected: false,
     }),
   ).resolves.toMatchObject(session);
@@ -280,7 +280,7 @@ it('confirms ambiguous student challenge, login and logout responses once with t
     createPortalSelfClientV1({ fetch: retryFetch }).login({
       contractVersion: 1,
       qr: SYNTHETIC_QR_V1,
-      password: '123456',
+      password: '482913',
       keepConnected: false,
     }),
   ).resolves.toMatchObject(session);
@@ -312,7 +312,7 @@ it('never retries student refusals, rate limits or activation automatically', as
     createPortalSelfClientV1({ fetch: refused }).login({
       contractVersion: 1,
       qr: SYNTHETIC_QR_V1,
-      password: '123456',
+      password: '482913',
       keepConnected: false,
     }),
   ).rejects.toMatchObject({ state: 'unauthenticated' });
@@ -325,8 +325,8 @@ it('never retries student refusals, rate limits or activation automatically', as
     createPortalSelfClientV1({ fetch: activateFetch }).activate({
       contractVersion: 1,
       challenge: 'synthetic_activation_proof_'.repeat(2),
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: false,
     }),
   ).rejects.toMatchObject({ state: 'network-error' });

@@ -93,7 +93,7 @@ it('uses real sealed ADM identity, named RPC and restricted Hyperdrive for the c
   if (qr.state !== 'qr') throw new Error('synthetic-qr-state');
   const challenge = challengeResponseV1.parse(await (await call('/api/student/auth/challenge', { contractVersion: 1, qr: qr.cards[0]!.qr, pin: '2001' })).json());
   if (challenge.state !== 'password-creation') throw new Error('synthetic-challenge-state');
-  const activated = await call('/api/student/auth/activate', { contractVersion: 1, challenge: challenge.challenge, password: '012345', confirmation: '012345', keepConnected: true });
+  const activated = await call('/api/student/auth/activate', { contractVersion: 1, challenge: challenge.challenge, password: '013579', confirmation: '013579', keepConnected: true });
   expect(activated.status).toBe(200);
   expect(sessionResponseV1.parse(await activated.json()).state).toBe('authenticated');
   const cookie = activated.headers.get('set-cookie');

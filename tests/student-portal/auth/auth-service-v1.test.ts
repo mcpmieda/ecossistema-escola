@@ -129,8 +129,8 @@ async function activate(persistent = false) {
     {
       contractVersion: 1,
       challenge: await proof(),
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: persistent,
     },
     id(),
@@ -205,14 +205,14 @@ describe('KDF transaction boundary', () => {
     expect(await service.activate({
       contractVersion: 1,
       challenge: challenge.challenge,
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: false,
     }, id())).toHaveProperty('token');
     expect(await service.login({
       contractVersion: 1,
       qr,
-      password: '123456',
+      password: '482913',
       keepConnected: false,
     }, id())).toHaveProperty('token');
     expect(phases).toEqual(['verify', 'derive', 'verify']);
@@ -237,7 +237,7 @@ describe('KDF transaction boundary', () => {
     const pending = service.login({
       contractVersion: 1,
       qr,
-      password: '123456',
+      password: '482913',
       keepConnected: false,
     }, id());
     await enteredPromise;
@@ -260,8 +260,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const request = {
       contractVersion: 1,
       challenge,
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: false,
     };
     const results = await Promise.all([auth.activate(request, id()), auth.activate(request, id())]);
@@ -305,7 +305,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const guardedVerify = vi.fn((secret: string, verifier: Parameters<CryptoPortV1['verifySecret']>[1]) =>
       cryptoPort.verifySecret(secret, verifier));
     const guarded = new AuthServiceV1(sql, cryptoWithV1({ verifySecret: guardedVerify }), 1, risk);
-    expect(await guarded.login({ ...bad, password: '123456' }, id())).toMatchObject({
+    expect(await guarded.login({ ...bad, password: '482913' }, id())).toMatchObject({
       state: 'unauthenticated',
     });
     expect(guardedVerify).not.toHaveBeenCalled();
@@ -324,13 +324,13 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     });
     guardedVerify.mockClear();
     expect(
-      await guarded.login({ ...bad, password: '123456', riskToken: 'synthetic-valid-risk' }, id()),
+      await guarded.login({ ...bad, password: '482913', riskToken: 'synthetic-valid-risk' }, id()),
     ).toMatchObject({ state: 'rate-limited' });
     expect(guardedVerify).not.toHaveBeenCalled();
     await pg.exec(
       "UPDATE student_portal.auth_attempt SET blocked_until=statement_timestamp()-interval '1 second'",
     );
-    expect(await other.login({ ...bad, password: '123456' }, id())).toHaveProperty('token');
+    expect(await other.login({ ...bad, password: '482913' }, id())).toHaveProperty('token');
   });
 
   it('birth correction/clear rejects old proofs without revoking a valid session, and unconfirmed birth cannot activate', async () => {
@@ -341,8 +341,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         {
           contractVersion: 1,
           challenge: old,
-          password: '123456',
-          confirmation: '123456',
+          password: '482913',
+          confirmation: '482913',
           keepConnected: false,
         },
         id(),
@@ -409,8 +409,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         {
           contractVersion: 1,
           challenge: first,
-          password: '123456',
-          confirmation: '123456',
+          password: '482913',
+          confirmation: '482913',
           keepConnected: false,
         },
         id(),
@@ -421,8 +421,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         {
           contractVersion: 1,
           challenge: second,
-          password: '123456',
-          confirmation: '123456',
+          password: '482913',
+          confirmation: '482913',
           keepConnected: false,
         },
         id(),
@@ -442,16 +442,16 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     expect(rotated.qr).not.toBe(qr);
     expect(await sessions.read(signed.token, id())).toBeNull();
     expect(
-      await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: false }, id()),
+      await auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
     ).toMatchObject({ state: 'unauthenticated' });
     qr = rotated.qr!;
     expect(
-      await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: false }, id()),
+      await auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
     ).toHaveProperty('token');
     await qrService.command(ACTOR, await command('password-reset', { confirmed: true }));
     expect((await qrService.command(ACTOR, await command('qr-reprint'))).qr).toBe(qr);
     expect(
-      await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: false }, id()),
+      await auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
     ).toMatchObject({ state: 'unauthenticated' });
     await activate();
     await qrService.command(ACTOR, await command('account-reset', { confirmed: true }));
@@ -468,7 +468,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     await pg.exec('UPDATE gradebook.vinculo SET situacao=NULL');
     await qrService.command(ACTOR, await command('block', { blocked: true, confirmed: true }));
     expect(
-      await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: false }, id()),
+      await auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
     ).toMatchObject({ state: 'unauthenticated' });
     await qrService.command(ACTOR, await command('block', { blocked: false, confirmed: true }));
     expect(await sessions.read(signed.token, id())).toBeNull();
@@ -492,7 +492,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     );
     expect(await sessions.read(signed.token, id())).toBeNull();
     const login = await auth.login(
-      { contractVersion: 1, qr, password: '123456', keepConnected: false },
+      { contractVersion: 1, qr, password: '482913', keepConnected: false },
       id(),
     );
     if (!('token' in login)) throw new Error('synthetic-login-failed');
@@ -526,7 +526,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     });
     expect(await sessions.read(signed.token, id())).toBeNull();
     expect(
-      await auth.login({ contractVersion: 1, qr, password: '123456', keepConnected: true }, id()),
+      await auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: true }, id()),
     ).toMatchObject({ state: 'access-closed' });
   });
 
@@ -584,7 +584,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
   it('revokes all sessions in a current class with CAS and idempotent receipt', async () => {
     const signed = await activate();
     const second = await auth.login(
-      { contractVersion: 1, qr, password: '123456', keepConnected: true },
+      { contractVersion: 1, qr, password: '482913', keepConnected: true },
       id(),
     );
     expect(second).toHaveProperty('token');
@@ -635,8 +635,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const input = {
       contractVersion: 1,
       challenge,
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: false,
     };
     failAudit = true;
@@ -675,8 +675,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const input = {
       contractVersion: 1,
       challenge: await proof(),
-      password: '123456',
-      confirmation: '123456',
+      password: '482913',
+      confirmation: '482913',
       keepConnected: false,
     };
     const response = await call('/api/student/auth/activate', input);
@@ -716,7 +716,7 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const persistent = await call('/api/student/auth/login', {
       contractVersion: 1,
       qr,
-      password: '123456',
+      password: '482913',
       keepConnected: true,
     });
     expect(persistent.headers.get('Set-Cookie')).toContain('; Expires=');
@@ -745,8 +745,8 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         {
           contractVersion: 1,
           challenge,
-          password: '123456',
-          confirmation: '123456',
+          password: '482913',
+          confirmation: '482913',
           keepConnected: false,
         },
         id(),

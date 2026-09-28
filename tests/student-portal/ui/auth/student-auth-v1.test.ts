@@ -60,6 +60,14 @@ describe('student authentication forms', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Acesso ao Portal fechado');
     expect(screen.queryByText('Não deu certo')).toBeNull();
   });
+  it('says the card was not recognised, not to check numbers, when the QR is refused', async () => {
+    const client = clientFixtureV1();
+    client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    view(client);
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Cartão não reconhecido');
+    expect(alert.textContent).not.toContain('Confira os números');
+  });
   it.each([
     ['NotAllowedError', 'Você bloqueou a câmera'],
     ['NotFoundError', 'Nenhuma câmera disponível'],
@@ -128,6 +136,19 @@ describe('student authentication forms', () => {
     await s.user.type(confirmation, '001234');
     await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
     await waitFor(() => expect(s.success).toHaveBeenCalledOnce());
+  });
+  it('refuses an easy password at once, without spending a try', async () => {
+    const s = view();
+    await s.user.type(await screen.findByLabelText('Ano de nascimento do aluno'), '0001');
+    s.client.challenge.mockResolvedValueOnce(PROOF);
+    await s.user.click(screen.getByRole('button', { name: 'Continuar' }));
+    const password = await screen.findByLabelText('Nova senha');
+    expect(screen.getByText(/Evite números repetidos ou em sequência/u)).toBeTruthy();
+    await s.user.type(password, '123456');
+    await s.user.type(screen.getByLabelText('Confirmar senha'), '123456');
+    await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
+    expect(screen.getByRole('alert').textContent).toContain('Essa senha é fácil de adivinhar');
+    expect(s.client.activate).not.toHaveBeenCalled();
   });
   it('rejects non-ASCII and clears sensitive fields when cancelled or hidden', async () => {
     const s = view();

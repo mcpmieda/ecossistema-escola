@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { academicLinkV1, ERROR_HTTP_V1, failureV1, healthV1, pageRequestV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
-import { activateRequestV1, challengeRequestV1, challengeResponseV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
+import { activateRequestV1, challengeRequestV1, challengeResponseV1, isWeakPasswordV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { adminCommandV1, adminQueryV1, adminResponseV1, birthYearV1, printCardV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { calendarV1, DEFAULT_RISK_V1, disclosureV1, effectiveSettingsV1, riskPolicyV1, settingsOverrideV1 } from '../../../shared/student-portal-contracts/policy-v1';
 import { markV1, selfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
@@ -51,8 +51,8 @@ describe('Portal V1 authentication boundary', () => {
   it.each(['12345', '1234567', '123 56', 'abcdef'])('rejects invalid password %s', (password) => expect(passwordV1.safeParse(password).success).toBe(false));
   it('accepts leading zero and requires matching confirmation', () => {
     expect(pinV1.parse('0001')).toBe('0001');
-    expect(passwordV1.parse('012345')).toBe('012345');
-    const request = { contractVersion: 1, challenge: 'a'.repeat(43), password: '012345', confirmation: '012345', keepConnected: true };
+    expect(passwordV1.parse('013579')).toBe('013579');
+    const request = { contractVersion: 1, challenge: 'a'.repeat(43), password: '013579', confirmation: '013579', keepConnected: true };
     expect(activateRequestV1.safeParse(request).success).toBe(true);
     expect(activateRequestV1.safeParse({ ...request, confirmation: '012346' }).success).toBe(false);
   });
@@ -62,7 +62,7 @@ describe('Portal V1 authentication boundary', () => {
   });
   it('constrains every public auth DTO and excludes identifiers from login', () => {
     expect(challengeRequestV1.safeParse({ contractVersion: 1, qr, pin: '2001' }).success).toBe(true);
-    const login = { contractVersion: 1, qr, password: '012345', keepConnected: false };
+    const login = { contractVersion: 1, qr, password: '013579', keepConnected: false };
     expect(loginRequestV1.safeParse(login).success).toBe(true);
     expect(loginRequestV1.safeParse({ ...login, accountId: id }).success).toBe(false);
     expect(logoutRequestV1.safeParse({ contractVersion: 1 }).success).toBe(true);
@@ -72,6 +72,24 @@ describe('Portal V1 authentication boundary', () => {
     const session = { ...envelope, state: 'authenticated', expiresAt: at, persistent: true };
     expect(sessionResponseV1.safeParse(session).success).toBe(true);
     expect(sessionResponseV1.safeParse({ ...session, token: 'a'.repeat(43) }).success).toBe(false);
+  });
+});
+
+describe('Portal V1 weak passwords (owner decision 28/09/2026)', () => {
+  it.each([
+    '000000', '111111', '999999',
+    '012345', '123456', '456789', '987654', '654321', '543210',
+    '121212', '101010', '909090', '123123', '707707', '112233', '998877', '001122',
+  ])('refuses %s when a password is created', (password) => {
+    expect(isWeakPasswordV1(password)).toBe(true);
+    expect(activateRequestV1.safeParse({ contractVersion: 1, challenge: 'a'.repeat(43), password, confirmation: password, keepConnected: false }).success).toBe(false);
+  });
+  it.each(['482913', '013579', '001234', '200100', '246810', '135791', '147258', '123457', '112234'])('accepts %s', (password) => {
+    expect(isWeakPasswordV1(password)).toBe(false);
+    expect(activateRequestV1.safeParse({ contractVersion: 1, challenge: 'a'.repeat(43), password, confirmation: password, keepConnected: false }).success).toBe(true);
+  });
+  it('never checks signing in, so passwords created before keep working', () => {
+    expect(loginRequestV1.safeParse({ contractVersion: 1, qr, password: '123456', keepConnected: false }).success).toBe(true);
   });
 });
 
@@ -131,7 +149,7 @@ describe('Portal V1 admin and self privacy', () => {
     for (const operation of ['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'health', 'links-preview']) expect(adminQueryV1.safeParse({ contractVersion: 1, operation, scope, page: {} }).success).toBe(true);
     expect(adminResponseV1.safeParse({ ...envelope, state: 'committed', operationId: id, version: 1 }).success).toBe(true);
     expect(adminResponseV1.safeParse({ ...envelope, state: 'accounts', scopeVersion: 0, items: [], nextCursor: null }).success).toBe(true);
-    expect(adminResponseV1.safeParse({ ...envelope, state: 'committed', operationId: id, version: 1, password: '123456' }).success).toBe(false);
+    expect(adminResponseV1.safeParse({ ...envelope, state: 'committed', operationId: id, version: 1, password: '482913' }).success).toBe(false);
   });
   it('covers each administrative response without leaking credential internals', () => {
     const sources = Object.fromEntries(Object.keys(value).map((key) => [key, scope]));

@@ -59,7 +59,7 @@ describe('student authentication state machine', () => {
     expect(s.client.challenge).toHaveBeenCalledOnce();
     s.client.challenge.mockResolvedValueOnce(PROOF);
     await s.flow.pin('0001');
-    await s.flow.activate('123456', '123457', true);
+    await s.flow.activate('482913', '482914', true);
     expect(s.client.activate).not.toHaveBeenCalled();
     s.flow.dispose();
   });
