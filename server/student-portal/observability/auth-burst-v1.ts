@@ -8,7 +8,8 @@ export type AuthBurstGuardV1 = (opaqueSubject: string) => Promise<boolean>;
 type BurstMetricSinkV1 = (metric: PortalAuthBurstMetricV1) => void;
 
 /** Per-location burst protection complements the durable PG counter; never use IP as identity.
- * I supplies account-unique namespaces with global 600/minute and subject 30/minute limits.
+ * I supplies account-unique namespaces with global 3000/minute and subject 30/minute limits.
+ * The global limit admits the whole school's first access at once (28/09/2026).
  * https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
  */
 export function portalAuthBurstV1(
