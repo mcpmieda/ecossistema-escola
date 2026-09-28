@@ -109,10 +109,11 @@ function SealCountV1({ count }: { count: number }) {
   if (!count) return null;
   return (
     <span className="pa-seal-count">
-      <Star size={13} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-      {count} {count === 1 ? 'selo' : 'selos'}
-      {/* Dropped visually on the narrowest phones so the counter stays beside the status chip. */}
-      <span className="pa-seal-count-word">{count === 1 ? ' brilhante' : ' brilhantes'}</span>
+      <Star size={12} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+      {/* One text run, so the flex gap never adds a second space before "brilhante". */}
+      <span>
+        {count} {count === 1 ? 'selo brilhante' : 'selos brilhantes'}
+      </span>
     </span>
   );
 }
@@ -199,12 +200,18 @@ export function StudentProfileV1({
               </p>
             </div>
 
-            <div className="pa-profile-meta">
-              <Chip size="sm" variant="soft" color={status.color}>
-                {status.label}
-              </Chip>
-              <SealCountV1 count={seals} />
-            </div>
+            {/* "Em curso" is not shown: it tells the student nothing (owner review 27/09/2026).
+                An official status (Aprovado, Em recuperação…) still is, after the seals. */}
+            {seals > 0 || status.label !== outcome['in-progress'].label ? (
+              <div className="pa-profile-meta">
+                <SealCountV1 count={seals} />
+                {status.label !== outcome['in-progress'].label ? (
+                  <Chip size="sm" variant="soft" color={status.color}>
+                    {status.label}
+                  </Chip>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {/* The original 3×4 photo in an arch taken from the cover geometry. No photo, or one

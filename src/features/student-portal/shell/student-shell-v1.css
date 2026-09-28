@@ -1,8 +1,9 @@
 .pa-shell {
-  --pa-page-bg: #f6faff;
-  --pa-page-blue: rgb(37 99 235 / 0.14);
-  --pa-page-cyan: rgb(6 182 212 / 0.12);
-  --pa-page-indigo: rgb(79 70 229 / 0.1);
+  /* Near-white page with only a whisper of cool light at the corners (owner review 28/09/2026). */
+  --pa-page-bg: #f8f9fb;
+  --pa-page-blue: rgb(37 99 235 / 0.05);
+  --pa-page-cyan: rgb(6 182 212 / 0.04);
+  --pa-page-indigo: rgb(79 70 229 / 0.035);
   min-height: 100dvh;
   color: var(--foreground);
   background-color: var(--pa-page-bg);
@@ -10,7 +11,7 @@
     radial-gradient(58rem 24rem at -8% -4%, var(--pa-page-cyan), transparent 72%),
     radial-gradient(48rem 28rem at 108% 10%, var(--pa-page-blue), transparent 74%),
     radial-gradient(52rem 24rem at 52% 108%, var(--pa-page-indigo), transparent 76%),
-    linear-gradient(180deg, #f9fcff 0%, #f4f9ff 48%, #f8fbff 100%);
+    linear-gradient(180deg, #fbfbfc 0%, #f7f8fa 48%, #f9fafb 100%);
   background-repeat: no-repeat;
 }
 .pa-shell-header {
@@ -321,28 +322,73 @@
   align-items: center;
   flex: none;
   gap: 0.25rem;
-  /* The height of HeroUI's small chip, so both read as one row. */
-  height: 1.375rem;
+  height: 1.25rem;
   padding: 0 0.45rem;
   white-space: nowrap;
   border: 1px solid rgb(250 199 117 / 0.9);
   border-radius: 999px;
   background: linear-gradient(120deg, #fde9b5, #fac775, #fde9b5);
   color: #633806;
-  font-size: 0.7rem;
-  font-weight: 750;
+  /* A step under the name and class, so the hierarchy stays with the title. */
+  font-size: 0.66rem;
+  font-weight: 700;
   box-shadow: 0 2px 8px -3px rgb(239 159 39 / 0.8);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
-.pa-seal-count-word {
-  white-space: pre;
+/* A discreet light crosses the seal counter every 12 s or so (owner request 28/09/2026); no pop. */
+.pa-seal-count::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.75) 48%, transparent 64%);
+  transform: translateX(-130%);
+  animation: pa-seal-count-glint 12s cubic-bezier(0.45, 0, 0.55, 1) 2s infinite;
+  pointer-events: none;
 }
-@media (max-width: 370px) {
-  .pa-seal-count-word {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+/* The same tiny white stars as the Brilhante mark pills, scattered and twinkling softly. */
+.pa-seal-count::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 6% 30%, #fff 0 1.1px, rgb(186 117 23 / 0.35) 1.4px, transparent 2.2px),
+    radial-gradient(circle at 38% 16%, #fff 0 0.7px, rgb(186 117 23 / 0.3) 1px, transparent 1.7px),
+    radial-gradient(circle at 63% 84%, #fff 0 1px, rgb(186 117 23 / 0.35) 1.3px, transparent 2.1px),
+    radial-gradient(circle at 86% 22%, #fff 0 1.2px, rgb(186 117 23 / 0.35) 1.5px, transparent 2.3px),
+    radial-gradient(circle at 96% 76%, #fff 0 0.8px, rgb(186 117 23 / 0.3) 1.1px, transparent 1.8px);
+  animation: pa-seal-count-stars 5s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+@keyframes pa-seal-count-stars {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+@keyframes pa-seal-count-glint {
+  0% {
+    transform: translateX(-130%);
+  }
+  12%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-seal-count::after {
+    animation: none;
+    opacity: 0;
+  }
+  .pa-seal-count::before {
+    animation: none;
+    opacity: 0.7;
   }
 }
 .pa-seal-count svg {
@@ -375,12 +421,14 @@
   min-height: 100dvh;
   margin-top: -3rem;
   padding: 0.85rem 1rem 3.5rem;
-  border: 1px solid rgb(219 234 254 / 0.8);
+  border: 1px solid rgb(226 232 240 / 0.9);
   border-bottom: 0;
   border-radius: 2.4rem 2.4rem 0 0;
+  /* Near-white, faintly cool (owner review 28/09/2026): the blue, red and gold of the marks stand
+     out on a quiet sheet instead of a blue one. */
   background:
-    radial-gradient(34rem 12rem at 50% 0%, rgb(219 234 254 / 0.42), transparent 72%),
-    linear-gradient(180deg, rgb(251 253 255 / 0.99) 0%, #f6faff 18%, #f6faff 100%);
+    radial-gradient(34rem 12rem at 50% 0%, rgb(241 245 249 / 0.6), transparent 72%),
+    linear-gradient(180deg, #fdfdfe 0%, #f9fafb 18%, #f8f9fb 100%);
   box-shadow: 0 -18px 42px rgb(15 46 101 / 0.14);
 }
 /* Squared notebook paper behind the top of the sheet (cards stay opaque above it). It scrolls
@@ -391,9 +439,10 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
+  /* A softer, neutral grid: still notebook paper, no longer blue. */
   background-image:
-    linear-gradient(rgb(30 64 175 / 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(30 64 175 / 0.08) 1px, transparent 1px);
+    linear-gradient(rgb(15 23 42 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(15 23 42 / 0.045) 1px, transparent 1px);
   background-size: 20px 20px;
   background-position: center 0;
   -webkit-mask-image: linear-gradient(180deg, #000 0, rgb(0 0 0 / 0.7) 16rem, transparent 34rem);

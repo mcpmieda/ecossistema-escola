@@ -37,7 +37,8 @@ describe('student shell and canonical profile', () => {
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
     // The year chip was removed (owner review 27/09/2026).
     expect(screen.queryByText('2026')).toBeNull();
-    expect(screen.getByText('Em curso')).toBeTruthy();
+    // "Em curso" is no longer shown in the hero (owner review 27/09/2026).
+    expect(screen.queryByText('Em curso')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Evolução' })).toBeNull();

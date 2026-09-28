@@ -111,7 +111,7 @@ it.each([null, 0, 5000])('shows only a recorded exceptional PARA in the real Por
   expect(Boolean(screen.queryByText('Tirou zero'))).toBe(parallel === 0);
   if (parallel !== null) {
     const row = partialRow(screen.getByText('PARA'));
-    expect(within(row).getByText(parallel === 0 ? 'Tirou zero' : '5')).toBeTruthy();
+    expect(within(row).getByText(parallel === 0 ? 'Tirou zero' : '5,0')).toBeTruthy();
   }
 });
 
