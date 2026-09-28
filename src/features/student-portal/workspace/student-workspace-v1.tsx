@@ -524,7 +524,7 @@ function SummaryV1({
             // Below the minimum on this trimester: a soft red band runs from the icon to the mark.
             const below =
               active !== 'REC' && scoreOfV1(subjectPeriodV1(subject, active))?.meetsMinimum === false;
-            // A Brilhante trimester (95%+) earns a gold seal in the Boletim, to collect, unless
+            // A Brilhante trimester (90%+) earns a gold seal in the Boletim, to collect, unless
             // any subject is red in that trimester; a missing seal is simply not shown.
             const brilliant = active !== 'REC' && earnsSealV1(subjects, subject, active);
             return (
@@ -646,7 +646,7 @@ function PartialLabelV1({ label, feedback }: { label: string; feedback?: ReactNo
 /*
  * Tag under each activity, in four bands of the activity's own maximum (owner decision
  * 2026-09-27): below 40% Precisa melhorar, 40–59% Não foi muito bem, 60–79% Foi bem,
- * 80–100% Excelente, and from 95% Brilhante — only for a trimester's mark and its two
+ * 80–100% Excelente, and from 90% Brilhante (95% until 28/09/2026) — only for a trimester's mark and its two
  * assessments (columns R and S), since other activities get full marks too often (42% in
  * 2026) for it to mean anything. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
  * mark's colour; only the split inside each side is computed here, by exact cross-multiplication.
@@ -667,8 +667,8 @@ function markBandV1(mark: PeriodV1['final'], brilliantAllowed = false): PartialB
   const { value, maximum, meetsMinimum } = mark;
   if (meetsMinimum === null || !maximum) return null;
   const milli = (amount: number) => Math.round(amount * 1000);
-  // ≥ 95% ⇔ 20·value ≥ 19·maximum; ≥ 80% ⇔ 5·value ≥ 4·maximum; < 40% ⇔ 5·value < 2·maximum.
-  if (meetsMinimum && brilliantAllowed && milli(value) * 20 >= milli(maximum) * 19) return 'brilliant';
+  // ≥ 90% ⇔ 10·value ≥ 9·maximum; ≥ 80% ⇔ 5·value ≥ 4·maximum; < 40% ⇔ 5·value < 2·maximum.
+  if (meetsMinimum && brilliantAllowed && milli(value) * 10 >= milli(maximum) * 9) return 'brilliant';
   if (meetsMinimum) return milli(value) * 5 >= milli(maximum) * 4 ? 'excellent' : 'good';
   return milli(value) * 5 < milli(maximum) * 2 ? 'needs-work' : 'below';
 }

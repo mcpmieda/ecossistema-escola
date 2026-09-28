@@ -4,7 +4,8 @@ type SubjectV1 = SelfResponseV1['subjects'][number];
 type MarkV1 = SubjectV1['periods'][number]['final'];
 
 /*
- * Selos brilhantes (owner idea 27/09/2026): a trimester mark of 95% or more, reached the minimum,
+ * Selos brilhantes (owner idea 27/09/2026): a trimester mark of 90% or more (lowered from 95% on
+ * 28/09/2026), reached the minimum,
  * earns the student a seal in that subject — something to collect across the year. The same rule
  * as the Brilhante band of the trimester header; recoveries never earn seals themselves.
  *
@@ -29,8 +30,8 @@ const markOf = (subject: SubjectV1, period: string) => subject.periods.find((ite
 
 export function isBrilliantMarkV1(mark: MarkV1 | undefined): boolean {
   if (mark?.kind !== 'score' || mark.meetsMinimum !== true || !mark.maximum) return false;
-  // ≥ 95% ⇔ 20·value ≥ 19·maximum, in milli units to stay exact.
-  return Math.round(mark.value * 1000) * 20 >= Math.round(mark.maximum * 1000) * 19;
+  // ≥ 90% ⇔ 10·value ≥ 9·maximum, in milli units to stay exact.
+  return Math.round(mark.value * 1000) * 10 >= Math.round(mark.maximum * 1000) * 9;
 }
 
 /** Some subject is red (below the minimum) in the trimester. */
