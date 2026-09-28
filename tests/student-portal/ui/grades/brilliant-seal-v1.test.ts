@@ -85,3 +85,55 @@ describe('selos brilhantes (owner rules 27/09/2026)', () => {
     expect(brilliantSealCountV1(all)).toBe(1);
   });
 });
+
+describe('selos das avaliações (owner rules 28/09/2026)', () => {
+  // AV1/AV2 worth 10 each; Brilhante from 9,5.
+  const av = (id: number, value: number, extra: Partial<NonNullable<PeriodV1['partials']>[number]> = {}) => ({
+    assessmentId: id,
+    label: `Avaliação sintética ${id}`,
+    mark: score(value, 10, value * 5 >= 10 * 3),
+    assessment: true as const,
+    ...extra,
+  });
+  const term = (period: PeriodV1['period'], value: number, partials: NonNullable<PeriodV1['partials']>): PeriodV1 => ({
+    ...t(period, value),
+    partials,
+  });
+
+  it('each Brilhante AV1/AV2 of an ended trimester is a seal, besides the trimester one', () => {
+    const math = subject(term('T2', 29, [av(1, 9.7), av(2, 9)]));
+    expect(brilliantSealCountV1([math], ['T1', 'T2'])).toBe(2);
+    expect(earnsSealV1([math], math, 'T2')).toBe(true);
+  });
+
+  it('up to three seals per subject and trimester', () => {
+    const math = subject(term('T1', 30, [av(1, 10), av(2, 9.5)]));
+    expect(brilliantSealCountV1([math], ['T1'])).toBe(3);
+  });
+
+  it('counts only once the trimester has ended by the calendar', () => {
+    const math = subject(term('T3', 20, [av(1, 10), av(2, 10)]));
+    expect(brilliantSealCountV1([math], ['T1', 'T2'])).toBe(0);
+    expect(brilliantSealCountV1([math])).toBe(0);
+    expect(brilliantSealCountV1([math], ['T3'])).toBe(2);
+  });
+
+  it("waits for the subject's trimester mark to be out", () => {
+    const math = subject({ period: 'T2', final: { kind: 'absent' }, partials: [av(1, 10)] });
+    expect(brilliantSealCountV1([math], ['T2'])).toBe(0);
+  });
+
+  it('a red mark in any subject of the trimester cancels assessment seals too', () => {
+    const math = subject(term('T2', 25, [av(1, 10), av(2, 10)]));
+    expect(brilliantSealCountV1([math, subject(t('T2', 17))], ['T2'])).toBe(0);
+    expect(brilliantSealCountV1([math, subject(t('T2', 18))], ['T2'])).toBe(2);
+  });
+
+  it('activities, the parallel exam and not-done assessments never count', () => {
+    const activity = { assessmentId: 10, label: 'Atividade sintética', mark: score(2, 2, true) };
+    const parallel = { assessmentId: 11, label: 'Paralela sintética', mark: score(10, 10, true), parallel: true as const };
+    const notDone = av(12, 0, { mark: { kind: 'absent' }, notDone: true });
+    const math = subject(term('T1', 20, [activity, parallel, notDone, av(13, 9.4)]));
+    expect(brilliantSealCountV1([math], ['T1'])).toBe(0);
+  });
+});

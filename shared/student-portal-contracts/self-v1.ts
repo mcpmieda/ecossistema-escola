@@ -122,6 +122,13 @@ export const selfResponseV1 = z
     // One summary per closed trimester (#1132 follow-up). Accepted first, emitted by the server in
     // a later deploy, so a page still open with the previous bundle never sees an unknown key.
     closingSummaries: z.array(termClosingSummaryV1).max(3).optional(),
+    // Trimesters whose end date in the calendar has passed (owner decision 28/09/2026: seals from
+    // assessments count only then). Accepted first, emitted by the server in a later deploy.
+    endedPeriods: z
+      .array(z.enum(['T1', 'T2', 'T3']))
+      .max(3)
+      .refine((v) => new Set(v).size === v.length, 'Duplicate ended period')
+      .optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

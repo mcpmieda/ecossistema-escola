@@ -12,6 +12,13 @@ type MarkV1 = SubjectV1['periods'][number]['final'];
  * Only earned seals are ever shown: nothing locked, nothing "almost" — a missing seal is simply
  * not there. A closed trimester cannot be recovered: the year-end recovery (REC1–REC3) does not
  * count. Only a teacher correcting the mark changes it, and the rule always reads current marks.
+ *
+ * Seals from assessments (owner decision 28/09/2026): each of the trimester's two assessments
+ * (AV1 and AV2, never activities or the parallel exam) that is Brilhante also earns a seal, so a
+ * subject can hold up to three per trimester. They count only once the trimester has ended by the
+ * calendar and the subject's trimester mark is out, and never in a trimester with a red mark in any
+ * subject. The assessment's Brilhante tag still shows; it just does not count. The gold row of the
+ * subject list stays for the trimester's own seal.
  */
 const SEAL_PERIODS_V1 = ['T1', 'T2', 'T3'] as const;
 type SealPeriodV1 = (typeof SEAL_PERIODS_V1)[number];
@@ -39,10 +46,37 @@ export function earnsSealV1(subjects: readonly SubjectV1[], subject: SubjectV1, 
   return isSealPeriodV1(period) && isBrilliantMarkV1(markOf(subject, period)) && !hasRedMarkV1(subjects, period);
 }
 
-/** Seals the student holds this year: one per subject and trimester. */
-export function brilliantSealCountV1(subjects: readonly SubjectV1[]): number {
+/** Seals from the subject's Brilhante assessments in an ended trimester whose mark is out. */
+function assessmentSealsV1(
+  subjects: readonly SubjectV1[],
+  subject: SubjectV1,
+  period: SealPeriodV1,
+  endedPeriods: readonly string[],
+): number {
+  const term = subject.periods.find((item) => item.period === period);
+  if (!endedPeriods.includes(period) || term?.final.kind !== 'score' || hasRedMarkV1(subjects, period))
+    return 0;
+  return (term.partials ?? []).filter(
+    (partial) => partial.assessment === true && !partial.notDone && isBrilliantMarkV1(partial.mark),
+  ).length;
+}
+
+/** Seals the student holds this year: per subject and trimester, the trimester's own seal and
+ * one per Brilhante assessment (the latter only for `endedPeriods`). */
+export function brilliantSealCountV1(
+  subjects: readonly SubjectV1[],
+  endedPeriods: readonly string[] = [],
+): number {
   return SEAL_PERIODS_V1.reduce(
-    (total, period) => total + subjects.filter((subject) => earnsSealV1(subjects, subject, period)).length,
+    (total, period) =>
+      total +
+      subjects.reduce(
+        (count, subject) =>
+          count +
+          (earnsSealV1(subjects, subject, period) ? 1 : 0) +
+          assessmentSealsV1(subjects, subject, period, endedPeriods),
+        0,
+      ),
     0,
   );
 }
