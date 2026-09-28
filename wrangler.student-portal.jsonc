@@ -54,7 +54,7 @@
         "bindings": [{ "name": "PORTAL_LIVE", "class_name": "PortalLiveUpdatesV1" }]
       },
       "ratelimits": [
-        { "name": "PORTAL_AUTH_GLOBAL", "namespace_id": "100715", "simple": { "limit": 600, "period": 60 } },
+        { "name": "PORTAL_AUTH_GLOBAL", "namespace_id": "100715", "simple": { "limit": 3000, "period": 60 } },
         { "name": "PORTAL_AUTH_SUBJECT", "namespace_id": "200715", "simple": { "limit": 30, "period": 60 } }
       ],
       "triggers": { "crons": ["* * * * *"] }
