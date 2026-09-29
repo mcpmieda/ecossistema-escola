@@ -16,10 +16,19 @@ on:
   schedule:
     - cron: '7,22,37,52 * * * *'
     - cron: '7 3 * * *'
-  workflow_run:
-    workflows: ['Deploy Cloudflare Pages']
-    branches: [main]
-    types: [completed]
+  workflow_call:
+    inputs:
+      operation:
+        type: string
+        default: monitor
+      post_deploy:
+        type: boolean
+        default: false
+    secrets:
+      CLOUDFLARE_DEPLOY_TOKEN:
+        required: false
+      CLOUDFLARE_HYPERDRIVE_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       issue_number:
@@ -40,7 +49,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'issue_comment' && github.actor_id == github.repository_owner_id && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  group: ${{ (github.event_name == 'schedule' || inputs.post_deploy || (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id) || (github.event_name == 'issue_comment' && github.actor_id == github.repository_owner_id && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -299,7 +308,7 @@ jobs:
     if: >-
       github.repository_id == '1345061518' &&
       (github.event_name == 'schedule' ||
-       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.id == github.repository_id) ||
+       (inputs.post_deploy && github.ref == 'refs/heads/main') ||
        (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id && github.ref == 'refs/heads/main' && (inputs.operation == 'monitor' || inputs.operation == 'daily')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -310,7 +319,7 @@ jobs:
       issues: write
     env:
       MONITOR_DAILY: ${{ github.event.schedule == '7 3 * * *' || inputs.operation == 'daily' }}
-      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+      DEPLOY_SHA: ${{ inputs.post_deploy && github.sha || '' }}
     steps:
       - name: Checkout confiável da main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

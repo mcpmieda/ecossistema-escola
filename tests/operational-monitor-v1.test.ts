@@ -210,7 +210,13 @@ describe('status and incident publication', () => {
   it('keeps production secrets away from PR and report publication steps', () => {
     const yaml = readFileSync('.github/workflows/cloudflare-on-demand.yml', 'utf8');
     expect(yaml).toContain("cron: '7,22,37,52 * * * *'");
-    expect(yaml).toContain("workflows: ['Deploy Cloudflare Pages']");
+    expect(yaml).toContain('workflow_call:');
+    expect(yaml).not.toContain('workflow_run:');
+    const deploy = readFileSync('.github/workflows/deploy-cloudflare-pages.yml', 'utf8');
+    expect(deploy).toContain('needs: deploy');
+    expect(deploy).toContain('uses: ./.github/workflows/cloudflare-on-demand.yml');
+    expect(deploy).toContain('post_deploy: true');
+    expect(yaml).toContain('github.actor_id == github.repository_owner_id');
     expect(yaml).toContain('retention-days: 14');
     expect(yaml).toContain('retention-days: 90');
     const validation = yaml.split('  validate-definition:')[1]?.split('  execute:')[0];

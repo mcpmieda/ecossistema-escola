@@ -27,6 +27,8 @@ O diário consulta diretamente os logs armazenados do dia anterior; não soma as
 
 O diário inclui **24 intervalos horários**, com autenticação por etapa/resultado e execuções do Worker por outcome. O Markdown mostra a distribuição; o JSON preserva as categorias e lacunas de cada hora. São eventos observados, não pessoas ou sessões distintas. A coleta horária faz no máximo 49 consultas somente leitura, com concorrência máxima de três; permissão negada interrompe as consultas ainda não iniciadas.
 
+O pós-deploy usa chamada reutilizável direta (`workflow_call`) pelo job `monitor-after-deploy` do workflow oficial, dependente do sucesso de `deploy`. Não consome eventos `workflow_run`, código ou artefatos de forks. A execução pós-deploy aparece dentro da própria execução de publicação em Actions; os agendamentos aparecem no operador. Um alerta nessa verificação deixa a execução oficial com falha **após** publicar: não há rollback automático; conferir o job `deploy` e o relatório antes de interpretar o resultado global.
+
 Após deploy, uma janela pode conter a versão anterior. O SHA do coletor e o SHA do workflow que disparou a leitura são registrados separadamente dos horários de publicação observados na Cloudflare. Esses SHAs não são prova da versão ativa no provedor. Sem eventos posteriores à publicação, não há validação do uso real da nova versão.
 
 ## Cobertura implementada
