@@ -394,6 +394,20 @@
 .pa-seal-count svg {
   color: #ba7517;
 }
+/* No seal yet: the same pill, dimmed, with no glint, stars or glow. */
+.pa-seal-count--empty {
+  border-color: rgb(250 199 117 / 0.35);
+  background: rgb(255 255 255 / 0.1);
+  color: rgb(253 233 181 / 0.72);
+  box-shadow: none;
+}
+.pa-seal-count--empty::before,
+.pa-seal-count--empty::after {
+  content: none;
+}
+.pa-seal-count--empty svg {
+  color: rgb(253 233 181 / 0.6);
+}
 .pa-profile-meta .chip {
   border: 1px solid rgb(255 255 255 / 0.22);
   background: rgb(255 255 255 / 0.14);
