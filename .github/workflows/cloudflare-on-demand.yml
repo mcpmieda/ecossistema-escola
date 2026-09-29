@@ -308,7 +308,6 @@ jobs:
       actions: read
       issues: write
     env:
-      MONITOR_DIR: ${{ runner.temp }}/monitor
       MONITOR_DAILY: ${{ github.event.schedule == '7 3 * * *' || inputs.operation == 'daily' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
@@ -326,6 +325,7 @@ jobs:
       - name: Fixar horário e versão do coletor
         shell: bash
         run: |
+          echo "MONITOR_DIR=$RUNNER_TEMP/monitor" >> "$GITHUB_ENV"
           echo "MONITOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "MONITOR_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
