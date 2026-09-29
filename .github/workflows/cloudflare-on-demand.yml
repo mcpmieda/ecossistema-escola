@@ -40,7 +40,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'issue_comment' && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  group: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'issue_comment' && github.actor == github.repository_owner && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
