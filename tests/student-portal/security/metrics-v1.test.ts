@@ -2,11 +2,13 @@ import { expect, it } from 'vitest';
 import {
   emitPortalAuthBurstMetricV1,
   emitPortalDbLifecycleMetricV1,
+  emitPortalEdgeResultMetricV1,
   emitPortalLiveCloseMetricV1,
   emitPortalMetricV1,
   measurePortalSqlV1,
   portalAuthBurstMetricV1,
   portalDbLifecycleMetricV1,
+  portalEdgeResultMetricV1,
   portalLiveCloseMetricV1,
   portalMetricV1,
 } from '../../../server/student-portal/observability/metrics-v1';
@@ -78,4 +80,19 @@ it('accepts only the fixed live close classification (#1207)', () => {
   emitPortalLiveCloseMetricV1({ ...metric, reason: 'SYNTHETIC_SECRET' } as never, (value) => emitted.push(value));
   emitPortalLiveCloseMetricV1(metric, (value) => emitted.push(value));
   expect(emitted).toEqual([metric]);
+});
+
+it('accepts only the fixed edge result classification (#1207)', () => {
+  const metric = { event: 'student-portal-edge-result-v1', family: 'asset', result: 'asset-miss', status: 404 } as const;
+  expect(portalEdgeResultMetricV1.parse(metric)).toEqual(metric);
+  for (const extra of ['path', 'url', 'query', 'userAgent', 'ip', 'accountId']) {
+    expect(portalEdgeResultMetricV1.safeParse({ ...metric, [extra]: '/assets/SYNTHETIC_SECRET' }).success).toBe(false);
+  }
+  for (const invalid of [
+    { ...metric, family: '/assets/x.js' },
+    { ...metric, result: 'asset-stale' },
+    { ...metric, status: 99 },
+    { ...metric, status: 600 },
+  ]) expect(portalEdgeResultMetricV1.safeParse(invalid).success).toBe(false);
+  expect(() => emitPortalEdgeResultMetricV1(metric, () => { throw new Error('sink-unavailable'); })).not.toThrow();
 });
