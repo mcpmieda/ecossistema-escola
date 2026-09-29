@@ -84,6 +84,20 @@ describe('student portal edge result signal (#1207 L-05)', () => {
     expect(logged).toEqual([{ event: 'student-portal-edge-result-v1', family: 'api', result: 'forwarded', status: 401 }]);
   });
 
+  it('returns a WebSocket upgrade and a streamed body as the same objects, unread', async () => {
+    const upgrade = { status: 101, webSocket: {} } as unknown as Response;
+    const ws = await observe('/api/student/live', { ...base, PORTAL_SELF: { fetch: async () => upgrade } });
+    expect(ws.response).toBe(upgrade);
+    expect(ws.logged).toEqual([{ event: 'student-portal-edge-result-v1', family: 'api', result: 'forwarded', status: 101 }]);
+    let pulled = false;
+    const body = new ReadableStream({ pull(controller) { pulled = true; controller.enqueue(new Uint8Array([1])); controller.close(); } }, { highWaterMark: 0 });
+    const streamed = new Response(body, { status: 200 });
+    const stream = await observe('/api/student/me', { ...base, PORTAL_SELF: { fetch: async () => streamed } });
+    expect(stream.response).toBe(streamed);
+    expect(stream.response.bodyUsed).toBe(false);
+    expect(pulled).toBe(false);
+  });
+
   it('keeps the response and its headers when logging fails', async () => {
     const env = { ...base, ASSETS: assets() };
     const quiet = await observe('/assets/logo-Ab12.webp', env);

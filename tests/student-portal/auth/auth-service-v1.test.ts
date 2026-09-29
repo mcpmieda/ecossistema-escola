@@ -30,6 +30,9 @@ let policy: PolicyServiceV1;
 let accountId: string;
 let qr: string;
 let failAudit = false;
+let consumeMiss = false;
+let nowCalls = 0;
+let shiftNowAtCall = 0;
 const risk = { verify: vi.fn(async (token: string) => token === 'synthetic-valid-risk') };
 const id = () => crypto.randomUUID();
 
@@ -63,6 +66,11 @@ beforeAll(async () => {
   ) => {
     if (failAudit && query.includes('INSERT INTO student_portal.audit_event'))
       throw new Error('synthetic-db-failure');
+    // Simulates a proof consumed by a concurrent request between the checks and the update.
+    if (consumeMiss && query.includes('UPDATE student_portal.auth_challenge') && query.includes('RETURNING token_hash'))
+      return [] as R[];
+    if (query === 'SELECT statement_timestamp() AS now' && shiftNowAtCall > 0 && ++nowCalls === shiftNowAtCall)
+      return [{ now: new Date(Date.now() + 400 * 86400_000) }] as unknown as R[];
     return (await target.query<R>(query, [...parameters])).rows;
   };
   sql = {
@@ -140,6 +148,9 @@ async function activate(persistent = false) {
 }
 beforeEach(async () => {
   failAudit = false;
+  consumeMiss = false;
+  nowCalls = 0;
+  shiftNowAtCall = 0;
   risk.verify.mockClear();
   await pg.exec(`TRUNCATE student_portal.setting,student_portal.operation_receipt,student_portal.audit_event,
     student_portal.account_access_data,student_portal.password_credential,student_portal.qr_credential,
@@ -796,5 +807,136 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     await expect(qrService.command(ACTOR, { ...cmd, idempotencyKey: id() })).rejects.toThrow(
       'version-conflict',
     );
+  });
+});
+
+describe('terminal auth result and audited refusal reasons (#1207)', () => {
+  type Logged = Record<string, unknown>;
+  async function capture<T>(run: () => Promise<T>): Promise<{ value?: T; error?: unknown; logged: Logged[] }> {
+    const logged: Logged[] = [];
+    const spy = vi.spyOn(console, 'info').mockImplementation((value: unknown) => {
+      const record = value as Logged;
+      if (record?.event === 'student-portal-auth-result-v1') logged.push(record);
+    });
+    try {
+      return { value: await run(), logged };
+    } catch (error) {
+      return { error, logged };
+    } finally {
+      spy.mockRestore();
+    }
+  }
+  async function reasons() {
+    return (
+      await pg.query<{ detail_json: Record<string, unknown> | null }>(
+        "SELECT detail_json FROM student_portal.audit_event WHERE kind='login-failed' ORDER BY occurred_at,created_at",
+      )
+    ).rows.map((row) => row.detail_json);
+  }
+  const event = 'student-portal-auth-result-v1';
+
+  it('emits exactly one terminal result per public call, without reasons or identifiers', async () => {
+    expect((await capture(() => auth.challenge({ contractVersion: 1, qr }, id()))).logged).toEqual([
+      { event, step: 'challenge', outcome: 'required', next: 'pin' },
+    ]);
+    expect((await capture(() => auth.challenge({ contractVersion: 1, qr, pin: '1999' }, id()))).logged).toEqual([
+      { event, step: 'challenge', outcome: 'denied' },
+    ]);
+    const issued = await capture(() => auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id()));
+    expect(issued.logged).toEqual([{ event, step: 'challenge', outcome: 'issued' }]);
+    const challenge = (issued.value as { challenge: string }).challenge;
+    const weak = await capture(() =>
+      auth.activate({ contractVersion: 1, challenge, password: '123456', confirmation: '123456', keepConnected: false }, id()),
+    );
+    expect(weak.error).toBeInstanceOf(Error);
+    expect(weak.logged).toEqual([{ event, step: 'activate', outcome: 'invalid-request' }]);
+    const activated = await capture(() =>
+      auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+    );
+    expect(activated.value).toHaveProperty('token');
+    expect(activated.logged).toEqual([{ event, step: 'activate', outcome: 'issued' }]);
+    const login = await capture(() => auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()));
+    expect(login.logged).toEqual([{ event, step: 'login', outcome: 'issued' }]);
+    const wrong = await capture(() => auth.login({ contractVersion: 1, qr, password: '200100', keepConnected: false }, id()));
+    expect(wrong.logged).toEqual([{ event, step: 'login', outcome: 'denied' }]);
+    const serialized = JSON.stringify([issued, activated, login, wrong].flatMap((item) => item.logged));
+    for (const secret of [qr, challenge, accountId, '482913', '2001']) expect(serialized).not.toContain(secret);
+  });
+
+  it('reports the service rate limit as blocked and an unknown card as denied', async () => {
+    const limited = new AuthServiceV1(sql, cryptoPort, 1, risk, undefined, async () => false);
+    expect((await capture(() => limited.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()))).logged)
+      .toEqual([{ event, step: 'login', outcome: 'blocked' }]);
+    const parts = qr.split('.');
+    parts[parts.length - 1] = 'A'.repeat(43);
+    expect((await capture(() => auth.challenge({ contractVersion: 1, qr: parts.join('.'), pin: '2001' }, id()))).logged)
+      .toEqual([{ event, step: 'challenge', outcome: 'denied' }]);
+  });
+
+  it('reports a rolled-back operation as unavailable and rethrows the same error', async () => {
+    const challenge = await proof();
+    failAudit = true;
+    const result = await capture(() =>
+      auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+    );
+    expect((result.error as Error).message).toBe('synthetic-db-failure');
+    expect(result.logged).toEqual([{ event, step: 'activate', outcome: 'unavailable' }]);
+  });
+
+  it('emits once for a terminal activation preflight and keeps the result when the sink fails', async () => {
+    const challenge = await proof();
+    await pg.exec("UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'");
+    const input = { contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false };
+    expect((await capture(() => auth.activate(input, id()))).logged).toEqual([{ event, step: 'activate', outcome: 'denied' }]);
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => { throw new Error('sink-unavailable'); });
+    try {
+      expect(await auth.activate(input, id())).toMatchObject({ state: 'unauthenticated' });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps concurrent calls independent', async () => {
+    const result = await capture(() =>
+      Promise.all([
+        auth.challenge({ contractVersion: 1, qr }, id()),
+        auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
+      ]),
+    );
+    expect(result.logged).toHaveLength(2);
+    expect(result.logged).toContainEqual({ event, step: 'challenge', outcome: 'required', next: 'pin' });
+    expect(result.logged).toContainEqual({ event, step: 'login', outcome: 'denied' });
+  });
+
+  it('reports a consumed proof as a retry, not as an expired deadline', async () => {
+    const input = { contractVersion: 1, challenge: await proof(), password: '482913', confirmation: '482913', keepConnected: false };
+    expect(await auth.activate(input, id())).toHaveProperty('token');
+    expect(await auth.activate(input, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await reasons()).toEqual([{ reason: 'retry-needed', step: 'create' }]);
+  });
+
+  it('reports an expired deadline only when the proof really expired', async () => {
+    const challenge = await proof();
+    await pg.exec("UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'");
+    expect(
+      await auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+    ).toMatchObject({ state: 'unauthenticated' });
+    expect(await reasons()).toEqual([{ reason: 'password-window-expired', step: 'create' }]);
+  });
+
+  it('records a reason when the proof is consumed concurrently or the access window ends mid-request', async () => {
+    const challenge = await proof();
+    consumeMiss = true;
+    expect(
+      await auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+    ).toMatchObject({ state: 'unauthenticated' });
+    consumeMiss = false;
+    // Third DB clock read in a PIN challenge: proof snapshot, locked context, then issuance.
+    shiftNowAtCall = 3;
+    expect(await auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await reasons()).toEqual([
+      { reason: 'retry-needed', step: 'create' },
+      { reason: 'password-window-expired', step: 'pin' },
+    ]);
   });
 });

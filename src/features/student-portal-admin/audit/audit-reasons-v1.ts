@@ -43,7 +43,7 @@ export const AUDIT_REASON_LABELS_V1: Record<ReasonV1, { label: string; help: str
     help: 'Ler o cartão novamente e criar a senha dentro do prazo.',
   },
   'already-active': { label: 'Conta já ativada', help: 'O aluno já criou a senha. Entrar com a senha.' },
-  'retry-needed': { label: 'Dados alterados durante a entrada', help: 'Ler o cartão novamente.' },
+  'retry-needed': { label: 'Nova tentativa necessária', help: 'Ler o cartão novamente.' },
 };
 
 const STEP_LABELS_V1: Record<NonNullable<AuditDetailV1['step']>, string> = {

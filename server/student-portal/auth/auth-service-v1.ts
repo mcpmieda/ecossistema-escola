@@ -1,4 +1,8 @@
 import { withAuditSqlV1 } from '../observability/audit-context-v1';
+import {
+  emitPortalAuthResultMetricV1,
+  type PortalAuthResultMetricV1,
+} from '../observability/metrics-v1';
 import type { AuthBurstGuardV1 } from '../observability/auth-burst-v1';
 import { z } from 'zod';
 import {
@@ -324,7 +328,8 @@ async function activationStateV1(
 ): Promise<ActivationStateV1 | FailureV1> {
   const rows = await tx.unsafe(
     `SELECT account_id,
-    (consumed_at IS NULL AND expires_at>statement_timestamp()) AS usable
+    (consumed_at IS NULL AND expires_at>statement_timestamp()) AS usable,
+    (expires_at<=statement_timestamp()) AS expired
     FROM student_portal.auth_challenge WHERE token_hash=$1`,
     [hash],
   );
@@ -342,7 +347,9 @@ async function activationStateV1(
     });
   const createDenied = (reason: NonNullable<AuditDetailV1['reason']>) =>
     auditedDenied(store, context.account, context.now, requestId, { reason, step: 'create' });
-  if (rows[0]!.usable !== true) return createDenied('password-window-expired');
+  // Only a proven deadline is reported as expired; a consumed proof is a retry.
+  if (rows[0]!.usable !== true)
+    return createDenied(rows[0]!.expired === true ? 'password-window-expired' : 'retry-needed');
   if (context.account.state === 'active') return createDenied('already-active');
   if (
     credential?.state !== 'active' ||
@@ -364,8 +371,48 @@ async function activationStateV1(
     AND consumed_at IS NULL AND expires_at>statement_timestamp()`,
     [hash, accountId, context.account.securityVersion, context.account.pinVersion],
   );
-  if (valid.length !== 1) return createDenied('password-window-expired');
+  if (valid.length !== 1) return createDenied('retry-needed');
   return { accountId, context, credential, attempt };
+}
+
+type AuthStepV1 = PortalAuthResultMetricV1['step'];
+
+/** Terminal outcome of one public call; refusal reasons stay in the audit detail only (#1207). */
+function authResultV1(step: AuthStepV1, result: unknown): PortalAuthResultMetricV1 {
+  const event = 'student-portal-auth-result-v1' as const;
+  const value = (result ?? {}) as { state?: unknown; next?: unknown; body?: { state?: unknown } };
+  if (value.body?.state === 'authenticated' || value.state === 'password-creation')
+    return { event, step, outcome: 'issued' };
+  if (value.state === 'credential-required')
+    return { event, step, outcome: 'required', next: value.next as 'pin' | 'password' | 'risk' };
+  if (value.state === 'unauthenticated') return { event, step, outcome: 'denied' };
+  if (value.state === 'rate-limited') return { event, step, outcome: 'blocked' };
+  if (value.state === 'access-closed') return { event, step, outcome: 'access-closed' };
+  if (value.state === 'invalid-request') return { event, step, outcome: 'invalid-request' };
+  return { event, step, outcome: 'unavailable' };
+}
+
+async function withAuthResultV1<Request, Result>(
+  step: AuthStepV1,
+  parse: () => Request,
+  run: (request: Request) => Promise<Result>,
+): Promise<Result> {
+  let request: Request;
+  try {
+    request = parse();
+  } catch (error) {
+    emitPortalAuthResultMetricV1({ event: 'student-portal-auth-result-v1', step, outcome: 'invalid-request' });
+    throw error;
+  }
+  let result: Result;
+  try {
+    result = await run(request);
+  } catch (error) {
+    emitPortalAuthResultMetricV1({ event: 'student-portal-auth-result-v1', step, outcome: 'unavailable' });
+    throw error;
+  }
+  emitPortalAuthResultMetricV1(authResultV1(step, result));
+  return result;
 }
 
 export class AuthServiceV1 {
@@ -393,7 +440,14 @@ export class AuthServiceV1 {
   }
 
   async challenge(input: unknown, requestId: string) {
-    const request = challengeRequestV1.parse(input);
+    return withAuthResultV1(
+      'challenge',
+      () => challengeRequestV1.parse(input),
+      (request) => this.challengeRequest(request, requestId),
+    );
+  }
+
+  private async challengeRequest(request: z.infer<typeof challengeRequestV1>, requestId: string) {
     if (this.burst && !(await this.burst(request.qr)))
       return {
         contractVersion: 1 as const,
@@ -464,7 +518,11 @@ export class AuthServiceV1 {
         ),
       ).toISOString();
       if (Date.parse(expiresAt) <= context.now.getTime())
-        return auditedDenied(store, context.account, context.now, requestId);
+        return auditedDenied(store, context.account, context.now, requestId, {
+          reason: 'password-window-expired',
+          step,
+          ...device,
+        });
       // A retry of the same PIN request replaces its earlier proof; only the latest response can activate.
       await revokeChallengesV1(tx, accountId, context.now);
       await store.saveChallenge({
@@ -486,7 +544,14 @@ export class AuthServiceV1 {
   }
 
   async activate(input: unknown, requestId: string) {
-    const request = activateRequestV1.parse(input);
+    return withAuthResultV1(
+      'activate',
+      () => activateRequestV1.parse(input),
+      (request) => this.activateRequest(request, requestId),
+    );
+  }
+
+  private async activateRequest(request: z.infer<typeof activateRequestV1>, requestId: string) {
     if (this.burst && !(await this.burst(request.challenge)))
       return {
         contractVersion: 1 as const,
@@ -516,7 +581,10 @@ export class AuthServiceV1 {
           current.context.now.toISOString(),
         ))
       )
-        return auditedDenied(store, current.context.account, current.context.now, requestId);
+        return auditedDenied(store, current.context.account, current.context.now, requestId, {
+          reason: 'retry-needed',
+          step: 'create',
+        });
       const expectedVersion = current.context.account.version;
       current.context.account = {
         ...current.context.account,
@@ -549,7 +617,14 @@ export class AuthServiceV1 {
   }
 
   async login(input: unknown, requestId: string) {
-    const request = loginRequestV1.parse(input);
+    return withAuthResultV1(
+      'login',
+      () => loginRequestV1.parse(input),
+      (request) => this.loginRequest(request, requestId),
+    );
+  }
+
+  private async loginRequest(request: z.infer<typeof loginRequestV1>, requestId: string) {
     if (this.burst && !(await this.burst(request.qr)))
       return {
         contractVersion: 1 as const,
