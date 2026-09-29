@@ -3,7 +3,7 @@ import {
   type PortalLiveCloseMetricV1,
 } from '../observability/metrics-v1';
 
-type LiveSocketV1 = Pick<WebSocket, 'close' | 'readyState'>;
+type LiveSocketV1 = { readonly readyState: number; close(code?: number, reason?: string): void };
 type SinkV1 = (value: PortalLiveCloseMetricV1) => void;
 
 /** Close codes a WebSocket endpoint may send in a Close frame (RFC 6455 §7.4). */
