@@ -1,12 +1,14 @@
 import { expect, it } from 'vitest';
 import {
   emitPortalAuthBurstMetricV1,
+  emitPortalAuthResultMetricV1,
   emitPortalDbLifecycleMetricV1,
   emitPortalEdgeResultMetricV1,
   emitPortalLiveCloseMetricV1,
   emitPortalMetricV1,
   measurePortalSqlV1,
   portalAuthBurstMetricV1,
+  portalAuthResultMetricV1,
   portalDbLifecycleMetricV1,
   portalEdgeResultMetricV1,
   portalLiveCloseMetricV1,
@@ -95,4 +97,21 @@ it('accepts only the fixed edge result classification (#1207)', () => {
     { ...metric, status: 600 },
   ]) expect(portalEdgeResultMetricV1.safeParse(invalid).success).toBe(false);
   expect(() => emitPortalEdgeResultMetricV1(metric, () => { throw new Error('sink-unavailable'); })).not.toThrow();
+});
+
+it('accepts only a terminal auth result without reasons; next only with required (#1207)', () => {
+  const base = { event: 'student-portal-auth-result-v1', step: 'login' } as const;
+  expect(portalAuthResultMetricV1.parse({ ...base, outcome: 'denied' })).toEqual({ ...base, outcome: 'denied' });
+  expect(portalAuthResultMetricV1.parse({ ...base, outcome: 'required', next: 'risk' })).toMatchObject({ next: 'risk' });
+  for (const invalid of [
+    { ...base, outcome: 'required' },
+    { ...base, outcome: 'denied', next: 'pin' },
+    { ...base, outcome: 'denied', reason: 'retry-needed' },
+    { ...base, outcome: 'denied', auditReason: 'retry-needed' },
+    { ...base, outcome: 'issued', accountId: 'SYNTHETIC_SECRET' },
+    { ...base, outcome: 'issued', device: { platform: 'ios' } },
+    { ...base, step: 'session', outcome: 'issued' },
+    { ...base, outcome: 'SYNTHETIC_SECRET' },
+  ]) expect(portalAuthResultMetricV1.safeParse(invalid).success).toBe(false);
+  expect(() => emitPortalAuthResultMetricV1({ ...base, outcome: 'issued' }, () => { throw new Error('sink'); })).not.toThrow();
 });

@@ -54,6 +54,19 @@ export const portalEdgeResultMetricV1 = z.object({
 }).strict();
 export type PortalEdgeResultMetricV1 = z.infer<typeof portalEdgeResultMetricV1>;
 
+const authResultBaseV1 = {
+  event: z.literal('student-portal-auth-result-v1'),
+  step: z.enum(['challenge', 'activate', 'login']),
+};
+export const portalAuthResultMetricV1 = z.union([
+  z.object({ ...authResultBaseV1, outcome: z.literal('required'), next: z.enum(['pin', 'password', 'risk']) }).strict(),
+  z.object({
+    ...authResultBaseV1,
+    outcome: z.enum(['issued', 'denied', 'blocked', 'access-closed', 'invalid-request', 'unavailable']),
+  }).strict(),
+]);
+export type PortalAuthResultMetricV1 = z.infer<typeof portalAuthResultMetricV1>;
+
 /** Capture numeric aggregates only, never SQL, parameters, IDs, URLs or driver error messages. */
 export function measurePortalSqlV1(sql: StudentPortalPostgresSqlV1) {
   const started = Date.now();
@@ -122,4 +135,13 @@ export function emitPortalEdgeResultMetricV1(
   const parsed = portalEdgeResultMetricV1.safeParse(metric);
   if (!parsed.success) return;
   try { sink(parsed.data); } catch { /* Telemetry must never alter the edge response. */ }
+}
+
+export function emitPortalAuthResultMetricV1(
+  metric: PortalAuthResultMetricV1,
+  sink: (value: PortalAuthResultMetricV1) => void = console.info,
+): void {
+  const parsed = portalAuthResultMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter the auth outcome. */ }
 }
