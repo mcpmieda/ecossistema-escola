@@ -32,6 +32,28 @@ export const portalDbLifecycleMetricV1 = z.object({
 }).strict();
 export type PortalDbLifecycleMetricV1 = z.infer<typeof portalDbLifecycleMetricV1>;
 
+export const portalLiveCloseMetricV1 = z.object({
+  event: z.literal('student-portal-live-close-v1'),
+  callback: z.enum(['close', 'error']),
+  codeClass: z.enum([
+    'normal', 'going-away', 'auth-expired', 'no-status', 'abnormal', 'tls-reserved',
+    'other-sendable', 'other-invalid', 'not-applicable',
+  ]),
+  readyState: z.union([z.number().int().min(0).max(3), z.literal('unknown')]),
+}).strict();
+export type PortalLiveCloseMetricV1 = z.infer<typeof portalLiveCloseMetricV1>;
+
+export const portalEdgeResultMetricV1 = z.object({
+  event: z.literal('student-portal-edge-result-v1'),
+  family: z.enum(['document', 'asset', 'icon-probe', 'health', 'diagnostic', 'api', 'other']),
+  result: z.enum([
+    'origin-rejected', 'method-rejected', 'binding-missing', 'asset-miss', 'document-miss',
+    'route-miss', 'upstream-error', 'forwarded', 'served',
+  ]),
+  status: z.number().int().min(100).max(599),
+}).strict();
+export type PortalEdgeResultMetricV1 = z.infer<typeof portalEdgeResultMetricV1>;
+
 /** Capture numeric aggregates only, never SQL, parameters, IDs, URLs or driver error messages. */
 export function measurePortalSqlV1(sql: StudentPortalPostgresSqlV1) {
   const started = Date.now();
@@ -82,4 +104,22 @@ export function emitPortalDbLifecycleMetricV1(
   const parsed = portalDbLifecycleMetricV1.safeParse(metric);
   if (!parsed.success) return;
   try { sink(parsed.data); } catch { /* Telemetry must never alter DB outcome. */ }
+}
+
+export function emitPortalLiveCloseMetricV1(
+  metric: PortalLiveCloseMetricV1,
+  sink: (value: PortalLiveCloseMetricV1) => void = console.info,
+): void {
+  const parsed = portalLiveCloseMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter the socket lifecycle. */ }
+}
+
+export function emitPortalEdgeResultMetricV1(
+  metric: PortalEdgeResultMetricV1,
+  sink: (value: PortalEdgeResultMetricV1) => void = console.info,
+): void {
+  const parsed = portalEdgeResultMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter the edge response. */ }
 }

@@ -54,3 +54,19 @@ Peça à IA primeiro um diagnóstico sem alteração de dados. Se houver correç
 - conta de saída que ainda mantém sessão ou conteúdo visível.
 
 Nesses casos, preserve o horário e a mensagem, evite repetir ações destrutivas e abra uma issue específica. O acesso geral pode ser desligado em **Configurações** enquanto o diagnóstico ocorre; isso não apaga contas, notas ou histórico.
+
+## Sinais técnicos nos logs (#1207)
+
+Os logs do Worker e do edge trazem eventos de formato fixo, sem nome, ID, URL, caminho, token ou mensagem de erro. Eles são contados na consulta; cada linha isolada não identifica ninguém.
+
+| Evento | Onde | Campos | Para que serve |
+| --- | --- | --- | --- |
+| `student-portal-operation-v1` | Worker | operação, resultado, tempo e contagens de SQL | latência e indisponibilidade por operação (`auth`, `self`, `live`, …) |
+| `student-portal-db-lifecycle-v1` | Worker | operação, `openRoleMs`, `applicationMs`, `attempts` | separa a abertura da conexão do trabalho da operação |
+| `student-portal-live-close-v1` | Durable Object do canal ao vivo | callback (`close`/`error`), classe do código, `readyState` | ciclo de fechamento dos canais; classes `no-status` (rotação do navegador), `abnormal` (queda de rede ou aba suspensa), `auth-expired` |
+| `student-portal-edge-result-v1` | edge | família da rota, ramo tomado, status | atribui 403/404/503 do edge a uma família (`document`, `asset`, `icon-probe`, `health`, `diagnostic`, `api`, `other`) e ao ramo (`origin-rejected`, `asset-miss`, `route-miss`, `forwarded`, …) |
+
+- O motivo de cada recusa de login está no detalhe da auditoria (migration 0023), não em log.
+- `/healthz` é só liveness: responde sem tocar no banco. A saúde do caminho PostgreSQL vem de `/api/student/status` e dos eventos acima com `outcome=unavailable`.
+- Limiares de triagem de latência (baseline do lançamento de 28/09: p95 `auth` 989 ms, `self` 552 ms, `live` 309 ms): investigar quando, em janelas de 5 min com pelo menos 20 sucessos da operação, o p95 passar de 2× a baseline por duas janelas seguidas. Qualquer `unavailable` pede triagem imediata. São limiares de diagnóstico, não SLO.
+- Cada aba autenticada aberta renova o canal de segurança a cada 45 s, com uma transação curta de leitura por renovação. Isso é esperado e entra no modelo de capacidade como cenário, não como medição.
