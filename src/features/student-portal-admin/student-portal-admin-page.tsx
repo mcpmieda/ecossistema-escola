@@ -441,8 +441,15 @@ function PortalWorkspace({
     >
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
-          <header>
+          <header className="pa-admin-header">
             <h1>Painel do Aluno</h1>
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => window.open('/portal-demo.html', '_blank', 'noopener')}
+            >
+              Visão do aluno (demo)
+            </Button>
             <RemoteLiveNoticeV1 state={liveState} />
           </header>
           <Tabs
