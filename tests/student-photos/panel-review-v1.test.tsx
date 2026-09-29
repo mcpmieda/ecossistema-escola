@@ -34,7 +34,7 @@ it('keeps a forbidden initial read neutral instead of claiming an edit failed', 
 it('shows an imported portrait as editable without the old synchronization notice', async () => {
   vi.mocked(readPhotoCatalogV1).mockResolvedValueOnce(catalog());
   render(<StudentPhotoPanelV1 subject={subject} />);
-  expect(await screen.findByRole('button', { name: 'Editar foto' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Trocar foto' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Remover' })).toBeTruthy();
   expect(screen.queryByText(/SharePoint/)).toBeNull();
 });
@@ -69,13 +69,14 @@ it('opens the file picker directly for a student without a photo, then the edito
   expect(spies.save).not.toHaveBeenCalled();
   click.mockRestore();
 });
-it('keeps opening the editor with the current photo when the student already has one', async () => {
+it('goes straight to the picker when replacing an existing photo, then saves after the crop without a dialog (29/09/2026)', async () => {
   const user = userEvent.setup();
   vi.mocked(readPhotoCatalogV1).mockResolvedValue(catalog());
   const click = vi.spyOn(HTMLInputElement.prototype, 'click');
   render(<StudentPhotoPanelV1 subject={subject} />);
-  await user.click(await screen.findByRole('button', { name: 'Editar foto' }));
-  expect(await screen.findByRole('dialog', { name: 'Editar foto do aluno' })).toBeTruthy();
-  expect(click).not.toHaveBeenCalled();
+  await user.click(await screen.findByRole('button', { name: 'Trocar foto' }));
+  expect(click).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('dialog', { name: 'Editar foto do aluno' })).toBeNull();
+  expect(screen.queryByRole('dialog', { name: 'Confirmar foto final' })).toBeNull();
   click.mockRestore();
 });

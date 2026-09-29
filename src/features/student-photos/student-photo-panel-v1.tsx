@@ -49,7 +49,6 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   const [editing, setEditing] = useState(false);
   const [initialPhoto, setInitialPhoto] = useState<Blob>();
   const [kind, setKind] = useState<'replace' | 'avatar'>('replace');
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [removing, setRemoving] = useState(false);
   const active = useRef(new AbortController());
   const working = useRef(false);
@@ -59,7 +58,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   const subjectKey = photoSubjectKeyV1(subject);
 
   function discard() {
-    dispose(ownedConfirmation.current); ownedConfirmation.current = null; setConfirmation(null);
+    dispose(ownedConfirmation.current); ownedConfirmation.current = null;
   }
   async function refresh(signal: AbortSignal, open = false) {
     const result = await readPhotoCatalogV1(subject, signal, open);
@@ -136,8 +135,10 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
             new Uint8Array(result.images.portrait).buffer], { type: 'image/webp' }));
           if (result.images.avatar) candidate.avatarUrl = URL.createObjectURL(new Blob([
             new Uint8Array(result.images.avatar).buffer], { type: 'image/webp' }));
-          discard(); ownedConfirmation.current = candidate; setConfirmation(candidate);
+          // The crop itself is the decision (owner request 29/09/2026): save without a second dialog.
+          discard(); ownedConfirmation.current = candidate;
         } finally { clearPhotoBytesV1(result.images); }
+        await persist(candidate, signal);
       } catch (error) {
         if (candidate !== ownedConfirmation.current) dispose(candidate);
         clearPhotoBytesV1(source);
@@ -149,15 +150,12 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   async function persist(value: Confirmation, signal: AbortSignal) {
       const result = await client.current.save(subject, value.command, value.approval, value.source, signal);
       if (result.state === 'pending') {
-        setMessage('O envio ainda não foi confirmado. Repetir a confirmação usa o mesmo pedido, sem duplicar a foto.');
+        setMessage('O envio ainda não foi confirmado. Use “Concluir operação” para terminar sem duplicar a foto.');
         await refresh(signal); return;
       }
       discard(); setRemoving(false); setEditing(false); setInitialPhoto(undefined);
       const current = await refresh(signal); announcePhotoChangeV1(subject, current);
       setMessage(result.cleanupPending ? 'Foto salva. Há uma finalização pendente; use “Concluir operação”.' : 'Foto atualizada.');
-  }
-  function save(value: Confirmation) {
-    void run(signal => persist(value, signal));
   }
   function remove() {
     void run(async signal => {
@@ -191,8 +189,9 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
         {canWrite ? <>
-          <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => catalog?.hasPortrait ? openEditor('replace') : picker.current?.click()}>
-            <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Editar foto' : 'Adicionar foto'}
+          {/* Straight to the explorer or gallery, with or without a current photo (29/09/2026). */}
+          <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => picker.current?.click()}>
+            <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Trocar foto' : 'Adicionar foto'}
           </Button>
           <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" hidden aria-hidden="true" tabIndex={-1}
             onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) openWithFile(file); }} />
@@ -217,21 +216,6 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       {kind === 'avatar' ? <p>Este ajuste altera somente o avatar; a foto principal será preservada.</p> : null}
       <Editor ownerKey={subjectKey + ':' + kind} initialPhoto={initialPhoto} onCancel={() => { setEditing(false); setInitialPhoto(undefined); }} onPrepared={prepared} />
     </Suspense> : null}
-    {confirmation ? <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) discard(); }}>
-      <Modal.Container size="md"><Modal.Dialog aria-label="Confirmar foto final">
-        <Modal.Header><Modal.Heading>Confirmar foto final</Modal.Heading></Modal.Header>
-        <Modal.Body>
-          <p>Esta é a imagem final processada pelo servidor. Confira antes de salvar.</p>
-          <div className="student-photo-panel__preview">
-            {confirmation.portraitUrl ? <img src={confirmation.portraitUrl} alt="Foto principal 3 por 4" className="student-photo-panel__portrait" /> : null}
-            {confirmation.avatarUrl ? <img src={confirmation.avatarUrl} alt="Avatar circular" className="student-photo-panel__avatar" /> : null}
-          </div>
-          {message ? <p role="status">{message}</p> : null}
-        </Modal.Body>
-        <Modal.Footer><Button variant="secondary" isDisabled={busy} onPress={discard}>Cancelar</Button>
-          <Button isDisabled={busy} onPress={() => save(confirmation)}>{busy ? 'Salvando…' : 'Salvar foto'}</Button></Modal.Footer>
-      </Modal.Dialog></Modal.Container>
-    </Modal.Backdrop> : null}
     {removing ? <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) { setRemoving(false); discard(); } }}>
       <Modal.Container size="sm"><Modal.Dialog aria-label="Remover foto do aluno">
         <Modal.Header><Modal.Heading>Remover foto?</Modal.Heading></Modal.Header>

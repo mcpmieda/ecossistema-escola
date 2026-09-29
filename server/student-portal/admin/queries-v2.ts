@@ -2,6 +2,7 @@ import { readCustomizationsV1 } from './customizations-read-v1';
 import { readClosingPreviewV2 } from './closing-preview-v2';
 import { readSettingsOverridesV1 } from './settings-overrides-v1';
 import { readShiftsV1 } from './shifts-read-v1';
+import { readSealsV1 } from './seals-read-v1';
 import { z } from 'zod';
 import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
 import { readSessionsV2 } from './sessions-read-v2';
@@ -39,6 +40,7 @@ export async function readAdminV2(
   if (query.operation === 'settings-overrides')
     return readSettingsOverridesV1(tx, query, actor, requestId, now, cursor);
   if (query.operation === 'shifts-read') return readShiftsV1(tx, query, requestId, now);
+  if (query.operation === 'seals-read') return readSealsV1(tx, query, requestId, now);
   if (query.operation === 'sessions-read')
     return readSessionsV2(tx, query, actor, requestId, now, cursor);
   const after = await cursor.read(query, actor, now);
@@ -51,7 +53,10 @@ export async function readAdminV2(
     values.push(value);
     return `$${values.length}`;
   };
-  const where = ['a.academic_year=2026', ENROLLED_ACCOUNT_SQL_V1];
+  // A single record opens even after the student left (audit links, 29/09/2026); lists and totals
+  // keep showing only enrolled students.
+  const where = ['a.academic_year=2026'];
+  if (query.scope.kind !== 'account' || query.operation !== 'accounts-read') where.push(ENROLLED_ACCOUNT_SQL_V1);
   if (query.scope.kind === 'account') where.push(`a.id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') where.push(`b.class_id=${bind(query.scope.classId)}`);
   if (query.accountState !== undefined) where.push(`a.auth_state=${bind(query.accountState)}`);

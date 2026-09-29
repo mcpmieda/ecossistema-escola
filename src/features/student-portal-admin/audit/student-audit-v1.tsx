@@ -261,7 +261,6 @@ function AuditBodyV1(props: OperationsPropsV1) {
             ) : (
               <AuditEventsV1
                 items={data.items}
-                scope={props.scope}
                 canWrite={props.canWrite}
                 onOpen={openDetail}
                 end={
@@ -362,6 +361,9 @@ function AuditBodyV1(props: OperationsPropsV1) {
   );
 }
 
+/** An event may predate a class change: its record opens by the student, not by the list's class. */
+const AUDIT_RECORD_SCOPE_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
+
 /** The student's own sign-ins and logouts have no ADM operator. */
 function actorLabelV1(event: {
   actorId: string;
@@ -376,13 +378,11 @@ function actorLabelV1(event: {
 // Editing draft filters or expiring an IP must not rebuild 100 event rows.
 const AuditEventsV1 = memo(function AuditEventsV1({
   items,
-  scope,
   canWrite,
   onOpen,
   end,
 }: {
   items: Extract<AdminResponseV1, { state: 'audit' }>['items'];
-  scope: ScopeV1;
   canWrite: boolean;
   onOpen: (id: string) => void;
   end: ReactNode;
@@ -424,7 +424,7 @@ const AuditEventsV1 = memo(function AuditEventsV1({
                     <StudentNameV1
                       accountId={item.accountId}
                       name={item.entities.subjectName}
-                      parentScope={scope}
+                      parentScope={AUDIT_RECORD_SCOPE_V1}
                     />
                   ) : (
                     (item.entities?.subjectName ?? 'Não registrado')
