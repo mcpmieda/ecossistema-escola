@@ -62,7 +62,29 @@ export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-name'), name: z.string().min(1).max(200) }).strict(),
   z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(200), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
-export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: policyScopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
+/**
+ * Why a sign-in was refused and what helps support the family (owner request 29/09/2026). Only
+ * operational facts about the attempt itself: never a secret, a mark or another student.
+ */
+export const AUDIT_REASONS_V1 = [
+  'wrong-pin', 'wrong-password', 'temporarily-blocked', 'verification-required', 'access-closed',
+  'card-replaced', 'account-blocked', 'not-enrolled', 'first-access-pending', 'first-access-not-ready',
+  'password-window-expired', 'already-active', 'retry-needed',
+] as const;
+export const auditDetailV1 = z.object({
+  reason: z.enum(AUDIT_REASONS_V1).optional(),
+  step: z.enum(['card', 'pin', 'password', 'create']).optional(),
+  failures: z.number().int().min(0).max(1000).optional(),
+  blockAfter: z.number().int().min(1).max(1000).optional(),
+  blockedUntil: instantV1.optional(),
+  keepConnected: z.boolean().optional(),
+  device: z.object({
+    platform: z.enum(['android', 'ios', 'windows', 'macos', 'linux', 'chromeos', 'other']),
+    browser: z.enum(['chrome', 'safari', 'firefox', 'edge', 'samsung', 'other']),
+  }).strict().optional(),
+}).strict();
+export type AuditDetailV1 = z.infer<typeof auditDetailV1>;
+export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: policyScopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), detail: auditDetailV1.optional(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
 /** Opt-in acknowledgement read inside the write transaction; no credential material.
  * A replay after a later account change omits this snapshot and retains the original receipt.
  */

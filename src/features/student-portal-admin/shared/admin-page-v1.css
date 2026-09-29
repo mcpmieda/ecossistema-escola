@@ -134,3 +134,72 @@
 .pa-student-drawer .pa-settings--policies .pa-settings-fields {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/*
+ * Responsive review (owner request 29/09/2026): records that open cleanly on phones and desktops,
+ * compact tables and no needless line breaks.
+ */
+/* Tab labels stay on one line; the tab strip scrolls instead of wrapping "Relatório de notas". */
+.pa-admin-page [role='tab'],
+.pa-student-drawer [role='tab'] {
+  white-space: nowrap;
+}
+/* HeroUI's drawer body uses the muted text colour, which made the record read as disabled. */
+.pa-student-drawer .drawer__body {
+  color: var(--foreground);
+}
+/* Inside a record there is one student: tables fit the drawer and wrap instead of clipping. */
+.pa-student-drawer .drawer__body table {
+  min-width: 0;
+  width: 100%;
+}
+.pa-student-drawer .drawer__body td,
+.pa-student-drawer .drawer__body th {
+  overflow-wrap: break-word;
+}
+.pa-student-drawer .drawer__body .card .card {
+  box-shadow: none;
+  border: 1px solid var(--border);
+}
+.pa-student-drawer .drawer__body table .pa-student-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .pa-student-drawer .drawer__body {
+    padding-inline: 0.75rem;
+  }
+  .pa-student-drawer .drawer__body .card__content,
+  .pa-student-drawer .drawer__body .card__header {
+    padding-inline: 0.5rem;
+  }
+  .pa-student-drawer .pa-account-identity--detail .pa-student-avatar {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+  .pa-student-drawer .pa-account-actions > button {
+    flex: 1 1 calc(50% - 0.3rem);
+  }
+  .pa-account-list-card > .card__content {
+    padding: 0.5rem;
+  }
+  /* Phones: the accounts list keeps name and situation; the rest opens in the record. */
+  .pa-admin-page .pa-account-table table {
+    min-width: 0;
+  }
+  .pa-admin-page .pa-account-table th:nth-last-child(-n + 3),
+  .pa-admin-page .pa-account-table td:nth-last-child(-n + 3) {
+    display: none;
+  }
+  .pa-admin-page .pa-account-table th:first-child:not([data-key='selection']),
+  .pa-admin-page .pa-account-table th[data-key='selection'] + th {
+    min-width: 0;
+  }
+}
+
+/* In a record the birth year belongs to that student: the name column would only repeat it. */
+.pa-student-drawer .pa-birth-card table th:first-child,
+.pa-student-drawer .pa-birth-card table td:first-child {
+  display: none;
+}

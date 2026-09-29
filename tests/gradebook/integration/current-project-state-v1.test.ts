@@ -57,7 +57,7 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0022_shift_policy_v1.sql');
+    expect(latest).toBe('0023_audit_detail_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
@@ -66,17 +66,24 @@ describe('current canonical project state', () => {
       },
       student_portal_integration: {
         schema_migration_file: latest,
-        schema_migration_production_version: 20260928092734,
-        schema_migration_production_evidence: 'docs/student-portal/POSTFLIGHT_0022.md',
+        schema_migration_production_version: 20260929071319,
+        schema_migration_production_evidence: 'docs/student-portal/POSTFLIGHT_0023.md',
         schema_table_count: 27,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
       student_portal_schema_latest_migration: latest,
-      student_portal_schema_production_version: 20260928092734,
-      student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0022.md',
+      student_portal_schema_production_version: 20260929071319,
+      student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0023.md',
       student_portal_schema_table_count: 27,
+      audit_detail_0023: {
+        status: 'migration-applied-runtime-deploy-pending',
+        production_migration_applied: true,
+        production_migration_version: 20260929071319,
+        evidence: 'docs/student-portal/POSTFLIGHT_0023.md',
+        deploy_order: 'migration-before-compatible-worker',
+      },
       shift_policy_0022: {
         status: 'migration-applied-runtime-deploy-pending',
         production_migration_applied: true,
@@ -91,6 +98,9 @@ describe('current canonical project state', () => {
         production_migration_versions: [20260922150000, 20260922150001],
       },
     });
+    const auditEvidence = source('docs/student-portal/POSTFLIGHT_0023.md');
+    expect(auditEvidence).toContain('20260929071319');
+    expect(auditEvidence).toContain('b3ddacf8a38848968dd64d4a8349765dcd870178');
     const shiftEvidence = source('docs/student-portal/POSTFLIGHT_0022.md');
     expect(shiftEvidence).toContain('20260928092734');
     expect(shiftEvidence).toContain('4f380b4942c6b5f48f88fd80f70d8c6acf43779a');

@@ -1,6 +1,6 @@
 import { portalMaintenanceHealthV1 } from '../observability/maintenance-health-v1';
 import { z } from 'zod';
-import { auditEventV1, type AdminQueryV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { auditDetailV1, auditEventV1, type AdminQueryV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
@@ -107,6 +107,12 @@ export async function readAccountListV1(tx: StudentPortalPostgresQueryV1, query:
   return accountListResultV1(tx, query, selected, nextCursor);
 }
 
+/** A stored detail that no longer fits the contract is left out rather than failing the list. */
+function auditDetailOfV1(value: unknown) {
+  const parsed = auditDetailV1.safeParse(value);
+  return parsed.success && Object.keys(parsed.data).length ? { detail: parsed.data } : {};
+}
+
 export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: AdminQueryV1,
   actor: string, now: Date, cursor: AdminCursorV1) {
   const after = await cursor.read(query, actor, now);
@@ -128,7 +134,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   // Keep microseconds as text through postgres.js; its timestamp serializer otherwise truncates to JS milliseconds.
   if (after) predicates.push(`(e.occurred_at,e.event_id)<(${bind(after.at)}::text::timestamptz,${bind(after.id)}::uuid)`);
   const rows = await tx.unsafe(`SELECT e.event_id,e.occurred_at,to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,e.actor_id,e.account_id,e.scope_json,e.kind,e.result,
-    e.request_id,e.version::text,e.masked_ip ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${query.operation === 'audit-detail' ? `,
+    e.request_id,e.version::text,e.masked_ip,to_jsonb(e)->'detail_json' AS detail_json ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${query.operation === 'audit-detail' ? `,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days' THEN host(e.raw_ip) ELSE NULL END AS ip,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days'
       THEN LEAST(e.ip_expires_at,e.occurred_at+interval '90 days') ELSE NULL END AS ip_expires_at` : ''}
@@ -136,7 +142,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
     LIMIT ${bind(query.operation === 'audit-detail' ? 1 : query.page.limit + 1)}`, parameters);
   const event = (row: Record<string, unknown>) => auditEventV1.parse({ eventId: row.event_id, at: adminInstantV1(row.occurred_at),
     actorId: row.actor_id, accountId: row.account_id, scope: row.scope_json, kind: row.kind, result: row.result,
-    requestId: row.request_id, version: Number(row.version), maskedIp: row.masked_ip, ...(query.includeEntities ? { entities: { actorName: row.actor_name, subjectName: row.subject_name, classId: row.subject_class_id, classLabel: row.subject_class_label } } : {}) });
+    requestId: row.request_id, version: Number(row.version), maskedIp: row.masked_ip, ...(auditDetailOfV1(row.detail_json)), ...(query.includeEntities ? { entities: { actorName: row.actor_name, subjectName: row.subject_name, classId: row.subject_class_id, classLabel: row.subject_class_label } } : {}) });
   if (query.operation === 'audit-detail') {
     if (rows.length !== 1) throw new Error('student-portal-audit-forbidden');
     return { event: event(rows[0]!), ip: rows[0]!.ip,

@@ -174,12 +174,15 @@ function BirthPageBodyV1(props: PageProps) {
   return (
     <Card aria-label="Anos de nascimento" className="pa-birth-card">
       <Card.Header className="flex-row items-center justify-between gap-3">
-        <Card.Title>{props.scopeLabel}</Card.Title>
+        {/* In a student's record the name is already in the header. */}
+        <Card.Title>{props.scope.kind === 'account' ? 'Ano de nascimento' : props.scopeLabel}</Card.Title>
         <div className="flex items-center gap-2">
           <LiveReadNoticeV1 failed={Boolean(state.refreshError)} />
-          {state.state === 'ready' ? (
+          {state.state === 'ready' && props.scope.kind !== 'account' ? (
             <Chip size="sm" variant="soft">
-              <Chip.Label>{state.rows.length} alunos</Chip.Label>
+              <Chip.Label>
+                {state.rows.length} {state.rows.length === 1 ? 'aluno' : 'alunos'}
+              </Chip.Label>
             </Chip>
           ) : null}
         </div>

@@ -5,6 +5,7 @@ import {
 } from '../../../shared/student-portal-contracts/auth-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { AuthServiceV1 } from '../auth/auth-service-v1';
+import { deviceFamilyV1 } from '../auth/device-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { TurnstileVerifierV1 } from '../auth/turnstile-v1';
 import { servePortalAuthV1, sessionCookieTokenV1 } from '../http/auth/handler-v1';
@@ -80,6 +81,8 @@ export async function servePortalSelfV1(
             keys.pepperVersion,
             new TurnstileVerifierV1(env.TURNSTILE_SECRET_KEY!),
             clientIp,
+            undefined,
+            deviceFamilyV1(request.headers.get('user-agent')),
           ),
         ),
       );

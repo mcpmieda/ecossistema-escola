@@ -427,7 +427,8 @@
   box-shadow: none;
   border: 0;
 }
-.pa-student-drawer .pa-account-identity .pa-student-avatar {
+/* Only the record's own header shows the large photo; rows inside its tabs keep small avatars. */
+.pa-student-drawer .pa-account-identity--detail .pa-student-avatar {
   width: 5rem;
   height: 5rem;
 }

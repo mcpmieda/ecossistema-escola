@@ -167,6 +167,7 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0021_access_schedule_v1.sql', 'utf8'));
   // 0008's SECURITY DEFINER pin is owned by the schema owner in this fixture.
   await admin.unsafe(readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0023_audit_detail_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { AccountRecordV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
-import type { auditEventV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import type { AuditDetailV1, auditEventV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
@@ -45,9 +45,10 @@ export async function accessContextV1(sql: StudentPortalPostgresSqlV1, tx: Stude
 export type AccessContextV1 = NonNullable<Awaited<ReturnType<typeof accessContextV1>>>;
 export async function authAuditV1(store: PortalTransactionV1, account: AccountRecordV1,
   kind: z.infer<typeof auditEventV1>['kind'], now: Date, requestId: string, actorId = account.id,
-  result: 'success' | 'denied' = 'success') {
+  result: 'success' | 'denied' = 'success', detail?: AuditDetailV1) {
   await store.appendAudit({ eventId: crypto.randomUUID(), at: now.toISOString(), actorId, accountId: account.id,
-    scope: accountScopeV1(account.id), kind, result, requestId, version: account.version, maskedIp: null });
+    scope: accountScopeV1(account.id), kind, result, requestId, version: account.version, maskedIp: null,
+    ...(detail && Object.keys(detail).length ? { detail } : {}) });
 }
 export async function revokeChallengesV1(tx: StudentPortalPostgresQueryV1, accountId: string, now: Date) {
   await tx.unsafe('UPDATE student_portal.auth_challenge SET consumed_at=$2::timestamptz WHERE account_id=$1::uuid AND consumed_at IS NULL',
