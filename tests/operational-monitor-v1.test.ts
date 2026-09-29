@@ -139,6 +139,26 @@ describe('operational monitor evidence', () => {
 });
 
 describe('status and incident publication', () => {
+  it('does not resolve a deployment incident while the next run is queued or cancelled', () => {
+    for (const result of [
+      { status: 'in_progress' },
+      { status: 'completed', conclusion: 'cancelled' },
+    ]) {
+      const classification = classifyMonitorV1(
+        {
+          github: [{ workflow: 'deploy-cloudflare-pages.yml', state: 'accessible', ...result }],
+          deployment: { pages: { state: 'accessible', status: 'queued' } },
+        },
+        now,
+      );
+      expect(
+        unresolvedAlertsV1(['production-workflow', 'cloudflare:pages'], {
+          ...report,
+          ...classification,
+        }),
+      ).toEqual(['production-workflow', 'cloudflare:pages']);
+    }
+  });
   it('preserves incidents when their source becomes unavailable instead of declaring recovery', () => {
     const previous = ['probe:portal-health', 'worker-errors', 'telemetry:auth-result:error'];
     const unknown = {

@@ -170,6 +170,7 @@ export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
     const row = object(deploy[name]);
     if (row.state !== 'accessible') gaps.push(`cloudflare:${name}`);
     if (row.present === false || row.status === 'failure') alerts.push(`cloudflare:${name}`);
+    if (name === 'pages' && row.status !== 'success') gaps.push('cloudflare:pages');
   }
   if ((count(object(deploy.analytics).errors) ?? 0) > 0) alerts.push('worker-errors');
   const hyperdrive = object(object(signals.hyperdrive).hyperdrive);
@@ -205,6 +206,7 @@ export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
     if (row.state !== 'accessible') gaps.push(id);
     else if (['failure', 'timed_out', 'action_required'].includes(String(row.conclusion)))
       alerts.push(id);
+    if (row.status !== 'completed' || row.conclusion !== 'success') gaps.push(id);
     if (
       !isDeploy &&
       (!timestamp(row.updatedAt) ||
