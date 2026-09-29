@@ -102,6 +102,59 @@ function githubRunSummaryV1(workflow: string, run: ObjectValue) {
   };
 }
 
+async function productionJobEvidenceV1(token: string, run: ObjectValue, fetcher: typeof fetch) {
+  const metadata = githubRunSummaryV1('deploy-cloudflare-pages.yml', run);
+  const incomplete = {
+    ...metadata,
+    scope: 'production-job',
+    state: 'inconclusive',
+    status: undefined,
+    conclusion: undefined,
+  };
+  if (typeof run.id !== 'number' || !Number.isSafeInteger(run.id) || run.id <= 0) return incomplete;
+  const response = await fetcher(
+    `https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
+    {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!response.ok) {
+    await response.body?.cancel();
+    const state =
+      response.status === 401 || response.status === 403 ? 'permission-required' : 'unavailable';
+    return { ...incomplete, state };
+  }
+  const data = object(await response.json());
+  const jobs = list(data.jobs)
+    .map(object)
+    .filter((job) => job.name === 'Deploy production');
+  if (jobs.length !== 1) return incomplete;
+  const job = jobs[0]!;
+  return {
+    ...githubRunSummaryV1('deploy-cloudflare-pages.yml', {
+      id: run.id,
+      head_sha: run.head_sha,
+      updated_at: job.completed_at ?? job.started_at ?? run.updated_at,
+      status: job.status,
+      conclusion: job.conclusion,
+    }),
+    scope: 'production-job',
+  };
+}
+
+async function githubWorkflowEvidenceV1(
+  workflow: string,
+  token: string,
+  run: ObjectValue,
+  fetcher: typeof fetch,
+) {
+  return workflow === 'deploy-cloudflare-pages.yml'
+    ? productionJobEvidenceV1(token, run, fetcher)
+    : githubRunSummaryV1(workflow, run);
+}
+
 export async function githubEvidenceV1(token: string, fetcher = fetch) {
   const reports: ObjectValue[] = [];
   for (const workflow of ['deploy-cloudflare-pages.yml', 'entra-operations-audit.yml']) {
@@ -131,7 +184,7 @@ export async function githubEvidenceV1(token: string, fetcher = fetch) {
       }
       const data = object(await response.json()),
         run = object(list(data.workflow_runs)[0]);
-      reports.push(githubRunSummaryV1(workflow, run));
+      reports.push(await githubWorkflowEvidenceV1(workflow, token, run, fetcher));
     } catch {
       reports.push({ workflow, state: 'unavailable' });
     }
@@ -267,7 +320,7 @@ const explanations: Record<string, string> = {
   'worker-errors': 'Cloudflare registrou erros do Worker na janela de 60 minutos.',
   'hyperdrive-config': 'A configuração lida diverge do esperado: cache desabilitado e limite 8.',
   'sonar-quality-gate': 'O Quality Gate público do Sonar está reprovado.',
-  'production-workflow': 'O workflow de publicação mais recente terminou com falha.',
+  'production-workflow': 'O job de publicação mais recente terminou com falha.',
   'entra-audit': 'A auditoria existente do Entra terminou com falha.',
   'database-no-workflow-credential':
     'Banco: consultas profundas e contagens de contas/sessões não estão conectadas; não há credencial de diagnóstico de banco neste workflow.',

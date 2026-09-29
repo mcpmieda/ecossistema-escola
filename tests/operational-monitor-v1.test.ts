@@ -103,6 +103,80 @@ describe('operational monitor evidence', () => {
     );
     expect(failed.alerts).toContain('telemetry:native-outcome:error');
   });
+  it.each([
+    { status: 'completed', conclusion: 'success', alert: false, gap: false },
+    { status: 'completed', conclusion: 'failure', alert: true, gap: true },
+    { status: 'in_progress', conclusion: null, alert: false, gap: true },
+  ])(
+    'classifies only the production job: $status / $conclusion',
+    async ({ status, conclusion, alert, gap }) => {
+      const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+        expect(init?.redirect).toBe('error');
+        if (String(url).includes('/jobs?')) {
+          expect(String(url)).toBe(
+            'https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/runs/10/jobs?filter=latest&per_page=100',
+          );
+          return new Response(
+            JSON.stringify({
+              jobs: [
+                {
+                  name: 'Deploy production',
+                  status,
+                  conclusion,
+                  completed_at: now.toISOString(),
+                  private: 'SECRET',
+                },
+                { name: 'Monitoramento', status: 'completed', conclusion: 'failure' },
+              ],
+            }),
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            workflow_runs: [
+              {
+                id: 10,
+                head_sha: 'a'.repeat(40),
+                updated_at: now.toISOString(),
+                status: 'completed',
+                conclusion: 'failure',
+              },
+            ],
+          }),
+        );
+      });
+      const github = await githubEvidenceV1('private-token', fetcher);
+      expect(github[0]).toMatchObject({ scope: 'production-job', status });
+      const classification = classifyMonitorV1({ github }, now);
+      expect(classification.alerts.includes('production-workflow')).toBe(alert);
+      expect(classification.gaps.includes('production-workflow')).toBe(gap);
+      expect(classification.alerts).toContain('entra-audit');
+      expect(JSON.stringify(github)).not.toMatch(/SECRET|private-token|Monitoramento/u);
+    },
+  );
+  it.each([200, 403])(
+    'keeps absent or inaccessible production jobs inconclusive, HTTP %i',
+    async (status) => {
+      const fetcher = vi.fn<typeof fetch>(async (url) =>
+        String(url).includes('/jobs?')
+          ? new Response(JSON.stringify({ jobs: [], error: 'SECRET' }), { status })
+          : new Response(
+              JSON.stringify({
+                workflow_runs: [{ id: 10, status: 'completed', conclusion: 'success' }],
+              }),
+            ),
+      );
+      const github = await githubEvidenceV1('private-token', fetcher);
+      expect(github[0]?.state).toBe(status === 200 ? 'inconclusive' : 'permission-required');
+      const classification = classifyMonitorV1({ github }, now);
+      expect(classification.gaps).toContain('production-workflow');
+      expect(classification.alerts).not.toContain('production-workflow');
+      expect(unresolvedAlertsV1(['production-workflow'], { ...report, ...classification })).toEqual(
+        ['production-workflow'],
+      );
+      expect(JSON.stringify(github)).not.toContain('SECRET');
+    },
+  );
   it('returns only enumerated GitHub evidence', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
