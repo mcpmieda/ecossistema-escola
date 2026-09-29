@@ -1,3 +1,6 @@
+import { AccountOpenContextV1 } from '../shared/account-open-v1';
+import { Star } from 'lucide-react';
+import { sealLabelV1, useSealCountsV1 } from './brilliant-seals-v1';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertDialog, Button, Card, Drawer, Tabs, Tooltip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
@@ -286,7 +289,10 @@ function AccountDetailBodyV1({
         )}
         {account && context && (
           <>
-            <AccountIdentityV1 account={account} detail />
+            <div className="pa-account-profile">
+              <AccountIdentityV1 account={account} detail />
+              <RecordSealsV1 reader={reader} accountId={account.accountId} />
+            </div>
             <StudentPhotoPanelV1
               showAvatar={false}
               canWrite={canWrite}
@@ -325,12 +331,14 @@ function AccountDetailBodyV1({
               </Tooltip>
             </div>
             {!canWrite && <p>Modo somente leitura.</p>}
-            {!accountManageableV1(account) && (
+            {account.eligibility === 'exit' ? (
+              <p>Aluno com saída da escola: ficha somente para consulta.</p>
+            ) : !accountManageableV1(account) ? (
               <p>
                 As ações de credenciais estão indisponíveis para este vínculo. Corrija a origem ou
                 use o procedimento administrativo próprio; não há associação por nome.
               </p>
-            )}
+            ) : null}
             <div className="pa-account-actions" aria-label="Ações de acesso">
               {(slots?.credentials || onReprint) && (
                 <Button
@@ -411,9 +419,13 @@ function AccountDetailBodyV1({
                       className="pa-account-slot"
                       hidden={key !== activeSlot}
                     >
-                      <LiveRefreshScopeV1 active={key === activeSlot}>
-                        {slots?.[key as keyof AccountSlotsV1]?.(context)}
-                      </LiveRefreshScopeV1>
+                      {/* Inside a record every row is this student: names are plain text, so a
+                          click never stacks a second record over this one. */}
+                      <AccountOpenContextV1.Provider value={null}>
+                        <LiveRefreshScopeV1 active={key === activeSlot}>
+                          {slots?.[key as keyof AccountSlotsV1]?.(context)}
+                        </LiveRefreshScopeV1>
+                      </AccountOpenContextV1.Provider>
                     </Tabs.Panel>
                   ))}
               </Tabs>
@@ -467,5 +479,19 @@ function AccountDetailBodyV1({
         </AlertDialog.Backdrop>
       </Card.Content>
     </Card>
+  );
+}
+
+/** Beside the profile: the Selos brilhantes the student sees on the Portal (29/09/2026). */
+function RecordSealsV1({ reader, accountId }: { reader: AccountDetailPropsV1['reader']; accountId: string }) {
+  const seals = useSealCountsV1(reader, { accountId });
+  const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
+  if (count === undefined || count === null) return null;
+  return (
+    <span className="pa-record-seals" aria-label={sealLabelV1(count)}>
+      <Star size={16} fill="currentColor" aria-hidden="true" />
+      <strong>{count}</strong>
+      <span>{count === 1 ? 'selo brilhante' : 'selos brilhantes'}</span>
+    </span>
   );
 }

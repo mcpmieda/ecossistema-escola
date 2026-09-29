@@ -509,3 +509,33 @@
   width: min(100%, 40rem);
   margin-inline: auto;
 }
+/* Selos brilhantes (29/09/2026): gold, as on the Portal. */
+.pa-account-profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.pa-record-seals,
+.pa-seal-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--warning);
+  font-variant-numeric: tabular-nums;
+}
+.pa-record-seals {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #eab308 16%, transparent);
+  font-size: 0.875rem;
+}
+.pa-seal-count {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pa-account-table td > .pa-seal-count {
+  display: flex;
+}

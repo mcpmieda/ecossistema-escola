@@ -133,7 +133,8 @@ it('shows historical entities and opens the authorized account by its id, never 
     }) : undefined });
   render(createElement(AccountOpenContextV1.Provider, { value: open }, createElement(StudentAuditV1, mock.props)));
   fireEvent.click(await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC HISTORICAL NAME' }));
-  expect(open).toHaveBeenCalledWith('75600000-0000-4000-8000-000000000001', mock.props.scope);
+  // By the student, not by the list's class: an event may predate a class change (29/09/2026).
+  expect(open).toHaveBeenCalledWith('75600000-0000-4000-8000-000000000001', { kind: 'school', academicYear: 2026 });
   expect(screen.getByText('SYNTHETIC OPERATOR')).toBeTruthy();
   expect(screen.getByText('SYNTHETIC HISTORICAL CLASS')).toBeTruthy();
   expect(mock.queries.find(query => query.operation === 'audit')).toMatchObject({ includeEntities: true });

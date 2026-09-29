@@ -420,6 +420,16 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
         attentionSubjectIds: [800001],
       },
     });
+  if (query.operation === 'seals-read') {
+    // Synthetic Selos brilhantes (29/09/2026).
+    const members = scope.kind === 'account'
+      ? mock.accounts.filter((item) => item.accountId === scope.accountId)
+      : mock.accounts.filter((item) => scope.kind === 'class' && item.classId === scope.classId);
+    return opJsonV1({
+      ...meta, contractVersion: 2, state: 'seals-read', observedAt,
+      items: members.map((item, index) => ({ accountId: item.accountId, seals: (index * 3) % 7 })),
+    });
+  }
   if (query.operation === 'audit' || query.operation === 'audit-detail') {
     // Synthetic sign-in events with refusal reasons (owner request 29/09/2026).
     const people = mock.accounts.slice(0, 3);

@@ -51,7 +51,8 @@ export function accountManageableV1(account: AdminAccountReadV2) {
     account.link !== null &&
     account.classId !== null &&
     account.eligibility !== 'unlinked' &&
-    account.eligibility !== 'unresolved'
+    account.eligibility !== 'unresolved' &&
+    account.eligibility !== 'exit'
   );
 }
 export function accountStateLabelV1(account: AdminAccountReadV2) {

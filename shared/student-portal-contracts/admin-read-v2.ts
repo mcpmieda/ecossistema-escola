@@ -32,7 +32,7 @@ export function adminClassCatalogRequestV2(
 /** Opt-in reads only; every existing query/response and CAS meaning remains unchanged. */
 export const adminReadQueryV2 = z.object({
   contractVersion: z.literal(2),
-  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read']),
+  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read', 'seals-read']),
   scope: scopeV1,
   page: pageRequestV1,
   accountState: accountStateV1.optional(),
@@ -53,7 +53,11 @@ export const adminReadQueryV2 = z.object({
   // Turnos (owner decision 28/09/2026): the whole school's shifts, no filters.
   .refine((value) => value.operation !== 'shifts-read' ||
     (value.scope.kind === 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
-  'Shifts are read for the school');
+  'Shifts are read for the school')
+  // Selos brilhantes (owner request 29/09/2026): one record or one class at a time.
+  .refine((value) => value.operation !== 'seals-read' ||
+    (value.scope.kind !== 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
+  'Seals are read for a record or a class');
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z.object({
   state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: policyScopeV1.nullable(),
@@ -95,6 +99,10 @@ export type ShiftSummaryV1 = z.infer<typeof shiftSummaryV1>;
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
+  // Seals each student currently sees on the Portal; null when the Portal shows no marks to them.
+  z.object({ ...base, state: z.literal('seals-read'), items: z.array(z.object({
+    accountId: portalIdV1, seals: z.number().int().nonnegative().max(1000).nullable(),
+  }).strict()).max(200) }).strict(),
   z.object({ ...base, state: z.literal('closing-preview'), scope: scopeV1,
     available: z.boolean(), visibleToStudent: z.boolean(), mode: z.enum(TERM_CLOSING_MODES_V1),
     closedPeriods: z.array(z.enum(TERM_CLOSING_PERIODS_V1)).max(3),

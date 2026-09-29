@@ -24,7 +24,7 @@ it('mounts the official editor, keeps the file input stable, and prepares only a
   expect(prepare).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: '600 px' }));
   await user.click(screen.getByRole('button', { name: '86%' }));
-  await user.click(screen.getByRole('button', { name: 'Usar enquadramentos' }));
+  await user.click(screen.getByRole('button', { name: 'Salvar foto' }));
   await waitFor(() => expect(prepared).toHaveBeenCalledOnce());
   expect(prepare.mock.calls[0]?.[1]).toMatchObject({ portraitWidth: 600, quality: 0.86 });
   expect(screen.queryByText('Alteração salva.')).toBeNull(); expect(cancelled).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ it('cancel while encoding prevents a late callback from applying the draft', asy
   const media: PhotoEditorMediaV1 = { load: async () => photo, prepare: () => pending };
   render(<StudentPhotoEditorV1 ownerKey="synthetic-a" media={media} onPrepared={onPrepared} onCancel={onCancel} />);
   await user.upload(screen.getByLabelText('Escolher foto'), file()); await screen.findByAltText('Prévia: Foto 3×4');
-  await user.click(screen.getByRole('button', { name: 'Usar enquadramentos' }));
+  await user.click(screen.getByRole('button', { name: 'Salvar foto' }));
   expect(screen.getByText('Preparando enquadramentos…').tagName).toBe('OUTPUT');
   await user.click(screen.getByRole('button', { name: 'Cancelar' }));
   finish({} as PhotoDraftV1);

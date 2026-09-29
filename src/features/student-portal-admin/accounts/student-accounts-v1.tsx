@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Card, Checkbox, Tooltip, Input, Label, Table, TextField } from '@heroui/react';
+import { Button, Card, Checkbox, Tooltip, Input, Label, ListBox, Select, Table, TextField } from '@heroui/react';
+import { Star } from 'lucide-react';
+import { sealLabelV1, useSealCountsV1, type SealCountsV1 } from './brilliant-seals-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -52,8 +54,16 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
     />
   );
 }
+/** Classificação da lista (owner request 29/09/2026). */
+type AccountOrderV1 = 'name' | 'seals' | 'last-access';
+const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string }[] = [
+  { id: 'name', label: 'Nome (A–Z)' },
+  { id: 'seals', label: 'Selos brilhantes' },
+  { id: 'last-access', label: 'Último acesso' },
+];
 function AccountsBodyV1(props: StudentAccountsPropsV1) {
   const [name, setName] = useState('');
+  const [order, setOrder] = useState<AccountOrderV1>('name');
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
@@ -115,6 +125,30 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
               }}
               options={ACCOUNT_STATE_OPTIONS_V1}
             />
+            <Select
+              className="pa-account-order min-w-48 max-w-64"
+              selectedKey={order}
+              onSelectionChange={(key) => {
+                const next = ACCOUNT_ORDERS_V1.find((item) => item.id === key);
+                if (next) setOrder(next.id);
+              }}
+            >
+              <Label>Classificar por</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {ACCOUNT_ORDERS_V1.map((item) => (
+                    <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+                      {item.label}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
             <AccountFilterTagsV1
               label="Bloqueio"
               selected={blocks}
@@ -136,6 +170,7 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         ])}
         {...props}
         query={query}
+        order={order}
         states={states}
         blocks={blocks}
         qrMount={qrMount}
@@ -147,9 +182,38 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
     </section>
   );
 }
+function orderAccountsV1<T extends { accountId: string; name: string; lastAuthenticationAt: string | null }>(
+  items: readonly T[],
+  order: AccountOrderV1,
+  seals: SealCountsV1 | null,
+): T[] {
+  if (order === 'name') return [...items];
+  const byName = (left: T, right: T) => left.name.localeCompare(right.name, 'pt-BR');
+  if (order === 'last-access')
+    return [...items].sort(
+      (left, right) =>
+        (right.lastAuthenticationAt ?? '').localeCompare(left.lastAuthenticationAt ?? '') ||
+        byName(left, right),
+    );
+  if (!seals) return [...items];
+  return [...items].sort(
+    (left, right) =>
+      (seals.get(right.accountId) ?? -1) - (seals.get(left.accountId) ?? -1) || byName(left, right),
+  );
+}
+function SealCountV1({ count }: { count: number | null | undefined }) {
+  if (count === undefined || count === null) return null;
+  return (
+    <span className="pa-seal-count" aria-label={sealLabelV1(count)}>
+      <Star size={12} fill="currentColor" aria-hidden="true" />
+      {count}
+    </span>
+  );
+}
 function AccountsResultsV1(
   props: StudentAccountsPropsV1 & {
     query: AdminReadQueryV2;
+    order: AccountOrderV1;
     states: Set<string>;
     blocks: Set<string>;
     qrMount: HTMLDivElement | null;
@@ -179,9 +243,32 @@ function AccountsResultsV1(
   );
   const read = useContinuousReadV1(load, 'accountId', undefined, selectedId === null, false);
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
-  const visibleItems =
+  const filteredItems =
     current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
     [];
+  // Any order other than the server's alphabetical one needs the whole list.
+  const { more, refreshing, loadMore } = read;
+  useEffect(() => {
+    if (props.order !== 'name' && more && !refreshing) loadMore();
+  }, [props.order, more, refreshing, loadMore]);
+  const complete = Boolean(current && !current.nextCursor);
+  const sealClassIds = useMemo(
+    () =>
+      props.query.scope.kind === 'class'
+        ? [props.query.scope.classId]
+        : [...new Set((current?.items ?? []).flatMap((item) => (item.classId ? [item.classId] : [])))],
+    [props.query.scope, current?.items],
+  );
+  const seals = useSealCountsV1(
+    props.reader,
+    props.order === 'seals' && complete && sealClassIds.length ? { classIds: sealClassIds } : null,
+  );
+  const sealCounts = seals.state === 'ready' ? seals.counts : null;
+  // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
+  const visibleItems = orderAccountsV1(filteredItems, props.order, sealCounts).map((account) => ({
+    ...account,
+    seals: sealCounts?.get(account.accountId),
+  }));
   const qrClass = props.query.scope.kind === 'class' ? props.query.scope : null;
   const eligibleQr = new Set(
     visibleItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
@@ -251,7 +338,7 @@ function AccountsResultsV1(
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
             <p role="status">
               {current
-                ? `${visibleItems.length} alunos${current.nextCursor ? ' · lista em carregamento' : ''}`
+                ? `${visibleItems.length} ${visibleItems.length === 1 ? 'aluno' : 'alunos'}${current.nextCursor ? ' · lista em carregamento' : ''}${props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : ''}`
                 : 'Alunos'}
             </p>
             <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
@@ -363,6 +450,7 @@ function AccountsResultsV1(
                         </Table.Cell>
                         <Table.Cell>
                           <AccountStatusV1 account={account} />
+                          <SealCountV1 count={account.seals} />
                           {account.state !== 'active' && (
                             <span className="text-xs text-muted">
                               {firstAccessLabelV1(account)}

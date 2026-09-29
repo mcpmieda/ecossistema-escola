@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Button, Label, Modal } from '@heroui/react';
 import { initialPhotoCropV1 } from '../../../shared/student-photos/crop-v1';
 import { createPhotoEditorControllerV1, type PhotoEditorMediaV1 } from './draft-controller-v1';
@@ -32,6 +32,7 @@ function PhotoEditorSessionV1({ onCancel, onPrepared, initialPhoto, media }: Rea
   const controller = useMemo(() => createPhotoEditorControllerV1(media), [media]);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const inputId = useId();
+  const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (initialPhoto) void controller.select(initialPhoto);
     return () => controller.reset();
@@ -42,9 +43,10 @@ function PhotoEditorSessionV1({ onCancel, onPrepared, initialPhoto, media }: Rea
     <Modal.Container size="lg"><Modal.Dialog aria-label="Editar foto do aluno" className="student-photo-editor">
       <Modal.Header><Modal.Heading>Editar foto do aluno</Modal.Heading></Modal.Header>
       <Modal.Body>
-        <div className="student-photo-picker">
+        {/* Opened with a photo already chosen, the native file control stays out of the way. */}
+        <div className="student-photo-picker" hidden={initialPhoto !== undefined}>
           <Label htmlFor={inputId}>Escolher foto</Label>
-          <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" disabled={state.status === 'preparing'}
+          <input ref={input} id={inputId} type="file" accept="image/jpeg,image/png,image/webp" disabled={state.status === 'preparing'}
             onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
               if (file) void controller.select(file); }} />
         </div>
@@ -68,16 +70,20 @@ function PhotoEditorSessionV1({ onCancel, onPrepared, initialPhoto, media }: Rea
               variant={state.options.quality === quality ? 'primary' : 'secondary'} aria-pressed={state.options.quality === quality}
               onPress={() => controller.output(state.options.portraitWidth, quality)}>{Math.round(quality * 100)}%</Button>)}
           </fieldset>
-          <Button type="button" variant="tertiary" isDisabled={busy} onPress={() => {
-            controller.change('portrait', initialPhotoCropV1('portrait')); controller.change('avatar', initialPhotoCropV1('avatar'));
-          }}>Reiniciar enquadramentos</Button>
+          <div className="student-photo-editor__tools">
+            {initialPhoto !== undefined ? <Button type="button" variant="tertiary" isDisabled={busy} onPress={() => input.current?.click()}>
+              Escolher outra foto</Button> : null}
+            <Button type="button" variant="tertiary" isDisabled={busy} onPress={() => {
+              controller.change('portrait', initialPhotoCropV1('portrait')); controller.change('avatar', initialPhotoCropV1('avatar'));
+            }}>Reiniciar enquadramentos</Button>
+          </div>
         </> : null}
       </Modal.Body>
       <Modal.Footer>
         <Button type="button" variant="secondary" onPress={cancel}>Cancelar</Button>
         <Button type="button" isDisabled={!state.source || busy} onPress={() => {
           void controller.prepare().then(draft => { if (draft) onPrepared(draft); });
-        }}>Usar enquadramentos</Button>
+        }}>Salvar foto</Button>
       </Modal.Footer>
     </Modal.Dialog></Modal.Container>
   </Modal.Backdrop>;

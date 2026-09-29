@@ -13,3 +13,8 @@
 .student-photo-options { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: .75rem; padding: 0; border: 0; min-width: 0; }
 .student-photo-options legend { margin-bottom: .5rem; padding: 0; }
 @media (max-width: 36rem) { .student-photo-grid { grid-template-columns: minmax(0, 1fr); } }
+.student-photo-editor__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
