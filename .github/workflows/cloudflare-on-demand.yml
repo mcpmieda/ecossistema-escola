@@ -40,7 +40,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'issue_comment' && github.actor == github.repository_owner && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  group: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'issue_comment' && github.actor_id == github.repository_owner_id && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -74,7 +74,7 @@ jobs:
   execute:
     name: Execute bounded Cloudflare read-only operation
     if: >-
-      github.actor == github.repository_owner &&
+      github.repository_id == '1345061518' && github.actor_id == github.repository_owner_id &&
       (
         (github.event_name == 'workflow_dispatch' && (inputs.operation == 'capabilities' || inputs.operation == 'portal')) ||
         (
@@ -127,7 +127,8 @@ jobs:
         if: steps.request.outputs.run == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: main
+          repository: mcpmieda/ecossistema-escola
+          ref: refs/heads/main
           fetch-depth: 1
           persist-credentials: false
 
@@ -296,10 +297,10 @@ jobs:
   monitor:
     name: Monitoramento automático — saúde, evidências e lacunas
     if: >-
-      github.repository == 'mcpmieda/ecossistema-escola' &&
+      github.repository_id == '1345061518' &&
       (github.event_name == 'schedule' ||
-       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository) ||
-       (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner && github.ref == 'refs/heads/main' && (inputs.operation == 'monitor' || inputs.operation == 'daily')))
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.id == github.repository_id) ||
+       (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id && github.ref == 'refs/heads/main' && (inputs.operation == 'monitor' || inputs.operation == 'daily')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: production
@@ -314,7 +315,8 @@ jobs:
       - name: Checkout confiável da main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: main
+          repository: mcpmieda/ecossistema-escola
+          ref: refs/heads/main
           persist-credentials: false
 
       - name: Preparar Node.js

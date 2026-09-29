@@ -34,6 +34,12 @@ const timestamp = (value: unknown): string | undefined =>
 const sha = (value: unknown): string | undefined =>
   typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value) ? value : undefined;
 
+function scalar(value: unknown, fallback = '—'): string {
+  if (typeof value === 'string' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
 export function monitorWindowV1(now: Date, daily = false) {
   const interval = daily ? 86_400_000 : 900_000;
   const offset = daily ? 10_800_000 : 0; // midnight America/Sao_Paulo (UTC-03).
@@ -73,6 +79,29 @@ export function deploymentSummaryV1(input: unknown) {
   };
 }
 
+function githubRunSummaryV1(workflow: string, run: ObjectValue) {
+  return {
+    workflow,
+    state: run.id ? 'accessible' : 'inconclusive',
+    runId: Number.isSafeInteger(run.id) ? run.id : undefined,
+    headSha: sha(run.head_sha),
+    updatedAt: timestamp(run.updated_at),
+    status: ['completed', 'in_progress', 'queued', 'waiting', 'pending', 'requested'].find(
+      (value) => value === run.status,
+    ),
+    conclusion: [
+      'success',
+      'failure',
+      'cancelled',
+      'timed_out',
+      'neutral',
+      'skipped',
+      'action_required',
+      'stale',
+    ].find((value) => value === run.conclusion),
+  };
+}
+
 export async function githubEvidenceV1(token: string, fetcher = fetch) {
   const reports: ObjectValue[] = [];
   for (const workflow of ['deploy-cloudflare-pages.yml', 'entra-operations-audit.yml']) {
@@ -102,26 +131,7 @@ export async function githubEvidenceV1(token: string, fetcher = fetch) {
       }
       const data = object(await response.json()),
         run = object(list(data.workflow_runs)[0]);
-      reports.push({
-        workflow,
-        state: run.id ? 'accessible' : 'inconclusive',
-        runId: Number.isSafeInteger(run.id) ? run.id : undefined,
-        headSha: sha(run.head_sha),
-        updatedAt: timestamp(run.updated_at),
-        status: ['completed', 'in_progress', 'queued', 'waiting', 'pending', 'requested'].find(
-          (value) => value === run.status,
-        ),
-        conclusion: [
-          'success',
-          'failure',
-          'cancelled',
-          'timed_out',
-          'neutral',
-          'skipped',
-          'action_required',
-          'stale',
-        ].find((value) => value === run.conclusion),
-      });
+      reports.push(githubRunSummaryV1(workflow, run));
     } catch {
       reports.push({ workflow, state: 'unavailable' });
     }
@@ -141,9 +151,19 @@ export type MonitorReportV1 = {
   gaps: string[];
 };
 
-export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
-  const alerts: string[] = [],
-    gaps: string[] = [];
+function telemetryRowFailedV1(raw: unknown) {
+  const row = object(raw),
+    dims = object(row.dimensions);
+  const total = Number(scalar(row.count, '0'));
+  if (Number.isNaN(total) || total <= 0) return false;
+  return (
+    ['unavailable', 'exception', 'exceededCpu', 'exceededMemory', 'scriptNotFound'].includes(
+      scalar(dims.outcome ?? dims['$workers.outcome']),
+    ) || Number(dims.status) >= 500
+  );
+}
+
+function classifyPublicV1(signals: Record<string, unknown>, alerts: string[], gaps: string[]) {
   const publicRead = object(signals.public);
   for (const raw of list(publicRead.probes)) {
     const probe = object(raw);
@@ -165,6 +185,9 @@ export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
   const sonar = object(publicRead.sonar);
   if (sonar.status === 'ERROR') alerts.push('sonar-quality-gate');
   else if (sonar.state !== 'ok') gaps.push('sonar');
+}
+
+function classifyDeploymentV1(signals: Record<string, unknown>, alerts: string[], gaps: string[]) {
   const deploy = object(signals.deployment);
   for (const name of ['worker', 'pages', 'analytics']) {
     const row = object(deploy[name]);
@@ -173,10 +196,16 @@ export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
     if (name === 'pages' && row.status !== 'success') gaps.push('cloudflare:pages');
   }
   if ((count(object(deploy.analytics).errors) ?? 0) > 0) alerts.push('worker-errors');
+}
+
+function classifyHyperdriveV1(signals: Record<string, unknown>, alerts: string[], gaps: string[]) {
   const hyperdrive = object(object(signals.hyperdrive).hyperdrive);
   if (hyperdrive.state !== 'accessible') gaps.push('hyperdrive');
   else if (hyperdrive.cacheDisabled !== true || hyperdrive.originConnections !== 8)
     alerts.push('hyperdrive-config');
+}
+
+function classifyTelemetryV1(signals: Record<string, unknown>, alerts: string[], gaps: string[]) {
   const telemetry = object(signals.telemetry);
   for (const raw of list(telemetry.sources)) {
     const source = object(raw);
@@ -185,43 +214,53 @@ export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
     );
     if (!id) continue;
     if (source.state !== 'observed') gaps.push(`telemetry:${id}`);
-    for (const rawRow of list(source.rows)) {
-      const row = object(rawRow),
-        dims = object(row.dimensions);
-      if (!(Number(row.count) > 0)) continue;
-      if (
-        ['unavailable', 'exception', 'exceededCpu', 'exceededMemory', 'scriptNotFound'].includes(
-          String(dims.outcome ?? dims['$workers.outcome']),
-        ) ||
-        Number(dims.status) >= 500
-      )
-        alerts.push(`telemetry:${id}:error`);
-    }
+    if (list(source.rows).some(telemetryRowFailedV1)) alerts.push(`telemetry:${id}:error`);
   }
   if (!Array.isArray(telemetry.sources)) gaps.push('telemetry');
+}
+
+function classifyGithubV1(
+  signals: Record<string, unknown>,
+  alerts: string[],
+  gaps: string[],
+  now: Date,
+) {
   for (const raw of list(signals.github)) {
     const row = object(raw),
       isDeploy = row.workflow === 'deploy-cloudflare-pages.yml';
     const id = isDeploy ? 'production-workflow' : 'entra-audit';
     if (row.state !== 'accessible') gaps.push(id);
-    else if (['failure', 'timed_out', 'action_required'].includes(String(row.conclusion)))
+    else if (['failure', 'timed_out', 'action_required'].includes(scalar(row.conclusion)))
       alerts.push(id);
     if (row.status !== 'completed' || row.conclusion !== 'success') gaps.push(id);
     if (
       !isDeploy &&
       (!timestamp(row.updatedAt) ||
-        now.getTime() - Date.parse(String(row.updatedAt)) > 28 * 3_600_000)
+        now.getTime() - Date.parse(scalar(row.updatedAt)) > 28 * 3_600_000)
     )
       gaps.push('entra-audit-stale');
   }
   if (!Array.isArray(signals.github)) gaps.push('github');
+}
+
+export function classifyMonitorV1(signals: Record<string, unknown>, now: Date) {
+  const alerts: string[] = [],
+    gaps: string[] = [];
+  classifyPublicV1(signals, alerts, gaps);
+  classifyDeploymentV1(signals, alerts, gaps);
+  classifyHyperdriveV1(signals, alerts, gaps);
+  classifyTelemetryV1(signals, alerts, gaps);
+  classifyGithubV1(signals, alerts, gaps, now);
   gaps.push(
     'database-no-workflow-credential',
     'authenticated-visual-validation',
     'individual-duplicate-proof',
     'gradebook-deep-audit',
   );
-  return { alerts: [...new Set(alerts)].sort(), gaps: [...new Set(gaps)].sort() };
+  return {
+    alerts: [...new Set(alerts)].sort((a, b) => a.localeCompare(b)),
+    gaps: [...new Set(gaps)].sort((a, b) => a.localeCompare(b)),
+  };
 }
 
 const explanations: Record<string, string> = {
@@ -269,9 +308,9 @@ const labels: Record<string, string> = {
   'permission-required': 'Permissão insuficiente',
   accessible: 'Consultado',
 };
-const label = (value: unknown) => labels[String(value)] ?? String(value ?? 'Não informado');
+const label = (value: unknown) => labels[scalar(value)] ?? scalar(value, 'Não informado');
 function observedCount(source: ObjectValue) {
-  return ['observed', 'partial'].includes(String(source.state))
+  return ['observed', 'partial'].includes(scalar(source.state))
     ? list(source.rows).reduce<number>((sum, row) => sum + (count(object(row).count) ?? 0), 0)
     : '—';
 }
@@ -289,8 +328,8 @@ function detailedTelemetry(signals: Record<string, unknown>) {
       const row = object(entry);
       lines.push(
         `| ${label(source.id)} | ${Object.entries(object(row.dimensions))
-          .map(([key, value]) => `${key}=${value}`)
-          .join(' · ')} | ${row.count} | ${row.elapsedMsP95 ?? '—'} |`,
+          .map(([key, value]) => `${key}=${scalar(value)}`)
+          .join(' · ')} | ${scalar(row.count)} | ${scalar(row.elapsedMsP95)} |`,
       );
     }
   }
@@ -311,7 +350,7 @@ function detailedTelemetry(signals: Record<string, unknown>) {
       const bucket = object(raw),
         sources = list(bucket.sources).map(object);
       lines.push(
-        `| ${brt(String(bucket.start))} | ${brt(String(bucket.end))} | ${observedCount(sources.find((s) => s.id === 'auth-result') ?? {})} | ${observedCount(sources.find((s) => s.id === 'native-outcome') ?? {})} | ${label(bucket.state)} |`,
+        `| ${brt(scalar(bucket.start))} | ${brt(scalar(bucket.end))} | ${observedCount(sources.find((s) => s.id === 'auth-result') ?? {})} | ${observedCount(sources.find((s) => s.id === 'native-outcome') ?? {})} | ${label(bucket.state)} |`,
       );
     }
     lines.push(
@@ -320,6 +359,16 @@ function detailedTelemetry(signals: Record<string, unknown>) {
     );
   }
   return lines;
+}
+
+function alertLineV1(id: string) {
+  const text = explanations[id] ?? `Verificar ${id}; detalhes no JSON sanitizado.`;
+  return `- ${text}`;
+}
+function gapLineV1(id: string) {
+  const text =
+    explanations[id] ?? `${id}: fonte sem evidência suficiente; consultar o estado no JSON.`;
+  return `- ${text}`;
 }
 
 export function renderMonitorV1(report: MonitorReportV1, compact = false) {
@@ -344,11 +393,11 @@ export function renderMonitorV1(report: MonitorReportV1, compact = false) {
     '| --- | --- |',
     ...list(publicRead.probes).map((raw) => {
       const p = object(raw);
-      return `| ${label(p.id)} | ${label(p.state)} · HTTP ${p.status ?? '—'} · ${p.durationMs ?? '—'} ms |`;
+      return `| ${label(p.id)} | ${label(p.state)} · HTTP ${scalar(p.status)} · ${scalar(p.durationMs)} ms |`;
     }),
-    `| Cloudflare / Portal | requests: ${analytics.requests ?? '—'} · erros: ${analytics.errors ?? '—'} · janela própria de 60 min |`,
-    `| Hyperdrive | ${object(object(data.hyperdrive).hyperdrive).state ?? 'indisponível'} |`,
-    `| Sonar / qualidade | ${object(publicRead.sonar).status ?? 'não comprovado'} |`,
+    `| Cloudflare / Portal | requests: ${scalar(analytics.requests)} · erros: ${scalar(analytics.errors)} · janela própria de 60 min |`,
+    `| Hyperdrive | ${scalar(object(object(data.hyperdrive).hyperdrive).state, 'indisponível')} |`,
+    `| Sonar / qualidade | ${scalar(object(publicRead.sonar).status, 'não comprovado')} |`,
     ...list(telemetry.sources).map((raw) => {
       const s = object(raw);
       return `| ${label(s.id)} | ${label(s.state)} · eventos observados: ${observedCount(s)} |`;
@@ -357,19 +406,14 @@ export function renderMonitorV1(report: MonitorReportV1, compact = false) {
     '## Problemas encontrados',
     '',
     ...(report.alerts.length
-      ? report.alerts.map(
-          (id) => `- ${explanations[id] ?? `Verificar ${id}; detalhes no JSON sanitizado.`}`,
-        )
+      ? report.alerts.map(alertLineV1)
       : [
           'Nenhum alerta nas verificações disponíveis. Isso não comprova funcionamento integral nem capacidade de carga.',
         ]),
     '',
     '## O que não foi possível comprovar',
     '',
-    ...report.gaps.map(
-      (id) =>
-        `- ${explanations[id] ?? `${id}: fonte sem evidência suficiente; consultar o estado no JSON.`}`,
-    ),
+    ...report.gaps.map(gapLineV1),
     ...(compact ? [] : detailedTelemetry(data)),
     '',
     '## Como ler e onde encontrar os detalhes',
@@ -400,6 +444,53 @@ async function load(root: string, name: string): Promise<unknown> {
   }
 }
 
+async function saveReportV1(root: string, now: Date, window: { start: Date; end: Date }) {
+  const signals = Object.fromEntries(
+    await Promise.all(
+      [
+        'public',
+        'deployment',
+        'hyperdrive',
+        'telemetry',
+        'github',
+        ...(process.env.MONITOR_DAILY === 'true' ? ['hourly'] : []),
+      ].map(async (key) => [key, await load(root, key)]),
+    ),
+  );
+  const report: MonitorReportV1 = {
+    contractVersion: 1,
+    checkedAt: now.toISOString(),
+    window: { start: window.start.toISOString(), end: window.end.toISOString() },
+    daily: process.env.MONITOR_DAILY === 'true',
+    collectorSha: sha(process.env.MONITOR_SHA),
+    triggeringDeploySha: sha(process.env.DEPLOY_SHA),
+    signals,
+    ...classifyMonitorV1(signals, now),
+  };
+  await save(root, 'report', report);
+  const markdown = renderMonitorV1(report);
+  await writeFile(`${root}/report.md`, markdown);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
+}
+
+type CollectorContextV1 = { accountId: string; token: string; now: Date };
+async function collectDeploymentV1(common: CollectorContextV1) {
+  const result =
+    common.accountId && common.token
+      ? await diagnoseCloudflarePortalDeployV1(common)
+      : {
+          worker: { state: 'credential-missing' },
+          pages: { state: 'credential-missing' },
+          analytics: { state: 'credential-missing' },
+        };
+  return deploymentSummaryV1(result);
+}
+async function collectHyperdriveV1(common: CollectorContextV1) {
+  return common.accountId && common.token
+    ? diagnoseCloudflarePortalHyperdriveV1(common)
+    : { hyperdrive: { state: 'credential-missing' } };
+}
+
 async function main() {
   const op = process.argv[2],
     root = process.env.MONITOR_DIR;
@@ -413,23 +504,9 @@ async function main() {
   };
   if (op === 'public') await save(root, op, await collectOperationalProbesV1({ now }));
   else if (op === 'deployment') {
-    const result =
-      common.accountId && common.token
-        ? await diagnoseCloudflarePortalDeployV1(common)
-        : {
-            worker: { state: 'credential-missing' },
-            pages: { state: 'credential-missing' },
-            analytics: { state: 'credential-missing' },
-          };
-    await save(root, op, deploymentSummaryV1(result));
+    await save(root, op, await collectDeploymentV1(common));
   } else if (op === 'hyperdrive') {
-    await save(
-      root,
-      op,
-      common.accountId && common.token
-        ? await diagnoseCloudflarePortalHyperdriveV1(common)
-        : { hyperdrive: { state: 'credential-missing' } },
-    );
+    await save(root, op, await collectHyperdriveV1(common));
   } else if (op === 'telemetry') {
     await save(root, op, await collectOperationalTelemetryV1({ ...common, ...window }));
     if (process.env.MONITOR_DAILY === 'true')
@@ -440,40 +517,15 @@ async function main() {
       );
   } else if (op === 'github')
     await save(root, op, await githubEvidenceV1(process.env.GH_TOKEN ?? ''));
-  else if (op === 'report') {
-    const signals = Object.fromEntries(
-      await Promise.all(
-        [
-          'public',
-          'deployment',
-          'hyperdrive',
-          'telemetry',
-          'github',
-          ...(process.env.MONITOR_DAILY === 'true' ? ['hourly'] : []),
-        ].map(async (key) => [key, await load(root, key)]),
-      ),
-    );
-    const report: MonitorReportV1 = {
-      contractVersion: 1,
-      checkedAt: now.toISOString(),
-      window: { start: window.start.toISOString(), end: window.end.toISOString() },
-      daily: process.env.MONITOR_DAILY === 'true',
-      collectorSha: sha(process.env.MONITOR_SHA),
-      triggeringDeploySha: sha(process.env.DEPLOY_SHA),
-      signals,
-      ...classifyMonitorV1(signals, now),
-    };
-    await save(root, 'report', report);
-    const markdown = renderMonitorV1(report);
-    await writeFile(`${root}/report.md`, markdown);
-    if (process.env.GITHUB_STEP_SUMMARY)
-      await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
-  } else throw new Error('Unsupported monitor operation');
+  else if (op === 'report') await saveReportV1(root, now, window);
+  else throw new Error('Unsupported monitor operation');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
+  try {
+    await main();
+  } catch {
     console.error('Monitoramento: etapa indisponível; nenhuma resposta bruta foi registrada.');
     process.exitCode = 1;
-  });
+  }
 }

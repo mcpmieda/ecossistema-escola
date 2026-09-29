@@ -190,9 +190,11 @@ async function probeSonar(fetcher: typeof fetch): Promise<OperationalProbesResul
     const project = json(data).projectStatus;
     const status =
       project && typeof project === 'object' && 'status' in project ? project.status : undefined;
-    if (status === 'OK' || status === 'ERROR' || status === 'WARN' || status === 'NONE') {
+    if (status === 'OK') return { state: 'ok', status };
+    if (status === 'NONE') return { state: 'inconclusive', status };
+    if (status === 'ERROR' || status === 'WARN') {
       return {
-        state: status === 'OK' ? 'ok' : status === 'NONE' ? 'inconclusive' : 'failed',
+        state: 'failed',
         status,
       };
     }
