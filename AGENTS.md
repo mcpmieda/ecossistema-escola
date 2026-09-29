@@ -22,6 +22,8 @@ Equipe homologada em 19/09/2026. **ChatGPT** é o líder/coordenador padrão; os
 
 Existe um operador Cloudflare via GitHub Actions para diagnóstico sanitizado sem expor secrets: use `/cloudflare` para capacidades e `/cloudflare portal` para o diagnóstico do Portal. Consulte `docs/infra/CLOUDFLARE_OPERATOR.md` antes de ampliar esse fluxo; ele é somente leitura e reutiliza as credenciais já existentes.
 
+O mesmo workflow mantém **monitoramento automático a cada 15 minutos, após publicações e com relatório diário**, com resumo legível, artefatos sanitizados de 14/90 dias e painel atualizado na #1211. Antes de pedir consultas locais, leia `docs/infra/OPERATIONAL_MONITOR.md` e consulte a última execução do job `monitor`. Confira horário, janela e lacunas: sucesso do workflow não prova uso autenticado, cobertura de banco nem ausência de duplicidade individual. Novas fontes exigem consultas fixas, sanitização e permissões autorizadas; não ampliar credenciais ou apagar auditoria de origem.
+
 ## Regras gerais
 
 - Faça a menor mudança suficiente para a issue atribuída.
