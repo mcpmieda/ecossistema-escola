@@ -348,6 +348,22 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       "UPDATE student_portal.auth_attempt SET blocked_until=statement_timestamp()-interval '1 second'",
     );
     expect(await other.login({ ...bad, password: '482913' }, id())).toHaveProperty('token');
+    // Reasons for the family's support (owner request 29/09/2026), oldest first.
+    const events = (
+      await pg.query<{ kind: string; detail_json: Record<string, unknown> | null }>(
+        "SELECT kind,detail_json FROM student_portal.audit_event WHERE kind IN ('login','login-failed') ORDER BY occurred_at,created_at",
+      )
+    ).rows;
+    const reasons = events.map((event) => event.detail_json?.reason ?? event.kind);
+    expect(reasons).toEqual([
+      'wrong-password', 'wrong-password', 'wrong-password', 'verification-required',
+      'wrong-password', 'wrong-password', 'temporarily-blocked', 'login',
+    ]);
+    expect(events[0]!.detail_json).toMatchObject({ step: 'password', failures: 1, blockAfter: 5 });
+    expect(events[4]!.detail_json).not.toHaveProperty('blockedUntil');
+    expect(events[5]!.detail_json).toMatchObject({ failures: 5, blockedUntil: expect.any(String) });
+    expect(events[6]!.detail_json).toMatchObject({ step: 'password', blockedUntil: expect.any(String) });
+    expect(events.at(-1)!.detail_json).toEqual({ keepConnected: false });
   });
 
   it('birth correction/clear rejects old proofs without revoking a valid session, and unconfirmed birth cannot activate', async () => {

@@ -531,14 +531,16 @@ class StudentPortalTransaction implements PortalTransactionV1 {
 
   async appendAudit(event: Parameters<typeof auditEventV1.parse>[0]): Promise<void> {
     const parsed = auditEventV1.parse(event);
+    // detail_json (migration 0023) is written only when there is a detail to keep.
+    const detail = parsed.detail && Object.keys(parsed.detail).length ? JSON.stringify(parsed.detail) : null;
     await rows(
       this.sql,
       `INSERT INTO student_portal.audit_event
-         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip,raw_ip,ip_expires_at)
+         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip,raw_ip,ip_expires_at${detail ? ',detail_json' : ''})
        SELECT $1::uuid,$2::text::timestamptz,$3::uuid,$4::uuid,$5::text::jsonb,$6,$7,$8::uuid,$9,
          COALESCE(${AUDIT_IP_MASK_V1},$10),client_ip,
-         CASE WHEN client_ip IS NOT NULL THEN $2::text::timestamptz+interval '90 days' END FROM ${AUDIT_IP_SOURCE_V1}`,
-      [parsed.eventId, parsed.at, parsed.actorId, parsed.accountId, JSON.stringify(parsed.scope), parsed.kind, parsed.result, parsed.requestId, parsed.version, parsed.maskedIp],
+         CASE WHEN client_ip IS NOT NULL THEN $2::text::timestamptz+interval '90 days' END${detail ? ',$11::text::jsonb' : ''} FROM ${AUDIT_IP_SOURCE_V1}`,
+      [parsed.eventId, parsed.at, parsed.actorId, parsed.accountId, JSON.stringify(parsed.scope), parsed.kind, parsed.result, parsed.requestId, parsed.version, parsed.maskedIp, ...(detail ? [detail] : [])],
     );
   }
 

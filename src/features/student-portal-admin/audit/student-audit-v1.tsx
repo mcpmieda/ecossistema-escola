@@ -24,6 +24,7 @@ import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createAuditDetailV1, type AuditDetailStateV1 } from './audit-detail-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { auditDetailRowsV1, auditReasonLineV1 } from './audit-reasons-v1';
 const eventLabels: Record<NonNullable<AdminQueryV1['event']>, string> = {
   login: 'Entrada',
   'login-failed': 'Tentativa de entrada',
@@ -318,6 +319,12 @@ function AuditBodyV1(props: OperationsPropsV1) {
                         <dt>Data</dt>
                         <dd>{operationDateV1(detail.detail.event.at)}</dd>
                       </div>
+                      {auditDetailRowsV1(detail.detail.event.detail, operationDateV1).map((row) => (
+                        <div key={row.label}>
+                          <dt>{row.label}</dt>
+                          <dd>{row.value}</dd>
+                        </div>
+                      ))}
                       <div>
                         <dt>IP</dt>
                         <dd>{detail.detail.ip || 'Não disponível dentro da retenção atual'}</dd>
@@ -334,7 +341,9 @@ function AuditBodyV1(props: OperationsPropsV1) {
                       </div>
                       <div>
                         <dt>Responsável</dt>
-                        <dd>{detail.detail.event.entities?.actorName ?? 'Não registrado'} · {detail.detail.event.actorId}</dd>
+                        <dd>
+                          {actorLabelV1(detail.detail.event)} · {detail.detail.event.actorId}
+                        </dd>
                       </div>
                     </dl>
                   )}
@@ -351,6 +360,17 @@ function AuditBodyV1(props: OperationsPropsV1) {
       </Card.Content>
     </Card>
   );
+}
+
+/** The student's own sign-ins and logouts have no ADM operator. */
+function actorLabelV1(event: {
+  actorId: string;
+  accountId: string | null;
+  entities?: { actorName: string | null };
+}) {
+  if (event.accountId && event.actorId.toLowerCase() === event.accountId.toLowerCase())
+    return 'Próprio aluno';
+  return event.entities?.actorName ?? 'Não registrado';
 }
 
 // Editing draft filters or expiring an IP must not rebuild 100 event rows.
@@ -382,7 +402,6 @@ const AuditEventsV1 = memo(function AuditEventsV1({
             </Table.Column>
             <Table.Column id="event">Evento</Table.Column>
             <Table.Column id="subject">Estudante</Table.Column>
-            <Table.Column id="class">Turma</Table.Column>
             <Table.Column id="actor">Operador</Table.Column>
             <Table.Column id="result">Resultado</Table.Column>
             <Table.Column id="detail">Detalhe</Table.Column>
@@ -396,10 +415,25 @@ const AuditEventsV1 = memo(function AuditEventsV1({
                     <Tooltip.Trigger>{eventLabels[item.kind]}</Tooltip.Trigger>
                     <Tooltip.Content>{settingsScopeLabelV1(item.scope)}</Tooltip.Content>
                   </Tooltip>
+                  {auditReasonLineV1(item.detail) ? (
+                    <span className="pa-cell-sub">{auditReasonLineV1(item.detail)}</span>
+                  ) : null}
                 </Table.Cell>
-                <Table.Cell>{item.accountId && item.entities?.subjectName ? <StudentNameV1 accountId={item.accountId} name={item.entities.subjectName} parentScope={scope} /> : (item.entities?.subjectName ?? 'Não registrado')}</Table.Cell>
-                <Table.Cell>{item.entities?.classLabel ?? 'Não registrada'}</Table.Cell>
-                <Table.Cell>{item.entities?.actorName ?? 'Não registrado'}</Table.Cell>
+                <Table.Cell>
+                  {item.accountId && item.entities?.subjectName ? (
+                    <StudentNameV1
+                      accountId={item.accountId}
+                      name={item.entities.subjectName}
+                      parentScope={scope}
+                    />
+                  ) : (
+                    (item.entities?.subjectName ?? 'Não registrado')
+                  )}
+                  {item.entities?.classLabel ? (
+                    <span className="pa-cell-sub">{item.entities.classLabel}</span>
+                  ) : null}
+                </Table.Cell>
+                <Table.Cell>{actorLabelV1(item)}</Table.Cell>
                 <Table.Cell>
                   <Chip
                     size="sm"

@@ -48,6 +48,12 @@ import './shared/admin-page-v1.css';
 import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 import {
+  claimPanelHashV1,
+  panelHashAccountIdV1,
+  readPanelHashParamV1,
+  writePanelHashParamsV1,
+} from './shared/panel-hash-v1';
+import {
   LiveRefreshAutomaticV1Provider,
   LiveRefreshScopeV1,
 } from '../../shared/live-data/live-refresh-scope-v1';
@@ -163,6 +169,19 @@ export function StudentPortalAdminPage({
     </LiveRefreshAutomaticV1Provider>
   );
 }
+type ShiftKeyV1 = Extract<PolicyScopeV1, { kind: 'shift' }>['shift'];
+const PANEL_SHIFTS_V1: readonly ShiftKeyV1[] = ['MATUTINO', 'VESPERTINO', 'NOTURNO'];
+/** Class, shift and a record opened outside the accounts list, restored after a reload. */
+function panelStateFromHashV1() {
+  const classId = Number(readPanelHashParamV1('turma'));
+  const shift = readPanelHashParamV1('turno');
+  return {
+    classId: Number.isSafeInteger(classId) && classId > 0 ? classId : null,
+    shift: PANEL_SHIFTS_V1.find((item) => item === shift) ?? null,
+    accountId: panelHashAccountIdV1('ficha'),
+  };
+}
+
 /** Keeps identity, scope and drafts mounted while section bundles are loaded on demand. */
 function PortalWorkspace({
   identity,
@@ -178,10 +197,14 @@ function PortalWorkspace({
     identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
-  const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
-  const [selectedShift, setSelectedShift] = useState<
-    Extract<PolicyScopeV1, { kind: 'shift' }>['shift'] | null
-  >(null);
+  const initialPanel = useMemo(() => {
+    claimPanelHashV1(identity.identityKey);
+    return panelStateFromHashV1();
+  }, [identity.identityKey]);
+  const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(() =>
+    initialPanel.classId === null ? null : { id: initialPanel.classId, label: '' },
+  );
+  const [selectedShift, setSelectedShift] = useState<ShiftKeyV1 | null>(initialPanel.shift);
   const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);
   const [customizationTarget, setCustomizationTarget] = useState<{
     row: CustomizationRowV1;
@@ -191,7 +214,16 @@ function PortalWorkspace({
   const pendingScope = useRef<SectionScope | null>(null);
   const qr = useAccountQrHandoffV1();
   const [openedAccount, setOpenedAccount] = useState<{ id: string; parentScope: ScopeV1 } | null>(
-    null,
+    () =>
+      initialPanel.accountId === null
+        ? null
+        : {
+            id: initialPanel.accountId,
+            parentScope:
+              initialPanel.classId === null
+                ? SCHOOL
+                : { kind: 'class', academicYear: 2026, classId: initialPanel.classId },
+          },
   );
   useEffect(() => {
     const change = () => {
@@ -234,12 +266,24 @@ function PortalWorkspace({
   );
   const classRead = useAccountsReadV1(loadClasses);
   const classItems = classRead.state.state === 'ready' ? classRead.state.data : [];
+  // A class restored from the address takes its label from the catalog, or is dropped if gone.
+  useEffect(() => {
+    if (classRead.state.state !== 'ready' || !selectedClass || selectedClass.label) return;
+    setSelectedClass(classRead.state.data.find((item) => item.id === selectedClass.id) ?? null);
+  }, [classRead.state, selectedClass]);
+  useEffect(() => {
+    writePanelHashParamsV1({
+      turma: selectedClass ? String(selectedClass.id) : null,
+      turno: selectedShift,
+      ficha: openedAccount?.id ?? null,
+    });
+  }, [section, selectedClass, selectedShift, openedAccount]);
   const panelScope = useMemo(
     () => ({
       scope: selectedClass
         ? { kind: 'class' as const, academicYear: 2026 as const, classId: selectedClass.id }
         : SCHOOL,
-      label: selectedClass?.label ?? 'Escola',
+      label: selectedClass ? selectedClass.label || 'Turma' : 'Escola',
     }),
     [selectedClass],
   );
@@ -438,6 +482,7 @@ function PortalWorkspace({
                 selectedShift={selectedShift}
                 onShiftChange={(shift) => {
                   if (!allowDraftNavigationV1()) return;
+                  writePanelHashParamsV1({ aluno: null });
                   setSelectedShift(shift);
                   setSelectedClass(null);
                   setSectionScope(null);
@@ -451,6 +496,8 @@ function PortalWorkspace({
                 allLabel="Todas as turmas"
                 onChange={(id) => {
                   if (!allowDraftNavigationV1()) return;
+                  // A record open in the previous class must not reopen in the next list.
+                  writePanelHashParamsV1({ aluno: null });
                   setSelectedShift(null);
                   setSelectedClass(classItems.find((item) => item.id === id) ?? null);
                   setSectionScope(null);

@@ -420,6 +420,49 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
         attentionSubjectIds: [800001],
       },
     });
+  if (query.operation === 'audit' || query.operation === 'audit-detail') {
+    // Synthetic sign-in events with refusal reasons (owner request 29/09/2026).
+    const people = mock.accounts.slice(0, 3);
+    const event = (index: number, kind: 'login' | 'login-failed' | 'activated', detail: object) => {
+      const person = people[index % people.length]!;
+      return {
+        eventId: `75600000-0000-4000-9000-${String(index + 1).padStart(12, '0')}`,
+        at: new Date(Date.parse(observedAt) - index * 90_000).toISOString(),
+        actorId: person.accountId,
+        accountId: person.accountId,
+        scope: { kind: 'account', academicYear: 2026, accountId: person.accountId },
+        kind,
+        result: kind === 'login-failed' ? 'denied' : 'success',
+        requestId,
+        version: 1,
+        maskedIp: null,
+        detail,
+        entities: {
+          actorName: null,
+          subjectName: person.name,
+          classId: person.classId,
+          classLabel: person.classLabel,
+        },
+      };
+    };
+    const device = { platform: 'android', browser: 'chrome' };
+    const items = [
+      event(0, 'login', { keepConnected: true, device }),
+      event(1, 'login-failed', { reason: 'wrong-password', step: 'password', failures: 2, blockAfter: 4, device }),
+      event(2, 'login-failed', { reason: 'card-replaced', step: 'card' }),
+      event(3, 'activated', { keepConnected: false, device: { platform: 'ios', browser: 'safari' } }),
+      event(4, 'login-failed', { reason: 'temporarily-blocked', step: 'pin', failures: 4, blockAfter: 4, blockedUntil: observedAt }),
+    ];
+    if (query.operation === 'audit-detail')
+      return opJsonV1({
+        ...meta,
+        state: 'audit-detail',
+        event: items.find((item) => item.eventId === query.eventId) ?? items[0],
+        ip: null,
+        ipExpiresAt: null,
+      });
+    return opJsonV1({ ...meta, state: 'audit', items, nextCursor: null });
+  }
   if (query.operation === 'presence')
     return opJsonV1({
       ...meta,

@@ -167,7 +167,10 @@ describe('birth year transactions through the frozen crypto port', () => {
       expect(Object.keys(event).sort()).toEqual([
         'event_id', 'occurred_at', 'actor_id', 'account_id', 'scope_json', 'kind',
         'result', 'request_id', 'version', 'masked_ip', 'raw_ip', 'ip_expires_at', 'created_at',
+        'detail_json',
       ].sort());
+      // Sign-in details (0023) never travel with a birth-year change.
+      expect(event.detail_json).toBeNull();
       expect(event.scope_json).toEqual({ kind: 'account', academicYear: 2026, accountId: ids[0] });
     }
     expect(JSON.stringify(auditRows)).not.toMatch(/"(?:2001|2002)"|:(?:2001|2002)(?=[,}])|synthetic-password/);

@@ -8,7 +8,7 @@ export const RISK_LABELS_V1 = {
   blockAfter: 'Bloquear após',
   blockSeconds: 'Tempo de bloqueio',
   failureWindowSeconds: 'Contar tentativas feitas nos últimos',
-  challengeTtlSeconds: 'Tempo para concluir a verificação',
+  challengeTtlSeconds: 'Tempo para criar a senha',
 } as const;
 export type RiskDraftV1 = Record<keyof typeof RISK_LABELS_V1, string>;
 export type SettingsDraftV1 =

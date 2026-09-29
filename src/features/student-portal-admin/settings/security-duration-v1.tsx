@@ -15,7 +15,7 @@ export const RISK_HELP_V1: Record<keyof RiskDraftV1, string> = {
   failureWindowSeconds:
     'Intervalo usado para somar tentativas incorretas. Tentativas anteriores a esse intervalo deixam de contar.',
   challengeTtlSeconds:
-    'Tempo que o aluno tem para concluir uma verificação de segurança antes de ela vencer.',
+    'No primeiro acesso, tempo que o aluno tem para criar a senha depois de digitar o PIN.',
 };
 export function durationLabelV1(seconds: number): string {
   if (!Number.isFinite(seconds)) return 'Não definido';

@@ -7,7 +7,7 @@ import { accountStateLabelV1 } from './accounts-values-v1';
 export function AccountIdentityV1({ account, detail = false }: { account: AdminAccountReadV2; detail?: boolean }) {
   const name = account.name || 'Nome indisponível';
   return (
-    <div className="pa-account-identity">
+    <div className={detail ? 'pa-account-identity pa-account-identity--detail' : 'pa-account-identity'}>
       <StudentAvatarV1 id={account.accountId} detail={detail} />
       <div>
         <strong>{name}</strong>

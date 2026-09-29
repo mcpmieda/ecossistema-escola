@@ -16,6 +16,7 @@ import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-
 import { accountCredentialPreparableV1 } from './accounts-values-v1';
 import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { panelHashAccountIdV1, writePanelHashParamsV1 } from '../shared/panel-hash-v1';
 import {
   firstAccessLabelV1,
   accountPageMatchesV1,
@@ -157,7 +158,10 @@ function AccountsResultsV1(
   },
 ) {
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => panelHashAccountIdV1('aluno'));
+  useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
+  // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
+  useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
   const [selectedQr, setSelectedQr] = useState<Set<string>>(() => new Set());
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);

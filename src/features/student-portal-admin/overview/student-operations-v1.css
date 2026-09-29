@@ -45,8 +45,18 @@
   min-width: 650px;
 }
 .pa-operations-scroll td {
-  overflow-wrap: anywhere;
+  /* break-word, not anywhere: "anywhere" shrinks min-content and split dates letter by letter. */
+  overflow-wrap: break-word;
   max-width: 20rem;
+}
+.pa-operations-scroll td:first-child {
+  white-space: nowrap;
+}
+.pa-operations-scroll .pa-student-name {
+  white-space: normal;
+  text-align: left;
+  padding-inline: 0;
+  min-width: 0;
 }
 .pa-operations-dialog {
   width: min(36rem, calc(100vw - 2rem));
@@ -188,5 +198,35 @@
   }
   .pa-dashboard-bottom {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* A second, quieter line inside a table cell (reason, class). */
+.pa-cell-sub {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+/* Stat cards: one tinted surface, no card-inside-a-card on small widths. */
+.pa-stat {
+  padding: 0;
+  overflow: hidden;
+}
+.pa-stat > .card__content {
+  height: 100%;
+}
+@container (max-width: 700px) {
+  .pa-stat > .card__content {
+    padding: 0.65rem 0.75rem;
+    gap: 0.3rem;
+  }
+  .pa-stat-icon {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+  .pa-stat dd {
+    font-size: 1.6rem;
   }
 }
