@@ -11,7 +11,7 @@ type TestSocket = {
   readyState: number;
   addEventListener(
     type: 'message' | 'close',
-    listener: (event: { data?: unknown; code?: number }) => void,
+    listener: (event: { data?: unknown; code?: number; reason?: string }) => void,
     options?: { once?: boolean },
   ): void;
 };
@@ -118,8 +118,10 @@ async function open(): Promise<TestSocket> {
 
 /** Captures the handshake result before the runtime is disposed. */
 async function closeAndObserve(socket: TestSocket, code?: number) {
-  const closed = new Promise<number>((resolve) =>
-    socket.addEventListener('close', (event) => resolve(event.code ?? -1), { once: true }),
+  const closed = new Promise<{ code: number; reason: string }>((resolve) =>
+    socket.addEventListener('close', (event) => resolve({ code: event.code ?? -1, reason: event.reason ?? '' }), {
+      once: true,
+    }),
   );
   if (code === undefined) socket.close();
   else socket.close(code, 'test');
@@ -141,16 +143,16 @@ async function settledTail(expectedLogs: number): Promise<TailRecord> {
 }
 
 it.each([
-  ['a close without status (1005, the client rotation path)', undefined, 1000, 'no-status'],
-  ['a normal close', 1000, 1000, 'normal'],
-  ['an authorization close', 4401, 4401, 'auth-expired'],
-  ['another sendable code', 3000, 3000, 'other-sendable'],
+  ['a close without status (1005, the client rotation path)', undefined, 1000, '', 'no-status'],
+  ['a normal close', 1000, 1000, 'test', 'normal'],
+  ['an authorization close', 4401, 4401, 'test', 'auth-expired'],
+  ['another sendable code', 3000, 3000, 'test', 'other-sendable'],
 ] as const)(
   'completes the handshake after %s without a runtime exception',
-  async (_label, code, echoed, codeClass) => {
+  async (_label, code, echoed, reason, codeClass) => {
     await tail(true);
     const socket = await open();
-    expect(await closeAndObserve(socket, code)).toEqual({ result: echoed, readyState: 3 });
+    expect(await closeAndObserve(socket, code)).toEqual({ result: { code: echoed, reason }, readyState: 3 });
     const record = await settledTail(1);
     expect(record.exceptions).toEqual([]);
     const events = record.logs

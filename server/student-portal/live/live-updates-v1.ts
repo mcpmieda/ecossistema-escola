@@ -9,10 +9,7 @@ import {
 } from '../../../shared/student-portal-contracts/live-v1';
 import type { PortalCompositionEnvV1 } from '../composition/config-v1';
 import { PortalSignalBufferV1 } from '../observability/signal-buffer-v1';
-import {
-  emitPortalLiveCloseMetricV1,
-  type PortalLiveCloseMetricV1,
-} from '../observability/metrics-v1';
+import { answerLiveCloseV1, failLiveSocketV1 } from './live-close-v1';
 
 const socketIdentityV1 = z
   .object({
@@ -27,31 +24,6 @@ const socketIdentityV1 = z
   .strict();
 type SocketIdentityV1 = z.infer<typeof socketIdentityV1> & { resumed: boolean };
 const socketAttachmentV1 = socketIdentityV1.extend({ resumed: z.boolean() }).strict();
-
-/** Close codes a WebSocket endpoint may send in a Close frame (RFC 6455 §7.4). */
-function sendableCloseCodeV1(code: number): boolean {
-  return (
-    Number.isInteger(code) &&
-    ((code >= 1000 && code <= 1003) ||
-      (code >= 1007 && code <= 1014) ||
-      (code >= 3000 && code <= 4999))
-  );
-}
-
-function liveCloseCodeClassV1(code: number): PortalLiveCloseMetricV1['codeClass'] {
-  if (code === 1000) return 'normal';
-  if (code === 1001) return 'going-away';
-  if (code === 4401) return 'auth-expired';
-  if (code === 1005) return 'no-status';
-  if (code === 1006) return 'abnormal';
-  if (code === 1015) return 'tls-reserved';
-  return sendableCloseCodeV1(code) ? 'other-sendable' : 'other-invalid';
-}
-
-function liveReadyStateV1(socket: WebSocket): PortalLiveCloseMetricV1['readyState'] {
-  const state = socket.readyState;
-  return Number.isInteger(state) && state >= 0 && state <= 3 ? state : 'unknown';
-}
 
 /** One SQLite-backed coordination atom per authenticated audience/year. Browser sockets never access it directly. */
 export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
@@ -310,24 +282,9 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
   }
 
   override webSocketClose(socket: WebSocket, code: number, reason: string): void {
-    emitPortalLiveCloseMetricV1({
-      event: 'student-portal-live-close-v1',
-      callback: 'close',
-      codeClass: liveCloseCodeClassV1(code),
-      readyState: liveReadyStateV1(socket),
-    });
-    // Reserved codes (1005 no status, 1006 abnormal, 1015 TLS) cannot be sent back and throw;
-    // answering them with a normal close still completes the handshake.
-    if (sendableCloseCodeV1(code)) socket.close(code, reason);
-    else socket.close(1000);
+    answerLiveCloseV1(socket, code, reason);
   }
   override webSocketError(socket: WebSocket): void {
-    emitPortalLiveCloseMetricV1({
-      event: 'student-portal-live-close-v1',
-      callback: 'error',
-      codeClass: 'not-applicable',
-      readyState: liveReadyStateV1(socket),
-    });
-    socket.close(1011, 'socket-error');
+    failLiveSocketV1(socket);
   }
 }
