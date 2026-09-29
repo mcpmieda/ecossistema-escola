@@ -12,6 +12,13 @@ export default defineConfig({
     },
   },
   build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname, 'index.html'),
+        // Portal do Aluno demo with invented data, reached from the Painel do Aluno.
+        portalDemo: path.resolve(import.meta.dirname, 'portal-demo.html'),
+      },
+    },
     sourcemap: false,
     target: 'es2022',
   },
