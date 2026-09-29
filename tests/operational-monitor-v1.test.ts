@@ -58,6 +58,14 @@ describe('operational monitor evidence', () => {
     expect(renderMonitorV1(report)).toContain('cobertura parcial');
     expect(renderMonitorV1(report)).toContain('nem informa alunos online');
   });
+  it('does not render discarded partial evidence as zero events', () => {
+    const markdown = renderMonitorV1({
+      ...report,
+      signals: { telemetry: { sources: [{ id: 'auth-result', state: 'partial', rows: [] }] } },
+    });
+    expect(markdown).toContain('eventos observados: —');
+    expect(markdown).not.toContain('eventos observados: 0');
+  });
   it('does not equate refusal or canceled socket with native exception', () => {
     const result = classifyMonitorV1(
       {

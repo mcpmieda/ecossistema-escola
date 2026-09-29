@@ -310,7 +310,7 @@ const labels: Record<string, string> = {
 };
 const label = (value: unknown) => labels[scalar(value)] ?? scalar(value, 'Não informado');
 function observedCount(source: ObjectValue) {
-  return ['observed', 'partial'].includes(scalar(source.state))
+  return ['observed', 'partial'].includes(scalar(source.state)) && list(source.rows).length > 0
     ? list(source.rows).reduce<number>((sum, row) => sum + (count(object(row).count) ?? 0), 0)
     : '—';
 }
@@ -343,7 +343,7 @@ function detailedTelemetry(signals: Record<string, unknown>) {
       '',
       '## Distribuição por horário — Brasília',
       '',
-      '| Início | Fim exclusivo | Autenticação: eventos | Worker: eventos | Cobertura |',
+      '| Início | Fim solicitado | Autenticação: eventos | Worker: eventos | Cobertura |',
       '| --- | --- | --- | --- | --- |',
     );
     for (const raw of list(object(signals.hourly).buckets)) {
@@ -386,7 +386,7 @@ export function renderMonitorV1(report: MonitorReportV1, compact = false) {
     `**${title}**`,
     '',
     `Atualizado em **${brt(report.checkedAt)} (Brasília)** — ${report.checkedAt}.`,
-    `Janela de telemetria: **${brt(report.window.start)} até ${brt(report.window.end)}**, final exclusivo.`,
+    `Janela de telemetria: **${brt(report.window.start)} até ${brt(report.window.end)}** (janela solicitada ao provedor).`,
     `Tipo: ${report.daily ? 'consolidado diário — consulta do dia anterior' : 'verificação periódica'}.`,
     '',
     '| Área | Resultado |',

@@ -21,7 +21,7 @@ Não é necessário pedir a um agente nem enviar comandos para receber atualiza�
 | Após publicação | Conclusão bem-sucedida de `Deploy Cloudflare Pages` na main deste repositório | Sondas atuais e última janela completa; próximas rodadas capturam uso posterior |
 | Manual          | `Run workflow`, branch main, operação `monitor` ou `daily`, pelo responsável  | Mesmo contrato do agendamento; `issue_number` não é necessário nesses modos     |
 
-Intervalos usam início inclusivo e fim exclusivo. A execução fixa o relógio no começo para todas as etapas. O relatório conserva hora UTC e Brasília. Execuções repetidas da mesma janela não devem ser somadas. O horário diário assume America/Sao_Paulo em UTC−03; rever se a regra civil de fuso mudar.
+Os intervalos indicam as janelas solicitadas. A Cloudflare não documenta a inclusão dos instantes de fronteira; as contagens são eventos observados, sem garantia de deduplicação nesses limites. A execução fixa o relógio no começo para todas as etapas. O relatório conserva hora UTC e Brasília. Execuções repetidas da mesma janela não devem ser somadas. O horário diário assume America/Sao_Paulo em UTC−03; rever se a regra civil de fuso mudar.
 
 O diário consulta diretamente os logs armazenados do dia anterior; não soma as rodadas periódicas. Sondas, configuração e estado de publicação são fotografias do momento da coleta, e Workers Analytics permanece na janela própria de 60 minutos. Não interpretar esses snapshots como resumo de 24 horas. O agendamento diário não substitui a rodada periódica coincidente.
 
