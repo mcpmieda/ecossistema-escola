@@ -2,10 +2,12 @@ import { expect, it } from 'vitest';
 import {
   emitPortalAuthBurstMetricV1,
   emitPortalDbLifecycleMetricV1,
+  emitPortalLiveCloseMetricV1,
   emitPortalMetricV1,
   measurePortalSqlV1,
   portalAuthBurstMetricV1,
   portalDbLifecycleMetricV1,
+  portalLiveCloseMetricV1,
   portalMetricV1,
 } from '../../../server/student-portal/observability/metrics-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
@@ -51,4 +53,29 @@ it('accepts only bounded auth-burst and DB lifecycle aggregates', () => {
   emitPortalAuthBurstMetricV1(burst, (value) => emitted.push(value));
   emitPortalDbLifecycleMetricV1(lifecycle, (value) => emitted.push(value));
   expect(emitted).toEqual([burst, lifecycle]);
+});
+
+it('accepts only the fixed live close classification (#1207)', () => {
+  const metric = {
+    event: 'student-portal-live-close-v1',
+    callback: 'close',
+    codeClass: 'no-status',
+    readyState: 2,
+  } as const;
+  expect(portalLiveCloseMetricV1.parse(metric)).toEqual(metric);
+  expect(portalLiveCloseMetricV1.parse({ ...metric, readyState: 'unknown' })).toMatchObject({ readyState: 'unknown' });
+  for (const extra of ['reason', 'code', 'accountId', 'studentId', 'url', 'message', 'stack']) {
+    expect(portalLiveCloseMetricV1.safeParse({ ...metric, [extra]: 'SYNTHETIC_SECRET' }).success).toBe(false);
+  }
+  for (const invalid of [
+    { ...metric, codeClass: 'SYNTHETIC_SECRET' },
+    { ...metric, callback: 'message' },
+    { ...metric, readyState: 4 },
+    { ...metric, readyState: 1.5 },
+  ]) expect(portalLiveCloseMetricV1.safeParse(invalid).success).toBe(false);
+  expect(() => emitPortalLiveCloseMetricV1(metric, () => { throw new Error('sink-unavailable'); })).not.toThrow();
+  const emitted: unknown[] = [];
+  emitPortalLiveCloseMetricV1({ ...metric, reason: 'SYNTHETIC_SECRET' } as never, (value) => emitted.push(value));
+  emitPortalLiveCloseMetricV1(metric, (value) => emitted.push(value));
+  expect(emitted).toEqual([metric]);
 });
