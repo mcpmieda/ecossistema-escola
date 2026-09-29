@@ -104,15 +104,18 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
   return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
 }
 
-/** Beside "Em curso": "★ 2 selos brilhantes". Only earned seals exist; none, nothing shown. */
+/**
+ * "★ 2 selos brilhantes" in the hero. With none, the same pill shows "0 selos brilhantes", dimmed
+ * and without shine (owner request 29/09/2026).
+ */
 function SealCountV1({ count }: { count: number }) {
-  if (!count) return null;
+  const empty = count <= 0;
   return (
-    <span className="pa-seal-count">
-      <Star size={12} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+    <span className={empty ? 'pa-seal-count pa-seal-count--empty' : 'pa-seal-count'}>
+      <Star size={12} strokeWidth={2} fill={empty ? 'none' : 'currentColor'} aria-hidden="true" />
       {/* One text run, so the flex gap never adds a second space before "brilhante". */}
       <span>
-        {count} {count === 1 ? 'selo brilhante' : 'selos brilhantes'}
+        {Math.max(0, count)} {count === 1 ? 'selo brilhante' : 'selos brilhantes'}
       </span>
     </span>
   );
@@ -202,16 +205,14 @@ export function StudentProfileV1({
 
             {/* "Em curso" is not shown: it tells the student nothing (owner review 27/09/2026).
                 An official status (Aprovado, Em recuperação…) still is, after the seals. */}
-            {seals > 0 || status.label !== outcome['in-progress'].label ? (
-              <div className="pa-profile-meta">
-                <SealCountV1 count={seals} />
-                {status.label !== outcome['in-progress'].label ? (
-                  <Chip size="sm" variant="soft" color={status.color}>
-                    {status.label}
-                  </Chip>
-                ) : null}
-              </div>
-            ) : null}
+            <div className="pa-profile-meta">
+              <SealCountV1 count={seals} />
+              {status.label !== outcome['in-progress'].label ? (
+                <Chip size="sm" variant="soft" color={status.color}>
+                  {status.label}
+                </Chip>
+              ) : null}
+            </div>
           </div>
 
           {/* The original 3×4 photo in an arch taken from the cover geometry. No photo, or one
