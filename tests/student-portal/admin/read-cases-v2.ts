@@ -133,6 +133,35 @@ export function adminReadCasesV2(
       expect(adminResponseV1.safeParse(legacy).success).toBe(true);
       expect(adminReadResponseV2.safeParse(legacy).success).toBe(false);
     });
+    it('adds read context only when requested, preserving strict responses for open older clients', async () => {
+      const api = readApiV2(get().sql);
+      const accountId = readAccountIdV2(1);
+      const scope = { kind: 'account', academicYear: 2026, accountId };
+      const birthQuery = { contractVersion: 1, operation: 'birth-years', scope, page: { limit: 1 } };
+      const legacyBirth = await api.query(readContextV2(), birthQuery);
+      expect(legacyBirth).not.toHaveProperty('accountsScopeVersion');
+      const birth = await api.query(readContextV2(), { ...birthQuery, includeReadContext: true });
+      const accounts = await read({ scope, page: { limit: 1 } });
+      expect(birth).toMatchObject({ state: 'birth-years', accountsScopeVersion: accounts.scopeVersion });
+      const eventId = readAccountIdV2(950);
+      await get().admin.unsafe(`INSERT INTO student_portal.audit_event
+        (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version)
+        VALUES($1::uuid,now(),$2::uuid,$2::uuid,$3::jsonb,'login','success',$1::uuid,0)`,
+        [eventId, accountId, JSON.stringify(scope)]);
+      try {
+        const query = { contractVersion: 1, operation: 'audit-detail', scope, eventId, page: { limit: 1 } };
+        const auditContext = { ...readContextV2(), capability: 'platform.settings.write' };
+        const legacyAudit = await api.query(auditContext, query);
+        expect(legacyAudit.state).toBe('audit-detail');
+        expect(legacyAudit).not.toHaveProperty('observedAt');
+        const audit = await api.query(auditContext, { ...query, includeReadContext: true });
+        expect(audit.state).toBe('audit-detail');
+        if (audit.state !== 'audit-detail') throw new Error('Synthetic audit unavailable');
+        expect(Number.isFinite(Date.parse(audit.observedAt!))).toBe(true);
+      } finally {
+        await get().admin.unsafe('DELETE FROM student_portal.audit_event WHERE event_id=$1::uuid', [eventId]);
+      }
+    });
     it('orders accented names and homonyms across account pages with a stable cursor', async () => {
       await get().admin.unsafe(`UPDATE gradebook.aluno SET nome=CASE id
         WHEN 746001 THEN 'ÁGATA' WHEN 746002 THEN 'ANA'

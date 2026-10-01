@@ -13,6 +13,15 @@ const at = '2026-09-01T12:00:00Z';
 const value = { accessEnabled: false, accessSchedule: null, showPartials: false, autoUpdate: false, showFinalResult: false, showTermClosing: false, termClosingConclusive: true, allowedPeriods: [], risk: DEFAULT_RISK_V1, calendar: EMPTY_CALENDAR_V1 };
 
 describe('Portal V1 identity and envelope', () => {
+  it('limits opt-in read context to audit detail and single-account birth years', () => {
+    const query = { contractVersion: 1, scope, page: { limit: 1 }, includeReadContext: true };
+    expect(adminQueryV1.safeParse({ ...query, operation: 'birth-years' }).success).toBe(true);
+    expect(adminQueryV1.safeParse({ ...query, operation: 'audit-detail', eventId: id }).success).toBe(true);
+    for (const operation of ['accounts', 'health', 'audit', 'publication']) {
+      expect(adminQueryV1.safeParse({ ...query, operation }).success).toBe(false);
+    }
+    expect(adminQueryV1.safeParse({ ...query, operation: 'birth-years', scope: { kind: 'class', academicYear: 2026, classId: 1 } }).success).toBe(false);
+  });
   it('constrains private audit metadata without expanding public requests or accepting claims', () => {
     const context = { actorId: id, tenantId: id, requestId: id, authenticatedAt: at, capability: 'platform.settings.read' };
     expect(trustedAdminContextV1.parse(context)).toEqual(context);

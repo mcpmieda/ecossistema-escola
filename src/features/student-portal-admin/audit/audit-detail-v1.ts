@@ -47,6 +47,7 @@ export function createAuditDetailV1(
           contractVersion: 1,
           operation: 'audit-detail',
           includeEntities: true,
+          includeReadContext: true,
           scope,
           eventId,
           page: { limit: 1 },
@@ -58,7 +59,7 @@ export function createAuditDetailV1(
         throw new PortalClientErrorV1('invalid-response');
       if (scope.kind === 'account' && detail.event.accountId !== scope.accountId)
         throw new PortalClientErrorV1('invalid-response');
-      // During a rolling deployment, older servers still need the authorized clock read.
+      // Missing clock metadata uses the complete authorized read.
       let observedAt = detail.observedAt;
       if (!observedAt) {
         const clock = await props.reader.query(

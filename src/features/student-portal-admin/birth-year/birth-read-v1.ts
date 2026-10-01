@@ -57,6 +57,7 @@ export async function readBirthPageV1(
       {
         contractVersion: 1,
         operation: 'birth-years',
+        ...(snapshot ? { includeReadContext: true as const } : {}),
         scope,
         page: { limit: 100, ...(cursor ? { cursor: cursor.birth } : {}) },
       },
