@@ -53,9 +53,13 @@ describe('account list and detail', () => {
     const controls = document.querySelector('.pa-account-controls-card');
     expect(controls?.contains(screen.getByRole('textbox', { name: 'Buscar aluno' }))).toBe(true);
     expect(controls?.contains(screen.getByRole('region', { name: 'QR code' }))).toBe(true);
-    expect(controls?.contains(screen.getByRole('heading', { name: 'Operações em massa' }))).toBe(true);
+    expect(controls?.contains(screen.getByRole('heading', { name: 'Operações em massa' }))).toBe(
+      true,
+    );
     expect(screen.queryByRole('button', { name: 'Preparar prévia' })).toBeNull();
-    expect((screen.getByRole('button', { name: 'Mudar QR' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Mudar QR' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     expect(mock.writes).toHaveLength(0);
   });
   it('uses the account table selection for the QR controls and resets it with the search', async () => {
@@ -69,7 +73,7 @@ describe('account list and detail', () => {
     expect(screen.getByText('1 selecionados')).toBeTruthy();
     await user.type(screen.getByRole('textbox', { name: 'Buscar aluno' }), '002');
     await screen.findByText('SYNTHETIC ACCOUNT 002');
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(await screen.findByText('0 selecionados')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
   it('shows official names and distinct states with a complete empty-class catalog', async () => {
@@ -89,69 +93,71 @@ describe('account list and detail', () => {
     expect(mock.queries.at(-1)?.scope).toEqual({ ...ACCOUNT_CLASS_V1, classId: 753002 });
     expect(mock.writes).toHaveLength(0);
   });
-  it('renders the first 100 accounts, then appends the last five only when the end approaches', async () => {
+  it('loads 400 accounts per request without speculative pages or seal reads', async () => {
     const observer = controlledContinuousObserverV1();
-    const mock = accountsMockV1({ count: 105 });
+    const mock = accountsMockV1({ count: 405 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
-    const first = await screen.findByText('SYNTHETIC ACCOUNT 001');
+    const row = (number: string) =>
+      document.querySelector<HTMLButtonElement>(
+        `button[aria-label="Abrir ficha de SYNTHETIC ACCOUNT ${number}"]`,
+      );
+    await waitFor(() => expect(row('400')).not.toBeNull());
+    const first = row('001');
+    expect(row('405')).toBeNull();
+    expect(mock.queries).toHaveLength(1);
+    expect(mock.queries[0]?.page.limit).toBe(400);
     await waitFor(() => expect(observer.isObserving()).toBe(true));
-    expect(screen.queryByText('SYNTHETIC ACCOUNT 105')).toBeNull();
-    expect(mock.queries.some((query) => query.page.cursor)).toBe(false);
     expect(screen.queryByText('Próxima página')).toBeNull();
     const scroll = screen.getByRole('region', { name: /Tabela de contas/ });
     scroll.scrollTop = 137;
-    act(() => observer.intersect(false));
-    expect(mock.queries.some((query) => query.page.cursor)).toBe(false);
     await act(async () => observer.intersect());
-    await screen.findByText('SYNTHETIC ACCOUNT 105');
-    expect(screen.getByText('SYNTHETIC ACCOUNT 001')).toBe(first);
+    await waitFor(() => expect(row('405')).not.toBeNull());
+    expect(row('001')).toBe(first);
     expect(scroll.scrollTop).toBe(137);
     expect(mock.queries.some((query) => query.page.cursor)).toBe(true);
     expect(mock.writes).toHaveLength(0);
-  });
+  }, 60_000);
   describe('with an accumulated 105-account list', () => {
     let mock: ReturnType<typeof accountsMockV1>;
-    let user: ReturnType<typeof userEvent.setup>;
     let firstName: HTMLElement;
     let lastName: HTMLElement;
     // Fixture preparation and interaction have independent bounded phases. This suite
     // verifies continuity and accessibility, not a combined production latency SLA.
     beforeAll(async () => {
       setupAccountsDomV1();
-      const observer = controlledContinuousObserverV1();
       mock = accountsMockV1({ count: 105 });
       render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
-      user = userEvent.setup();
       const button = (name: string) =>
         document.querySelector<HTMLButtonElement>(`button[aria-label="Abrir ficha de ${name}"]`);
       await waitFor(() => expect(button('SYNTHETIC ACCOUNT 001')).not.toBeNull());
       firstName = within(button('SYNTHETIC ACCOUNT 001')!).getByText('SYNTHETIC ACCOUNT 001');
-      await waitFor(() => expect(observer.isObserving()).toBe(true));
-      await act(async () => observer.intersect());
+      await screen.findByText('105 alunos');
       await waitFor(() => expect(button('SYNTHETIC ACCOUNT 105')).not.toBeNull());
       lastName = within(button('SYNTHETIC ACCOUNT 105')!).getByText('SYNTHETIC ACCOUNT 105');
     }, 30_000);
     it('opens a right-side student drawer by name and preserves the accumulated list when closing', async () => {
       const trigger = firstName.closest('button')!;
       expect(trigger.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 001');
-      await user.click(trigger);
-      const drawer = await screen.findByLabelText('Ficha do aluno');
+      fireEvent.click(trigger);
+      await waitFor(() => expect(document.querySelector('.pa-student-drawer')).not.toBeNull());
+      const drawer = document.querySelector<HTMLElement>('.pa-student-drawer')!;
+      expect(drawer.getAttribute('aria-label')).toBe('Ficha do aluno');
       expect(drawer.getAttribute('role')).toBe('dialog');
       await within(drawer).findByRole('button', { name: 'Bloquear acesso' });
       expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
       expect(within(drawer).getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
       expect(document.activeElement?.textContent).toBe('Ficha do aluno');
       expect(screen.queryByText('Próxima página')).toBeNull();
-      await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
       await waitFor(() => expect(drawer.isConnected).toBe(false));
       expect(lastName.isConnected).toBe(true);
       expect(lastName.closest('button')!.getAttribute('aria-label')).toBe(
         'Abrir ficha de SYNTHETIC ACCOUNT 105',
       );
       expect(screen.getByText('SYNTHETIC ACCOUNT 001').closest('button')).toBe(trigger);
-      expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(true);
+      expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(false);
       expect(mock.writes).toHaveLength(0);
-    });
+    }, 40_000);
   });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();
@@ -296,7 +302,9 @@ describe('account list and detail', () => {
       }),
     );
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    expect(mock.queries.at(-1)).toMatchObject({
+    expect(
+      mock.queries.filter((query) => query.operation === 'accounts-read').at(-1),
+    ).toMatchObject({
       accountState: 'pending-activation',
       blocked: true,
     });

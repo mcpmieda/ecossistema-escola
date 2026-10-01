@@ -11,6 +11,53 @@ import {
 import { BIRTH_CLASS_V1, birthMockV1, birthJsonV1 } from './fixtures-v1';
 
 describe('birth values and bounded joined reads', () => {
+  it('reuses the record account only after the authorized birth read confirms its version', async () => {
+    const mock = birthMockV1();
+    const account = mock.accounts[0]!;
+    const scope = {
+      kind: 'account' as const,
+      academicYear: 2026 as const,
+      accountId: account.accountId,
+    };
+    const result = await readBirthPageV1(
+      mock.client,
+      mock.reader,
+      scope,
+      undefined,
+      new AbortController().signal,
+      undefined,
+      { account, scopeVersion: 99 },
+    );
+    expect(result.rows[0]?.account).toBe(account);
+    expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years']);
+  });
+  it('fetches the account again when the supplied record has an older version', async () => {
+    const mock = birthMockV1();
+    const account = { ...mock.accounts[0]!, version: 1 };
+    const scope = {
+      kind: 'account' as const,
+      academicYear: 2026 as const,
+      accountId: account.accountId,
+    };
+    const result = await readBirthPageV1(
+      mock.client,
+      mock.reader,
+      scope,
+      undefined,
+      new AbortController().signal,
+      undefined,
+      { account, scopeVersion: 99 },
+    );
+    expect(result.rows[0]?.account.version).toBe(mock.accounts[0]!.version);
+    expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years', 'accounts-read']);
+  });
+  it('fetches fresh academic metadata when the scope revision changes without an account CAS change', async () => {
+    const mock = birthMockV1();
+    const account = mock.accounts[0]!;
+    const scope = { kind: 'account' as const, academicYear: 2026 as const, accountId: account.accountId };
+    await readBirthPageV1(mock.client, mock.reader, scope, undefined, new AbortController().signal, undefined, { account, scopeVersion: 98 });
+    expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years', 'accounts-read']);
+  });
   it('accepts only four ASCII digits in1900..2026, never trim/coerce incomplete input', () => {
     for (const value of ['1900', '2000', '2026']) expect(validBirthYearV1(value)).toBe(true);
     for (const value of [

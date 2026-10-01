@@ -91,12 +91,14 @@ describe('opt-in administrative read contract', () => {
   it('rejects foreign years, overlong pages, unused identity fields and overview cursors', () => {
     for (const invalid of [
       { ...query, scope: { ...scope, academicYear: 2025 } },
-      { ...query, page: { limit: 101 } },
+      { ...query, page: { limit: 401 } },
+      { ...query, operation: 'overview', page: { limit: 101 } },
       { ...query, actorId: response.requestId },
       { ...query, operation: 'overview', page: { cursor: 'a'.repeat(80) } },
       { ...query, operation: 'audit-detail' },
     ])
       expect(adminQueryRequestV2.safeParse(invalid).success).toBe(false);
+    expect(adminQueryRequestV2.safeParse({ ...query, page: { limit: 400 } }).success).toBe(true);
     expect(
       adminReadResponseV2.safeParse({ ...response, lastAuthenticationWindowMonths: 24 }).success,
     ).toBe(false);

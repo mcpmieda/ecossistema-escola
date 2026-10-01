@@ -61,6 +61,76 @@ export async function readScopedSourcesV2(tx: StudentPortalPostgresQueryV1, acco
     CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) selected WHERE h.academic_year=2026`, [accountId, studentId, classId]);
 }
 
+const sourceTargetsV2 = z
+  .array(
+    z.object({
+      accountId: z.uuid(),
+      studentId: z.number().int().positive().safe(),
+      classId: z.number().int().positive().safe(),
+    }),
+  )
+  .max(200);
+export type SourceTargetV2 = z.infer<typeof sourceTargetsV2>[number];
+
+/** Request-local batch of the same per-student release selection, limited to caller-validated targets. */
+export async function readScopedSourceBatchV2(
+  tx: StudentPortalPostgresQueryV1,
+  input: readonly SourceTargetV2[],
+) {
+  const targets = sourceTargetsV2.parse(input);
+  if (!targets.length) return new Map<string, Awaited<ReturnType<typeof readScopedSourcesV2>>>();
+  const rows = await tx.unsafe(
+    `WITH target AS (
+      SELECT account_id,student_id,class_id FROM jsonb_to_recordset($1::text::jsonb)
+        AS x(account_id uuid,student_id integer,class_id integer)
+    ) SELECT t.account_id,selected.* FROM target t CROSS JOIN student_portal.publication_source_head_v2 h
+    CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) selected WHERE h.academic_year=2026`,
+    [
+      JSON.stringify(
+        targets.map((target) => ({
+          account_id: target.accountId,
+          student_id: target.studentId,
+          class_id: target.classId,
+        })),
+      ),
+    ],
+  );
+  const byAccount = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const id = z.uuid().parse(row.account_id);
+    const existing = byAccount.get(id) ?? [];
+    existing.push(row);
+    byAccount.set(id, existing);
+  }
+  return byAccount;
+}
+
+/** Closing editions and stable phrase keys use the same frozen head and account key as Self. */
+export async function readClosingSourceBatchV2(
+  tx: StudentPortalPostgresQueryV1,
+  input: readonly SourceTargetV2[],
+) {
+  const targets = sourceTargetsV2.parse(input);
+  if (!targets.length) return [];
+  return tx.unsafe(
+    `WITH target AS (
+      SELECT account_id,student_id FROM jsonb_to_recordset($1::text::jsonb)
+        AS x(account_id uuid,student_id integer)
+    ) SELECT t.account_id,t.student_id,to_jsonb(a)->>'student_uid' AS uid,
+      s.payload_json,s.class_id,h.generation||':'||s.revision::text AS revision
+    FROM target t CROSS JOIN student_portal.publication_source_head_v2 h
+    JOIN student_portal.account a ON a.id=t.account_id
+    LEFT JOIN LATERAL (SELECT payload_json,class_id,revision FROM student_portal.publication_source_v2
+      WHERE academic_year=2026 AND student_id=t.student_id AND generation=h.generation AND revision<=h.revision
+      ORDER BY revision DESC LIMIT 1) s ON true WHERE h.academic_year=2026`,
+    [
+      JSON.stringify(
+        targets.map((target) => ({ account_id: target.accountId, student_id: target.studentId })),
+      ),
+    ],
+  );
+}
+
 export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
   const scope = scopeV1.parse(input);
   const rows = await tx.unsafe(`WITH target AS (${TARGETS_V2}), head AS (

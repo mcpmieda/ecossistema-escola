@@ -12,6 +12,7 @@ export function useAccountsReadV1<T>(
   load: (signal: AbortSignal) => Promise<T>,
   active = true,
   eventDriven = true,
+  intervalMs?: number,
 ) {
   const [result, setResult] = useState<{ load: typeof load; state: PortalLoadStateV1<T> }>({
     load,
@@ -56,6 +57,7 @@ export function useAccountsReadV1<T>(
   useLiveRefreshV1(() => reader.run(load, { background: true }), {
     active,
     eventDriven,
+    intervalMs,
     domains: ['portal', 'gradebook'],
     canRefresh: () =>
       Date.now() >= deadline.current &&

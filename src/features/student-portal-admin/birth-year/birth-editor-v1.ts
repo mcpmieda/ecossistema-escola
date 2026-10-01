@@ -7,6 +7,7 @@ import {
   readBirthPageV1,
   type BirthCursorsV1,
   type BirthScopeV1,
+  type InitialBirthAccountV1,
 } from './birth-read-v1';
 import { createBirthBatchV1, emptyBirthBatchV1, type BirthBatchStateV1 } from './birth-batch-v1';
 import {
@@ -69,6 +70,7 @@ export const emptyBirthEditorV1 = (): BirthEditorStateV1 => ({
 export function createBirthEditorV1(options: {
   client: PortalAdminClientV1;
   reader: PortalAdminReadClientV2;
+  takeInitialAccount?: () => InitialBirthAccountV1 | undefined;
   scope: BirthScopeV1;
   cursor?: BirthCursorsV1;
   continuous?: boolean;
@@ -161,9 +163,26 @@ export function createBirthEditorV1(options: {
     active = controller;
     emit({ state: 'loading', mode });
     try {
+      const snapshot = options.takeInitialAccount?.();
       const result = options.continuous
-        ? await readBirthCollectionV1(client, reader, scope, controller.signal)
-        : await readBirthPageV1(client, reader, scope, options.cursor, controller.signal);
+        ? await readBirthCollectionV1(
+            client,
+            reader,
+            scope,
+            controller.signal,
+            100,
+            undefined,
+            snapshot,
+          )
+        : await readBirthPageV1(
+            client,
+            reader,
+            scope,
+            options.cursor,
+            controller.signal,
+            undefined,
+            snapshot,
+          );
       if (current !== generation || controller.signal.aborted) return;
       fetchedAt = now();
       emit({

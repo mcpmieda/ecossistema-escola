@@ -14,6 +14,7 @@ import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1'
 import { SETTINGS_LABELS_V1, settingsScopeKeyV1, type SettingsFieldV1 } from './settings-values-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { CustomizationResetV1 } from './customization-reset-v1';
+import { useDebouncedSearchV1 } from '../shared/debounced-search-v1';
 import {
   customizationPeriodV1,
   customizationResetChoicesV1,
@@ -43,7 +44,7 @@ const valueLabel = (value: unknown) =>
 function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, compact }: Props) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');
-  const nameSearch = search.trim();
+  const nameSearch = useDebouncedSearchV1(search);
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await reader.query(

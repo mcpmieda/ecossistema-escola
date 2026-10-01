@@ -16,6 +16,7 @@ import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import {
   createSessionMutationV1,
   type RevokeCommandV1,
@@ -89,41 +90,6 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     [props.reader, scopeKey, revision],
   );
   const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost, true, false);
-  const loadHistory = useCallback(
-    async (cursor: string | undefined, signal: AbortSignal) => {
-      const result = await props.reader.query(
-        {
-          contractVersion: 2,
-          operation: 'sessions-read',
-          sessionView: 'history',
-          scope: props.scope,
-          page: { limit: 100, ...(cursor ? { cursor } : {}) },
-        },
-        signal,
-      );
-      if (
-        result.state !== 'sessions-read' ||
-        result.sessionView !== 'history' ||
-        settingsScopeKeyV1(result.scope) !== scopeKey ||
-        result.items.some((item) => item.validity === 'valid') ||
-        (parentScope.kind === 'account' &&
-          result.items.some((item) => item.accountId !== parentScope.accountId.toLowerCase()))
-      ) {
-        throw new PortalClientErrorV1('invalid-response');
-      }
-      return result;
-    },
-    [props.reader, scopeKey, revision],
-  );
-  const historyRead = useContinuousReadV1(
-    loadHistory,
-    'sessionId',
-    props.onAuthorizationLost,
-    true,
-    false,
-  );
-  const historyData = historyRead.state.state === 'ready' ? historyRead.state.data : null;
-
   const operation = useMemo(
     () => createSessionMutationV1(props.client, props.canWrite, setMutation),
     [props.client, props.canWrite],
@@ -138,7 +104,6 @@ function SessionsBodyV1(props: OperationsPropsV1) {
   useEffect(() => {
     if (mutation.state === 'committed') {
       read.clear();
-      historyRead.clear();
       setRevision((v) => v + 1);
     }
     if (mutation.state === 'error' && authorizationLostV1(mutation.error))
@@ -349,33 +314,12 @@ function SessionsBodyV1(props: OperationsPropsV1) {
             />
           </>
         )}
-        {historyRead.state.state === 'loading' ? <p role="status">Carregando histórico…</p> : null}
-        {historyRead.state.state === 'error' ? (
-          <AccountsErrorV1
-            error={historyRead.state.error}
-            canReload={!busy && historyRead.canReload}
-            onReload={historyRead.reload}
-          />
-        ) : null}
-        {historyData ? (
-          <SessionFeedV1
-            title="Histórico de sessões"
-            data={historyData}
-            busy={busy}
-            canWrite={props.canWrite}
-            scope={props.scope}
-            onAction={accountAction}
-            end={
-              <ContinuousEndV1
-                more={historyRead.more}
-                busy={busy || historyRead.refreshing}
-                failed={Boolean(historyRead.refreshError)}
-                loadMore={historyRead.loadMore}
-                retry={historyRead.reload}
-              />
-            }
-          />
-        ) : null}
+        <VisibleSessionHistoryV1
+          {...props}
+          revision={revision}
+          busy={busy}
+          onAction={accountAction}
+        />
         {review && (
           <AlertDialog.Backdrop
             isOpen
@@ -426,6 +370,112 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         )}
       </Card.Content>
     </Card>
+  );
+}
+
+function VisibleSessionHistoryV1(
+  props: OperationsPropsV1 & {
+    revision: number;
+    busy: boolean;
+    onAction: (row: SessionRowV2, individual: boolean) => void;
+  },
+) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [visitedRevision, setVisitedRevision] = useState<number | null>(null);
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      setVisible(entries.some((entry) => entry.isIntersecting));
+    });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (visible) setVisitedRevision(props.revision);
+  }, [visible, props.revision]);
+  const mounted = visible || visitedRevision === props.revision;
+  return (
+    <div ref={ref} className="pa-session-history">
+      {mounted ? (
+        <LiveRefreshScopeV1 active={visible}>
+          <SessionHistoryV1 key={props.revision} {...props} />
+        </LiveRefreshScopeV1>
+      ) : (
+        <h3>Histórico de sessões</h3>
+      )}
+    </div>
+  );
+}
+
+function SessionHistoryV1(
+  props: OperationsPropsV1 & {
+    busy: boolean;
+    onAction: (row: SessionRowV2, individual: boolean) => void;
+  },
+) {
+  const scope = props.scope;
+  const scopeKey = settingsScopeKeyV1(props.scope);
+  const load = useCallback(
+    async (cursor: string | undefined, signal: AbortSignal) => {
+      const result = await props.reader.query(
+        {
+          contractVersion: 2,
+          operation: 'sessions-read',
+          sessionView: 'history',
+          scope: props.scope,
+          page: { limit: 100, ...(cursor ? { cursor } : {}) },
+        },
+        signal,
+      );
+      if (
+        result.state !== 'sessions-read' ||
+        result.sessionView !== 'history' ||
+        settingsScopeKeyV1(result.scope) !== scopeKey ||
+        result.items.some((item) => item.validity === 'valid') ||
+        (scope.kind === 'account' &&
+          result.items.some((item) => item.accountId !== scope.accountId.toLowerCase()))
+      )
+        throw new PortalClientErrorV1('invalid-response');
+      return result;
+    },
+    [props.reader, scopeKey],
+  );
+  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost, true, false);
+  const data = read.state.state === 'ready' ? read.state.data : null;
+  return (
+    <>
+      {read.state.state === 'loading' ? <p role="status">Carregando histórico…</p> : null}
+      {read.state.state === 'error' ? (
+        <AccountsErrorV1
+          error={read.state.error}
+          canReload={!props.busy && read.canReload}
+          onReload={read.reload}
+        />
+      ) : null}
+      {data ? (
+        <SessionFeedV1
+          title="Histórico de sessões"
+          data={data}
+          busy={props.busy}
+          canWrite={props.canWrite}
+          scope={props.scope}
+          onAction={props.onAction}
+          end={
+            <ContinuousEndV1
+              more={read.more}
+              busy={props.busy || read.refreshing}
+              failed={Boolean(read.refreshError)}
+              loadMore={read.loadMore}
+              retry={read.reload}
+            />
+          }
+        />
+      ) : null}
+    </>
   );
 }
 

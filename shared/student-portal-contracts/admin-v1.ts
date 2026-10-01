@@ -48,11 +48,13 @@ export const auditKindV1 = z.enum(['login', 'login-failed', 'activated', 'passwo
 export const adminQueryV1 = z.object({
   contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'presence', 'health', 'links-preview', 'population', 'bulk-preview']),
   scope: policyScopeV1, page: pageRequestV1.extend({ cursor: bulkCursorV1.optional() }), action: bulkActionV1.optional(), from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
-  includeEntities: z.literal(true).optional(), eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
+  includeReadContext: z.literal(true).optional(), includeEntities: z.literal(true).optional(), eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
 }).strict().refine((v) => !v.from || !v.until || Date.parse(v.from) <= Date.parse(v.until), 'Invalid interval')
   // A shift is a policy level only: its settings can be read, nothing else is scoped by shift.
   .refine((v) => v.scope.kind !== 'shift' || v.operation === 'settings', 'Shift scope is only for settings')
   .refine((v) => v.operation !== 'audit-detail' || v.eventId !== undefined, 'Audit detail requires eventId')
+  .refine((v) => !v.includeReadContext || v.operation === 'audit-detail' ||
+    (v.operation === 'birth-years' && v.scope.kind === 'account'), 'Read context requires audit detail or account birth years')
   .refine((v) => !v.includeEntities || v.operation === 'audit' || v.operation === 'audit-detail', 'Entities require audit')
   .refine((v) => v.operation === 'bulk-preview' ? bulkPreviewQueryV1.safeParse(v).success : v.action === undefined && pageRequestV1.safeParse(v.page).success, 'Invalid bulk preview');
 export const accountSummaryV1 = z.object({ accountId: portalIdV1, link: academicLinkV1.nullable(), name: z.string().max(200), classLabel: z.string().max(80), state: accountStateV1, eligibility: eligibilityStateV1, blocked: z.boolean(), version: versionV1 }).strict();
@@ -100,11 +102,11 @@ export const adminResponseV1 = z.discriminatedUnion('state', [
   bulkPreviewResponseV1,
   z.object({ ...base, state: z.literal('accounts'), scopeVersion: versionV1, items: z.array(accountSummaryV1).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('sessions'), version: versionV1, items: z.array(z.object({ sessionId: portalIdV1, accountId: portalIdV1, expiresAt: instantV1, revokedAt: instantV1.nullable() }).strict()).max(100), ...paging }).strict(),
-  z.object({ ...base, state: z.literal('birth-years'), scopeVersion: versionV1, items: z.array(z.object({ accountId: portalIdV1, accountVersion: versionV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
+  z.object({ ...base, state: z.literal('birth-years'), scopeVersion: versionV1, accountsScopeVersion: versionV1.optional(), items: z.array(z.object({ accountId: portalIdV1, accountVersion: versionV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('settings'), settings: effectiveSettingsV1 }).strict(),
   z.object({ ...base, state: z.literal('publication'), items: z.array(z.object({ period: periodV1, state: publicationStateV1, availableRevision: revisionV1.nullable(), publishedRevision: revisionV1.nullable(), version: versionV1 }).strict()).max(6) }).strict(),
   z.object({ ...base, state: z.literal('audit'), items: z.array(auditEventV1).max(100), ...paging }).strict(),
-  z.object({ ...base, state: z.literal('audit-detail'), event: auditEventV1, ip: z.union([z.ipv4(), z.ipv6()]).nullable(), ipExpiresAt: instantV1.nullable() }).strict(),
+  z.object({ ...base, state: z.literal('audit-detail'), observedAt: instantV1.optional(), event: auditEventV1, ip: z.union([z.ipv4(), z.ipv6()]).nullable(), ipExpiresAt: instantV1.nullable() }).strict(),
   z.object({ ...base, state: z.literal('presence'), connectedStudents: z.number().int().nonnegative().safe(), observedAt: instantV1, windowSeconds: z.literal(60) }).strict(),
   z.object({ ...base, state: z.literal('health'), status: z.enum(['normal', 'attention', 'intervention']) }).strict(),
   z.object({ ...base, state: z.literal('links-preview'), count: z.number().int().nonnegative(), previewToken: opaqueV1, expiresAt: instantV1, version: versionV1 }).strict(),

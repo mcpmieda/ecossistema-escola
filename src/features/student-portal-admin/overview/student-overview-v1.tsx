@@ -44,14 +44,9 @@ function OverviewBodyV1(props: OperationsPropsV1) {
   const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
     async (signal: AbortSignal) => {
-      // Health remains separately observable when a business read is unavailable.
-      const [overview, health, population] = await Promise.allSettled([
+      const [overview, population] = await Promise.allSettled([
         props.reader.query(
           { contractVersion: 2, operation: 'overview', scope: props.scope, page: { limit: 100 } },
-          signal,
-        ),
-        props.client.query(
-          { contractVersion: 1, operation: 'health', scope: props.scope, page: { limit: 1 } },
           signal,
         ),
         props.scope.kind === 'school'
@@ -67,22 +62,38 @@ function OverviewBodyV1(props: OperationsPropsV1) {
           : Promise.resolve(null),
       ]);
       signal.throwIfAborted();
-      for (const result of [overview, health, population])
+      for (const result of [overview, population])
         if (
           result.status === 'rejected' &&
           result.reason instanceof PortalClientErrorV1 &&
           (authorizationLostV1(result.reason) || result.reason.state === 'rate-limited')
         )
           throw result.reason;
+      const summary =
+        overview.status === 'fulfilled' && overview.value.state === 'overview'
+          ? overview.value
+          : null;
+      let health = summary?.health ?? null;
+      if (!summary) {
+        // The fallback keeps health observable when the business summary is unavailable.
+        try {
+          const result = await props.client.query(
+            { contractVersion: 1, operation: 'health', scope: props.scope, page: { limit: 1 } },
+            signal,
+          );
+          if (result.state === 'health') health = result.status;
+        } catch (error) {
+          if (
+            error instanceof PortalClientErrorV1 &&
+            (authorizationLostV1(error) || error.state === 'rate-limited')
+          )
+            throw error;
+        }
+        signal.throwIfAborted();
+      }
       return {
-        overview:
-          overview.status === 'fulfilled' && overview.value.state === 'overview'
-            ? overview.value
-            : null,
-        health:
-          health.status === 'fulfilled' && health.value.state === 'health'
-            ? health.value.status
-            : null,
+        overview: summary,
+        health,
         population:
           population.status === 'fulfilled' && population.value?.state === 'population'
             ? population.value

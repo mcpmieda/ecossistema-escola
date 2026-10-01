@@ -132,6 +132,7 @@ describe('student authentication forms', () => {
       },
     }));
     await screen.findByRole('heading', { name: 'Verificação rápida' });
+    await waitFor(() => expect(callbacks).toBeDefined());
     act(() => callbacks.token('synthetic-risk-token'));
     expect((await screen.findByRole('alert')).textContent).toContain('A verificação não foi concluída');
   });

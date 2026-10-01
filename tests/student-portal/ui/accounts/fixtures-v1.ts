@@ -74,6 +74,20 @@ export function accountsMockV1(
       queries.push(input);
       const special = options.query?.(input, init.signal);
       if (special) return special;
+      if (input.operation === 'seals-read')
+        return accountJsonV1({
+          contractVersion: 2,
+          requestId: ACCOUNT_META_V1.requestId,
+          observedAt: '2026-10-01T15:00:00Z',
+          state: 'seals-read',
+          items: accounts
+            .filter((item) =>
+              input.scope.kind === 'account'
+                ? item.accountId === input.scope.accountId
+                : input.scope.kind === 'class' && item.classId === input.scope.classId,
+            )
+            .map((item, index) => ({ accountId: item.accountId, seals: index % 3 })),
+        });
       let filtered = accounts.filter(
         (item) =>
           (input.scope.kind !== 'account' || item.accountId === input.scope.accountId) &&
@@ -82,9 +96,15 @@ export function accountsMockV1(
           (input.blocked === undefined || item.blocked === input.blocked) &&
           (!input.nameSearch || item.name.toLowerCase().includes(input.nameSearch.toLowerCase())),
       );
-      if (input.page.cursor) filtered = filtered.slice(100);
+      const offset = input.page.cursor ? Number(input.page.cursor.split('_')[0]) : 0;
+      filtered = filtered.slice(offset);
       return accountJsonV1(
-        accountPageV1(filtered.slice(0, 100), filtered.length > 100 ? 'c'.repeat(80) : null),
+        accountPageV1(
+          filtered.slice(0, input.page.limit),
+          filtered.length > input.page.limit
+            ? `${offset + input.page.limit}_${'c'.repeat(80)}`
+            : null,
+        ),
       );
     },
   });

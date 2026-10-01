@@ -24,6 +24,7 @@ export function operationsMockV1(
     count?: number;
     now?: () => number;
     ipExpiry?: number;
+    health?: 'normal' | 'attention' | 'intervention';
     query?: (
       query: AdminQueryV1 | AdminReadQueryV2,
       signal?: AbortSignal | null,
@@ -199,7 +200,7 @@ export function operationsMockV1(
             (s) => s.validity === 'valid' && filtered.some((a) => a.accountId === s.accountId),
           ).length,
         },
-        health: 'normal',
+        health: options.health ?? 'normal',
       });
     if (query.operation === 'health')
       return opJsonV1({ ...OP_META_V1, state: 'health', status: 'normal' });

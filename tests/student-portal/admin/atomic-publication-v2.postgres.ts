@@ -10,6 +10,8 @@ import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-
 import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies/defaults-v1';
 import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
+import { readSealsV1 } from '../../../server/student-portal/admin/seals-read-v1';
+import { brilliantSealCountV1 } from '../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { accountTransactionV1, accessContextV1 } from '../../../server/student-portal/auth/transaction-v1';
 import { createSessionV1 } from '../../../server/student-portal/auth/session-service-v1';
@@ -169,6 +171,41 @@ it('publishes in one scoped row and serves individual grades immediately, withou
   expect((await self(readAccountIdV2(2)))?.subjects[0]?.periods[0]?.final).toMatchObject({ value: 8.002 });
   expect(JSON.stringify(await self())).not.toContain('PRIVATE TEACHER');
   console.log('P803_SYNTHETIC_RELEASE', JSON.stringify({ students: 106, queries: calls, elapsedMs: elapsed, jobs: 0 }));
+});
+it('reads class seals with real prepared SQL and app ACLs in four queries, preserving private publication', async () => {
+  await release();
+  const second = readAccountIdV2(2);
+  const canonical = async (accountId: string) => {
+    const projection = await self(accountId);
+    return projection?.state === 'ready' ? brilliantSealCountV1(projection.subjects, projection.endedPeriods) : null;
+  };
+  const batch = (expectedCalls = 4) => portal.begin(async (tx) => {
+    await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    queries.length = 0;
+    const value = await readSealsV1(tx, { contractVersion: 2, operation: 'seals-read',
+      scope: READ_CLASS_V2, page: { limit: 100 } }, crypto.randomUUID(), new Date());
+    expect(queries).toHaveLength(expectedCalls);
+    expect(queries.some((text) => /FOR UPDATE|INSERT|UPDATE student_portal/u.test(text))).toBe(false);
+    if (value.state !== 'seals-read') throw new Error('Synthetic seal result unavailable');
+    return value.items;
+  });
+  const expected = [await canonical(own), await canonical(second)];
+  expect(expected.every((value) => typeof value === 'number')).toBe(true);
+  const visible = await batch();
+  expect(visible).toHaveLength(105);
+  expect(visible.find((item) => item.accountId === own)?.seals).toBe(expected[0]);
+  expect(visible.find((item) => item.accountId === second)?.seals).toBe(expected[1]);
+  await policy({ showTermClosing: true });
+  try {
+    const withClosings = await batch(5);
+    expect(withClosings.find((item) => item.accountId === own)?.seals).toBe(await canonical(own));
+    expect(withClosings.find((item) => item.accountId === second)?.seals).toBe(await canonical(second));
+  } finally { await policy({ showTermClosing: false }); }
+  await release(ownScope, 'unpublish');
+  expect(await canonical(own)).toBeNull();
+  const privatePublication = await batch();
+  expect(privatePublication.find((item) => item.accountId === own)?.seals).toBeNull();
+  expect(privatePublication.find((item) => item.accountId === second)?.seals).toBe(await canonical(second));
 });
 it('adds the Fechamento do trimestre from the newest edition only when the policy asks (#1132)', async () => {
   await release();

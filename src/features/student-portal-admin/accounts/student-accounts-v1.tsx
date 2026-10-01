@@ -1,10 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Card, Checkbox, Tooltip, Input, Label, ListBox, Select, Table, TextField } from '@heroui/react';
+import {
+  Button,
+  Card,
+  Checkbox,
+  Tooltip,
+  Input,
+  Label,
+  ListBox,
+  Select,
+  Table,
+  TextField,
+} from '@heroui/react';
 import { Star } from 'lucide-react';
-import { sealLabelV1, useSealCountsV1, type SealCountsV1 } from './brilliant-seals-v1';
+import {
+  sealLabelV1,
+  useSealCountsV1,
+  useSealCountsCacheV1,
+  type SealCountsV1,
+  type SealCountsCacheV1,
+} from './brilliant-seals-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
+import { ADMIN_ACCOUNTS_PAGE_SIZE_V2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
+import { useDebouncedSearchV1 } from '../shared/debounced-search-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
@@ -18,6 +37,7 @@ import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-
 import { accountCredentialPreparableV1 } from './accounts-values-v1';
 import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import { panelHashAccountIdV1, writePanelHashParamsV1 } from '../shared/panel-hash-v1';
 import {
   firstAccessLabelV1,
@@ -62,7 +82,9 @@ const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string }[] = [
   { id: 'last-access', label: 'Último acesso' },
 ];
 function AccountsBodyV1(props: StudentAccountsPropsV1) {
+  const sealCache = useSealCountsCacheV1(props.reader);
   const [name, setName] = useState('');
+  const nameSearch = useDebouncedSearchV1(name.trim());
   const [order, setOrder] = useState<AccountOrderV1>('name');
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
@@ -81,12 +103,12 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
       contractVersion: 2,
       operation: 'accounts-read',
       scope,
-      page: { limit: 100 },
-      ...(name.trim() ? { nameSearch: name.trim() } : {}),
+      page: { limit: ADMIN_ACCOUNTS_PAGE_SIZE_V2 },
+      ...(nameSearch ? { nameSearch } : {}),
       ...(states.size === 1 ? { accountState: [...states][0] as AccountStateFilterV1 } : {}),
       ...(blocks.size === 1 ? { blocked: blocks.has('blocked') } : {}),
     }),
-    [scope, name, states, blocks],
+    [scope, nameSearch, states, blocks],
   );
   return (
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
@@ -170,6 +192,7 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         ])}
         {...props}
         query={query}
+        sealCache={sealCache}
         order={order}
         states={states}
         blocks={blocks}
@@ -182,11 +205,9 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
     </section>
   );
 }
-function orderAccountsV1<T extends { accountId: string; name: string; lastAuthenticationAt: string | null }>(
-  items: readonly T[],
-  order: AccountOrderV1,
-  seals: SealCountsV1 | null,
-): T[] {
+function orderAccountsV1<
+  T extends { accountId: string; name: string; lastAuthenticationAt: string | null },
+>(items: readonly T[], order: AccountOrderV1, seals: SealCountsV1 | null): T[] {
   if (order === 'name') return [...items];
   const byName = (left: T, right: T) => left.name.localeCompare(right.name, 'pt-BR');
   if (order === 'last-access')
@@ -213,6 +234,7 @@ function SealCountV1({ count }: { count: number | null | undefined }) {
 function AccountsResultsV1(
   props: StudentAccountsPropsV1 & {
     query: AdminReadQueryV2;
+    sealCache: SealCountsCacheV1;
     order: AccountOrderV1;
     states: Set<string>;
     blocks: Set<string>;
@@ -222,7 +244,9 @@ function AccountsResultsV1(
   },
 ) {
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [visibleLimit, setVisibleLimit] = useState(ADMIN_ACCOUNTS_PAGE_SIZE_V2);
   const [selectedId, setSelectedId] = useState<string | null>(() => panelHashAccountIdV1('aluno'));
+  const rankingActive = useLiveRefreshScopeV1() && selectedId === null;
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
@@ -233,7 +257,10 @@ function AccountsResultsV1(
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await props.reader.query(
-        { ...props.query, page: { limit: 100, ...(cursor ? { cursor } : {}) } },
+        {
+          ...props.query,
+          page: { limit: ADMIN_ACCOUNTS_PAGE_SIZE_V2, ...(cursor ? { cursor } : {}) },
+        },
         signal,
       );
       if (result.state !== 'accounts-read') throw new PortalClientErrorV1('invalid-response');
@@ -241,49 +268,103 @@ function AccountsResultsV1(
     },
     [props.reader, props.query, refreshVersion],
   );
-  const read = useContinuousReadV1(load, 'accountId', undefined, selectedId === null, false);
+  const read = useContinuousReadV1(
+    load,
+    'accountId',
+    undefined,
+    rankingActive,
+    false,
+    ADMIN_ACCOUNTS_PAGE_SIZE_V2,
+  );
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
-  const filteredItems =
-    current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
-    [];
-  // Any order other than the server's alphabetical one needs the whole list.
+  const filteredItems = useMemo(
+    () =>
+      current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
+      [],
+    [current?.items, props.states, props.blocks],
+  );
+  // Global rankings need the complete collection; alphabetical browsing reads only visited pages.
   const { more, refreshing, loadMore } = read;
   useEffect(() => {
-    if (props.order !== 'name' && more && !refreshing) loadMore();
-  }, [props.order, more, refreshing, loadMore]);
-  const complete = Boolean(current && !current.nextCursor);
+    if (props.order !== 'name' && !authorizationError && more && !refreshing && !read.refreshError)
+      loadMore();
+  }, [props.order, authorizationError, more, refreshing, read.refreshError, loadMore]);
   const sealClassIds = useMemo(
     () =>
       props.query.scope.kind === 'class'
         ? [props.query.scope.classId]
-        : [...new Set((current?.items ?? []).flatMap((item) => (item.classId ? [item.classId] : [])))],
+        : [
+            ...new Set(
+              (current?.items ?? []).flatMap((item) => (item.classId ? [item.classId] : [])),
+            ),
+          ],
     [props.query.scope, current?.items],
   );
   const seals = useSealCountsV1(
     props.reader,
-    props.order === 'seals' && complete && sealClassIds.length ? { classIds: sealClassIds } : null,
+    props.order === 'seals' && current && sealClassIds.length ? { classIds: sealClassIds } : null,
+    { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
   const sealCounts = seals.state === 'ready' ? seals.counts : null;
   // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
-  const visibleItems = orderAccountsV1(filteredItems, props.order, sealCounts).map((account) => ({
-    ...account,
-    seals: sealCounts?.get(account.accountId),
-  }));
+  const orderedItems = useMemo(
+    () =>
+      orderAccountsV1(filteredItems, props.order, sealCounts).map((account) => ({
+        ...account,
+        seals: props.order === 'seals' ? sealCounts?.get(account.accountId) : undefined,
+      })),
+    [filteredItems, props.order, sealCounts],
+  );
+  const visibleItems = useMemo(
+    () => orderedItems.slice(0, visibleLimit),
+    [orderedItems, visibleLimit],
+  );
+  const moreRows = rankingActive && (orderedItems.length > visibleLimit || read.more);
+  const loadRows = () => {
+    if (orderedItems.length > visibleLimit)
+      setVisibleLimit((limit) => limit + ADMIN_ACCOUNTS_PAGE_SIZE_V2);
+    else if (read.more && read.canReload) {
+      setVisibleLimit((limit) => limit + ADMIN_ACCOUNTS_PAGE_SIZE_V2);
+      read.loadMore();
+    }
+  };
+  const loadingRows = orderedItems.length <= visibleLimit && read.refreshing;
   const qrClass = props.query.scope.kind === 'class' ? props.query.scope : null;
   const eligibleQr = new Set(
-    visibleItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
+    orderedItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
   );
   useEffect(() => setSelectedQr(new Set()), [current?.scopeVersion]);
   const protectedFailure =
     read.state.state === 'error' &&
     ['unauthenticated', 'forbidden'].includes(read.state.error.state);
-  const onChanged = useCallback(() => setRefreshVersion((value) => value + 1), []);
-  const onAuthorizationLost = useCallback((error: PortalClientErrorV1) => {
-    setAuthorizationError(error);
-    setSelectedId(null);
-  }, []);
+  useEffect(() => {
+    if (protectedFailure) props.sealCache.clear();
+  }, [protectedFailure, props.sealCache]);
+  const onChanged = useCallback(() => {
+    props.sealCache.clear();
+    setRefreshVersion((value) => value + 1);
+  }, [props.sealCache]);
+  const onAuthorizationLost = useCallback(
+    (error: PortalClientErrorV1) => {
+      props.sealCache.clear();
+      setAuthorizationError(error);
+      setSelectedId(null);
+    },
+    [props.sealCache],
+  );
+  const sealError =
+    seals.state === 'error'
+      ? seals.error
+      : seals.state === 'ready'
+        ? seals.refreshError
+        : undefined;
+  useEffect(() => {
+    if (sealError && ['unauthenticated', 'forbidden'].includes(sealError.state))
+      onAuthorizationLost(sealError);
+  }, [sealError, onAuthorizationLost]);
   const reload = () => {
     if (!read.canReload) return;
+    props.sealCache.clear();
     setAuthorizationError(null);
     read.clear();
     read.reload();
@@ -297,7 +378,7 @@ function AccountsResultsV1(
             {qrClass && current ? (
               <QrBatchToolsV1
                 client={props.client}
-                accounts={visibleItems}
+                accounts={orderedItems}
                 selected={selectedQr}
                 onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
                 academicYear={qrClass.academicYear}
@@ -338,10 +419,12 @@ function AccountsResultsV1(
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
             <p role="status">
               {current
-                ? `${visibleItems.length} ${visibleItems.length === 1 ? 'aluno' : 'alunos'}${current.nextCursor ? ' · lista em carregamento' : ''}${props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : ''}`
+                ? `${orderedItems.length} ${orderedItems.length === 1 ? 'aluno' : 'alunos'}${current.nextCursor ? ' · lista em carregamento' : ''}${props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : ''}`
                 : 'Alunos'}
             </p>
-            <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
+            <LiveReadNoticeV1
+              failed={Boolean(read.refreshError || (props.order === 'seals' && sealError))}
+            />
           </div>
 
           {(read.state.state === 'idle' || read.state.state === 'loading') && (
@@ -473,10 +556,10 @@ function AccountsResultsV1(
                   </Table.Body>
                 </Table.Content>
                 <ContinuousEndV1
-                  more={read.more}
-                  busy={read.refreshing}
+                  more={moreRows}
+                  busy={loadingRows}
                   failed={Boolean(read.refreshError)}
-                  loadMore={read.loadMore}
+                  loadMore={loadRows}
                   retry={read.reload}
                 />
               </Table.ScrollContainer>
@@ -484,10 +567,10 @@ function AccountsResultsV1(
           )}
           {current && !visibleItems.length ? (
             <ContinuousEndV1
-              more={read.more}
-              busy={read.refreshing}
+              more={moreRows}
+              busy={loadingRows}
               failed={Boolean(read.refreshError)}
-              loadMore={read.loadMore}
+              loadMore={loadRows}
               retry={read.reload}
             />
           ) : null}

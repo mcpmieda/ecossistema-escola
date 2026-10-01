@@ -15,6 +15,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('audit detail permission, clock and retention', () => {
+  it('uses the event response clock without requesting account data', async () => {
+    const server = Date.parse('2026-10-01T15:00:00Z');
+    const source = operationsMockV1({ now: () => server });
+    const mock = operationsMockV1({
+      query: (query) =>
+        query.operation === 'audit-detail'
+          ? source.client
+              .query(query)
+              .then((response) =>
+                opJsonV1({ ...response, observedAt: new Date(server).toISOString() }),
+              )
+          : undefined,
+    });
+    const states: AuditDetailStateV1[] = [];
+    const reader = createAuditDetailV1(
+      mock.props,
+      (state) => states.push(state),
+      () => 0,
+    );
+    await reader.open(OP_ACCOUNT_V1, opIdV1(300));
+    expect(states.at(-1)).toMatchObject({ state: 'ready', detail: { ip: '192.0.2.42' } });
+    expect(mock.queries.map((query) => query.operation)).toEqual(['audit-detail']);
+    reader.clear();
+  });
   it('caps a returned raw IP at 90 days and rejects metadata at 12 months', async () => {
     const server = Date.parse('2027-02-28T12:00:00Z');
     const source = operationsMockV1({ now: () => server });

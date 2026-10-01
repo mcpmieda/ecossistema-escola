@@ -59,6 +59,7 @@ export function useContinuousReadV1<P extends CursorPage>(
   onAuthorizationLost?: (error: PortalClientErrorV1) => void,
   active = true,
   eventDriven = true,
+  pageSize = INITIAL_ROWS,
 ) {
   const cache = useMemo(
     () => ({
@@ -75,10 +76,10 @@ export function useContinuousReadV1<P extends CursorPage>(
       const seed = append && Date.now() - cache.fetchedAt < 240_000 ? cache.data : null;
       const desired =
         append && !seed
-          ? (cache.data?.items.length ?? 0) + INITIAL_ROWS
+          ? (cache.data?.items.length ?? 0) + pageSize
           : seed
-            ? INITIAL_ROWS
-            : Math.max(INITIAL_ROWS, cache.data?.items.length ?? 0);
+            ? pageSize
+            : Math.max(pageSize, cache.data?.items.length ?? 0);
       // Rebuild only the previously visited window; a fresh append adds one bounded page.
       const maxPages = seed || !cache.data ? 1 : Math.max(1, cache.cursors.size) + (append ? 1 : 0);
       const cursors = seed ? new Set(cache.cursors) : new Set<string | undefined>();
@@ -104,7 +105,7 @@ export function useContinuousReadV1<P extends CursorPage>(
         throw error;
       }
     },
-    [cache, loadPage, key],
+    [cache, loadPage, key, pageSize],
   );
   const read = useOperationalReadV1(load, onAuthorizationLost, active, eventDriven);
   useEffect(() => {

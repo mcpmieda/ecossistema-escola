@@ -312,6 +312,7 @@ function PortalWorkspace({
           {...common}
           scope={context.scope}
           scopeLabel={context.account.name}
+          initialAccount={{ account: context.account, scopeVersion: context.accountsScopeVersion }}
           canWrite={context.canWrite}
         />
       ),

@@ -42,26 +42,35 @@ export function createAuditDetailV1(
     active = controller;
     publish({ state: 'loading' });
     try {
-      const [detail, clock] = await Promise.all([
-        props.client.query(
-          { contractVersion: 1, operation: 'audit-detail', includeEntities: true, scope, eventId, page: { limit: 1 } },
-          controller.signal,
-        ),
-        props.reader.query(
-          { contractVersion: 2, operation: 'accounts-read', scope, page: { limit: 1 } },
-          controller.signal,
-        ),
-      ]);
+      const detail = await props.client.query(
+        {
+          contractVersion: 1,
+          operation: 'audit-detail',
+          includeEntities: true,
+          includeReadContext: true,
+          scope,
+          eventId,
+          page: { limit: 1 },
+        },
+        controller.signal,
+      );
       if (generation !== current || controller.signal.aborted) return;
-      if (
-        detail.state !== 'audit-detail' ||
-        detail.event.eventId !== eventId ||
-        clock.state !== 'accounts-read'
-      )
+      if (detail.state !== 'audit-detail' || detail.event.eventId !== eventId)
         throw new PortalClientErrorV1('invalid-response');
       if (scope.kind === 'account' && detail.event.accountId !== scope.accountId)
         throw new PortalClientErrorV1('invalid-response');
-      const serverNow = Date.parse(clock.observedAt) + Math.max(0, monotonic() - started);
+      // Missing clock metadata uses the complete authorized read.
+      let observedAt = detail.observedAt;
+      if (!observedAt) {
+        const clock = await props.reader.query(
+          { contractVersion: 2, operation: 'accounts-read', scope, page: { limit: 1 } },
+          controller.signal,
+        );
+        if (generation !== current || controller.signal.aborted) return;
+        if (clock.state !== 'accounts-read') throw new PortalClientErrorV1('invalid-response');
+        observedAt = clock.observedAt;
+      }
+      const serverNow = Date.parse(observedAt) + Math.max(0, monotonic() - started);
       const occurred = new Date(detail.event.at);
       const metadataEnd = new Date(occurred);
       metadataEnd.setUTCDate(1);
