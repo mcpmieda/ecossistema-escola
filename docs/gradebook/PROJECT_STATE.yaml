@@ -1,7 +1,7 @@
 schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-09-20
+updated_at: 2026-10-01
 coordination:
   master_issue: 182
   executable_issue: null
@@ -72,11 +72,11 @@ student_portal_integration:
   part_2_status: technically-complete-release-closed-by-policy
   gate_g_b: accepted-with-explicit-physical-device-deferrals
   gate_g_p: passed-technical-release-general-opening-not-authorized
-  schema_table_count: 27
-  schema: student_portal_migrations_0001_through_0023_applied
-  schema_migration_file: 0023_audit_detail_v1.sql
-  schema_migration_production_version: 20260929071319
-  schema_migration_production_evidence: docs/student-portal/POSTFLIGHT_0023.md
+  schema_table_count: 28
+  schema: student_portal_migrations_0001_through_0024_applied
+  schema_migration_file: 0024_seal_count_cache_v1.sql
+  schema_migration_production_version: 20261001201546
+  schema_migration_production_evidence: docs/student-portal/POSTFLIGHT_0024.md
   academic_authority: unchanged-official-imported-source
   reset_guard: integrated-706-before-population
   transactional_producers: integrated-707
@@ -87,7 +87,7 @@ student_portal_integration:
   integrated_academic_presentation: 747
 repository_snapshot:
   gradebook_latest_migration_in_tree: 0013_default_privileges_hardening_v1.sql
-  student_portal_latest_migration_in_tree: 0023_audit_detail_v1.sql
+  student_portal_latest_migration_in_tree: 0024_seal_count_cache_v1.sql
   student_portal_candidate_migrations_status: none-pending
   git_presence_alone_is_production_proof: false
   current_state_sources: [main-tree, merged-prs, issue-postflights, official-deploys]
