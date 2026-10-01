@@ -146,8 +146,9 @@ export function adminReadCasesV2(
       const eventId = readAccountIdV2(950);
       await get().admin.unsafe(`INSERT INTO student_portal.audit_event
         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version)
-        VALUES($1::uuid,now(),$2::uuid,$2::uuid,$3::jsonb,'login','success',$1::uuid,0)`,
-        [eventId, accountId, JSON.stringify(scope)]);
+        VALUES($1::uuid,now(),$2::uuid,$2::uuid,
+          jsonb_build_object('kind','account','academicYear',2026,'accountId',$2::text),
+          'login','success',$1::uuid,0)`, [eventId, accountId]);
       try {
         const query = { contractVersion: 1, operation: 'audit-detail', scope, eventId, page: { limit: 1 } };
         const auditContext = { ...readContextV2(), capability: 'platform.settings.write' };
