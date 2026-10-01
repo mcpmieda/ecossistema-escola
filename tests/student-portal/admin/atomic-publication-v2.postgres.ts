@@ -113,7 +113,7 @@ beforeAll(async () => {
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 803001,746000+n,8000+n FROM generate_series(1,106) n;
     UPDATE student_portal.account SET auth_state='active' WHERE closed_at IS NULL;
     SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
-  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
+  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0024_seal_count_cache_v1.sql'])
     await owner.unsafe(readFileSync('migrations/student-portal/' + migration, 'utf8'), [], { prepare: false });
   portal = measured(client('student_portal_app') as unknown as StudentPortalPostgresSqlV1);
   peer = client('student_portal_app') as unknown as StudentPortalPostgresSqlV1;

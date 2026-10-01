@@ -23,7 +23,6 @@ export async function installResetSchemaFixtureV1(database: {
     '0014_year_reset_full_cleanup_v1.sql',
     '0020_term_closing_policy_v1.sql',
     '0023_audit_detail_v1.sql',
-    '0024_seal_count_cache_v1.sql',
   ])
     await database.exec(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
   await installShiftReadViewFixtureV1(database);
