@@ -61,9 +61,10 @@ export async function sealContextsBatchV1(
       FROM student_portal.academic_binding_v1 WHERE academic_year=2026 AND student_id=a.gradebook_student_id
         AND status IS DISTINCT FROM 6) b
     LEFT JOIN student_portal.academic_class_v1 c ON c.academic_year=2026 AND c.class_id=b.class_id
-    WHERE a.id=ANY($1::uuid[]) AND a.closed_at IS NULL AND NOT a.blocked
+    WHERE a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
+      AND a.closed_at IS NULL AND NOT a.blocked
       AND a.eligibility='eligible' AND a.gradebook_student_id IS NOT NULL ORDER BY a.id`,
-    [ids],
+    [JSON.stringify(ids)],
   );
   const now = await authNowV1(tx);
   const contexts = new Map<string, ContextV1>();
