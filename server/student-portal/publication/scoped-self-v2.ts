@@ -20,6 +20,11 @@ import {
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 
 type ContextV2 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
+export type ScopedSelfSourceReaderV2 = {
+  scoped(context: ContextV2): ReturnType<typeof readScopedSourcesV2>;
+  latest(studentId: number): ReturnType<typeof readLatestSourceV2>;
+  studentKey(accountId: string): ReturnType<typeof readStudentKeyV2>;
+};
 type SubjectV2 = SelfResponseV1['subjects'][number];
 type SourceV2 = NonNullable<ReturnType<AcademicStudentReaderPostgresV1['projectPreparedSourceV2']>>;
 type ScopedRowV2 = Awaited<ReturnType<typeof readScopedSourcesV2>>[number];
@@ -166,10 +171,12 @@ export async function scopedSelfV2(
   tx: StudentPortalPostgresQueryV1,
   context: ContextV2,
   requestId: string,
+  sources?: ScopedSelfSourceReaderV2,
 ): Promise<SelfResponseV1> {
   const accountId = context.account.id;
   const link = context.account.link!;
-  const rows = await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
+  const rows = sources ? await sources.scoped(context)
+    : await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
   if (rows.length !== PERIODS_V1.length) throw new Error('student-portal-preparation-unavailable');
   const accepted: (string | null)[] = PERIODS_V1.map(() => null);
   const subjects = new Map<number, SubjectV2>();
@@ -214,7 +221,7 @@ export async function scopedSelfV2(
     context.now,
     finalAuthority,
   );
-  const withClosings = await termClosingsV2(tx, context, visible, reader, decoded);
+  const withClosings = await termClosingsV2(tx, context, visible, reader, decoded, sources);
   const endedPeriods = endedPeriodsV1(context.policy.enforcedValue, context.now);
   return endedPeriods.length ? selfResponseV1.parse({ ...withClosings, endedPeriods }) : withClosings;
 }
@@ -226,6 +233,7 @@ async function termClosingsV2(
   projection: SelfResponseV1,
   reader: AcademicStudentReaderPostgresV1,
   decoded: Map<string, SourceV2>,
+  sources?: ScopedSelfSourceReaderV2,
 ): Promise<SelfResponseV1> {
   const targets = termClosingTargetsV1(
     context.policy.enforcedValue,
@@ -233,7 +241,7 @@ async function termClosingsV2(
     context.now,
   );
   if (targets.periods.length === 0) return projection;
-  const source = await closingSourceV2(tx, context, reader, decoded);
+  const source = await closingSourceV2(tx, context, reader, decoded, sources);
   return source ? attachTermClosingsV1({ projection, targets, ...source }) : projection;
 }
 
@@ -243,8 +251,10 @@ async function closingSourceV2(
   context: ContextV2,
   reader: AcademicStudentReaderPostgresV1,
   decoded: Map<string, SourceV2>,
+  sources?: ScopedSelfSourceReaderV2,
 ) {
-  const latest = await readLatestSourceV2(tx, context.account.link!.studentId);
+  const latest = sources ? await sources.latest(context.account.link!.studentId)
+    : await readLatestSourceV2(tx, context.account.link!.studentId);
   if (!latest || latest.payload_json === null || latest.class_id !== context.policy.classId) return null;
   try {
     const revision = academicVersionSchemaV1.parse(latest.revision);
@@ -252,7 +262,8 @@ async function closingSourceV2(
     return {
       evaluations: source.closings,
       sourceSubjects: source.student.subjects,
-      studentKey: await readStudentKeyV2(tx, context.account.id),
+      studentKey: sources ? await sources.studentKey(context.account.id)
+        : await readStudentKeyV2(tx, context.account.id),
     };
   } catch {
     return null;

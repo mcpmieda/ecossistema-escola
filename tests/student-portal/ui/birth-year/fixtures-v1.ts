@@ -176,6 +176,7 @@ export function birthMockV1(
         ...BIRTH_META_V1,
         state: 'birth-years',
         scopeVersion,
+        accountsScopeVersion: 99,
         nextCursor,
         items: rows.map((a) => ({ ...births.get(a.accountId)!, accountVersion: a.version })),
       });

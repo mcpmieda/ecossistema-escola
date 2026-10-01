@@ -467,6 +467,7 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
       return opJsonV1({
         ...meta,
         state: 'audit-detail',
+        observedAt,
         event: items.find((item) => item.eventId === query.eventId) ?? items[0],
         ip: null,
         ipExpiresAt: null,

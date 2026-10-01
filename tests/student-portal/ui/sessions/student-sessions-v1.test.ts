@@ -26,6 +26,64 @@ async function confirm() {
   );
 }
 describe('administrative sessions interface', () => {
+  it('loads history only when visible, retains it while hidden and invalidates after revocation', async () => {
+    const observers = new Set<{
+      target: Element | null;
+      callback: IntersectionObserverCallback;
+    }>();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        target: Element | null = null;
+        constructor(readonly callback: IntersectionObserverCallback) {
+          observers.add(this);
+        }
+        observe(target: Element) {
+          this.target = target;
+        }
+        unobserve() {
+          this.target = null;
+        }
+        disconnect() {
+          observers.delete(this);
+        }
+      },
+    );
+    const showHistory = (isIntersecting: boolean) => {
+      const observer = [...observers].find((item) => item.target?.matches('.pa-session-history'));
+      if (!observer?.target) throw new Error('Missing history visibility observer');
+      observer.callback(
+        [{ target: observer.target, isIntersecting } as IntersectionObserverEntry],
+        observer as unknown as IntersectionObserver,
+      );
+    };
+    const mock = operationsMockV1();
+    const historyQueries = () =>
+      mock.queries.filter((q) => q.operation === 'sessions-read' && q.sessionView === 'history');
+    render(createElement(StudentSessionsV1, mock.props));
+    await screen.findByRole('grid', { name: 'Sessões ativas' });
+    expect(screen.getByRole('heading', { name: 'Histórico de sessões' })).toBeTruthy();
+    expect(historyQueries()).toHaveLength(0);
+    await act(async () => showHistory(true));
+    await screen.findByRole('grid', { name: 'Histórico de sessões' });
+    expect(historyQueries()).toHaveLength(1);
+    await act(async () => showHistory(false));
+    expect(screen.getByRole('grid', { name: 'Histórico de sessões' })).toBeTruthy();
+    await act(async () => showHistory(true));
+    expect(historyQueries()).toHaveLength(1);
+    await act(async () => showHistory(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Encerrar todas do aluno' }));
+    await confirm();
+    await screen.findByText('Sessões encerradas.');
+    await waitFor(() =>
+      expect(screen.queryByRole('grid', { name: 'Histórico de sessões' })).toBeNull(),
+    );
+    expect(historyQueries()).toHaveLength(1);
+    await act(async () => showHistory(true));
+    await screen.findByRole('grid', { name: 'Histórico de sessões' });
+    expect(historyQueries()).toHaveLength(2);
+    expect(mock.writes[0]).toMatchObject({ expectedVersion: 11, scope: OP_ACCOUNT_V1 });
+  });
   it.each(['individual', 'account', 'class'] as const)(
     'reviews and commits %s with the correct fresh scope CAS',
     async (mode) => {

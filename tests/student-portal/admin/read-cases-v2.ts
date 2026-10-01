@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sessionsCasesV2 } from './sessions-cases-v2';
 import {
   adminClassCatalogRequestV2,
+  adminReadQueryV2,
   adminReadResponseV2,
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
@@ -49,6 +50,52 @@ export function adminReadCasesV2(
   });
   sessionsCasesV2(get);
   describe('administrative read V2, bounded and compatible', () => {
+    it('reads 400 accounts per page and preserves the signed continuation and other operation limits', async () => {
+      const admin = get().admin;
+      await admin.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
+        SELECT 746000+n,2026,'SYNTHETIC READ STUDENT '||lpad(n::text,3,'0') FROM generate_series(107,406) n`);
+      await admin.unsafe(`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id)
+        SELECT 2026,746001,n,746000+n FROM generate_series(107,406) n`);
+      await admin.unsafe(`INSERT INTO student_portal.account(id,gradebook_student_id,auth_state,eligibility)
+        SELECT ('74600000-0000-4000-8000-'||lpad((n+1000)::text,12,'0'))::uuid,746000+n,'pending-activation','eligible'
+        FROM generate_series(107,406) n`);
+      try {
+        get().resetCalls();
+        const first = await read({ page: { limit: 400 } });
+        expect(first.items).toHaveLength(400);
+        expect(get().calls()).toBeLessThanOrEqual(5);
+        const last = await read({ page: { limit: 400, cursor: first.nextCursor } });
+        expect(last.items).toHaveLength(5);
+        expect(last.nextCursor).toBeNull();
+        expect(new Set([...first.items, ...last.items].map((item) => item.accountId)).size).toBe(
+          405,
+        );
+        await expect(read({ page: { limit: 100, cursor: first.nextCursor } })).rejects.toThrow();
+        expect(adminReadQueryV2.safeParse(input({ page: { limit: 401 } })).success).toBe(false);
+        expect(
+          adminReadQueryV2.safeParse(input({ operation: 'sessions-read', page: { limit: 400 } }))
+            .success,
+        ).toBe(false);
+        expect(
+          adminResponseV1.safeParse({
+            contractVersion: 1,
+            state: 'accounts',
+            requestId: readContextV2().requestId,
+            scopeVersion: 0,
+            items: first.items,
+            nextCursor: null,
+          }).success,
+        ).toBe(false);
+      } finally {
+        await admin.unsafe(
+          'DELETE FROM student_portal.account WHERE gradebook_student_id BETWEEN 746107 AND 746406',
+        );
+        await admin.unsafe(
+          'DELETE FROM gradebook.vinculo WHERE aluno_id BETWEEN 746107 AND 746406',
+        );
+        await admin.unsafe('DELETE FROM gradebook.aluno WHERE id BETWEEN 746107 AND 746406');
+      }
+    });
     it('returns complete keyset pages without N+1 and preserves V1 response shape', async () => {
       const first = await read();
       const firstCalls = get().calls();
@@ -96,13 +143,18 @@ export function adminReadCasesV2(
         const second = await read({ page: { limit: 2, cursor: first.nextCursor } });
         const third = await read({ page: { limit: 2, cursor: second.nextCursor } });
         expect([...first.items, ...second.items].map((item) => item.accountId)).toEqual([
-          readAccountIdV2(1), readAccountIdV2(2), readAccountIdV2(3), readAccountIdV2(4),
+          readAccountIdV2(1),
+          readAccountIdV2(2),
+          readAccountIdV2(3),
+          readAccountIdV2(4),
         ]);
         expect(second.nextCursor).not.toBeNull();
         expect(third.items[0]?.accountId).toBe(readAccountIdV2(5));
         const birth = async (cursor?: string) => {
           const result = await readApiV2(get().sql).query(readContextV2(), {
-            contractVersion: 1, operation: 'birth-years', scope: READ_CLASS_V2,
+            contractVersion: 1,
+            operation: 'birth-years',
+            scope: READ_CLASS_V2,
             page: { limit: 2, ...(cursor ? { cursor } : {}) },
           });
           expect(result.state).toBe('birth-years');
@@ -219,7 +271,9 @@ export function adminReadCasesV2(
       expect((await read({ nameSearch: 'student 001' })).items[0]!.lastAuthenticationAt).toBeNull();
     });
     it('uses inherited policy and counts only currently authorized sessions', async () => {
-      await get().admin.unsafe("UPDATE student_portal.setting SET value_json='true'::jsonb WHERE scope_key='school:2026' AND field_key='accessEnabled'");
+      await get().admin.unsafe(
+        "UPDATE student_portal.setting SET value_json='true'::jsonb WHERE scope_key='school:2026' AND field_key='accessEnabled'",
+      );
       const defaults = await new PolicyServiceV1(get().admin).read(READ_SCHOOL_V2);
       const calendar = {
         ...defaults.value.calendar,

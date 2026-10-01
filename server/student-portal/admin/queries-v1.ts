@@ -69,7 +69,9 @@ async function accountListResultV1(tx: StudentPortalPostgresQueryV1, query: Admi
   if (query.operation === 'birth-years') {
     const revision = await tx.unsafe('SELECT (academic_counter+portal_link_counter)::text AS version FROM student_portal.academic_revision WHERE academic_year=2026');
     if (revision.length !== 1) throw new Error('student-portal-admin-unavailable');
-    return { scopeVersion: versionV1.parse(Number(revision[0]!.version)), items: selected.map((row) => ({ accountId: row.id,
+    return { scopeVersion: versionV1.parse(Number(revision[0]!.version)),
+      ...(query.scope.kind === 'account' ? { accountsScopeVersion: await accountsScopeVersionV1(tx) } : {}),
+      items: selected.map((row) => ({ accountId: row.id,
       accountVersion: Number(row.account_version), year: row.birth_year === null ? null : String(row.birth_year),
       confirmation: row.confirmation, version: Number(row.birth_version) })), nextCursor };
   }
@@ -145,7 +147,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
     requestId: row.request_id, version: Number(row.version), maskedIp: row.masked_ip, ...(auditDetailOfV1(row.detail_json)), ...(query.includeEntities ? { entities: { actorName: row.actor_name, subjectName: row.subject_name, classId: row.subject_class_id, classLabel: row.subject_class_label } } : {}) });
   if (query.operation === 'audit-detail') {
     if (rows.length !== 1) throw new Error('student-portal-audit-forbidden');
-    return { event: event(rows[0]!), ip: rows[0]!.ip,
+    return { observedAt: now.toISOString(), event: event(rows[0]!), ip: rows[0]!.ip,
       ipExpiresAt: rows[0]!.ip_expires_at === null ? null : adminInstantV1(rows[0]!.ip_expires_at) };
   }
   const selected = rows.slice(0, query.page.limit);

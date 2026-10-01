@@ -1,3 +1,4 @@
+import './student-accounts-v1.css';
 import { AccountOpenContextV1 } from '../shared/account-open-v1';
 import { Star } from 'lucide-react';
 import { sealLabelV1, useSealCountsV1 } from './brilliant-seals-v1';
@@ -35,6 +36,7 @@ import {
 
 export interface AccountSlotContextV1 {
   account: AdminAccountReadV2;
+  accountsScopeVersion: number;
   scope: Extract<ScopeV1, { kind: 'account' }>;
   canWrite: boolean;
   refresh: () => void;
@@ -130,7 +132,7 @@ function AccountDetailBodyV1({
       const account = result.items[0] ?? null;
       if (account && parentClassId !== null && account.classId !== parentClassId)
         throw new PortalClientErrorV1('conflict');
-      return account;
+      return { account, scopeVersion: result.scopeVersion };
     },
     [reader, ownScope, parentClassId],
   );
@@ -193,7 +195,8 @@ function AccountDetailBodyV1({
     if (error && ['unauthenticated', 'forbidden'].includes(error.state))
       onAuthorizationLost?.(error);
   }, [mutation, read.state, onAuthorizationLost]);
-  const account = !protectedFailure && read.state.state === 'ready' ? read.state.data : null;
+  const snapshot = !protectedFailure && read.state.state === 'ready' ? read.state.data : null;
+  const account = snapshot?.account ?? null;
   const editable = canWrite && !!account && accountManageableV1(account) && !pending && !failed;
   function refresh() {
     if (pending || (failed && Date.now() < mutation.retryAt)) return;
@@ -202,7 +205,7 @@ function AccountDetailBodyV1({
     read.reload();
   }
   const context: AccountSlotContextV1 | null = account
-    ? { account, scope: ownScope, canWrite: editable, refresh }
+    ? { account, accountsScopeVersion: snapshot!.scopeVersion, scope: ownScope, canWrite: editable, refresh }
     : null;
   return (
     <Card className="pa-account-detail" aria-label="Ficha da conta">

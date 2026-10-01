@@ -5,6 +5,7 @@ import {
 } from '../../../shared/gradebook-contracts/settings/assessment-names-v1';
 import { type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import type {
+  AccountRecordV1,
   PublishedProjectionPortV1,
   PortalTransactionV1,
 } from '../../../shared/student-portal-contracts/ports-v1';
@@ -20,6 +21,7 @@ import { sessionExpiryV1 } from '../policies/calendar-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
 import { scopedSelfV2 } from './scoped-self-v2';
+import type { EligibilityV1 } from '../../../shared/gradebook-contracts/student-portal/eligibility-v1';
 
 /** Fresh names/status come from the BN; the lifecycle snapshot proves the projection scope.
  * lockAccount=false is reserved for a caller-owned REPEATABLE READ READ ONLY transaction.
@@ -67,6 +69,20 @@ export async function publicationContextV1(
     WHERE a.id=$1::uuid AND b.status IS DISTINCT FROM 6`,
     [accountId],
   );
+  return publicationContextFromRowsV1(context, rows);
+}
+
+/** Single-target and batched reads share this profile validation and presentation assembly. */
+export function publicationContextFromRowsV1(
+  context: {
+    account: AccountRecordV1;
+    eligibility: EligibilityV1;
+    policy: Awaited<ReturnType<PolicyServiceV1['readSnapshotInTransaction']>>;
+    now: Date;
+  },
+  rows: readonly Record<string, unknown>[],
+) {
+  const accountId = context.account.id;
   const row = rows[0];
   if (rows.length !== 1 || !row || row.observed_class !== context.policy.classId) return null;
   const academicState =

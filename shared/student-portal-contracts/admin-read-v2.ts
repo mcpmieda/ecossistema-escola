@@ -18,6 +18,7 @@ import type { OperationalWorkspaceRequestV2 } from '../gradebook-contracts/opera
 
 /** Reuse the complete, authorized BN catalog, including classes with no bindings/accounts. */
 export const ADMIN_CLASS_CATALOG_PATH_V2 = '/api/gradebook/operational-workspace';
+export const ADMIN_ACCOUNTS_PAGE_SIZE_V2 = 400;
 export function adminClassCatalogRequestV2(
   offset = 0,
   limit = 100,
@@ -34,12 +35,14 @@ export const adminReadQueryV2 = z.object({
   contractVersion: z.literal(2),
   operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read', 'seals-read']),
   scope: scopeV1,
-  page: pageRequestV1,
+  page: pageRequestV1.extend({ limit: z.number().int().min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2).default(50) }),
   accountState: accountStateV1.optional(),
   blocked: z.boolean().optional(),
   nameSearch: z.string().min(1).max(200).optional(),
   sessionView: z.enum(['active', 'history']).optional(),
 }).strict()
+  .refine((value) => value.operation === 'accounts-read' || value.page.limit <= 100,
+    'Only account pages accept more than 100 records')
   .refine((value) => value.sessionView === undefined || value.operation === 'sessions-read', 'Session view is only valid for sessions')
   .refine((value) => value.operation !== 'overview' || !value.page.cursor, 'Overview has no cursor')
   .refine((value) => !['sessions-read', 'settings-overrides'].includes(value.operation) ||
@@ -123,7 +126,7 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
     }).strict()).max(100), nextCursor: opaqueV1.nullable(),
   }).strict(),
   z.object({ ...base, state: z.literal('accounts-read'), scopeVersion: versionV1,
-    items: z.array(adminAccountReadV2).max(100), nextCursor: opaqueV1.nullable(), lastAuthenticationWindowMonths: z.literal(12),
+    items: z.array(adminAccountReadV2).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2), nextCursor: opaqueV1.nullable(), lastAuthenticationWindowMonths: z.literal(12),
   }).strict(),
   z.object({ ...base, state: z.literal('overview'), scopeVersion: versionV1,
     counts: z.object({ accounts: count, active: count, pendingActivation: count, resetRequired: count, blocked: count,

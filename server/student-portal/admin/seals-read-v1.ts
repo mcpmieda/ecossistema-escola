@@ -12,6 +12,7 @@ import {
 import { publicationContextV1 } from '../publication/self-projection-reader-v1';
 import { scopedSelfV2 } from '../publication/scoped-self-v2';
 import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
+import { sealContextsBatchV1, sealSourcesBatchV1 } from './seal-source-batch-v1';
 
 /**
  * Selos brilhantes in the ADM (owner request 29/09/2026): the count each student sees on the
@@ -39,9 +40,31 @@ export async function readSealsV1(
     begin: (run) => run(tx),
   };
   const items: { accountId: string; seals: number | null }[] = [];
+  const contexts =
+    rows.length > 1
+      ? await sealContextsBatchV1(
+          tx,
+          rows.map((row) => z.uuid().parse(row.id)),
+        )
+      : null;
+  const sources = contexts ? await sealSourcesBatchV1(tx, [...contexts.values()]) : undefined;
   for (const row of rows) {
     const accountId = z.uuid().parse(row.id);
-    items.push({ accountId, seals: await sealsOfV1(sql, tx, accountId, requestId) });
+    if (!contexts) items.push({ accountId, seals: await sealsOfV1(sql, tx, accountId, requestId) });
+    else {
+      const context = contexts.get(accountId);
+      let seals: number | null = null;
+      if (context) {
+        try {
+          const self = await scopedSelfV2(tx, context, requestId, sources);
+          seals =
+            self.state === 'ready' ? brilliantSealCountV1(self.subjects, self.endedPeriods) : null;
+        } catch {
+          /* Unprepared publications expose no marks or seals, as in the one-account read. */
+        }
+      }
+      items.push({ accountId, seals });
+    }
   }
   return adminReadResponseV2.parse({
     contractVersion: 2,

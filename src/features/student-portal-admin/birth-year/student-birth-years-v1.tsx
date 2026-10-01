@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Chip, Checkbox, Skeleton, Table, Tooltip } from '@heroui/react';
 import { Info } from 'lucide-react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -10,7 +10,7 @@ import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-
 import { createBirthEditorV1, emptyBirthEditorV1 } from './birth-editor-v1';
 import { birthDirtyV1 } from './birth-values-v1';
 import { ContinuousEndV1 } from '../shared/continuous-read-v1';
-import type { BirthScopeV1 } from './birth-read-v1';
+import type { BirthScopeV1, InitialBirthAccountV1 } from './birth-read-v1';
 import { BirthDiscardDialogV1 } from './birth-review-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -24,6 +24,7 @@ import { accountCredentialPreparableV1, firstAccessLabelV1 } from '../accounts/a
 import './student-birth-years-v1.css';
 
 export interface StudentBirthYearsPropsV1 {
+  initialAccount?: InitialBirthAccountV1;
   qrMode?: boolean;
   renderArtifact?: QrRendererV1;
   client: PortalAdminClientV1;
@@ -106,6 +107,7 @@ function BirthPagesV1(props: PageProps) {
   return <BirthPageBodyV1 {...props} />;
 }
 function BirthPageBodyV1(props: PageProps) {
+  const initialAccount = useRef(props.initialAccount);
   const [state, setState] = useState(emptyBirthEditorV1),
     [clock, setClock] = useState(Date.now),
     [discard, setDiscard] = useState(false);
@@ -122,6 +124,11 @@ function BirthPageBodyV1(props: PageProps) {
       createBirthEditorV1({
         client,
         reader,
+        takeInitialAccount: () => {
+          const snapshot = initialAccount.current;
+          initialAccount.current = undefined;
+          return snapshot;
+        },
         scope,
         continuous: true,
         canWrite,
@@ -175,7 +182,9 @@ function BirthPageBodyV1(props: PageProps) {
     <Card aria-label="Anos de nascimento" className="pa-birth-card">
       <Card.Header className="flex-row items-center justify-between gap-3">
         {/* In a student's record the name is already in the header. */}
-        <Card.Title>{props.scope.kind === 'account' ? 'Ano de nascimento' : props.scopeLabel}</Card.Title>
+        <Card.Title>
+          {props.scope.kind === 'account' ? 'Ano de nascimento' : props.scopeLabel}
+        </Card.Title>
         <div className="flex items-center gap-2">
           <LiveReadNoticeV1 failed={Boolean(state.refreshError)} />
           {state.state === 'ready' && props.scope.kind !== 'account' ? (

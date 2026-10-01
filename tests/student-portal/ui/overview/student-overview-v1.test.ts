@@ -46,18 +46,14 @@ describe('actual operational summary and health', () => {
       (screen.getByRole('button', { name: 'Tentar novamente' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(document.querySelector('dl')).toBeNull();
+    expect(mock.queries.some((q) => q.operation === 'health')).toBe(false);
   });
   it.each([
     ['normal', 'Operando normalmente'],
     ['attention', 'Atenção'],
     ['intervention', 'Intervenção necessária'],
   ] as const)('translates %s without decorative metrics', async (status, label) => {
-    const mock = operationsMockV1({
-      query: (q) =>
-        q.operation === 'health'
-          ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'health', status }))
-          : undefined,
-    });
+    const mock = operationsMockV1({ health: status });
     render(createElement(StrictMode, null, createElement(StudentOverviewV1, mock.props)));
     await screen.findByText(label);
     expect(screen.getByText('Sessões ativas')).toBeTruthy();
@@ -65,6 +61,7 @@ describe('actual operational summary and health', () => {
     expect(screen.getByRole('button', { name: 'Sobre Sessões ativas' })).toBeTruthy();
     expect(document.querySelectorAll('.pa-stat')).toHaveLength(6);
     expect(document.querySelector('svg[role="img"],canvas')).toBeNull();
+    expect(mock.queries.some((q) => q.operation === 'health')).toBe(false);
   });
   it('keeps actual health observable when counts fail and never substitutes zero totals', async () => {
     const mock = operationsMockV1({
@@ -77,6 +74,7 @@ describe('actual operational summary and health', () => {
     await screen.findByText('Operando normalmente');
     expect(screen.getByText(/Os totais não foram substituídos por zero/)).toBeTruthy();
     expect(document.querySelector('dl')).toBeNull();
+    expect(mock.queries.filter((q) => q.operation === 'health')).toHaveLength(1);
   });
   it('reviews and starts the complete school population without issuing credentials or publications', async () => {
     const user = userEvent.setup(),
@@ -109,12 +107,26 @@ describe('actual operational summary and health', () => {
       query: (q) =>
         q.operation === 'health'
           ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'unauthenticated' }, 401))
-          : undefined,
+          : q.operation === 'overview'
+            ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'unavailable' }, 503))
+            : undefined,
     });
     render(createElement(StudentOverviewV1, mock.props));
     await screen.findByText('Sessão administrativa expirada. Entre novamente.');
     expect(screen.queryByText('Operando normalmente')).toBeNull();
     expect(document.querySelector('dl')).toBeNull();
     expect(document.body.textContent).not.toContain('SYNTHETIC OP STUDENT');
+  });
+  it('does not request fallback health when the summary denies authorization', async () => {
+    const mock = operationsMockV1({
+      query: (q) =>
+        q.operation === 'overview'
+          ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'forbidden' }, 403))
+          : undefined,
+    });
+    render(createElement(StudentOverviewV1, mock.props));
+    await screen.findByText('Sem permissão para esta consulta.');
+    expect(mock.queries.some((q) => q.operation === 'health')).toBe(false);
+    expect(screen.queryByText('Operando normalmente')).toBeNull();
   });
 });

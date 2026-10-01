@@ -136,7 +136,7 @@ function sameLink(left: AcademicLinkV1 | null, right: AcademicLinkV1 | null): bo
   return left.academicYear === right.academicYear && left.studentId === right.studentId;
 }
 
-function accountFromRow(row: SqlRowV1): AccountRecordV1 {
+export function accountFromRowV1(row: SqlRowV1): AccountRecordV1 {
   const studentId = row.gradebook_student_id === null ? null : integer(row.gradebook_student_id, 'student-id');
   const year = integer(row.academic_year, 'academic-year');
   const link = studentId === null ? null : ({ academicYear: year, studentId } as AcademicLinkV1);
@@ -233,7 +233,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
          FROM student_portal.account WHERE id=$1::uuid`,
       [id],
     );
-    return result[0] ? accountFromRow(result[0]) : null;
+    return result[0] ? accountFromRowV1(result[0]) : null;
   }
 
   async findByLink(link: AcademicLinkV1): Promise<AccountRecordV1 | null> {
@@ -245,7 +245,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
         WHERE academic_year=$1 AND gradebook_student_id=$2 AND closed_at IS NULL`,
       [link.academicYear, link.studentId],
     );
-    return result[0] ? accountFromRow(result[0]) : null;
+    return result[0] ? accountFromRowV1(result[0]) : null;
   }
 
   async insertAccount(record: AccountRecordV1): Promise<'created' | 'existing'> {
