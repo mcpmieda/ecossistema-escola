@@ -232,7 +232,8 @@ it('reuses private cached totals without edition payload SQL and invalidates pub
   expect(warm.items).toEqual(cold.items);
   expect(warm.writes).toHaveLength(0);
   expect(warm.payloads).toBe(0);
-  const api = new PortalAdminApiV1(withAuditSqlV1(portal, null), { tenantId: READ_TENANT_V2, cursorSecret: 'synthetic-scoped-803-'.repeat(4),
+  // The production composition passes raw SQL to V2 so isolation precedes every query.
+  const api = new PortalAdminApiV1(portal, { tenantId: READ_TENANT_V2, cursorSecret: 'synthetic-scoped-803-'.repeat(4),
     cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true });
   queries.length = 0;
   const bulkWarm = await api.query(readContextV2(), { contractVersion: 2, operation: 'seals-read', scope: READ_SCHOOL_V2,
