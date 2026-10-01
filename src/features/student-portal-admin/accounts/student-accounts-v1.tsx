@@ -289,20 +289,13 @@ function AccountsResultsV1(
     if (props.order !== 'name' && !authorizationError && more && !refreshing && !read.refreshError)
       loadMore();
   }, [props.order, authorizationError, more, refreshing, read.refreshError, loadMore]);
-  const sealClassIds = useMemo(
-    () =>
-      props.query.scope.kind === 'class'
-        ? [props.query.scope.classId]
-        : [
-            ...new Set(
-              (current?.items ?? []).flatMap((item) => (item.classId ? [item.classId] : [])),
-            ),
-          ],
-    [props.query.scope, current?.items],
+  const sealAccountIds = useMemo(
+    () => (current?.items ?? []).map((item) => item.accountId),
+    [current?.items],
   );
   const seals = useSealCountsV1(
     props.reader,
-    props.order === 'seals' && current && sealClassIds.length ? { classIds: sealClassIds } : null,
+    props.order === 'seals' && current && sealAccountIds.length ? { accountIds: sealAccountIds } : null,
     { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
   const sealCounts = seals.state === 'ready' ? seals.counts : null;

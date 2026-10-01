@@ -28,6 +28,7 @@ type ContextV1 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
 export async function sealContextsBatchV1(
   tx: StudentPortalPostgresQueryV1,
   input: readonly string[],
+  snapshotNow?: Date,
 ) {
   const ids = z.array(z.uuid()).min(1).max(200).parse(input);
   const rows = await tx.unsafe(
@@ -66,7 +67,7 @@ export async function sealContextsBatchV1(
       AND a.eligibility='eligible' AND a.gradebook_student_id IS NOT NULL ORDER BY a.id`,
     [JSON.stringify(ids)],
   );
-  const now = await authNowV1(tx);
+  const now = snapshotNow ?? await authNowV1(tx);
   const contexts = new Map<string, ContextV1>();
   for (const row of rows) {
     const account = accountFromRowV1(row);

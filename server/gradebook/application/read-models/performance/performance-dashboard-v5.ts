@@ -120,14 +120,13 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
         ) {
           return { transportVersion: 5, state: 'not-found' } as const;
         }
-        const analysis = buildPerformanceAnalysisV3(
-          matrix,
-          projections,
-          dashboardAnalysisRequestV3(request),
-        );
         const view =
           request.referencePeriod === null
-            ? analysis
+            ? buildPerformanceAnalysisV3(
+                matrix,
+                projections,
+                dashboardAnalysisRequestV3(request),
+              )
             : buildPerformanceTermComparisonV4(
                 matrix,
                 projections,
@@ -144,6 +143,7 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
                   referencePeriod: request.referencePeriod,
                 }),
               );
+        const analysis = view.operation === 'term-comparison' ? view.analysis : view;
         const response = performanceDashboardResponseSchemaV5.parse({
           transportVersion: 5,
           operation: 'dashboard',

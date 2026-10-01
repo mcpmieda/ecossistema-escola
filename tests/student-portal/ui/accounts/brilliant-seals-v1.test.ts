@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   useSealCountsV1,
+  useSealCountsCacheV1,
   type SealReadStateV1,
 } from '../../../../src/features/student-portal-admin/accounts/brilliant-seals-v1';
 import type { PortalAdminReadClientV2 } from '../../../../src/features/student-portal-admin/accounts/accounts-client-v2';
@@ -34,6 +35,58 @@ afterEach(() => {
 });
 
 describe('list seal preparation and scoped memory', () => {
+  it('bounds cached batches and evicts expired selections', async () => {
+    let now = 1;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const reader = readerFixture();
+    const view = renderHook(() => useSealCountsCacheV1(reader));
+    await act(async () => {
+      for (let id = 1; id <= 40; id++) await view.result.current.read({ accountIds: [accountIdV1(id)] });
+    });
+    expect(view.result.current.entries.size).toBe(32);
+    await view.result.current.read({ accountIds: [accountIdV1(40)] });
+    expect(reader.query).toHaveBeenCalledTimes(40);
+    now += 60_001;
+    await view.result.current.read({ accountIds: [accountIdV1(40)] });
+    expect(view.result.current.entries.size).toBe(1);
+    expect(reader.query).toHaveBeenCalledTimes(41);
+  });
+  it('reads 400 selected accounts together and reuses that batch when the next page arrives', async () => {
+    const reader = readerFixture();
+    reader.query.mockImplementation(async (input) => ({
+      ...response(1), items: (input.accountIds ?? []).map((accountId) => ({ accountId, seals: 2 })),
+    }));
+    const ids = Array.from({ length: 401 }, (_, index) => accountIdV1(index + 1));
+    const view = renderHook(({ selected }) => useSealCountsV1(reader, { accountIds: selected }), {
+      initialProps: { selected: ids.slice(0, 400) },
+    });
+    await waitFor(() => expect(counts(view.result.current).size).toBe(400));
+    expect(reader.query).toHaveBeenCalledTimes(1);
+    expect(reader.query.mock.calls[0]?.[0]).toMatchObject({ scope: { kind: 'school' }, accountIds: ids.slice(0, 400) });
+    view.rerender({ selected: ids });
+    await waitFor(() => expect(counts(view.result.current).size).toBe(401));
+    expect(reader.query).toHaveBeenCalledTimes(2);
+    expect(reader.query.mock.calls[1]?.[0].accountIds).toEqual(ids.slice(400));
+  });
+
+  it('aborts obsolete batches so a new selection can use the bounded lanes', async () => {
+    const reader = readerFixture();
+    reader.query.mockImplementation((input, signal) => {
+      if (input.accountIds?.[0] === accountIdV1(999)) return Promise.resolve(response(999));
+      return new Promise((_, reject) => signal?.addEventListener('abort', () =>
+        reject(new DOMException('Aborted', 'AbortError')), { once: true }));
+    });
+    const ids = Array.from({ length: 801 }, (_, index) => accountIdV1(index + 1));
+    const view = renderHook(({ selected }) => useSealCountsV1(reader, { accountIds: selected }), {
+      initialProps: { selected: ids },
+    });
+    await waitFor(() => expect(reader.query).toHaveBeenCalledTimes(2));
+    const oldSignals = reader.query.mock.calls.map((call) => call[1]);
+    view.rerender({ selected: [accountIdV1(999)] });
+    await waitFor(() => expect(counts(view.result.current).get(accountIdV1(999))).toBe(999));
+    expect(oldSignals.every((signal) => signal?.aborted)).toBe(true);
+    expect(reader.query).toHaveBeenCalledTimes(3);
+  });
   it('reuses prepared counts across class discovery, order and target changes', async () => {
     const reader = readerFixture();
     const view = renderHook(({ ids }) => useSealCountsV1(reader, { classIds: ids }), {

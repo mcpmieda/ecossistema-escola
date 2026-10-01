@@ -2,6 +2,7 @@ import { withAuditSqlV1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
 import { adminReadQueryV2, type AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { readAdminV2 } from './queries-v2';
+import { saveSealCacheV1, type SealCacheWriteV1 } from './seal-cache-v1';
 import { adminCommandV1, adminQueryV1, adminResponseV1, trustedAdminContextV1, type AdminQueryV1, type AdminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import type { FailureV1, PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalAdminEntrypointV1 } from '../../../shared/student-portal-contracts/ports-v1';
@@ -60,10 +61,13 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     const parsed = adminReadQueryV2.safeParse(input);
     if (!parsed.success) return this.failure(context.requestId, 'invalid-request');
     try {
-      return await this.sql.begin(async (tx) => {
+      const pendingSealWrites: SealCacheWriteV1[] = [];
+      const response = await this.sql.begin(async (tx) => {
         await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
-        return readAdminV2(tx, parsed.data, context.actorId, context.requestId, await authNowV1(tx), this.cursor);
+        return readAdminV2(tx, parsed.data, context.actorId, context.requestId, await authNowV1(tx), this.cursor, pendingSealWrites);
       });
+      if (pendingSealWrites.length) await saveSealCacheV1(this.sql, pendingSealWrites);
+      return response;
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }
   private async queryV1(inputContext: unknown, input: unknown): Promise<AdminResponseV1 | FailureV1> {

@@ -57,7 +57,7 @@ describe('current canonical project state', () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
     const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
     const latest = latestMigration('migrations/student-portal');
-    expect(latest).toBe('0023_audit_detail_v1.sql');
+    expect(latest).toBe('0024_seal_count_cache_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
       repository_snapshot: {
@@ -66,17 +66,23 @@ describe('current canonical project state', () => {
       },
       student_portal_integration: {
         schema_migration_file: latest,
-        schema_migration_production_version: 20260929071319,
-        schema_migration_production_evidence: 'docs/student-portal/POSTFLIGHT_0023.md',
-        schema_table_count: 27,
+        schema_migration_production_version: 20261001201546,
+        schema_migration_production_evidence: 'docs/student-portal/POSTFLIGHT_0024.md',
+        schema_table_count: 28,
       },
     });
     expect(portalState).toMatchObject({
       student_portal_latest_migration_in_tree: latest,
       student_portal_schema_latest_migration: latest,
-      student_portal_schema_production_version: 20260929071319,
-      student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0023.md',
-      student_portal_schema_table_count: 27,
+      student_portal_schema_production_version: 20261001201546,
+      student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0024.md',
+      student_portal_schema_table_count: 28,
+      seal_count_cache_0024: {
+        issue: 1221, pull_request: 1222,
+        production_migration_applied: true,
+        production_migration_version: 20261001201546,
+        evidence: 'docs/student-portal/POSTFLIGHT_0024.md',
+      },
       audit_detail_0023: {
         status: 'migration-applied-runtime-deploy-pending',
         production_migration_applied: true,

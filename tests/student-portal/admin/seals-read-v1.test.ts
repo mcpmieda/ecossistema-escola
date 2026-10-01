@@ -93,7 +93,7 @@ describe('readSealsV1 (owner request 29/09/2026)', () => {
       ],
     });
     // Read-only snapshot: no account lock, access not required.
-    expect(mocks.batchContexts).toHaveBeenCalledWith(tx, ids);
+    expect(mocks.batchContexts).toHaveBeenCalledWith(tx, ids, undefined);
     expect(mocks.context).not.toHaveBeenCalled();
   });
 

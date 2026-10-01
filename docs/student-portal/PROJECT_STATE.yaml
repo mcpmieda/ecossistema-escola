@@ -1,7 +1,7 @@
 module: student_portal
 contract_version: 1
 academic_year: 2026
-updated_at: 2026-09-20
+updated_at: 2026-10-01
 program_status: technically_complete_release_closed_by_policy
 current_issue: null
 delivery_branch: docs/pa-final-operation-760
@@ -16,10 +16,20 @@ gates:
   G-B: accepted_real_flow_with_explicit_physical_device_deferrals
   G-P: passed_technical_release_general_opening_closed_by_policy
 runtime: production_composed_and_verified
-student_portal_schema: migrations_0001_through_0023_applied
-student_portal_schema_table_count: 27
-student_portal_schema_latest_migration: 0023_audit_detail_v1.sql
-student_portal_latest_migration_in_tree: 0023_audit_detail_v1.sql
+student_portal_schema: migrations_0001_through_0024_applied
+student_portal_schema_table_count: 28
+student_portal_schema_latest_migration: 0024_seal_count_cache_v1.sql
+student_portal_latest_migration_in_tree: 0024_seal_count_cache_v1.sql
+seal_count_cache_0024:
+  issue: 1221
+  pull_request: 1222
+  status: migration-applied-runtime-deploy-pending
+  production_migration_applied: true
+  production_migration_version: 20261001201546
+  production_deploy_verified: false
+  evidence: docs/student-portal/POSTFLIGHT_0024.md
+  publication_followup: https://github.com/mcpmieda/ecossistema-escola/issues/1221
+  deploy_order: migration-before-compatible-worker
 audit_detail_0023:
   status: migration-applied-runtime-deploy-pending
   production_migration_applied: true
@@ -67,8 +77,8 @@ recovery_1101:
   production_migration_versions: [20260922150000, 20260922150001]
   initiative_complete: false
   evidence: docs/student-portal/RECOVERY_1101.md
-student_portal_schema_production_version: 20260929071319
-student_portal_schema_production_evidence: docs/student-portal/POSTFLIGHT_0023.md
+student_portal_schema_production_version: 20261001201546
+student_portal_schema_production_evidence: docs/student-portal/POSTFLIGHT_0024.md
 population_enabled: false
 general_school_opening: false
 accounts_last_observed: 3

@@ -40,7 +40,11 @@ export const adminReadQueryV2 = z.object({
   blocked: z.boolean().optional(),
   nameSearch: z.string().min(1).max(200).optional(),
   sessionView: z.enum(['active', 'history']).optional(),
+  accountIds: z.array(portalIdV1).min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2)
+    .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length).optional(),
 }).strict()
+  .refine((value) => value.accountIds === undefined ||
+    (value.operation === 'seals-read' && value.scope.kind === 'school'), 'Account batches are only valid for school seals')
   .refine((value) => value.operation === 'accounts-read' || value.page.limit <= 100,
     'Only account pages accept more than 100 records')
   .refine((value) => value.sessionView === undefined || value.operation === 'sessions-read', 'Session view is only valid for sessions')
@@ -57,10 +61,11 @@ export const adminReadQueryV2 = z.object({
   .refine((value) => value.operation !== 'shifts-read' ||
     (value.scope.kind === 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
   'Shifts are read for the school')
-  // Selos brilhantes (owner request 29/09/2026): one record or one class at a time.
+  // Explicit school batches reuse the selected list, bounded to one account page.
   .refine((value) => value.operation !== 'seals-read' ||
-    (value.scope.kind !== 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
-  'Seals are read for a record or a class');
+    ((value.scope.kind !== 'school' || value.accountIds !== undefined) && !value.page.cursor &&
+      [value.accountState, value.blocked, value.nameSearch, value.sessionView].every((field) => field === undefined)),
+  'Seals are read for a record, a class or an explicit account batch');
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z.object({
   state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: policyScopeV1.nullable(),
@@ -105,7 +110,7 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
   // Seals each student currently sees on the Portal; null when the Portal shows no marks to them.
   z.object({ ...base, state: z.literal('seals-read'), items: z.array(z.object({
     accountId: portalIdV1, seals: z.number().int().nonnegative().max(1000).nullable(),
-  }).strict()).max(200) }).strict(),
+  }).strict()).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2) }).strict(),
   z.object({ ...base, state: z.literal('closing-preview'), scope: scopeV1,
     available: z.boolean(), visibleToStudent: z.boolean(), mode: z.enum(TERM_CLOSING_MODES_V1),
     closedPeriods: z.array(z.enum(TERM_CLOSING_PERIODS_V1)).max(3),

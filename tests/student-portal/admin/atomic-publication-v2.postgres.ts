@@ -11,9 +11,10 @@ import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies
 import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
 import { readSealsV1 } from '../../../server/student-portal/admin/seals-read-v1';
+import { saveSealCacheV1, type SealCacheWriteV1 } from '../../../server/student-portal/admin/seal-cache-v1';
 import { brilliantSealCountV1 } from '../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
-import { accountTransactionV1, accessContextV1 } from '../../../server/student-portal/auth/transaction-v1';
+import { accountTransactionV1, accessContextV1, authNowV1 } from '../../../server/student-portal/auth/transaction-v1';
 import { createSessionV1 } from '../../../server/student-portal/auth/session-service-v1';
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
 import { portalAdminRpcV1 } from '../../../server/student-portal/composition/admin-v1';
@@ -112,7 +113,7 @@ beforeAll(async () => {
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 803001,746000+n,8000+n FROM generate_series(1,106) n;
     UPDATE student_portal.account SET auth_state='active' WHERE closed_at IS NULL;
     SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
-  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
+  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0024_seal_count_cache_v1.sql'])
     await owner.unsafe(readFileSync('migrations/student-portal/' + migration, 'utf8'), [], { prepare: false });
   portal = measured(client('student_portal_app') as unknown as StudentPortalPostgresSqlV1);
   peer = client('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
@@ -206,6 +207,70 @@ it('reads class seals with real prepared SQL and app ACLs in four queries, prese
   const privatePublication = await batch();
   expect(privatePublication.find((item) => item.accountId === own)?.seals).toBeNull();
   expect(privatePublication.find((item) => item.accountId === second)?.seals).toBe(await canonical(second));
+});
+it('reuses private cached totals without edition payload SQL and invalidates publication, policy and account changes', async () => {
+  await release();
+  const read = async () => {
+    const writes: SealCacheWriteV1[] = [];
+    const value = await portal.begin(async (tx) => {
+      await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const now = await authNowV1(tx);
+      queries.length = 0;
+      return readSealsV1(tx, { contractVersion: 2, operation: 'seals-read', scope: READ_CLASS_V2,
+        page: { limit: 100 } }, crypto.randomUUID(), now, writes);
+    });
+    if (value.state !== 'seals-read') throw new Error('Synthetic seal cache result unavailable');
+    const payloads = queries.filter((query) => query.includes('payload_json')).length;
+    return { items: value.items, writes, payloads };
+  };
+  const cold = await read();
+  expect(cold.items).toHaveLength(105);
+  expect(cold.writes).toHaveLength(105);
+  expect(cold.payloads).toBeGreaterThan(0);
+  await saveSealCacheV1(portal, cold.writes);
+  const warm = await read();
+  expect(warm.items).toEqual(cold.items);
+  expect(warm.writes).toHaveLength(0);
+  expect(warm.payloads).toBe(0);
+  // The production composition passes raw SQL to V2 so isolation precedes every query.
+  const api = new PortalAdminApiV1(portal, { tenantId: READ_TENANT_V2, cursorSecret: 'synthetic-scoped-803-'.repeat(4),
+    cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true });
+  queries.length = 0;
+  const bulkWarm = await api.query(readContextV2(), { contractVersion: 2, operation: 'seals-read', scope: READ_SCHOOL_V2,
+    accountIds: cold.items.map((item) => item.accountId), page: { limit: 100 } });
+  expect(bulkWarm.state).toBe('seals-read');
+  if (bulkWarm.state !== 'seals-read') throw new Error('Synthetic bulk seal cache result unavailable');
+  expect(bulkWarm.items).toEqual(cold.items);
+  expect(queries.filter((query) => query.includes('payload_json'))).toHaveLength(0);
+  await policy({ showPartials: false });
+  const changedPolicy = await read();
+  expect(changedPolicy.payloads).toBeGreaterThan(0);
+  await saveSealCacheV1(portal, changedPolicy.writes);
+  await release(ownScope, 'unpublish');
+  const withdrawn = await read();
+  expect(withdrawn.items.find((item) => item.accountId === own)?.seals).toBeNull();
+  expect(withdrawn.writes.find((item) => item.accountId === own)?.seals).toBeNull();
+  await saveSealCacheV1(portal, withdrawn.writes);
+  const privateWarm = await read();
+  expect(privateWarm.payloads).toBe(0);
+  expect(privateWarm.items).toEqual(withdrawn.items);
+  await owner.unsafe('UPDATE student_portal.account SET blocked=true,version=version+1 WHERE id=$1::uuid', [readAccountIdV2(2)]);
+  try {
+    const blocked = await read();
+    expect(blocked.items.find((item) => item.accountId === readAccountIdV2(2))?.seals).toBeNull();
+    expect(blocked.writes.some((item) => item.accountId === readAccountIdV2(2))).toBe(false);
+  } finally { await owner.unsafe('UPDATE student_portal.account SET blocked=false,version=version+1 WHERE id=$1::uuid', [readAccountIdV2(2)]); }
+  const ownWrite = withdrawn.writes.find((item) => item.accountId === own)!;
+  const before = (await owner.unsafe('SELECT computed_at FROM student_portal.seal_count_cache_v1 WHERE account_id=$1::uuid', [own]))[0]!.computed_at;
+  await saveSealCacheV1(portal, [{ ...ownWrite, computedAt: new Date(Date.parse(ownWrite.computedAt) + 1).toISOString() }]);
+  expect((await owner.unsafe('SELECT computed_at FROM student_portal.seal_count_cache_v1 WHERE account_id=$1::uuid', [own]))[0]!.computed_at).toEqual(before);
+  await saveSealCacheV1(portal, [{ ...ownWrite, fingerprint: 'a'.repeat(64), computedAt: new Date(Date.parse(ownWrite.computedAt) - 1).toISOString() }]);
+  expect((await owner.unsafe('SELECT fingerprint FROM student_portal.seal_count_cache_v1 WHERE account_id=$1::uuid', [own]))[0]!.fingerprint).toBe(ownWrite.fingerprint);
+  const security = await owner.unsafe(`SELECT c.relrowsecurity,c.relowner=(SELECT oid FROM pg_roles WHERE rolname='student_portal_app') AS app_owner,
+    has_table_privilege('student_portal_app',c.oid,'INSERT') AS app_insert,
+    has_table_privilege('gradebook_app',c.oid,'SELECT') AS gradebook_read
+    FROM pg_class c WHERE c.oid='student_portal.seal_count_cache_v1'::regclass`);
+  expect(security[0]).toMatchObject({ relrowsecurity: true, app_owner: false, app_insert: true, gradebook_read: false });
 });
 it('adds the Fechamento do trimestre from the newest edition only when the policy asks (#1132)', async () => {
   await release();
