@@ -49,7 +49,7 @@ function connection(role?: string) {
   return url.toString();
 }
 function client(role?: string) {
-  const sql = postgres(connection(role), { max: 1, onnotice: () => undefined,
+  const sql = postgres(connection(role), { max: 1, fetch_types: !role, prepare: true, onnotice: () => undefined,
     connection: { lock_timeout: 250, statement_timeout: 5000 } });
   clients.push(sql);
   return sql;
