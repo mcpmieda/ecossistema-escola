@@ -104,9 +104,8 @@ function summarize(
   const below = pairs.filter(
     (pair) => pair.cell.result.state === 'complete' && pair.cell.result.level === 'below',
   );
-  const byStudent = new Map(
-    studentIds.map((id) => [id, pairs.filter((pair) => pair.studentId === id)]),
-  );
+  const byStudent = new Map(studentIds.map((id) => [id, [] as Pair[]]));
+  for (const pair of pairs) byStudent.get(pair.studentId)?.push(pair);
   const studentsBelow = new Set(below.map((pair) => pair.studentId)).size;
   const studentsAtOrAbove = [...byStudent.values()].filter(
     (items) =>
@@ -392,6 +391,23 @@ export function buildPerformanceAnalyticsV6(
   });
   const studentIds = matrix.rows.map((row) => row.student.id);
   const teacherMap = new Map(matrix.offers.map((offer) => [offer.teacher.id, offer.teacher]));
+  const byStudent = new Map(studentIds.map((id) => [id, [] as Pair[]]));
+  const byOffer = new Map(matrix.offers.map((offer) => [offer.id, [] as Pair[]]));
+  const byTeacher = new Map([...teacherMap.keys()].map((id) => [id, [] as Pair[]]));
+  const teacherStudents = new Map([...teacherMap.keys()].map((id) => [id, new Map<number, Pair[]>()]));
+  const teacherOffers = new Map([...teacherMap.keys()].map((id) => [id, [] as number[]]));
+  const offerTeacher = new Map(matrix.offers.map((offer) => [offer.id, offer.teacher.id]));
+  for (const offer of matrix.offers) teacherOffers.get(offer.teacher.id)!.push(offer.id);
+  for (const pair of pairs) {
+    byStudent.get(pair.studentId)!.push(pair);
+    byOffer.get(pair.projection.offerId)!.push(pair);
+    const teacherId = offerTeacher.get(pair.projection.offerId)!;
+    byTeacher.get(teacherId)!.push(pair);
+    const students = teacherStudents.get(teacherId)!;
+    const own = students.get(pair.studentId) ?? [];
+    own.push(pair);
+    students.set(pair.studentId, own);
+  }
   const result: PerformanceAnalyticsV6 = {
     transportVersion: 6,
     operation: 'analytics',
@@ -405,7 +421,7 @@ export function buildPerformanceAnalyticsV6(
     classStudents: matrix.statistics.classRows,
     summary: summarize(pairs, period, studentIds),
     students: matrix.rows.map((row) => {
-      const own = pairs.filter((pair) => pair.studentId === row.student.id);
+      const own = byStudent.get(row.student.id)!;
       return {
         student: row.student,
         annualResult: row.calculatedAnnual,
@@ -415,7 +431,7 @@ export function buildPerformanceAnalyticsV6(
       };
     }),
     components: matrix.offers.map((offer) => {
-      const own = pairs.filter((pair) => pair.projection.offerId === offer.id);
+      const own = byOffer.get(offer.id)!;
       return {
         offer,
         summary: summarize(own, period, studentIds),
@@ -423,17 +439,15 @@ export function buildPerformanceAnalyticsV6(
       };
     }),
     teachers: [...teacherMap.values()].map((teacher) => {
-      const offerIds = matrix.offers
-        .filter((offer) => offer.teacher.id === teacher.id)
-        .map((offer) => offer.id);
-      const own = pairs.filter((pair) => offerIds.includes(pair.projection.offerId));
+      const offerIds = teacherOffers.get(teacher.id)!;
+      const own = byTeacher.get(teacher.id)!;
       return {
         ...teacher,
         offerIds,
         summary: summarize(own, period, studentIds),
         students: studentIds.map((studentId) => {
           const summary = summarize(
-            own.filter((pair) => pair.studentId === studentId),
+            teacherStudents.get(teacher.id)!.get(studentId) ?? [],
             period,
             [studentId],
           );

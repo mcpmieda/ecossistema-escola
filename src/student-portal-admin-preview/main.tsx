@@ -424,7 +424,8 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
     // Synthetic Selos brilhantes (29/09/2026).
     const members = scope.kind === 'account'
       ? mock.accounts.filter((item) => item.accountId === scope.accountId)
-      : mock.accounts.filter((item) => scope.kind === 'class' && item.classId === scope.classId);
+      : mock.accounts.filter((item) => scope.kind === 'class'
+        ? item.classId === scope.classId : query.accountIds?.includes(item.accountId));
     return opJsonV1({
       ...meta, contractVersion: 2, state: 'seals-read', observedAt,
       items: members.map((item, index) => ({ accountId: item.accountId, seals: (index * 3) % 7 })),

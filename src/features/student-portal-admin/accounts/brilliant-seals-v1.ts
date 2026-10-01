@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import { ADMIN_ACCOUNTS_PAGE_SIZE_V2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { useAccountsReadV1 } from './accounts-read-v1';
@@ -10,6 +11,19 @@ import {
 
 /** Seals each student sees on the Portal; null when no marks are shown to that student. */
 export type SealCountsV1 = ReadonlyMap<string, number | null>;
+type SealTargetV1 = Extract<ScopeV1, { kind: 'class' | 'account' }> | { accountIds: string[] };
+const MAX_CACHED_BATCHES_V1 = 32;
+function pruneEntriesV1(cache: SealCountsCacheV1) {
+  const now = Date.now();
+  for (const [key, saved] of cache.entries)
+    if (now - saved.at >= 60_000) cache.entries.delete(key);
+  while (cache.entries.size > MAX_CACHED_BATCHES_V1)
+    cache.entries.delete(cache.entries.keys().next().value!);
+}
+function targetKeyV1(target: SealTargetV1) {
+  if ('accountIds' in target) return 'accounts:' + target.accountIds.join(',');
+  return target.kind === 'account' ? 'account:' + target.accountId : 'class:' + target.classId;
+}
 export type SealReadStateV1 =
   | { state: 'idle' | 'loading' }
   | {
@@ -27,8 +41,9 @@ export interface SealCountsCacheV1 {
   revision: string | number | undefined;
   clear: () => void;
   invalidate: () => void;
+  retainPending: (targets: readonly SealTargetV1[]) => void;
   read: (
-    scope: Extract<ScopeV1, { kind: 'class' | 'account' }>,
+    scope: SealTargetV1,
   ) => Promise<Awaited<ReturnType<typeof readSealsV1>>>;
 }
 
@@ -54,6 +69,14 @@ export function useSealCountsCacheV1(
       entries: new Map(),
       generation: 0,
       revision: undefined,
+      retainPending: (targets) => {
+        const keys = new Set(targets.map(targetKeyV1));
+        for (const [key, job] of pending) {
+          if (keys.has(key)) continue;
+          job.controller.abort();
+          pending.delete(key);
+        }
+      },
       invalidate: () => {
         value.entries.clear();
         value.generation++;
@@ -66,10 +89,14 @@ export function useSealCountsCacheV1(
         nextLane = 0;
       },
       read: (scope) => {
-        const key =
-          scope.kind === 'account' ? 'account:' + scope.accountId : 'class:' + scope.classId;
+        const key = targetKeyV1(scope);
+        pruneEntriesV1(value);
         const saved = value.entries.get(key);
-        if (saved && Date.now() - saved.at < 60_000) return Promise.resolve(saved.items);
+        if (saved) {
+          value.entries.delete(key);
+          value.entries.set(key, saved);
+          return Promise.resolve(saved.items);
+        }
         const existing = pending.get(key);
         if (existing) return existing.promise;
         const controller = new AbortController();
@@ -80,7 +107,10 @@ export function useSealCountsCacheV1(
           generation = value.generation;
           const items = await readSealsV1(reader, scope, controller.signal);
           controller.signal.throwIfAborted();
-          if (generation === value.generation) value.entries.set(key, { at: Date.now(), items });
+          if (generation === value.generation) {
+            value.entries.set(key, { at: Date.now(), items });
+            pruneEntriesV1(value);
+          }
           return items;
         }).finally(() => {
           if (pending.get(key)?.controller === controller) pending.delete(key);
@@ -114,11 +144,15 @@ export function useSealCountsCacheV1(
 
 async function readSealsV1(
   reader: PortalAdminReadClientV2,
-  scope: Extract<ScopeV1, { kind: 'class' | 'account' }>,
+  target: SealTargetV1,
   signal: AbortSignal,
 ) {
   const result = await reader.query(
-    { contractVersion: 2, operation: 'seals-read', scope, page: { limit: 100 } },
+    { contractVersion: 2, operation: 'seals-read', page: { limit: 100 },
+      ...('accountIds' in target
+        ? { scope: { kind: 'school' as const, academicYear: 2026 as const }, accountIds: target.accountIds }
+        : { scope: target }),
+    },
     signal,
   );
   if (result.state !== 'seals-read') throw new PortalClientErrorV1('invalid-response');
@@ -127,11 +161,11 @@ async function readSealsV1(
 
 /**
  * Selos brilhantes for a record or a list (owner request 29/09/2026). The server counts one
- * record or one class per read; a school-wide list reads its classes two at a time.
+ * record or up to 400 selected accounts per read; two batches may be in flight.
  */
 export function useSealCountsV1(
   reader: PortalAdminReadClientV2,
-  target: { accountId: string } | { classIds: readonly number[] } | null,
+  target: { accountId: string } | { classIds: readonly number[] } | { accountIds: readonly string[] } | null,
   options: { active?: boolean; revision?: string | number; cache?: SealCountsCacheV1 } = {},
 ): SealReadStateV1 {
   const key =
@@ -139,22 +173,27 @@ export function useSealCountsV1(
       ? null
       : 'accountId' in target
         ? 'account:' + target.accountId
-        : 'classes:' + [...new Set(target.classIds)].sort((a, b) => a - b).join(',');
+        : 'accountIds' in target
+          ? 'accounts:' + [...new Set(target.accountIds)].join(',')
+          : 'classes:' + [...new Set(target.classIds)].sort((a, b) => a - b).join(',');
   // Owned by the mounted list/record, never persisted or shared between administrators.
   const cache = useSealCountsCacheV1(reader, options.cache);
   const revision = options.revision;
   const active = options.active !== false;
   const load = useCallback(
     async (signal: AbortSignal): Promise<SealCountsV1> => {
-      if (key === null) return new Map();
+      if (key === null) {
+        cache.retainPending([]);
+        return new Map();
+      }
       if (revision !== undefined && revision !== cache.revision) {
         cache.clear();
         cache.revision = revision;
       }
       signal.throwIfAborted();
-      const scopes: Extract<ScopeV1, { kind: 'class' | 'account' }>[] = key.startsWith('account:')
+      const scopes: SealTargetV1[] = key.startsWith('account:')
         ? [{ kind: 'account', academicYear: 2026, accountId: key.slice(8) }]
-        : key
+        : key.startsWith('accounts:') ? accountBatchesV1(key.slice(9)) : key
             .slice(8)
             .split(',')
             .filter(Boolean)
@@ -164,11 +203,10 @@ export function useSealCountsV1(
               classId: Number(id),
             }));
       const counts = new Map<string, number | null>();
+      cache.retainPending(active ? scopes : []);
       if (!active) {
         for (const scope of scopes) {
-          const saved = cache.entries.get(
-            scope.kind === 'account' ? 'account:' + scope.accountId : 'class:' + scope.classId,
-          );
+          const saved = cache.entries.get(targetKeyV1(scope));
           for (const item of saved?.items ?? []) counts.set(item.accountId, item.seals);
         }
         return counts;
@@ -212,4 +250,12 @@ export function useSealCountsV1(
 
 export function sealLabelV1(count: number) {
   return `${count} ${count === 1 ? 'selo brilhante' : 'selos brilhantes'}`;
+}
+
+function accountBatchesV1(ids: string): SealTargetV1[] {
+  const values = ids.split(',').filter(Boolean);
+  const batches: SealTargetV1[] = [];
+  for (let offset = 0; offset < values.length; offset += ADMIN_ACCOUNTS_PAGE_SIZE_V2)
+    batches.push({ accountIds: values.slice(offset, offset + ADMIN_ACCOUNTS_PAGE_SIZE_V2) });
+  return batches;
 }

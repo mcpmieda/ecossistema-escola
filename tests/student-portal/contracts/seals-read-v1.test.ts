@@ -24,4 +24,19 @@ describe('Selos brilhantes read (owner request 29/09/2026)', () => {
     expect(adminReadResponseV2.safeParse(response).success).toBe(true);
     expect(adminReadResponseV2.safeParse({ ...response, items: [{ accountId: account, seals: -1 }] }).success).toBe(false);
   });
+
+  it('bounds explicit school batches to 400 unique accounts and rejects unrelated operations', () => {
+    const accountIds = Array.from({ length: 400 }, (_, index) =>
+      `75600000-0000-4000-8000-${String(index).padStart(12, '0')}`);
+    const query = { ...base, scope: { kind: 'school', academicYear: 2026 }, accountIds };
+    expect(adminReadQueryV2.safeParse(query).success).toBe(true);
+    for (const invalid of [
+      { ...query, accountIds: [] },
+      { ...query, accountIds: [...accountIds, account] },
+      { ...query, accountIds: [account, account] },
+      { ...query, operation: 'accounts-read' },
+      { ...query, scope: { kind: 'class', academicYear: 2026, classId: 3 } },
+      { ...query, blocked: false },
+    ]) expect(adminReadQueryV2.safeParse(invalid).success).toBe(false);
+  });
 });

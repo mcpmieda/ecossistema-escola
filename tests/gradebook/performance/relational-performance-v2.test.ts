@@ -1,6 +1,7 @@
 import { analyticsGradeV6, analyticsDeltaV6 } from '../../../src/features/gradebook/performance/analytics-format-v6';
 import {
   analyticsStatsV6,
+  buildPerformanceAnalyticsV6,
   createPerformanceAnalyticsV6,
 } from '../../../server/gradebook/application/read-models/performance/performance-analytics-v6';
 import {
@@ -10,7 +11,7 @@ import {
 } from '../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import { buildPerformanceTeacherPdfV6 } from '../../../src/features/gradebook/performance/performance-analytics-pdf-v6';
 import { PDFDocument } from 'pdf-lib';
-import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import * as performanceAnalysisModuleV3 from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
 import { buildPerformanceDashboardOverviewV5, createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import { dashboardAnalysisV5, performanceDashboardMatchesV5, performanceDashboardRequestSchemaV5, performanceDashboardResponseSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
@@ -19,7 +20,7 @@ import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGradebookPostgresDatabaseFromSqlV1, type GradebookPostgresDatabaseV1, type GradebookPostgresSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/performance-routes-v1';
@@ -29,6 +30,7 @@ import { SESSION_COOKIE } from '../../../server/auth/session';
 import { testEnv } from '../../fixtures';
 import type { RuntimeEnv } from '../../../server/env';
 
+const { createPerformanceAnalysisV3 } = performanceAnalysisModuleV3;
 let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 let readsFail = false;
@@ -456,13 +458,19 @@ describe('performance dashboard V5', () => {
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
     expect(performanceDashboardMatchesV5(request, result)).toBe(true);
   });
-  it('embeds a same-snapshot trimester comparison without duplicating the analysis', async () => {
-    const result = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: 3, referencePeriod: 1 }));
-    expect(result.state).toBe('ready');
-    if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
-    expect(result.view).toMatchObject({ transportVersion: 4, operation: 'term-comparison', referencePeriod: 1, analysis: { matrix: { period: 3 } } });
-    expect(queries).toHaveLength(6);
-    expect(JSON.stringify(result).match(/"operation":"analysis"/gu)).toHaveLength(1);
+  it.each(['result', 'quantitative', 'qualitative'])('reuses the current %s analysis for the same-snapshot comparison panorama', async (lens) => {
+    const build = vi.spyOn(performanceAnalysisModuleV3, 'buildPerformanceAnalysisV3');
+    try {
+      const result = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: 3, referencePeriod: 1, lens }));
+      expect(result.state).toBe('ready');
+      if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+      expect(result.view).toMatchObject({ transportVersion: 4, operation: 'term-comparison', referencePeriod: 1, analysis: { matrix: { period: 3 } } });
+      expect(queries).toHaveLength(6);
+      expect(build).toHaveBeenCalledTimes(2);
+      expect(build.mock.calls.map((call) => call[2].period)).toEqual([3, 1]);
+      expect(result.overview).toEqual(buildPerformanceDashboardOverviewV5(dashboardAnalysisV5(result)));
+      expect(JSON.stringify(result).match(/"operation":"analysis"/gu)).toHaveLength(1);
+    } finally { build.mockRestore(); }
   });
   it('rejects invalid scopes and forged panorama membership', async () => {
     for (const extra of [{ year: 2025 }, { period: 1, referencePeriod: 1 }, { lens: 'assessments', offerId: 10, referencePeriod: 1 }]) {
@@ -504,6 +512,46 @@ async function analytics(extra: Record<string, unknown> = {}) {
   return result;
 }
 describe('analytics V6: descriptive statistics over the shared academic snapshot', () => {
+  it('keeps teacher and component subsets aligned after grouping pairs once', async () => {
+    await pg.exec('UPDATE gradebook.oferta SET professor_id=2 WHERE id=11');
+    try {
+      const result = await analytics();
+      expect(result.teachers.map((teacher) => teacher.id)).toEqual(
+        [...new Set(result.components.map((component) => component.offer.teacher.id))],
+      );
+      for (const teacher of result.teachers) {
+        const component = result.components.find((item) => item.offer.teacher.id === teacher.id)!;
+        expect(teacher.offerIds).toEqual([component.offer.id]);
+        expect(teacher.summary).toEqual(component.summary);
+        expect(teacher.students.map((student) => student.studentId)).toEqual(
+          result.students.map((student) => student.student.id),
+        );
+        for (const student of result.students) {
+          const cell = student.cells.find((item) => item.offerId === component.offer.id)!;
+          const summary = teacher.students.find((item) => item.studentId === student.student.id)!;
+          expect(summary.complete).toBe(cell.result.state === 'complete' ? 1 : 0);
+          expect(summary.partial).toBe(cell.result.state === 'partial' ? 1 : 0);
+          expect(summary.meanPercent).toBe(cell.result.state === 'complete' ? cell.percent : null);
+        }
+      }
+      expect(queries).toHaveLength(6);
+      expect(performanceAnalyticsResponseSchemaV6.safeParse(result).success).toBe(true);
+    } finally { await pg.exec('UPDATE gradebook.oferta SET professor_id=1 WHERE id=11'); }
+  });
+  it('retains ordered student groups when there are no component pairs', async () => {
+    const matrix = await service().execute(matrixRequest({ statuses: [null, 7] }));
+    if (matrix.state !== 'ready' || matrix.operation !== 'matrix') throw new Error('unexpected-matrix-failure');
+    const result = buildPerformanceAnalyticsV6({
+      ...matrix,
+      offers: [],
+      rows: matrix.rows.map((row) => ({ ...row, cells: [] })),
+    }, new Map(), false);
+    expect(result.students.map((student) => student.student.id)).toEqual(matrix.rows.map((row) => row.student.id));
+    expect(result.summary).toMatchObject({ students: matrix.rows.length, readings: 0, studentsAtOrAbove: 0, studentsBelow: 0 });
+    expect(result.students.every((student) => student.cells.length === 0 && student.summary.readings === 0 && student.summary.result.mean === null)).toBe(true);
+    expect(result.components).toEqual([]);
+    expect(result.teachers).toEqual([]);
+  });
   it('uses one six-query read-only snapshot for every perspective', async () => {
     const result = await analytics();
     expect(queries).toHaveLength(6);
