@@ -1,4 +1,5 @@
 import { act, createElement } from 'react';
+import { appendFileSync } from 'node:fs';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -214,7 +215,7 @@ let host: HTMLDivElement;
 let flow: ReturnType<typeof useImportBatch>;
 let sequence: string[];
 let probeRenders = 0;
-function Probe({ showTiming = false }: { showTiming?: boolean } = {}) {
+function Probe({ showTiming = false }: { showTiming?: boolean }) {
   probeRenders++;
   flow = useImportBatch();
   return showTiming
@@ -277,6 +278,30 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file canonical queue (V9)', () => {
+  it('preserves failure positions before the sole recognized file instead of indexing filtered successes', async () => {
+    mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
+      for (const index of [0, 1, 2])
+        runtime.onFileTiming({
+          fileIndex: index,
+          outcome: index === 2 ? 'recognized' : 'failed',
+          failureStage: index === 2 ? null : 'file-read',
+          fileReadMs: 1,
+          recognitionMs: index === 2 ? 1 : null,
+        });
+      return {
+        successes: [result(2)],
+        failureDetails: [{ id: 'failure-0' }, { id: 'failure-1' }],
+        batch: { files: [{ id: 'failure-0' }, { id: 'failure-1' }, { id: result(2).id }] },
+      };
+    });
+    await act(async () => flow.handleFiles(files(3)));
+    const run = report().runs[0]!;
+    expect(run.files.map((file) => file.sourceFileIndex)).toEqual([0, 1, 2]);
+    expect(run.files[0]!.recognition!.outcome).toBe('failed');
+    expect(run.files[1]!.http).toBeNull();
+    expect(run.files[2]!.persistence).toMatchObject({ sourceFileIndex: 2, index: 0 });
+    expect(mocks.persist).toHaveBeenCalledOnce();
+  });
   it.each([18, 50])(
     'G6 measures bounded observability for %i equivalent synthetic files',
     async (count) => {
@@ -309,25 +334,26 @@ describe('Bounded per-file canonical queue (V9)', () => {
           (value) => value.state === 'completed' && value.response.state === 'no-changes',
         ),
       ).toBe(true);
-      console.log(
-        JSON.stringify({
-          scenario: 'G6-observability',
-          files: count,
-          n: 1,
-          implementation: legacyTail ? 'baseline' : 'candidate',
-          reports: copied?.runs.length ?? 0,
-          essentialPositions: copied?.runs[0]!.files.length ?? 0,
-          recentEvents: copied?.runs[0]!.recentEvents.length ?? legacyTail!.length,
-          exportBytes: new TextEncoder().encode(text).byteLength,
-          eventSerializations,
-          fullSerializationsBeforeCopy: 0,
-          fullSerializationsAfterCopy: fullCount(),
-          exportMs: Math.round(exportMs * 1000) / 1000,
-          probeRenders,
-          auditCalls: mocks.audit.mock.calls.length,
-          persistenceCalls: mocks.persist.mock.calls.length,
-        }),
-      );
+      const measurement = JSON.stringify({
+        scenario: 'G6-observability',
+        files: count,
+        n: 1,
+        implementation: legacyTail ? 'baseline' : 'candidate',
+        reports: copied?.runs.length ?? 0,
+        essentialPositions: copied?.runs[0]!.files.length ?? 0,
+        recentEvents: copied?.runs[0]!.recentEvents.length ?? legacyTail!.length,
+        exportBytes: new TextEncoder().encode(text).byteLength,
+        eventSerializations,
+        fullSerializationsBeforeCopy: 0,
+        fullSerializationsAfterCopy: fullCount(),
+        exportMs: Math.round(exportMs * 1000) / 1000,
+        probeRenders,
+        auditCalls: mocks.audit.mock.calls.length,
+        persistenceCalls: mocks.persist.mock.calls.length,
+      });
+      console.log(measurement);
+      if (process.env.IMPORT_TIMING_MEASUREMENT_PATH_V1)
+        appendFileSync(process.env.IMPORT_TIMING_MEASUREMENT_PATH_V1, measurement + '\n');
     },
   );
 
@@ -345,9 +371,13 @@ describe('Bounded per-file canonical queue (V9)', () => {
       expect(Object.values(flow.persistence).every((value) => value.state === 'completed')).toBe(
         true,
       );
-      expect(flow.getTimingReport()).not.toContain('PRIVATE');
-      if (method === 'snapshot')
-        expect(JSON.parse(flow.getTimingReport()).measurementStatus).toBe('unavailable');
+      let text!: string;
+      await act(async () => {
+        text = flow.getTimingReport();
+      });
+      expect(text).not.toContain('PRIVATE');
+      if (method === 'summary') expect(JSON.parse(text).measurementStatus).toBe('partial');
+      if (method === 'snapshot') expect(JSON.parse(text).measurementStatus).toBe('unavailable');
     },
   );
   it.each([18, 50])(
@@ -905,13 +935,16 @@ describe('Bounded per-file canonical queue (V9)', () => {
     const oldReply = deferred<{ response: GradebookImportPersistenceResponseV9; serverMs: null }>();
     mocks.persist.mockReturnValueOnce(oldReply.promise);
     const { done: oldDone } = await startBatch(3);
+    const oldReport = flow.getTimingReport;
     await yieldLocalPreparation();
     await act(async () => root.unmount());
+    expect(JSON.parse(oldReport()).runs).toEqual([]);
     root = createRoot(host);
     await act(async () => root.render(createElement(Probe)));
     mocks.read.mockResolvedValue(recognized([result(50)]));
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.handleFiles(files(1)));
+    const currentReport = flow.getTimingReport();
     const logs = vi.mocked(console.info).mock.calls.length;
     await act(async () => {
       oldReply.resolve({ response: { transportVersion: 9, state: 'unavailable' }, serverMs: null });
@@ -924,6 +957,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.loading).toBe(false);
     expect(vi.mocked(console.info).mock.calls).toHaveLength(logs);
     expect(mocks.persist).toHaveBeenCalledTimes(2);
+    expect(flow.getTimingReport()).toBe(currentReport);
   });
 
   it('separates audit network time from canonical build and records academic POST/confirmation milestones', async () => {

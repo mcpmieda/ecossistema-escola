@@ -5,6 +5,26 @@ import {
 } from '../../../src/features/gradebook/import/import-timing-report-v1';
 
 describe('bounded essential import timing report (G1)', () => {
+  it('keeps at most 100 essential positions and 100 recent events across arbitrarily many resumes', () => {
+    const report = new ImportTimingReportV1();
+    const positions = Array.from({ length: 50 }, (_, index) => index);
+    for (let runOrdinal = 1; runOrdinal <= 10; runOrdinal++) {
+      report.begin(runOrdinal, runOrdinal === 1 ? 'initial' : 'resume', positions);
+      for (let event = 0; event < 501; event++)
+        report.record(runOrdinal, {
+          stage: 'audit-request',
+          phase: 'initial-observation',
+          sourceFileIndex: event % 50,
+          outcome: 'recorded',
+        });
+      report.record(runOrdinal, { stage: 'batch-complete', outcome: 'confirmation-required' });
+    }
+    const snapshot = report.snapshot();
+    expect(snapshot.runs).toHaveLength(2);
+    expect(snapshot.runs.reduce((sum, run) => sum + run.files.length, 0)).toBe(100);
+    expect(snapshot.runs.reduce((sum, run) => sum + run.recentEvents.length, 0)).toBe(100);
+    expect(snapshot.retention.omittedResumes).toBe(8);
+  });
   it.each([18, 50])(
     'preserves %i original positions and summaries after over 500 events',
     (count) => {

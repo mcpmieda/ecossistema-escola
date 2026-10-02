@@ -275,6 +275,8 @@ export function useImportBatch() {
   const sourcePositions = useRef(new Map<string, number>());
   const timingReport = useRef(new ImportTimingReportV1());
   const collectorFailures = useRef(0);
+  const summaryFailed = useRef(false);
+  const mounted = useRef(false);
   const timingStatus = useRef<ImportTimingSummaryV1['status']>(null);
   const [timingRevision, setTimingRevision] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -300,8 +302,10 @@ export function useImportBatch() {
   >({});
 
   useEffect(() => {
+    mounted.current = true;
     preloadSheetJs();
     return () => {
+      mounted.current = false;
       generation.current++;
       inFlight.current = false;
       batchTiming.current = null;
@@ -346,9 +350,11 @@ export function useImportBatch() {
         ...summary,
         runOrdinal: runOrdinal.current || null,
         status: timingStatus.current,
-        diagnosticFailures: summary.diagnosticFailures + collectorFailures.current,
+        diagnosticFailures:
+          summary.diagnosticFailures + collectorFailures.current + Number(summaryFailed.current),
       };
     } catch {
+      summaryFailed.current = true;
       return {
         runOrdinal: runOrdinal.current || null,
         status: timingStatus.current,
@@ -361,17 +367,24 @@ export function useImportBatch() {
 
   function getTimingReport(): string {
     try {
+      const snapshot = timingReport.current.snapshot();
       return JSON.stringify(
         {
-          ...timingReport.current.snapshot(),
-          collectorFailures: collectorFailures.current,
-          measurementStatus: collectorFailures.current ? 'partial' : 'available',
+          ...snapshot,
+          collectorFailures: collectorFailures.current + Number(summaryFailed.current),
+          measurementStatus:
+            collectorFailures.current ||
+            summaryFailed.current ||
+            snapshot.runs.some((run) => run.coverage.measurementStatus === 'partial')
+              ? 'partial'
+              : 'available',
         },
         null,
         2,
       );
     } catch {
       collectorFailures.current++;
+      if (mounted.current) setTimingRevision((current) => current + 1);
       return JSON.stringify(
         {
           reportVersion: 1,
@@ -1044,6 +1057,7 @@ export function useImportBatch() {
     batchTiming.current = observation;
     sourcePositions.current.clear();
     collectorFailures.current = 0;
+    summaryFailed.current = false;
     beginTiming(
       observation,
       selected.map((_, index) => index),

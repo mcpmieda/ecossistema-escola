@@ -89,15 +89,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
   if (clipboardDescriptor)
     Object.defineProperty(globalThis.navigator, 'clipboard', clipboardDescriptor);
-  else delete (globalThis.navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+  else delete (globalThis.navigator as unknown as { clipboard?: Clipboard }).clipboard;
 });
 
 describe('relatório de tempo — botão real de cópia', () => {
   it('G-T15: falha ao obter snapshot recebe feedback seguro sem rejeição não tratada', async () => {
     const value = report();
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
     clipboard({ writeText });
-    const getReport = vi.fn(() => {
+    const getReport = vi.fn<() => string>(() => {
       throw new Error('sentinela-coletor-privada');
     });
     render(<TimingDiagnostics visible summary={value.summary()} getReport={getReport} />);
@@ -117,7 +117,7 @@ describe('relatório de tempo — botão real de cópia', () => {
   it('G-T01/G-T04/G-T17: copia início, 18 posições e fim do coletor real apesar da cauda limitada', async () => {
     const value = report();
     const getReport = vi.fn(() => value.exportText());
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
     clipboard({ writeText });
     const view = render(
       <TimingDiagnostics visible summary={value.summary()} getReport={getReport} />,
@@ -156,7 +156,7 @@ describe('relatório de tempo — botão real de cópia', () => {
     async (failure) => {
       const value = report();
       const expected = value.exportText();
-      const writeText = vi.fn(() => {
+      const writeText = vi.fn<(text: string) => Promise<void>>(() => {
         if (failure === 'synchronous') throw new Error('sentinela-clipboard-privado');
         return Promise.reject(new Error('sentinela-clipboard-privado'));
       });
@@ -189,7 +189,7 @@ describe('relatório de tempo — botão real de cópia', () => {
   it('G-T06: aguarda confirmação do Clipboard e copia snapshot em andamento com fim ausente', async () => {
     const value = report(false, 2);
     const pending = deferred();
-    const writeText = vi.fn(() => pending.promise);
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => pending.promise);
     clipboard({ writeText });
     const getReport = vi.fn(() => value.exportText());
     const view = render(
@@ -224,7 +224,7 @@ describe('relatório de tempo — botão real de cópia', () => {
   it('G-T05/G-T06: rejeição tardia mantém o snapshot do clique, mesmo após o lote finalizar', async () => {
     const value = report(false, 2);
     const pending = deferred();
-    const writeText = vi.fn(() => pending.promise);
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => pending.promise);
     clipboard({ writeText });
     const getReport = vi.fn(() => value.exportText());
     const expected = value.exportText();
@@ -279,7 +279,7 @@ describe('relatório de tempo — botão real de cópia', () => {
     async (outcome) => {
       const value = report();
       const pending = deferred();
-      const writeText = vi.fn(() => pending.promise);
+      const writeText = vi.fn<(text: string) => Promise<void>>(() => pending.promise);
       clipboard({ writeText });
       const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const getReport = vi.fn(() => value.exportText());
@@ -306,7 +306,7 @@ describe('relatório de tempo — botão real de cópia', () => {
   it('G-T12: resposta tardia do Clipboard anterior não altera o diagnóstico do novo lote', async () => {
     const value = report();
     const pending = deferred();
-    clipboard({ writeText: vi.fn(() => pending.promise) });
+    clipboard({ writeText: vi.fn<(text: string) => Promise<void>>(() => pending.promise) });
     const getReport = vi.fn(() => value.exportText());
     const view = render(
       <TimingDiagnostics visible summary={value.summary()} getReport={getReport} />,
