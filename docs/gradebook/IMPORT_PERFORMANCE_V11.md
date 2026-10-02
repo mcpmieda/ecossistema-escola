@@ -289,3 +289,81 @@ esta fixture/batching, não todo painel real.
 separadamente na PR/checkpoint, sem inferi-los do código. Uso real permanece pendente do responsável.
 Reversão do Adendo G: reverter somente seus commits pelo fluxo normal; preservar integralmente
 F1–F6/#1226/#1227. Não há migration nem mudança de dados acadêmicos a desfazer. A #1225 permanece aberta.
+
+## Adendo H — integridade e leitura local (#1225)
+
+### H0 — baseline e observação recebida
+
+Baseline revalidada em 02/10/2026: `9f95387a4588653a2631288f929d94b4350bb5d6`,
+PR #1228 integrada; nenhuma PR aberta ao iniciar. Preservar F1–F6/G, sem F7, migrations,
+concorrência, Auditoria, regras acadêmicas ou infraestrutura. Leitura dos dois adendos H,
+índice, contratos e checkpoints G concluída antes da edição.
+
+O responsável informou **“Não houve alterações” nos arquivos**. O relatório recebido
+registrou 18 confirmações: 17 `no-changes` e um `applied`, em `sourceFileIndex:6`
+(sétima posição original). Essa informação não demonstra identidade dos bytes/pedidos
+nem ausência de mudança no estado anterior do banco. A resposta V9 usa `applied` quando
+`writes > 0`; escrita em catálogo também conta. Contadores legados não constituem um
+registro completo das alterações de notas, instrumentos, fechamentos ou cadastro.
+
+Números do relatório, não deste experimento: lote `35.164,5 ms`, reconhecimento
+`21.608,4 ms`, soma `xlsxReadMs = 20.874,7 ms`, reconhecimento docente `330,1 ms`,
+leitura de arquivos `255,1 ms`, manifestos `116,1 ms`; biblioteca `12,5 ms`;
+intervalo após reconhecimento até despacho `422,2 ms`. Não somar a cauda à seção
+por arquivo. `xlsx.read` concentra aproximadamente 96,6% do reconhecimento e 59,4%
+do lote; isso não identifica ZIP/CPU/GC nem explica os 29,69 s da observação anterior.
+Na posição 6: nove ofertas, payload 49.567 bytes, HTTP 1.820,1 ms, handler 1.761 ms,
+uma tentativa. Nenhum nome, hash ou conteúdo individual é necessário para esse registro.
+
+Causa do `applied` real: **pendente de evidência**. Faltam resposta validada detalhada,
+bytes/pedido correspondente e estado anterior; uma reprodução sintética não atribui
+automaticamente a causa à posição 6. A coleta produtiva mínima pertence ao responsável,
+num lote legítimo, sem editar notas para medir ou alterar dados para testar.
+
+Verificação da baseline Windows/Node 24.16.0/Vitest 4.1.11/jsdom:
+`relational-import-atomicity-v11`, `relational-import-read-set-v11`,
+`relational-import-instrument-plan-v11`, `relational-import-write-buffer-v11`,
+`import-revisions-v1` e `synthetic-import-batch`: **97 testes / seis arquivos aprovados**.
+Investigação H1/H2 usa a composição real V11 → V10 → V9 sobre PostgreSQL PGlite;
+comparador H3–H5 usa S0 original, S1 com acesso comum e D1 experimental.
+Configuração produtiva ainda esparsa; integração/publicação H e uso real ainda pendentes.
+
+### H1/H2 — repetição na composição real e categorias
+
+`relational-import-idempotency-v11.test.ts`: **19/19 PASS** na composição real
+V11 → V10 → V9/PGlite; fixture observa categorias fixas acima/abaixo do buffer, sem
+armazenar SQL/params. Snapshot ordenado de todas as tabelas acadêmicas/Portal da fixture,
+revisões, histórico, cadastro e contas/sessões. Não é PostgreSQL remoto nem uso real.
+
+- H-I01/I04: três execuções de pedidos estáveis; repetições sem DML/mutações bufferizadas,
+  novas importações/histórico, revisões ou lifecycle; notas/instrumentos/fechamentos preservados.
+- H-I05: grafia SQL-equivalente do professor gera uma alteração de catálogo e `applied`;
+  contador acadêmico não avança. O contador/reset técnico e o catálogo podem mudar.
+- H-I06/I13: A → B → A pode alterar legitimamente grafia compartilhada ou fatos;
+  arquivos inalterados não tornam o lote universalmente idempotente frente a outros pedidos.
+- H-I07: `[Title, Title, UPPER]` em três ofertas da mesma disciplina gera duas transições
+  de grafia por repetição, zero alterações de notas/fechamentos. O segundo Title não causa
+  escrita redundante. Essa política existente não será trocada por first/last-wins no H.
+  Grafia uniforme em 33 ofertas altera disciplina uma vez, mesmo atravessando dois blocos.
+- H-I08–12: descrição normalizada, placeholders com aluno inicial/final, null/ausente/zero/
+  indisponível, AM/REC/U/NC/RR/máscaras, Relação/transferências e remoção explícita preservados.
+- H-I14/contadores: três/64 alunos, 108/2.304 notas, 120/2.560 mutações bufferizadas,
+  160/2.600 DML total/summary, flush por limite de linhas 0/1. `groupCounts` conta
+  statements/chunks; `affectedRows` conta linhas. Não confundir ambos nem chamar total de notas.
+- H-I15: falhas após flush, revisão e lifecycle desfazem snapshot completo, inclusive
+  revogação de sessões; retry aplica e estabiliza. H-I16 confirma alteração legítima `applied`.
+
+**Decisão:** nenhum defeito novo de integridade demonstrado, portanto nenhuma correção de
+DML/normalização/contadores/UI/hash. As reproduções explicam caminhos possíveis de `applied`,
+mas **a causa da posição 6 permanece indeterminada**. O histórico atual não reconstrói sozinho
+o estado anterior; pedir evidência correspondente, sem carga ou reparo produtivo.
+
+### H3 — inventário e fronteira experimental
+
+Acesso bruto por endereço em `spreadsheet-recognizer.ts` (metadados, cabeçalhos, notas,
+REC, captura) e `master-relation-v9.ts` (INICIO/agenda, até AZ48). Canônico e diagnósticos
+acessam `snapshotCellsV8`, já capturado, e não percorrem Worksheet. `!ref`/`!fullref`
+continuam metadados de dimensão; nenhum novo percurso pelo range integral. S0 usa os três
+arquivos originais do SHA de baseline; S1 muda apenas o acesso; D1 acrescenta apenas `dense`.
+Manifestos e bytes permanecem fixos para equivalência. T1 não foi adotado: `w` é fallback
+consumido nos dois reconhecedores, e retirar `cellText` misturaria outro experimento.
