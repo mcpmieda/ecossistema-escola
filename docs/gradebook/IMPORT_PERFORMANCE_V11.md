@@ -6,7 +6,7 @@ Fonte de verdade: [issue #1225](https://github.com/mcpmieda/ecossistema-escola/i
 
 F1–F6 compõem o release de código, sem alteração de transporte, schema, migrations, privilégios, provider ou política de publicação. O líder retirou expressamente **F7 deste release**: escopo individual da preparação do Portal depende de medição produtiva adequada e contrato próprio aprovado. O conjunto conservador de alunos, mudanças globais e finalizadores vigentes continua sendo utilizado. F7 não está concluída.
 
-A correção F1 tem PR separado. Os commits de F2, F5, F3/F4 e F6 permanecem identificáveis por fase; a integração coordenada das otimizações usará um único PR final. Essa organização reduz estados intermediários e concentra a verificação completa sobre a composição final. Instrumentos e limites do buffer são publicados juntos.
+A correção F1 tem PR separado. Os commits de F2, F5, F3/F4 e F6 permanecem identificáveis por fase; a integração coordenada das otimizações está na PR [#1227](https://github.com/mcpmieda/ecossistema-escola/pull/1227). Essa organização reduz estados intermediários e concentra a verificação completa sobre a composição final. Instrumentos e limites do buffer são publicados juntos.
 
 ## Fluxo implementado
 
@@ -123,17 +123,17 @@ Reversão: interromper novos despachos se houver regressão, preservar recibos/e
 
 ## Prestação de contas F0–F9
 
-| Fase | Estado neste checkpoint                 | Evidência / pendência                                                                                                                                            |
-| ---- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F0   | Concluída                               | Baseline main `5faaab56`, AGENTS, contratos e anexos A–F revalidados.                                                                                            |
-| F1   | Integrada; publicação em acompanhamento | PR #1226 integrada em `443e6f2c`; CI `36959363295` e nativo `36959362896` aprovados no head `0867a76f`; deploy oficial `36960364498` iniciado.                   |
-| F2   | Implementada                            | Commit `fe985de6`; observer e fronteiras de tempo, baseline válida e privacidade testada.                                                                        |
-| F3   | Implementada                            | Commit `ed7fa55d`; catálogo em conjuntos e três leituras por bloco32.                                                                                            |
-| F4   | Implementada                            | Mesmo commit; plano com helpersV9 e materialização limitada por oferta.                                                                                          |
-| F5   | Implementada                            | Commit `a10545c4`; limites globais, chunks, dependências e instância inválida após falha.                                                                        |
-| F6   | Implementada e revisada                 | Commit `2037d910`; fila, barreiras, lookahead e retomada; recibo confirmado preservado na re-Auditoria403 e follow-up sem novo POST acadêmico.                   |
-| F7   | Retirada expressamente deste release    | Condicional; contrato/aprovação e medição próprios pendentes. Não implementada.                                                                                  |
-| F8   | Em andamento                            | Revisão independente e ajuste F6 concluídos; 144 testes integrados, lint e todos os typechecks verdes. CI/gates completos da composição final ainda necessários. |
-| F9   | Em andamento                            | Merge commit/deploy oficial e referências exatas a registrar na issue; uso real posterior pendente.                                                              |
+| Fase | Estado neste checkpoint              | Evidência / pendência                                                                                                                                                             |
+| ---- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F0   | Concluída                            | Baseline main `5faaab56`, AGENTS, contratos e anexos A–F revalidados.                                                                                                             |
+| F1   | Integrada e publicada                | PR #1226 integrada em `443e6f2c`; CI `36959363295` e nativo `36959362896` aprovados no head `0867a76f`; deploy oficial `36960364498` concluído, incluindo monitor pós-publicação. |
+| F2   | Implementada                         | Commit `fe985de6`; observer e fronteiras de tempo, baseline válida e privacidade testada.                                                                                         |
+| F3   | Implementada                         | Commit `ed7fa55d`; catálogo em conjuntos e três leituras por bloco32.                                                                                                             |
+| F4   | Implementada                         | Mesmo commit; plano com helpersV9 e materialização limitada por oferta.                                                                                                           |
+| F5   | Implementada                         | Commit `a10545c4`; limites globais, chunks, dependências e instância inválida após falha.                                                                                         |
+| F6   | Implementada e revisada              | Commit `2037d910`; fila, barreiras, lookahead e retomada; recibo confirmado preservado na re-Auditoria403 e follow-up sem novo POST acadêmico.                                    |
+| F7   | Retirada expressamente deste release | Condicional; contrato/aprovação e medição próprios pendentes. Não implementada.                                                                                                   |
+| F8   | Em andamento                         | Revisão independente e ajuste F6 concluídos; 144 testes integrados, lint e todos os typechecks verdes. CI/gates completos da composição final ainda necessários.                  |
+| F9   | Em andamento                         | F1 publicada; PR #1227 aguarda gates finais e publicação. O checkpoint final da issue registra SHAs/workflows reais; uso real posterior pendente.                                 |
 
 Não confundir código implementado, gates aprovados, publicação concluída e uso real homologado. A issue permanece aberta enquanto a prestação de contas final não estiver registrada.

@@ -385,7 +385,9 @@ import_performance_1225:
   corrective_ci: 36959363295
   corrective_native_gate: 36959362896
   corrective_deploy_run: 36960364498
-  corrective_deploy_status: started-not-yet-certified
+  corrective_deploy_status: success
+  optimization_pull_request: 1227
+  optimization_ci_and_publication: pending-at-this-source-checkpoint-see-issue-1225
   integration_and_publication_evidence: issue-1225-final-checkpoint-required
   real_use_validation: pending-responsible-after-publication
   conditional_F7: expressly-excluded-from-this-release-requires-own-contract-and-approval
