@@ -1,11 +1,11 @@
 schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-10-01
+updated_at: 2026-10-02
 coordination:
   master_issue: 182
-  executable_issue: null
-  current_delivery_issue: null
+  executable_issue: 1225
+  current_delivery_issue: 1225
   current_integrator_issue: 970
   maintenance_issue: 970
   central_state_editor: integrator-only
@@ -68,7 +68,8 @@ student_portal_integration:
   current_integration_issue: null
   part_1_issues: [701, 715]
   part_1_status: technically-completed-741
-  part_2_issues: [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
+  part_2_issues:
+    [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
   part_2_status: technically-complete-release-closed-by-policy
   gate_g_b: accepted-with-explicit-physical-device-deferrals
   gate_g_p: passed-technical-release-general-opening-not-authorized
@@ -372,3 +373,25 @@ historical_checkpoint_668:
     population_enabled: false
     general_school_opening: false
     canonical_state: docs/student-portal/PROJECT_STATE.yaml
+
+import_performance_1225:
+  issue: 1225
+  document: docs/gradebook/IMPORT_PERFORMANCE_V11.md
+  baseline_source: 5faaab5649c9f6c78d3bd738685324da024e69df
+  release_scope: [F1, F2, F3, F4, F5, F6]
+  implementation: F1-integrated-F2-through-F6-implemented-and-reviewed
+  corrective_pull_request: 1226
+  corrective_merge: 443e6f2ce064a2fa762b9a94022d5d378539744e
+  corrective_ci: 36959363295
+  corrective_native_gate: 36959362896
+  corrective_deploy_run: 36960364498
+  corrective_deploy_status: started-not-yet-certified
+  integration_and_publication_evidence: issue-1225-final-checkpoint-required
+  real_use_validation: pending-responsible-after-publication
+  conditional_F7: expressly-excluded-from-this-release-requires-own-contract-and-approval
+  import_transport: canonical-v9-unchanged
+  import_service: relational-v11-over-v10-unchanged
+  migrations_created_or_applied: false
+  production_academic_operations: none
+  metrics_scope: aggregated-request-local-no-academic-values
+  performance_proof: fewer-physical-calls-and-equivalent-synthetic-facts-no-production-sla
