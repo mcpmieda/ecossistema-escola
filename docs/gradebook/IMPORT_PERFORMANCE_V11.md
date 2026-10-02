@@ -367,3 +367,47 @@ continuam metadados de dimensão; nenhum novo percurso pelo range integral. S0 u
 arquivos originais do SHA de baseline; S1 muda apenas o acesso; D1 acrescenta apenas `dense`.
 Manifestos e bytes permanecem fixos para equivalência. T1 não foi adotado: `w` é fallback
 consumido nos dois reconhecedores, e retirar `cellText` misturaria outro experimento.
+
+| Consumidor            | Acesso e campos consumidos                                                           | Proteção                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Reconhecedor docente  | `cellAt`/A1; `v/w/f/t`, CONFIGURAÇÃO C2/A2, K2–K4/J1, cabeçalhos/notas/REC/snapshot  | Acessor, 21 casos funcionais, comparação S0/S1/D1 de codecs                                |
+| Relação               | `cell` independente; `v/w`, INICIO Q2, cadastro 7–28, agenda até AZ48                | Relação válida/inválida, transferência, sentinela AZ48, canônico integral                  |
+| Leitor                | `!ref`/`!fullref`, lista/ordem de guias e metadados                                  | Dimensões sintéticas e codecs reais com range até linha 120, captura limitada a 50         |
+| Canônico/diagnósticos | `snapshotCellsV8`, estados, definições, fórmulas/cache e observações já reconhecidas | Oráculos existentes completos, contrato V9 validado pelo produtor; sem adaptação de regras |
+
+### H4/H5 — limites do experimento e decisão conservadora
+
+O comparador local usa bytes da biblioteca oficial fixada no loader (0.20.3 + SRI),
+verifica ZIP/CFB e a parte `xl/workbook.xml`, `xl/workbook.bin` ou Workbook/Book BIFF.
+S0 original versus S1/D1 é comparado por tipos, chaves próprias, ausência/undefined,
+buracos/ordem de arrays, valores e datas; JSON não é o oráculo. Resumo completo,
+diagnósticos completos, pedido canônico e erros são comparados. `captureValues:true`.
+
+O writer não é o arquivo original: nas fixtures medidas, XLSX conserva fórmulas,
+mas XLSB/XLS gerados perdem `f`. Contagens não demonstram fidelidade dos caches,
+`v/t/w` ou ausência. Casos de cache indisponível/erro/empty cache/fallback `w` são
+cobertos também em objetos sintéticos; isso não constitui cobertura universal de
+fórmulas em codecs binários. Workbook sem guias é recusado pelo writer; essa é uma
+lacuna de geração explicitamente registrada, não um codec aprovado/silenciosamente pulado.
+
+**Não promover D1:** há lacunas para fórmulas reais nos formatos binários, e as primeiras
+medições não demonstram ganho completo consistente. A conclusão de performance será
+registrada com as amostras do navegador. Nenhum `dense:true` ou acessor experimental
+permanece no runtime produtivo: S1/D1 residem em fixtures/harness e transformam apenas
+os consumidores durante a construção local. Funções esperadas ausentes/duplicadas ou dupla adaptação
+é recusada. Canônico, diagnósticos, biblioteca/opções produtivas, fila e retomadas permanecem
+os da baseline; não houve correção de integridade necessária demonstrada.
+
+A primeira rodada cronometrada sucede o preflight de equivalência; não é medição fria
+da página. Cinco rodadas aquecidas pareadas, ordem alternada; 18/50 leituras sequenciais,
+Relação na última posição e docentes 2025/2026. Parsing de bytes fixos é separado do fluxo
+File/hash; total não soma pais/filhos. `adaptationMs:0` indica ausência de conversão/cópia:
+custo do getter está no reconhecimento/leitura. Sem heap medido, GC forçado, p95 ou SLA.
+Node é evidência complementar, com concorrência local nas amostras preliminares;
+não fundamenta ganho de navegador nem redução dos 20.874,7 ms reais.
+
+Paths auxiliares além dos propostos: `reader-candidate-v1.ts` isola S1/D1 dos módulos
+produtivos sem cópia integral do reconhecedor; `sheetjs-real-v1.ts` valida pin/bytes para
+as regressões de codecs; `workbook-reader-real-codecs-v1.test.ts` cobre dimensões reais e
+aplica requests produzidos à composição PGlite; `reader-comparison-v1.mjs` contém a lógica
+compartilhada Node/browser do CLI local. Não criam rota, dependência ou serviço produtivo.
