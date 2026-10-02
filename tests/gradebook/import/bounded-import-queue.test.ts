@@ -181,6 +181,66 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file canonical queue (V9)', () => {
+  it('separates audit network time from canonical build and records academic POST/confirmation milestones', async () => {
+    let clock = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    mocks.audit.mockImplementation(async () => {
+      clock += 80;
+      return { version: 1, state: 'recorded', affected: 0 };
+    });
+    mocks.compact.mockImplementation((input: BatchSuccess) => {
+      clock += 3;
+      return request(input);
+    });
+    mocks.persist.mockImplementation(async (_value, onTiming, onDispatch) => {
+      onDispatch?.();
+      clock += 5;
+      onTiming?.({
+        serializationMs: 0,
+        payloadBytes: 100,
+        persistRequestMs: 5,
+        outcome: 'no-changes',
+      });
+      return confirmed();
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    const timings = vi
+      .mocked(console.info)
+      .mock.calls.map((call) => JSON.parse(String(call[1])) as Record<string, unknown>);
+    expect(timings.find((value) => value.stage === 'audit-request')).toMatchObject({
+      auditRequestMs: 80,
+      outcome: 'recorded',
+    });
+    expect(timings.find((value) => value.stage === 'canonical-file')).toMatchObject({
+      version: 2,
+      diagnosticLocalMs: 0,
+      canonicalBuildMs: 3,
+      totalMs: 83,
+    });
+    expect(timings.find((value) => value.stage === 'persistence-dispatch')).toMatchObject({
+      queueWaitMs: 0,
+    });
+    expect(timings.find((value) => value.stage === 'batch-complete')).toMatchObject({
+      firstPersistenceStartedMs: 83,
+      firstConfirmedPersistenceMs: 88,
+      batchElapsedMs: 88,
+      maximumPreparedItems: 1,
+      maximumActiveYearLanes: 1,
+      confirmedRequests: 1,
+    });
+  });
+
+  it('preserves confirmed persistence when the optional browser logger fails', async () => {
+    vi.mocked(console.info).mockImplementation(() => {
+      throw new Error('synthetic-logger-failed');
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    expect(Object.values(flow.persistence).every((value) => value.state === 'completed')).toBe(
+      true,
+    );
+    expect(flow.error).toBeNull();
+  });
+
   it('treats server no-changes as a completed identical reimport without academic writes', async () => {
     await act(async () => flow.handleFiles(files(18)));
     expect(mocks.compact).toHaveBeenCalledTimes(18);

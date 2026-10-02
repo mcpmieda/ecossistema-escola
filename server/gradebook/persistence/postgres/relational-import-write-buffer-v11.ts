@@ -4,6 +4,12 @@ import type {
   GradebookPostgresWritePortV1,
 } from './postgres-database-v1';
 import { postgresJsonTextV1, type GradebookPostgresValueV1 } from './postgres-values-v1';
+import {
+  importPerformanceNowV1,
+  type ImportPerformanceObserverV1,
+  type ImportFlushReasonV1,
+  type ImportGroupCategoryV1,
+} from './import-performance-observer-v1';
 
 type Row = Record<string, unknown>;
 
@@ -13,7 +19,7 @@ interface TransactionDatabaseV11 extends GradebookPostgresWritePortV1 {
 
 export interface BufferedRelationalImportDatabaseV11 extends GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
-  flush(): Promise<void>;
+  flush(reason?: ImportFlushReasonV1): Promise<void>;
 }
 
 interface NoteValueRowV11 {
@@ -105,7 +111,11 @@ function nullableInteger(value: GradebookPostgresValueV1, label: string): number
   return integer(value, label);
 }
 
-function assertLength(values: readonly GradebookPostgresValueV1[], expected: number, label: string): void {
+function assertLength(
+  values: readonly GradebookPostgresValueV1[],
+  expected: number,
+  label: string,
+): void {
   if (values.length !== expected) {
     throw new Error(`gradebook-import-buffer-invalid-${label}`);
   }
@@ -127,19 +137,26 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     private readonly finalizers: Array<
       (database: GradebookPostgresWritePortV1) => Promise<void>
     > | null = null,
+    private readonly observer?: ImportPerformanceObserverV1,
   ) {}
 
   async executeNative<ResultRow extends Row = Row>(
     query: string,
     values: readonly GradebookPostgresValueV1[],
   ): Promise<GradebookPostgresExecutionV1<ResultRow>> {
-    if (this.bufferRun(query, values)) return { rows: [], changes: 1 };
-    await this.flush();
+    if (this.bufferRun(query, values)) {
+      this.observer?.bufferedMutation();
+      return { rows: [], changes: 1 };
+    }
+    await this.flush('non-buffered-write');
     return this.underlying.executeNative<ResultRow>(query, values);
   }
 
-  async query<ResultRow extends Row>(query: string, values: readonly GradebookPostgresScalarV1[]): Promise<readonly ResultRow[]> {
-    await this.flush();
+  async query<ResultRow extends Row>(
+    query: string,
+    values: readonly GradebookPostgresScalarV1[],
+  ): Promise<readonly ResultRow[]> {
+    await this.flush('read-boundary');
     return this.underlying.query<ResultRow>(query, values);
   }
 
@@ -148,15 +165,24 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     this.finalizers.push(operation);
   }
 
-  async transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T> {
-    await this.flush();
+  async transaction<T>(
+    operation: (database: GradebookPostgresWritePortV1) => Promise<T>,
+  ): Promise<T> {
+    await this.flush('transaction-end');
     return transactionDatabase(this.underlying).transaction(async (transaction) => {
       const finalizers = this.finalizers ?? [];
-      const nested = new BufferedDatabaseV11(transaction, finalizers);
+      const nested = new BufferedDatabaseV11(transaction, finalizers, this.observer);
       const result = await operation(nested);
-      await nested.flush();
+      await nested.flush('transaction-end');
       if (this.finalizers === null) {
-        for (const finalize of finalizers) await finalize(transaction);
+        for (const finalize of finalizers) {
+          const started = importPerformanceNowV1();
+          try {
+            await finalize(transaction);
+          } finally {
+            this.observer?.finalizerElapsed(started);
+          }
+        }
       }
       return result;
     });
@@ -259,7 +285,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     };
   }
 
-  async flush(): Promise<void> {
+  async flush(reason: ImportFlushReasonV1 = 'transaction-end'): Promise<void> {
     const current = this.pending;
     if (
       current.noteInsert.length === 0 &&
@@ -272,6 +298,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     ) {
       return;
     }
+    this.observer?.flush(reason);
 
     await this.groupedRun(
       `DELETE FROM gradebook.nota AS current
@@ -389,17 +416,30 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     this.pending = emptyBuffer();
   }
 
-  private async groupedRun(query: string, rows: readonly object[], label: string): Promise<void> {
+  private async groupedRun(
+    query: string,
+    rows: readonly object[],
+    label: ImportGroupCategoryV1,
+  ): Promise<void> {
     if (rows.length === 0) return;
-    const result = await this.underlying.executeNative(query, [postgresJsonTextV1(JSON.stringify(rows))]);
-    if (resultChanges(result) !== rows.length) {
-      throw new Error(`gradebook-import-buffer-write-count-mismatch:${label}`);
+    const body = JSON.stringify(rows);
+    this.observer?.groupStarted(label, rows.length, new TextEncoder().encode(body).byteLength);
+    try {
+      const result = await this.underlying.executeNative(query, [postgresJsonTextV1(body)]);
+      if (resultChanges(result) !== rows.length) {
+        throw new Error(`gradebook-import-buffer-write-count-mismatch:${label}`);
+      }
+      this.observer?.groupFinished(true);
+    } catch (cause) {
+      this.observer?.groupFinished(false);
+      throw cause;
     }
   }
 }
 
 export function createBufferedRelationalImportDatabaseV11(
   database: GradebookPostgresWritePortV1,
+  observer?: ImportPerformanceObserverV1,
 ): BufferedRelationalImportDatabaseV11 {
-  return new BufferedDatabaseV11(database);
+  return new BufferedDatabaseV11(database, null, observer);
 }

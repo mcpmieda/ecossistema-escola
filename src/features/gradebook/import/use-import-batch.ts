@@ -56,14 +56,35 @@ export interface ImportFlowProgressV9 {
 }
 
 type ImportPersistenceRunResultV1 =
-  | 'completed'
-  | 'auth-required'
-  | 'confirmation-required'
-  | 'blocked';
+  'completed' | 'auth-required' | 'confirmation-required' | 'blocked';
 type PreparedPersistenceV9 = {
   readonly result: BatchSuccess;
   readonly request: GradebookImportPersistenceRequestV9;
+  readonly readyAt: number;
 };
+type BatchObservationV1 = {
+  readonly startedAt: number;
+  firstPersistenceStartedMs: number | null;
+  firstConfirmedPersistenceMs: number | null;
+  maximumPreparedItems: number;
+  activeYearLanes: number;
+  maximumActiveYearLanes: number;
+  confirmedRequests: number;
+  outcome: ImportPersistenceRunResultV1 | 'failed';
+};
+
+function batchObservation(): BatchObservationV1 {
+  return {
+    startedAt: nowMs(),
+    firstPersistenceStartedMs: null,
+    firstConfirmedPersistenceMs: null,
+    maximumPreparedItems: 0,
+    activeYearLanes: 0,
+    maximumActiveYearLanes: 0,
+    confirmedRequests: 0,
+    outcome: 'failed',
+  };
+}
 
 type SummaryWithRelationV9 = BatchSuccess['summary'] & {
   readonly masterRelationV9?: MasterRelationRecognitionV9;
@@ -133,6 +154,7 @@ export function selectPendingGradebookImportResultsV1(
 export function useImportBatch() {
   const academicContext = useGradebookYear();
   const inFlight = useRef(false);
+  const batchTiming = useRef<BatchObservationV1 | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchSuccess[]>([]);
@@ -148,7 +170,9 @@ export function useImportBatch() {
   const [sourceDiagnostics, setSourceDiagnostics] = useState<
     Record<string, readonly GradebookImportDiagnosticV1[]>
   >({});
-  const [diagnosticAuditFailures, setDiagnosticAuditFailures] = useState<Record<string, string>>({});
+  const [diagnosticAuditFailures, setDiagnosticAuditFailures] = useState<Record<string, string>>(
+    {},
+  );
 
   useEffect(() => {
     preloadSheetJs();
@@ -156,8 +180,27 @@ export function useImportBatch() {
 
   function appendTiming(prefix: string, value: unknown): void {
     const serialized = JSON.stringify(value);
-    console.info(prefix, serialized);
+    try {
+      console.info(prefix, serialized);
+    } catch {
+      /* Optional diagnostics cannot affect persistence. */
+    }
     setTimingDiagnostics((current) => [...current.slice(-49), diagnosticLine(prefix, value)]);
+  }
+
+  function finishBatchTiming(observation: BatchObservationV1): void {
+    appendTiming('[gradebook-import-browser-timing]', {
+      version: 2,
+      stage: 'batch-complete',
+      batchElapsedMs: elapsedMs(observation.startedAt),
+      firstPersistenceStartedMs: observation.firstPersistenceStartedMs,
+      firstConfirmedPersistenceMs: observation.firstConfirmedPersistenceMs,
+      maximumPreparedItems: observation.maximumPreparedItems,
+      maximumActiveYearLanes: observation.maximumActiveYearLanes,
+      confirmedRequests: observation.confirmedRequests,
+      outcome: observation.outcome,
+    });
+    batchTiming.current = null;
   }
 
   const selectedResult = useMemo(
@@ -177,7 +220,10 @@ export function useImportBatch() {
           sum +
           (relation
             ? relation.turmas.reduce((classSum, turma) => classSum + turma.alunos.length, 0)
-            : result.summary.classes.reduce((classSum, classroom) => classSum + classroom.students, 0))
+            : result.summary.classes.reduce(
+                (classSum, classroom) => classSum + classroom.students,
+                0,
+              ))
         );
       }, 0),
       gradeSheets: results.reduce((sum, result) => sum + result.summary.gradeSheets.length, 0),
@@ -206,10 +252,14 @@ export function useImportBatch() {
   ): Promise<void> {
     // An empty observation is meaningful: it clears resolved problems atomically.
     // Only this endpoint owns diagnostic replacement; academic persistence never clears it.
+    const auditStartedAt = nowMs();
+    let auditOutcome: 'recorded' | 'unavailable' | 'failed' | 'not-authorized' | 'invalid-request' =
+      'failed';
     try {
       const response = await persistGradebookImportDiagnosticsAuditV1(
         gradebookImportDiagnosticsAuditRequestV1(result, diagnostics),
       );
+      auditOutcome = response.state;
       if (response.state !== 'recorded') {
         setDiagnosticAuditFailures((current) => ({
           ...current,
@@ -227,15 +277,25 @@ export function useImportBatch() {
         ...current,
         [result.id]: 'A Auditoria não confirmou a atualização dos problemas desta planilha.',
       }));
+    } finally {
+      appendTiming('[gradebook-import-browser-timing]', {
+        version: 2,
+        stage: 'audit-request',
+        auditRequestMs: elapsedMs(auditStartedAt),
+        outcome: auditOutcome,
+      });
     }
   }
 
-  async function preparePersistenceRequest(result: BatchSuccess): Promise<PreparedPersistenceV9 | null> {
+  async function preparePersistenceRequest(
+    result: BatchSuccess,
+  ): Promise<PreparedPersistenceV9 | null> {
     setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
     const compactStartedAt = nowMs();
     const diagnostics = collectGradebookImportDiagnosticsV1(result);
     const blocking = blockingGradebookImportDiagnosticsV1(diagnostics);
     const unavailable = sourceUnavailableGradebookImportDiagnosticsV1(diagnostics);
+    const diagnosticLocalMs = elapsedMs(compactStartedAt);
     setSourceDiagnostics((current) => ({ ...current, [result.id]: diagnostics }));
     setSourceValueWarnings((current) => ({ ...current, [result.id]: unavailable.length }));
     await auditDiagnostics(result, diagnostics);
@@ -256,17 +316,20 @@ export function useImportBatch() {
         blockingDiagnostics: blocking.length,
         unavailableCells: unavailable.length,
         totalDiagnostics: diagnostics.length,
+        diagnosticLocalMs,
         totalMs: elapsedMs(compactStartedAt),
       });
       return null;
     }
 
     try {
+      const canonicalStartedAt = nowMs();
       const maximumWarnings: CanonicalImportWarningV9[] = [];
       const request = createGradebookCanonicalImportRequestV9(result, {
         onProgress: (value) => setProgress({ ...value, fileName: result.manifest.fileName }),
         onWarning: (warning) => maximumWarnings.push(warning),
       });
+      const canonicalBuildMs = elapsedMs(canonicalStartedAt);
       const unavailableCells = unavailableCellsV9(request);
       setSourceValueWarnings((current) => ({ ...current, [result.id]: unavailableCells }));
       setSourceMaximumWarnings((current) => ({ ...current, [result.id]: maximumWarnings }));
@@ -277,12 +340,13 @@ export function useImportBatch() {
         unavailableCells,
         aboveMaximumWarnings: maximumWarnings.length,
         diagnosticWarnings: diagnostics.filter((value) => value.severity === 'warning').length,
-        payloadBytes: new TextEncoder().encode(JSON.stringify(request)).byteLength,
+        diagnosticLocalMs,
+        canonicalBuildMs,
         totalMs: elapsedMs(compactStartedAt),
         offerCount: request.operation === 'persist-notas' ? request.ofertas.length : 0,
         classCount: request.operation === 'persist-relacao' ? request.turmas.length : 0,
       });
-      return { result, request };
+      return { result, request, readyAt: nowMs() };
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível preparar esta planilha.');
       setSelectedId(result.id);
@@ -303,10 +367,35 @@ export function useImportBatch() {
     setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
     setProgress({ current: index, total, fileName: result.manifest.fileName, stage: 'saving' });
     const startedAt = nowMs();
+    const observation = batchTiming.current;
+    appendTiming('[gradebook-import-browser-timing]', {
+      version: 2,
+      stage: 'persistence-dispatch',
+      queueWaitMs: elapsedMs(prepared.readyAt),
+      operation: request.operation,
+    });
     let response: GradebookImportPersistenceResponseV9;
     try {
-      const persisted = await persistGradebookCanonicalImportV9(request);
+      const persisted = await persistGradebookCanonicalImportV9(
+        request,
+        (timing) => {
+          appendTiming('[gradebook-import-client-timing]', {
+            version: 2,
+            stage: 'persist-request',
+            ...timing,
+          });
+        },
+        () => {
+          if (observation && observation.firstPersistenceStartedMs === null) {
+            observation.firstPersistenceStartedMs = elapsedMs(observation.startedAt);
+          }
+        },
+      );
       response = persisted.response;
+      if (observation && (response.state === 'applied' || response.state === 'no-changes')) {
+        observation.confirmedRequests++;
+        observation.firstConfirmedPersistenceMs ??= elapsedMs(observation.startedAt);
+      }
       appendTiming('[gradebook-import-client-timing]', {
         version: 2,
         mode: 'canonical-v9',
@@ -348,12 +437,16 @@ export function useImportBatch() {
       await auditDiagnostics(result, collectGradebookImportDiagnosticsV1(result));
       await academicContext?.refreshYears(request.ano);
     }
-    return response.state === 'blocked' || response.state === 'conflict' || response.state === 'invalid-request'
+    return response.state === 'blocked' ||
+      response.state === 'conflict' ||
+      response.state === 'invalid-request'
       ? 'blocked'
       : 'completed';
   }
 
-  async function persistPreparedFiles(prepared: readonly PreparedPersistenceV9[]): Promise<ImportPersistenceRunResultV1> {
+  async function persistPreparedFiles(
+    prepared: readonly PreparedPersistenceV9[],
+  ): Promise<ImportPersistenceRunResultV1> {
     const ordered = [
       ...prepared.filter((value) => value.request.operation === 'persist-relacao'),
       ...prepared.filter((value) => value.request.operation === 'persist-notas'),
@@ -393,24 +486,36 @@ export function useImportBatch() {
         while (stop === null) {
           const lane = lanes[laneCursor++];
           if (!lane) return;
-          for (const { value, position } of lane) {
-            if (stop !== null) return;
-            const status = await persistPreparedSingle(
-              value,
-              relations.length + position,
-              ordered.length,
+          const observation = batchTiming.current;
+          if (observation) {
+            observation.activeYearLanes++;
+            observation.maximumActiveYearLanes = Math.max(
+              observation.maximumActiveYearLanes,
+              observation.activeYearLanes,
             );
-            if (status === 'auth-required' || status === 'confirmation-required') {
-              stop = status;
-              return;
+          }
+          try {
+            for (const { value, position } of lane) {
+              if (stop !== null) return;
+              const status = await persistPreparedSingle(
+                value,
+                relations.length + position,
+                ordered.length,
+              );
+              if (status === 'auth-required' || status === 'confirmation-required') {
+                stop = status;
+                return;
+              }
+              completed++;
+              setProgress({
+                current: completed,
+                total: ordered.length,
+                fileName: value.result.manifest.fileName,
+                stage: 'saving',
+              });
             }
-            completed++;
-            setProgress({
-              current: completed,
-              total: ordered.length,
-              fileName: value.result.manifest.fileName,
-              stage: 'saving',
-            });
+          } finally {
+            if (observation) observation.activeYearLanes--;
           }
         }
       },
@@ -420,7 +525,9 @@ export function useImportBatch() {
     return stop ?? 'completed';
   }
 
-  async function persistRecognizedFiles(successes: readonly BatchSuccess[]): Promise<ImportPersistenceRunResultV1> {
+  async function persistRecognizedFiles(
+    successes: readonly BatchSuccess[],
+  ): Promise<ImportPersistenceRunResultV1> {
     const relationResults = successes.filter(isMasterRelationResult);
     const teacherResults = successes.filter((result) => !isMasterRelationResult(result));
     const prepared: PreparedPersistenceV9[] = [];
@@ -435,10 +542,20 @@ export function useImportBatch() {
         return 'blocked';
       }
       prepared.push(value);
+      if (batchTiming.current)
+        batchTiming.current.maximumPreparedItems = Math.max(
+          batchTiming.current.maximumPreparedItems,
+          prepared.length,
+        );
     }
     for (const result of teacherResults) {
       const value = await preparePersistenceRequest(result);
       if (value) prepared.push(value);
+      if (batchTiming.current)
+        batchTiming.current.maximumPreparedItems = Math.max(
+          batchTiming.current.maximumPreparedItems,
+          prepared.length,
+        );
     }
     if (prepared.length === 0) return 'completed';
     return persistPreparedFiles(prepared);
@@ -467,7 +584,9 @@ export function useImportBatch() {
     setSourceMaximumWarnings({});
     setSourceDiagnostics({});
     setDiagnosticAuditFailures({});
-    const batchStartedAt = nowMs();
+    const observation = batchObservation();
+    batchTiming.current = observation;
+    const batchStartedAt = observation.startedAt;
     try {
       const xlsx = await loadSheetJs();
       const result = await importWorkbookBatch(
@@ -477,14 +596,20 @@ export function useImportBatch() {
         {
           captureValues: true,
           onFileTiming: (timing: ImportWorkbookFileTimingV1) =>
-            appendTiming('[gradebook-import-browser-timing]', { version: 2, stage: 'recognition-file', ...timing }),
+            appendTiming('[gradebook-import-browser-timing]', {
+              version: 2,
+              stage: 'recognition-file',
+              ...timing,
+            }),
         },
       );
       setResults(result.successes);
       setFailures(result.failureDetails);
       setSelectedId(result.successes[0]?.id ?? null);
       setPersistence(
-        Object.fromEntries(result.successes.map((success) => [success.id, { state: 'recognized' } as const])),
+        Object.fromEntries(
+          result.successes.map((success) => [success.id, { state: 'recognized' } as const]),
+        ),
       );
       appendTiming('[gradebook-import-browser-timing]', {
         version: 2,
@@ -499,6 +624,7 @@ export function useImportBatch() {
         return;
       }
       const persistenceResult = await persistRecognizedFiles(result.successes);
+      observation.outcome = persistenceResult;
       if (persistenceResult === 'completed') {
         setProgress({
           current: result.successes.length,
@@ -508,13 +634,18 @@ export function useImportBatch() {
         });
       } else if (persistenceResult === 'confirmation-required') {
         setProgress(null);
-        setError('A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.');
+        setError(
+          'A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.',
+        );
       } else if (persistenceResult === 'blocked') {
-        setError('A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.');
+        setError(
+          'A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.',
+        );
       }
     } catch (cause) {
       setError(failureMessage(cause, 'Não foi possível concluir a importação.'));
     } finally {
+      finishBatchTiming(observation);
       setLoading(false);
       inFlight.current = false;
     }
@@ -527,8 +658,11 @@ export function useImportBatch() {
     inFlight.current = true;
     setLoading(true);
     setError(null);
+    const observation = batchObservation();
+    batchTiming.current = observation;
     try {
       const outcome = await persistRecognizedFiles(pending);
+      observation.outcome = outcome;
       if (outcome === 'completed') {
         setProgress({
           current: pending.length,
@@ -538,13 +672,18 @@ export function useImportBatch() {
         });
       } else if (outcome === 'confirmation-required') {
         setProgress(null);
-        setError('A resposta de uma gravação ficou incerta. Os pendentes continuam preservados nesta aba.');
+        setError(
+          'A resposta de uma gravação ficou incerta. Os pendentes continuam preservados nesta aba.',
+        );
       } else if (outcome === 'blocked') {
-        setError('A Relação pendente continua bloqueada; as planilhas de notas não foram enviadas.');
+        setError(
+          'A Relação pendente continua bloqueada; as planilhas de notas não foram enviadas.',
+        );
       }
     } catch (cause) {
       setError(failureMessage(cause, 'Não foi possível retomar as importações pendentes.'));
     } finally {
+      finishBatchTiming(observation);
       setLoading(false);
       inFlight.current = false;
     }
