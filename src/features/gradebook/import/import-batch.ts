@@ -56,14 +56,22 @@ export interface ImportWorkbookFileTimingV1 {
   readonly fileIndex: number;
   readonly current: number;
   readonly total: number;
-  readonly fileReadMs: number;
-  readonly manifestMs: number;
-  readonly yieldMs: number;
-  readonly recognitionMs: number;
+  readonly fileReadMs: number | null;
+  readonly manifestMs: number | null;
+  readonly yieldMs: number | null;
+  readonly recognitionMs: number | null;
   readonly workbookReadMs: number | null;
   readonly xlsxReadMs: number | null;
+  readonly masterRelationRecognitionMs: number | null;
   readonly recognizeWorkbookMs: number | null;
   readonly canonicalRostersMs: number | null;
+  readonly outcome: 'recognized' | 'failed';
+  readonly failureStage:
+    | 'unsupported-format'
+    | 'file-read'
+    | 'manifest'
+    | NonNullable<WorkbookReadTimingV1['failureStage']>
+    | null;
 }
 
 export interface WorkbookOperationalComponentV1 {
@@ -167,6 +175,17 @@ function nowMs(): number {
 
 function elapsedMs(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
+}
+
+function observeDiagnostic<Value>(
+  observer: ((value: Value) => void) | undefined,
+  value: Value,
+): void {
+  try {
+    observer?.(value);
+  } catch {
+    // Optional diagnostics must not alter import progress, results or failures.
+  }
 }
 
 function yieldToBrowser(): Promise<void> {
@@ -308,7 +327,34 @@ export async function importWorkbookBatch(
       stage: 'preparing',
     } satisfies BatchProgress;
     onProgress(preparationProgress);
-    runtime.onStageProgress?.(preparationProgress);
+    observeDiagnostic(runtime.onStageProgress, preparationProgress);
+
+    let fileReadMs: number | null = null;
+    let manifestMs: number | null = null;
+    let yieldMs: number | null = null;
+    let recognitionMs: number | null = null;
+    let workbookTiming: WorkbookReadTimingV1 | null = null;
+    const emitFileTiming = (
+      outcome: ImportWorkbookFileTimingV1['outcome'],
+      failureStage: ImportWorkbookFileTimingV1['failureStage'],
+    ): void => {
+      observeDiagnostic(runtime.onFileTiming, {
+        fileIndex: index,
+        current,
+        total: files.length,
+        fileReadMs,
+        manifestMs,
+        yieldMs,
+        recognitionMs,
+        workbookReadMs: workbookTiming?.totalMs ?? null,
+        xlsxReadMs: workbookTiming?.xlsxReadMs ?? null,
+        masterRelationRecognitionMs: workbookTiming?.masterRelationRecognitionMs ?? null,
+        recognizeWorkbookMs: workbookTiming?.recognizeWorkbookMs ?? null,
+        canonicalRostersMs: workbookTiming?.canonicalRostersMs ?? null,
+        outcome,
+        failureStage,
+      });
+    };
 
     const extension = fileExtension(file.name);
     if (!ACCEPTED_EXTENSIONS.includes(extension as (typeof ACCEPTED_EXTENSIONS)[number])) {
@@ -326,16 +372,16 @@ export async function importWorkbookBatch(
         },
         failureCollections,
       );
+      emitFileTiming('failed', 'unsupported-format');
       continue;
     }
 
     let data: ArrayBuffer;
-    let fileReadMs: number;
+    const fileReadStartedAt = nowMs();
     try {
-      const fileReadStartedAt = nowMs();
       data = await file.arrayBuffer();
-      fileReadMs = elapsedMs(fileReadStartedAt);
     } catch (cause) {
+      fileReadMs = elapsedMs(fileReadStartedAt);
       const message = failureMessage(cause, 'Não foi possível ler o arquivo.');
       recordFailure(
         {
@@ -350,16 +396,17 @@ export async function importWorkbookBatch(
         },
         failureCollections,
       );
+      emitFileTiming('failed', 'file-read');
       continue;
     }
+    fileReadMs = elapsedMs(fileReadStartedAt);
 
     let manifest: SourceFileManifestV1;
-    let manifestMs: number;
+    const manifestStartedAt = nowMs();
     try {
-      const manifestStartedAt = nowMs();
       manifest = await createSourceFileManifest(file, data, xlsx.version, runtime);
-      manifestMs = elapsedMs(manifestStartedAt);
     } catch (cause) {
+      manifestMs = elapsedMs(manifestStartedAt);
       const message = failureMessage(cause, 'Não foi possível calcular o SHA-256 do arquivo.');
       recordFailure(
         {
@@ -374,10 +421,12 @@ export async function importWorkbookBatch(
         },
         failureCollections,
       );
+      emitFileTiming('failed', 'manifest');
       continue;
     }
+    manifestMs = elapsedMs(manifestStartedAt);
 
-    runtime.onStageProgress?.({
+    observeDiagnostic(runtime.onStageProgress, {
       current,
       total: files.length,
       fileName: file.name,
@@ -385,10 +434,10 @@ export async function importWorkbookBatch(
     });
     const yieldStartedAt = nowMs();
     await (runtime.yieldBeforeRecognition?.() ?? yieldToBrowser());
-    const yieldMs = elapsedMs(yieldStartedAt);
+    yieldMs = elapsedMs(yieldStartedAt);
 
     const recognitionStartedAt = nowMs();
-    let workbookTiming: WorkbookReadTimingV1 | null = null;
+    let outcome: ImportWorkbookFileTimingV1['outcome'] = 'failed';
     try {
       const summary = readWorkbookData(
         file,
@@ -408,6 +457,7 @@ export async function importWorkbookBatch(
         status: 'approved',
         diagnosticIds: [],
       });
+      outcome = 'recognized';
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível reconhecer a planilha.');
       recordFailure(
@@ -425,19 +475,13 @@ export async function importWorkbookBatch(
       );
     } finally {
       const measuredWorkbookTiming = workbookTiming as WorkbookReadTimingV1 | null;
-      runtime.onFileTiming?.({
-        fileIndex: index,
-        current,
-        total: files.length,
-        fileReadMs,
-        manifestMs,
-        yieldMs,
-        recognitionMs: elapsedMs(recognitionStartedAt),
-        workbookReadMs: measuredWorkbookTiming?.totalMs ?? null,
-        xlsxReadMs: measuredWorkbookTiming?.xlsxReadMs ?? null,
-        recognizeWorkbookMs: measuredWorkbookTiming?.recognizeWorkbookMs ?? null,
-        canonicalRostersMs: measuredWorkbookTiming?.canonicalRostersMs ?? null,
-      });
+      recognitionMs = elapsedMs(recognitionStartedAt);
+      emitFileTiming(
+        outcome,
+        outcome === 'recognized'
+          ? null
+          : (measuredWorkbookTiming?.failureStage ?? 'workbook-recognition'),
+      );
     }
   }
 

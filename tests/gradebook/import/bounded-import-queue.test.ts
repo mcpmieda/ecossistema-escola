@@ -1,4 +1,5 @@
 import { act, createElement } from 'react';
+import { appendFileSync } from 'node:fs';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -6,6 +7,8 @@ import {
   useImportBatch,
 } from '../../../src/features/gradebook/import/use-import-batch';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
+import { TimingDiagnostics } from '../../../src/features/gradebook/import/import-panel';
+import { ImportTimingReportV1 } from '../../../src/features/gradebook/import/import-timing-report-v1';
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
@@ -19,9 +22,10 @@ const mocks = vi.hoisted(() => ({
   diagnostics: vi.fn(),
   blocking: vi.fn(),
   refreshYears: vi.fn(),
+  load: vi.fn(),
 }));
 vi.mock('../../../src/features/gradebook/import/sheetjs-loader', () => ({
-  loadSheetJs: async () => ({}),
+  loadSheetJs: mocks.load,
   preloadSheetJs: () => undefined,
 }));
 vi.mock('../../../src/features/gradebook/import/import-batch', () => ({
@@ -141,6 +145,16 @@ function result(index: number, academicYear = 2026): BatchSuccess {
     },
   } as unknown as BatchSuccess;
 }
+function recognized(values: BatchSuccess[]) {
+  return {
+    successes: values,
+    failureDetails: [],
+    batch: { files: values.map((value) => ({ id: value.id })) },
+  };
+}
+function report() {
+  return JSON.parse(flow.getTimingReport()) as ReturnType<ImportTimingReportV1['snapshot']>;
+}
 function files(count: number): FileList {
   return Array.from(
     { length: count },
@@ -200,9 +214,17 @@ let root: Root;
 let host: HTMLDivElement;
 let flow: ReturnType<typeof useImportBatch>;
 let sequence: string[];
-function Probe() {
+let probeRenders = 0;
+function Probe({ showTiming = false }: { showTiming?: boolean }) {
+  probeRenders++;
   flow = useImportBatch();
-  return null;
+  return showTiming
+    ? createElement(TimingDiagnostics, {
+        visible: true,
+        summary: flow.timingReportSummary,
+        getReport: flow.getTimingReport,
+      })
+    : null;
 }
 
 beforeEach(async () => {
@@ -210,22 +232,35 @@ beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.spyOn(console, 'info').mockImplementation(() => undefined);
   sequence = [];
+  probeRenders = 0;
   mocks.diagnostics.mockReturnValue([]);
   mocks.blocking.mockReturnValue([]);
   mocks.refreshYears.mockResolvedValue(undefined);
-  mocks.read.mockImplementation(async (input: readonly File[]) => ({
-    successes: input.map((_, index) => result(index)),
-    failureDetails: [],
-  }));
+  mocks.load.mockResolvedValue({});
+  mocks.read.mockImplementation(async (input: readonly File[], _xlsx, _progress, runtime) => {
+    input.forEach((_, index) =>
+      runtime.onFileTiming({ fileIndex: index, fileReadMs: 1, outcome: 'recognized' }),
+    );
+    return recognized(input.map((_, index) => result(index)));
+  });
   mocks.compact.mockImplementation((input: BatchSuccess) => {
     sequence.push(`compact:${input.id}`);
     return request(input);
   });
-  mocks.persist.mockImplementation(async (value: GradebookImportPersistenceRequestV9) => {
-    sequence.push(`send:${value.manifest.fileName}`);
-    await Promise.resolve();
-    return confirmed();
-  });
+  mocks.persist.mockImplementation(
+    async (value: GradebookImportPersistenceRequestV9, onTiming, onDispatch) => {
+      sequence.push(`send:${value.manifest.fileName}`);
+      onDispatch?.();
+      await Promise.resolve();
+      onTiming?.({
+        serializationMs: 0,
+        payloadBytes: 100,
+        persistRequestMs: 1,
+        outcome: 'no-changes',
+      });
+      return confirmed();
+    },
+  );
   mocks.audit.mockResolvedValue({ version: 1, state: 'recorded', affected: 0 });
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -243,6 +278,268 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file canonical queue (V9)', () => {
+  it('preserves failure positions before the sole recognized file instead of indexing filtered successes', async () => {
+    mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
+      for (const index of [0, 1, 2])
+        runtime.onFileTiming({
+          fileIndex: index,
+          outcome: index === 2 ? 'recognized' : 'failed',
+          failureStage: index === 2 ? null : 'file-read',
+          fileReadMs: 1,
+          recognitionMs: index === 2 ? 1 : null,
+        });
+      return {
+        successes: [result(2)],
+        failureDetails: [{ id: 'failure-0' }, { id: 'failure-1' }],
+        batch: { files: [{ id: 'failure-0' }, { id: 'failure-1' }, { id: result(2).id }] },
+      };
+    });
+    await act(async () => flow.handleFiles(files(3)));
+    const run = report().runs[0]!;
+    expect(run.files.map((file) => file.sourceFileIndex)).toEqual([0, 1, 2]);
+    expect(run.files[0]!.recognition!.outcome).toBe('failed');
+    expect(run.files[1]!.http).toBeNull();
+    expect(run.files[2]!.persistence).toMatchObject({ sourceFileIndex: 2, index: 0 });
+    expect(mocks.persist).toHaveBeenCalledOnce();
+  });
+  it.each([18, 50])(
+    'G6 measures bounded observability for %i equivalent synthetic files',
+    async (count) => {
+      const stringify = vi.spyOn(JSON, 'stringify');
+      await act(async () => flow.handleFiles(files(count)));
+      const fullCount = () =>
+        stringify.mock.calls.filter(([value]) => value?.reportVersion === 1).length;
+      const eventSerializations = stringify.mock.calls.filter(
+        ([value]) => value?.version === 2,
+      ).length;
+      expect(fullCount()).toBe(0);
+      const startedAt = performance.now();
+      const legacyTail = (flow as unknown as { timingDiagnostics?: string[] }).timingDiagnostics;
+      const text = legacyTail ? legacyTail.join('\n') : flow.getTimingReport();
+      const exportMs = performance.now() - startedAt;
+      const copied = legacyTail
+        ? null
+        : (JSON.parse(text) as ReturnType<ImportTimingReportV1['snapshot']>);
+      if (copied) {
+        expect(fullCount()).toBe(1);
+        expect(copied.runs[0]!.files).toHaveLength(count);
+      }
+      expect(mocks.persist).toHaveBeenCalledTimes(count);
+      expect(mocks.audit).toHaveBeenCalledTimes(count);
+      expect(mocks.persist.mock.calls.map(([value]) => value)).toEqual(
+        Array.from({ length: count }, (_, i) => request(result(i))),
+      );
+      expect(
+        Object.values(flow.persistence).every(
+          (value) => value.state === 'completed' && value.response.state === 'no-changes',
+        ),
+      ).toBe(true);
+      const measurement = JSON.stringify({
+        scenario: 'G6-observability',
+        files: count,
+        n: 1,
+        implementation: legacyTail ? 'baseline' : 'candidate',
+        reports: copied?.runs.length ?? 0,
+        essentialPositions: copied?.runs[0]!.files.length ?? 0,
+        recentEvents: copied?.runs[0]!.recentEvents.length ?? legacyTail!.length,
+        exportBytes: new TextEncoder().encode(text).byteLength,
+        eventSerializations,
+        fullSerializationsBeforeCopy: 0,
+        fullSerializationsAfterCopy: fullCount(),
+        exportMs: Math.round(exportMs * 1000) / 1000,
+        probeRenders,
+        auditCalls: mocks.audit.mock.calls.length,
+        persistenceCalls: mocks.persist.mock.calls.length,
+      });
+      console.log(measurement);
+      if (process.env.IMPORT_TIMING_MEASUREMENT_PATH_V1)
+        appendFileSync(process.env.IMPORT_TIMING_MEASUREMENT_PATH_V1, measurement + '\n');
+    },
+  );
+
+  it.each(['begin', 'summary', 'snapshot'] as const)(
+    'G-T15 isolates a throwing collector %s from academic state',
+    async (method) => {
+      vi.spyOn(ImportTimingReportV1.prototype, method).mockImplementation(() => {
+        throw new Error('SYNTHETIC PRIVATE COLLECTOR ERROR');
+      });
+      await act(async () => flow.handleFiles(files(3)));
+      expect(mocks.persist).toHaveBeenCalledTimes(3);
+      expect(mocks.audit).toHaveBeenCalledTimes(3);
+      expect(flow.loading).toBe(false);
+      expect(flow.error).toBeNull();
+      expect(Object.values(flow.persistence).every((value) => value.state === 'completed')).toBe(
+        true,
+      );
+      let text!: string;
+      await act(async () => {
+        text = flow.getTimingReport();
+      });
+      expect(text).not.toContain('PRIVATE');
+      if (method === 'summary') expect(JSON.parse(text).measurementStatus).toBe('partial');
+      if (method === 'snapshot') expect(JSON.parse(text).measurementStatus).toBe('unavailable');
+    },
+  );
+  it.each([18, 50])(
+    'G0/G-T01–04 preserves initial recognition in the text actually copied after %i files',
+    async (count) => {
+      mocks.read.mockImplementation(async (input, _xlsx, _progress, runtime) => {
+        input.forEach((_: File, index: number) =>
+          runtime.onFileTiming({
+            fileIndex: index,
+            current: index + 1,
+            total: input.length,
+            fileReadMs: 1,
+            manifestMs: 1,
+            yieldMs: 1,
+            recognitionMs: 1,
+          }),
+        );
+        return recognized(input.map((_: File, index: number) => result(index)));
+      });
+      await act(async () => flow.handleFiles(files(count)));
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+      await act(async () => root.render(createElement(Probe, { showTiming: true })));
+      await act(async () => (host.querySelector('button') as HTMLButtonElement).click());
+      expect(writeText).toHaveBeenCalledOnce();
+      const copied = writeText.mock.calls[0]![0];
+      expect(copied).toContain('batch-complete');
+      expect(copied).toContain('recognition-batch');
+      const copiedReport = JSON.parse(copied) as ReturnType<ImportTimingReportV1['snapshot']>;
+      expect(copiedReport.runs[0]!.files).toHaveLength(count);
+      expect(copiedReport.runs[0]!.files[0]!.recognition!.fileIndex).toBe(0);
+      expect(
+        copiedReport.runs[0]!.files.every(
+          (file) => file.http && file.persistence && file.auditInitial,
+        ),
+      ).toBe(true);
+      expect(copiedReport.runs[0]!.recentEvents).toHaveLength(50);
+      expect(copiedReport.runs[0]!.discardedEvents).toBeGreaterThan(0);
+    },
+  );
+  it('G-T11 retains initial and latest of four resumes and never resends an already confirmed position', async () => {
+    let attempt = 0;
+    mocks.persist.mockImplementation(async (value, _timing, onDispatch) => {
+      onDispatch?.();
+      if (value.manifest.fileName === 'sintetico-0.xlsb') return confirmed();
+      attempt++;
+      return attempt < 5
+        ? { response: { transportVersion: 9, state: 'unavailable' }, serverMs: null }
+        : confirmed();
+    });
+    await act(async () => flow.handleFiles(files(3)));
+    for (let index = 0; index < 4; index++) await act(async () => flow.resumePendingPersistence());
+    const snapshot = report();
+    expect(snapshot.runs.map((run) => run.runOrdinal)).toEqual([1, 5]);
+    expect(snapshot.retention.omittedResumes).toBe(3);
+    expect(snapshot.runs[0]!.status).toBe('paused');
+    expect(snapshot.runs[1]!.status).toBe('finished');
+    expect(snapshot.runs[1]!.recognitionStatus).toBe('not-performed');
+    expect(snapshot.runs[1]!.final!.recognitionCallMs).toBeNull();
+    expect(snapshot.runs[1]!.files.map((file) => file.sourceFileIndex)).toEqual([1, 2]);
+    expect(
+      mocks.persist.mock.calls.filter(([value]) => value.manifest.fileName === 'sintetico-0.xlsb'),
+    ).toHaveLength(1);
+    expect(mocks.read).toHaveBeenCalledOnce();
+  });
+
+  it('G-T12 replaces a batch and ignores its late recognition and HTTP observers', async () => {
+    let lateRecognition!: (value: unknown) => void;
+    let lateHttp!: (value: unknown) => void;
+    mocks.read.mockImplementationOnce(async (_input, _xlsx, _progress, runtime) => {
+      lateRecognition = runtime.onFileTiming;
+      return recognized([result(0)]);
+    });
+    mocks.persist.mockImplementationOnce(async (_value, onTiming) => {
+      lateHttp = onTiming;
+      return confirmed();
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    await act(async () => flow.handleFiles(files(2)));
+    const before = flow.getTimingReport();
+    await act(async () => {
+      lateRecognition({ fileIndex: 0, recognitionMs: 999999 });
+      lateHttp({ persistRequestMs: 999999 });
+    });
+    expect(flow.getTimingReport()).toBe(before);
+    expect(report().runs.map((run) => run.runOrdinal)).toEqual([2]);
+    expect(report().runs[0]!.files).toHaveLength(2);
+  });
+
+  it.each(['library', 'zero-recognized'] as const)(
+    'G-T14 finalizes %s without inventing dispatch or measurements',
+    async (kind) => {
+      if (kind === 'library')
+        mocks.load.mockRejectedValueOnce(new Error('SYNTHETIC PRIVATE LIBRARY ERROR'));
+      else
+        mocks.read.mockResolvedValueOnce({
+          successes: [],
+          failureDetails: [],
+          batch: { files: [] },
+        });
+      await act(async () => flow.handleFiles(files(2)));
+      const run = report().runs[0]!;
+      expect(run.status).toBe('finished');
+      expect(run.final).toMatchObject({
+        outcome: 'failed',
+        firstPersistenceStartedMs: null,
+        firstConfirmedPersistenceMs: null,
+      });
+      expect(run.files).toHaveLength(2);
+      expect(run.files.every((file) => file.dispatch === null && file.http === null)).toBe(true);
+      expect(run.final!.recognitionCallMs === null).toBe(kind === 'library');
+      expect(mocks.persist).not.toHaveBeenCalled();
+      expect(mocks.audit).not.toHaveBeenCalled();
+      expect(flow.getTimingReport()).not.toContain('PRIVATE');
+    },
+  );
+
+  it('G-T16 separates library wait, recognition and pre-dispatch offsets on one deterministic clock', async () => {
+    let clock = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    mocks.load.mockImplementation(async () => {
+      clock += 7;
+      return {};
+    });
+    mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
+      clock += 11;
+      runtime.onFileTiming({ fileIndex: 0, recognitionMs: 11, outcome: 'recognized' });
+      return recognized([result(0)]);
+    });
+    mocks.compact.mockImplementation((value) => {
+      clock += 3;
+      return request(value);
+    });
+    mocks.audit.mockImplementation(async () => {
+      clock += 80;
+      return { state: 'recorded' };
+    });
+    mocks.persist.mockImplementation(async (_value, onTiming, onDispatch) => {
+      expect(report().runs[0]!.final).toBeNull();
+      expect(report().runs[0]!.files[0]!.dispatch).toBeNull();
+      clock += 2; // serialization before the actual callback-controlled dispatch
+      onDispatch();
+      clock += 5;
+      onTiming({ serializationMs: 2, persistRequestMs: 5, outcome: 'no-changes' });
+      return confirmed();
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    const run = report().runs[0]!;
+    expect(run.recognition).toMatchObject({
+      sheetJsWaitMs: 7,
+      recognitionCallMs: 11,
+      recognitionFinishedAtMs: 18,
+      totalMs: 18,
+    });
+    expect(run.final).toMatchObject({
+      firstPersistenceStartedMs: 103,
+      firstConfirmedPersistenceMs: 108,
+      postRecognitionToFirstDispatchMs: 85,
+      batchElapsedMs: 108,
+    });
+    expect(run.files[0]!.canonical).toMatchObject({ localPreparationMs: 3, totalMs: 83 });
+  });
   it('reports a comparable 18-file same-year fixture with injected local/audit/persistence costs', async () => {
     let clock = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);
@@ -360,7 +657,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     const values = Array.from({ length: 12 }, (_, index) =>
       result(index, 2026 + Math.floor(index / 2)),
     );
-    mocks.read.mockResolvedValue({ successes: values, failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized(values));
     const firstWrites = Array.from({ length: 4 }, () => deferred<ReturnType<typeof confirmed>>());
     const active = new Map<number, number>();
     let maximumSameYear = 0;
@@ -376,7 +673,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       leave(value.academicYear);
       return { version: 1, state: 'recorded', affected: 0 };
     });
-    mocks.persist.mockImplementation(async (value, _timing, onDispatch) => {
+    mocks.persist.mockImplementation(async (value, onTiming, onDispatch) => {
       onDispatch?.();
       enter(value.ano);
       if (
@@ -385,7 +682,8 @@ describe('Bounded per-file canonical queue (V9)', () => {
       )
         await firstWrites[value.ano - 2026]!.promise;
       leave(value.ano);
-      return confirmed();
+      onTiming?.({ persistRequestMs: value.ano, outcome: 'no-changes' });
+      return { ...confirmed(), serverMs: value.ano };
     });
     const { done } = await startBatch(12);
     await yieldLocalPreparation();
@@ -394,7 +692,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(mocks.audit).toHaveBeenCalledTimes(4);
     expect(mocks.persist.mock.calls.map(([value]) => value.ano)).toEqual([2026, 2027, 2028, 2029]);
     await act(async () => {
-      for (const write of firstWrites) write.resolve(confirmed());
+      for (const index of [3, 1, 2, 0]) firstWrites[index]!.resolve(confirmed());
       await vi.runAllTimersAsync();
       await done;
     });
@@ -407,11 +705,18 @@ describe('Bounded per-file canonical queue (V9)', () => {
       confirmedRequests: 12,
     });
     expect(flow.pendingPersistenceCount).toBe(0);
+    const yearFiles = report().runs[0]!.files;
+    expect(yearFiles.map((file) => file.http!.sourceFileIndex)).toEqual(
+      values.map((_, index) => index),
+    );
+    expect(yearFiles.map((file) => file.persistence!.serverMs)).toEqual(
+      values.map((value) => value.summary.academicYear),
+    );
   });
 
   it('preflights every relation and blocks teachers if a later relation is invalid', async () => {
     const values = [result(0), relationResult(1), relationResult(2), result(3)];
-    mocks.read.mockResolvedValue({ successes: values, failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized(values));
     mocks.compact.mockImplementation((value) => {
       if (value.id === 'file:2') throw new Error('synthetic invalid relation');
       return value.id === 'file:1' ? relationRequest(value) : request(value);
@@ -451,7 +756,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
 
   it('confirms all relations with re-audit and refresh before preparing or sending teachers', async () => {
     const values = [result(0), relationResult(1), relationResult(2), result(3)];
-    mocks.read.mockResolvedValue({ successes: values, failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized(values));
     mocks.compact.mockImplementation((value) =>
       value.id === 'file:1' || value.id === 'file:2' ? relationRequest(value) : request(value),
     );
@@ -490,6 +795,19 @@ describe('Bounded per-file canonical queue (V9)', () => {
       maximumPreparedRelations: 2,
       maximumPreparedTeacherItems: 2,
     });
+    const positions = report().runs[0]!.files;
+    expect(positions[0]!.persistence).toMatchObject({
+      sourceFileIndex: 0,
+      index: 2,
+      operation: 'persist-notas',
+    });
+    expect(positions[1]!.persistence).toMatchObject({
+      sourceFileIndex: 1,
+      index: 0,
+      operation: 'persist-relacao',
+    });
+    expect(positions[1]!.auditInitial!.phase).toBe('initial-observation');
+    expect(positions[1]!.auditFollowUp!.phase).toBe('relation-follow-up');
   });
 
   it('records blocked/local-failed/unknown-year observations and preserves separate audit failures', async () => {
@@ -565,7 +883,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       result(3, 2026),
       result(4, 2027),
     ];
-    mocks.read.mockResolvedValue({ successes: values, failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized(values));
     const replies = Array.from({ length: 3 }, () =>
       deferred<{ response: GradebookImportPersistenceResponseV9; serverMs: null }>(),
     );
@@ -617,13 +935,16 @@ describe('Bounded per-file canonical queue (V9)', () => {
     const oldReply = deferred<{ response: GradebookImportPersistenceResponseV9; serverMs: null }>();
     mocks.persist.mockReturnValueOnce(oldReply.promise);
     const { done: oldDone } = await startBatch(3);
+    const oldReport = flow.getTimingReport;
     await yieldLocalPreparation();
     await act(async () => root.unmount());
+    expect(JSON.parse(oldReport()).runs).toEqual([]);
     root = createRoot(host);
     await act(async () => root.render(createElement(Probe)));
-    mocks.read.mockResolvedValue({ successes: [result(50)], failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized([result(50)]));
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.handleFiles(files(1)));
+    const currentReport = flow.getTimingReport();
     const logs = vi.mocked(console.info).mock.calls.length;
     await act(async () => {
       oldReply.resolve({ response: { transportVersion: 9, state: 'unavailable' }, serverMs: null });
@@ -636,6 +957,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.loading).toBe(false);
     expect(vi.mocked(console.info).mock.calls).toHaveLength(logs);
     expect(mocks.persist).toHaveBeenCalledTimes(2);
+    expect(flow.getTimingReport()).toBe(currentReport);
   });
 
   it('separates audit network time from canonical build and records academic POST/confirmation milestones', async () => {
@@ -696,6 +1018,48 @@ describe('Bounded per-file canonical queue (V9)', () => {
       true,
     );
     expect(flow.error).toBeNull();
+    expect(report().runs[0]!.diagnosticFailures).toBeGreaterThan(0);
+    expect(report().runs[0]!.coverage.measurementStatus).toBe('partial');
+  });
+
+  it('G-T17–19 keeps private sentinels out of export/console and identical remote operations with a failing logger', async () => {
+    const sentinel = 'PRIVATE-SYNTHETIC-SENTINEL';
+    const value = {
+      ...result(0),
+      id: sentinel,
+      manifest: { ...result(0).manifest, fileName: sentinel, sha256: sentinel },
+    } as BatchSuccess;
+    mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
+      runtime.onFileTiming({
+        fileIndex: 0,
+        outcome: 'recognized',
+        fileName: sentinel,
+        hash: sentinel,
+      });
+      return recognized([value]);
+    });
+    mocks.compact.mockImplementation((input) => ({ ...request(input), professor: sentinel }));
+    mocks.persist.mockImplementation(async (_request, onTiming, onDispatch) => {
+      onDispatch();
+      onTiming({ persistRequestMs: 1, request: sentinel, response: sentinel, error: sentinel });
+      return { response: { transportVersion: 9, state: 'blocked', reason: sentinel }, serverMs: 1 };
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    const firstAudit = mocks.audit.mock.calls[0]![0];
+    const firstRequest = mocks.persist.mock.calls[0]![0];
+    const firstState = flow.persistence[sentinel];
+    expect(flow.getTimingReport()).not.toContain(sentinel);
+    expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain(sentinel);
+    vi.mocked(console.info).mockImplementation(() => {
+      throw new Error(sentinel);
+    });
+    await act(async () => flow.handleFiles(files(1)));
+    expect(mocks.audit).toHaveBeenCalledTimes(2);
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    expect(mocks.audit.mock.calls[1]![0]).toEqual(firstAudit);
+    expect(mocks.persist.mock.calls[1]![0]).toEqual(firstRequest);
+    expect(flow.persistence[sentinel]).toEqual(firstState);
+    expect(flow.getTimingReport()).not.toContain(sentinel);
   });
 
   it('treats server no-changes as a completed identical reimport without academic writes', async () => {
@@ -720,7 +1084,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       ...base,
       summary: { ...base.summary, masterRelationV9: { turmas: [] } },
     } as BatchSuccess;
-    mocks.read.mockResolvedValue({ successes: [relation], failureDetails: [] });
+    mocks.read.mockResolvedValue(recognized([relation]));
     mocks.compact.mockImplementationOnce((input: BatchSuccess) => ({
       transportVersion: 9,
       operation: 'persist-relacao',
@@ -745,7 +1109,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     'preserves an applied relation receipt after re-audit403 and resumes only its follow-up plus pending teachers (relationOnly=%s)',
     async (relationOnly) => {
       const values = relationOnly ? [relationResult(0)] : [relationResult(0), result(1)];
-      mocks.read.mockResolvedValue({ successes: values, failureDetails: [] });
+      mocks.read.mockResolvedValue(recognized(values));
       mocks.compact.mockImplementation((value) =>
         value.id === 'file:0' ? relationRequest(value) : request(value),
       );

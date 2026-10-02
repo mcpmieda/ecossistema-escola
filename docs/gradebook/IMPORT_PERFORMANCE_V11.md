@@ -123,19 +123,169 @@ Uso real posterior: responsável escolhe lote/momento. Conferir confirmação, r
 
 Reversão: interromper novos despachos se houver regressão, preservar recibos/estado incerto e usar PR + gates + deploy oficial para corrigir/reverter as otimizações. **Manter a proteção F1**; voltar ao rollback vulnerável não é estado final aceitável. Nenhuma migration foi criada/aplicada, nenhuma reconstrução ou reset produtivo faz parte dessa reversão.
 
-## Prestação de contas F0–F9
+## Prestação de contas F0–F9 (atualizada em 02/10/2026 após publicação)
 
-| Fase | Estado neste checkpoint              | Evidência / pendência                                                                                                                                                                                                                                                                                                                                      |
-| ---- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F0   | Concluída                            | Baseline main `5faaab56`, AGENTS, contratos e anexos A–F revalidados.                                                                                                                                                                                                                                                                                      |
-| F1   | Integrada e publicada                | PR #1226 integrada em `443e6f2c`; CI `36959363295` e nativo `36959362896` aprovados no head `0867a76f`; deploy oficial `36960364498` concluído, incluindo monitor pós-publicação.                                                                                                                                                                          |
-| F2   | Implementada                         | Commit `fe985de6`; observer e fronteiras de tempo, baseline válida e privacidade testada.                                                                                                                                                                                                                                                                  |
-| F3   | Implementada                         | Commit `ed7fa55d`; catálogo em conjuntos e três leituras por bloco32.                                                                                                                                                                                                                                                                                      |
-| F4   | Implementada                         | Mesmo commit; plano com helpersV9 e materialização limitada por oferta.                                                                                                                                                                                                                                                                                    |
-| F5   | Implementada                         | Commit `a10545c4`; limites globais, chunks, dependências e instância inválida após falha.                                                                                                                                                                                                                                                                  |
-| F6   | Implementada e revisada              | Commit `2037d910`; fila, barreiras, lookahead e retomada; recibo confirmado preservado na re-Auditoria403 e follow-up sem novo POST acadêmico.                                                                                                                                                                                                             |
-| F7   | Retirada expressamente deste release | Condicional; contrato/aprovação e medição próprios pendentes. Não implementada.                                                                                                                                                                                                                                                                            |
-| F8   | Em andamento                         | Revisão independente e ajuste F6 concluídos; 144 testes integrados iniciais, lint e todos os typechecks verdes. A revisão final acrescentou quatro regressões de whitespace SQL × JavaScript; fonte histórica confirmou três casos e a candidata passou em 39 testes direcionados após o ajuste. CI/gates completos da composição final ainda necessários. |
-| F9   | Em andamento                         | F1 publicada; PR #1227 aguarda gates finais e publicação. O checkpoint final da issue registra SHAs/workflows reais; uso real posterior pendente.                                                                                                                                                                                                          |
+| Fase | Estado neste checkpoint              | Evidência / pendência                                                                                                                                                                                                                                                                                 |
+| ---- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F0   | Concluída                            | Baseline main `5faaab56`, AGENTS, contratos e anexos A–F revalidados.                                                                                                                                                                                                                                 |
+| F1   | Integrada e publicada                | PR #1226 integrada em `443e6f2c`; CI `36959363295` e nativo `36959362896` aprovados no head `0867a76f`; deploy oficial `36960364498` concluído, incluindo monitor pós-publicação.                                                                                                                     |
+| F2   | Implementada                         | Commit `fe985de6`; observer e fronteiras de tempo, baseline válida e privacidade testada.                                                                                                                                                                                                             |
+| F3   | Implementada                         | Commit `ed7fa55d`; catálogo em conjuntos e três leituras por bloco32.                                                                                                                                                                                                                                 |
+| F4   | Implementada                         | Mesmo commit; plano com helpersV9 e materialização limitada por oferta.                                                                                                                                                                                                                               |
+| F5   | Implementada                         | Commit `a10545c4`; limites globais, chunks, dependências e instância inválida após falha.                                                                                                                                                                                                             |
+| F6   | Implementada e revisada              | Commit `2037d910`; fila, barreiras, lookahead e retomada; recibo confirmado preservado na re-Auditoria403 e follow-up sem novo POST acadêmico.                                                                                                                                                        |
+| F7   | Retirada expressamente deste release | Condicional; contrato/aprovação e medição próprios pendentes. Não implementada.                                                                                                                                                                                                                       |
+| F8   | Gates técnicos concluídos            | Head F1–F6 `c3e427f03ca99154f01a847fe0edf1d2d5c76b89`: CI `36962192058`, nativo `36962191648` e Sonar aprovados. O checkpoint de publicação registra 3.822 testes principais aprovados e três skips preexistentes. As medições históricas acima são preservadas, sem homologação produtiva implícita. |
+| F9   | Integrada e publicada                | PR #1227 integrada em `34284c43889aa122e465907340a106974cc6e981`; deploy oficial `36963202863` e monitor concluídos com sucesso. Evidência: [checkpoint F1–F6](https://github.com/mcpmieda/ecossistema-escola/issues/1225#issuecomment-5945451048). Uso real continua separado.                       |
 
 Não confundir código implementado, gates aprovados, publicação concluída e uso real homologado. A issue permanece aberta enquanto a prestação de contas final não estiver registrada.
+
+## Pós-F6 — Adendo G: relatório essencial limitado
+
+Fonte: [Adendo G](https://github.com/mcpmieda/ecossistema-escola/issues/1225#issuecomment-5950289691).
+Baseline revalidada `main@34284c43`, sem PR concorrente aberta no início. F1–F6 não foram refeitas;
+F7 continua não implementada. Este patch não altera parser, transporte V9, regras acadêmicas,
+Auditoria, filas, concorrência, SQL, migrations, infraestrutura, cache do loader ou timeouts.
+
+**Defeito reproduzido:** fixture de 18 docentes no hook e clique no botão real recebia apenas
+50 linhas finais, começando no índice legado 5, com `batch-complete` mas sem `recognition-batch`
+ou reconhecimento inicial. G0 está no commit `2f0cf2ae`; o teste falhou pelo corte, não por SLA/API nova.
+
+`import-timing-report-v1.ts` preserva cabeçalho, biblioteca/reconhecimento, registros por posição
+original e resumo final independentemente da cauda. Retém **inicial + última retomada**, cada qual
+com **até 50 posições / 50 eventos recentes**. As retomadas intermediárias omitidas são contadas;
+novo lote substitui ambos. Cada execução tem início/fim/contadores próprios. Retomada não reconhece
+novamente: `recognitionStatus: not-performed` e tempos nulos, com indicação da disponibilidade inicial.
+O mapa privado usa IDs de `batch.files` em ordem de seleção, inclusive posições de falhas; exportação
+contém somente `sourceFileIndex`, `runOrdinal`, `runKind` e enums/contagens/tempos permitidos.
+`index` legado de persistência permanece ordem de execução, podendo diferir da posição original.
+
+Os registros essenciais incluem preparação local mesmo se a Auditoria parar por autorização,
+observação inicial/follow-up separados, espera na fila, despacho real, serialização/bytes/HTTP
+e resultado/handler. Não retêm File, bytes do arquivo, workbook, manifest, request/response, nomes,
+hashes, IDs acadêmicos, valores ou mensagens livres. Sentinelas inteiramente inventadas testam
+exportação e Console. Diagnóstico vive em memória, sem armazenamento persistente ou endpoint novo.
+
+**Como copiar:** use **Copiar diagnóstico**, disponível também durante a execução e após falha
+de biblioteca/zero reconhecidos. O clique cria um snapshot JSON legível; não reconstrói o relatório
+da cauda. Sucesso aparece somente após o Clipboard confirmar. Se o Clipboard estiver ausente,
+lançar ou rejeitar, o mesmo snapshot fica em campo somente leitura para seleção/cópia manual.
+Fechar/recarregar a tela apaga o histórico; iniciar outro lote o substitui. A cópia não pausa nem
+reenvia operações. Eventos descartados e retomadas omitidas aparecem no painel e no JSON.
+
+`status` é `in-progress`, `paused` ou `finished`, separado de `final.outcome` e da cobertura.
+`finished` pode descrever falha; `completed` legado indica término do scheduler, sem garantir todas
+as notas aplicadas. `confirmedRequests` conta recibos `applied/no-changes`. Cada estágio não medido
+é `null`; zero continua zero medido. Cobertura informa denominadores por etapa e falhas do observador.
+Cauda descartada não invalida os essenciais. Um coletor/logger com falha produz diagnóstico parcial
+ou indisponível, sem autoridade sobre confirmação, bloqueio ou retomada. Após unmount, referências
+diagnósticas são limpas; callbacks de geração antiga não escrevem no lote seguinte.
+
+| Campo                                            | Fronteira e limite de interpretação                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `sheetJsWaitMs`                                  | Await de `loadSheetJs` nesta execução; espera restante observada, sem afirmar download/cache/CPU.                                        |
+| `recognitionCallMs`                              | Await de `importWorkbookBatch`, excluindo biblioteca; em retorno excepcional mede até rejeição.                                          |
+| `recognitionFinishedAtMs`                        | Offset do retorno do reconhecimento desde início do lote; null se não retornou.                                                          |
+| `postRecognitionToFirstDispatchMs`               | Primeiro despacho acadêmico menos offset do retorno, somente na mesma execução. Null na retomada.                                        |
+| `recognition-batch.totalMs`                      | Legado: elapsed desde início, incluindo espera de biblioteca.                                                                            |
+| `fileReadMs`, `manifestMs`, `yieldMs`            | Leitura de bytes; construção de manifesto incluindo SHA; devolução de controle, respectivamente. Manifesto não mede exclusivamente hash. |
+| `recognitionMs`, `workbookReadMs`, `xlsxReadMs`  | Durações inclusivas sobrepostas; não somar pai e filho.                                                                                  |
+| `masterRelationRecognitionMs`                    | Chamada única já existente ao reconhecedor de Relação, inclusive quando não há Relação reconhecida.                                      |
+| `recognizeWorkbookMs`, `canonicalRostersMs`      | Legado inclui preservação das dimensões; passagem retirada continua zero quando medido, sem recriá-la.                                   |
+| `canonical-local` / `localPreparationMs`         | Preparação exclusivamente local, preservada antes de esperar Auditoria.                                                                  |
+| `canonical-file.totalMs`, `preparationElapsedMs` | Legados: local + Auditoria; elapsed incluindo retenção/espera. Nenhum significa CPU.                                                     |
+| `persistence-dispatch` / `queueWaitMs`           | Fronteira legada na entrada do cliente, antes da serialização; preservada como registro de fila.                                         |
+| `academic-dispatch`, `firstPersistenceStartedMs` | Callback `onDispatch` existente, imediatamente antes do fetch real. Não é preparo/clique/Auditoria.                                      |
+| `auditRequestMs`, `persistRequestMs`, `serverMs` | Fronteiras existentes. HTTP menos handler não é upload; pode conter rede/wrapper/validação/overhead.                                     |
+
+**Análise G4 e próxima coleta:** se reconhecimento dominar, examinar bytes/manifesto/yield/parser
+e os índices caros. Se biblioteca dominar, investigar sua disponibilidade observada. Se o intervalo
+posterior ao reconhecimento dominar, examinar preparo/Auditoria/barreira e trechos não detalhados.
+Se persistências aplicadas dominarem, usar handler/lifecycle/transação/SQL/coordenação/flush/finalizadores
+já existentes, explicitando qualquer acesso autorizado que falte. `finalizerMs` não mede exclusivamente
+Portal; não autoriza F7. Não somar filas simultâneas/espera de lookahead à duração de parede, não
+atribuir resíduo automaticamente a CPU/GC e não preencher lacunas com zero. Toda média deve informar
+`n` e cobertura; sem p95/SLA/ganho antes/depois em amostra única ou incompatível.
+
+### Observação real parcial recebida em 02/10/2026
+
+Dados do responsável transcritos no Adendo G, **não medidos por estes testes**. SHA servido ao
+navegador não foi demonstrado pelo recorte. Lote de 18 arquivos: `batchElapsedMs=52393.8`, primeiro
+despacho `29690.9` (56,67% do lote), primeira confirmação `33428.3`; intervalo despacho→confirmação
+`3737.4`, despacho→fim `22702.9` ms. Confirmados/processados `18/18`, pico preparado docente `2`,
+Relações preparadas `0`, filas anuais `1`. Isso não certifica cada fato acadêmico nem explica os
+**29.690,9 ms iniciais**.
+
+| index legado | Estado     | HTTP ms | handler ms |
+| -----------: | ---------- | ------: | ---------: |
+|            8 | no-changes |   240,6 |        163 |
+|            9 | applied    | 1.472,8 |      1.425 |
+|           10 | applied    | 2.120,9 |      2.079 |
+|           11 | no-changes |   209,7 |        148 |
+|           12 | applied    | 1.964,2 |      1.918 |
+|           13 | no-changes |   244,6 |        145 |
+|           14 | no-changes |   192,7 |        140 |
+|           15 | no-changes |   202,5 |        140 |
+|           16 | no-changes |   225,0 |        145 |
+|           17 | no-changes |   232,2 |        151 |
+
+Somente **10/18 persistências**: sete idênticas, médias HTTP/handler `221,04/147,43` ms;
+três aplicadas `1.852,63/1.807,33` ms. Soma handler/HTTP nesses três `97,55%`, sem localizar
+SQL ou Portal isoladamente. Dez preparações locais: média `15,99`, faixa `3,7–27,6` ms;
+nove Auditorias explícitas `recorded`: média `172,38`, faixa `150,1–210,4` ms; primeira ausente
+no recorte. Serialização `0–0,4` ms, pedidos `12.966–68.894` bytes, sem indicar tamanho XLSB.
+Uma espera de fila `2194.5` ms coexistiu com HTTP `209.7`/handler `148`; não somar à operação
+anterior como intervalos independentes. Não há baseline produtiva anterior equivalente.
+
+**Única coleta real pendente do responsável:** escolher horário/arquivos de lote legítimo,
+copiar o relatório completo com versão de publicação verificável e condições conhecidas de
+cache/ambiente; observar os mesmos arquivos idênticos quando apropriado e uma alteração legítima
+quando existir. Conferir Banco/Portal pelo fluxo normal sem publicar conteúdo individual. Não
+resetar banco, criar ano/dado fictício, reimportar Relação antiga ou alterar nota para medir.
+Essa pendência não bloqueia implementação/testes/entrega da correção de observabilidade.
+
+### Regressões e entrega técnica G5–G6
+
+| Matriz G | Evidência sintética                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T01–04   | Hook e Clipboard real após 18/50 posições; coletor com mais de 500 eventos, início/fim preservados.                                                    |
+| T05–06   | Botão real: Clipboard ausente/rejeitado/síncrono, status, cópia manual e snapshot em andamento.                                                        |
+| T07–08   | Relações depois de docentes na seleção; follow-up distinto; quatro anos respondendo fora de ordem, fila/limites iguais.                                |
+| T09–11   | Auth em Auditoria/persistência e confirmação incerta; somente pendentes; quatro retomadas, inicial + última. Clientes de auth existentes reexecutados. |
+| T12–13   | Novo lote e callbacks tardios; unmount com await de persistência/Clipboard.                                                                            |
+| T14–16   | Biblioteca/formato/leitura/hash/parser/zero reconhecidos; erro original preservado; observadores/logger/coletor falhos; relógio determinístico.        |
+| T17–19   | Sentinelas privadas sintéticas; mesmo request/estado/ordem/chamadas com logger falho; reconhecimento com/sem observador equivalente.                   |
+| T20      | Status acadêmico, cobertura, nulls e descartes independentes.                                                                                          |
+
+Testes: `bounded-import-queue.test.ts`, `import-timing-report-v1.test.ts`,
+`import-timing-copy-v1.test.tsx`, `synthetic-import-batch.test.ts`, `auth-resume-v1.test.ts`.
+86 testes direcionados aprovados no checkpoint G1–G3 `e81ed345`; ajustes posteriores e gates
+do head final constam nos checkpoints/PR da #1225. `npm run lint`, `npm run typecheck` e
+`npm run verify` continuam gates; nenhum limite/assert foi removido para aprovar.
+
+### Custo local da observabilidade G6
+
+Mesma fixture do hook, baseline real `34284c43` e candidata: Windows, Node 24.16.0,
+Vitest 4.1.11/jsdom, uma amostra registrada por cenário/versão. As cópias temporárias de
+baseline foram removidas. Os testes verificam corpos canônicos iguais e estado `no-changes`.
+
+| Arquivos | Bytes exportados antes → depois | Serializações de eventos antes → depois | Construção/exportação antes → depois (ms) | Renders antes → depois | Auditoria/persistência em ambas |
+| -------: | ------------------------------: | --------------------------------------: | ----------------------------------------: | ---------------------: | ------------------------------- |
+|       18 |                  9.358 → 72.018 |                               220 → 147 |                             0,063 → 1,590 |                  2 → 2 | 18/18                           |
+|       50 |                 9.295 → 165.792 |                               604 → 403 |                             0,021 → 1,379 |                  2 → 2 | 50/50                           |
+
+Antes: somente 50 strings finais, sem posições essenciais estruturadas. Depois: um relatório,
+18/50 posições essenciais e 50 eventos recentes, preservando início/fim. Zero serializações
+completas antes do clique; uma na exportação. Mais eventos novos são observados, mas cada linha
+é serializada uma vez. Estados e ordem de chamadas iguais; sem remote real. A atualização React
+continua no avanço dos eventos, com metadados curtos; não monta texto completo por render.
+O teste de dez execuções preserva somente dois relatórios/100 posições/100 eventos totais e
+conta oito retomadas omitidas. Bytes JSON não medem heap. O custo de exportação aumentou para
+fornecer a evidência solicitada; cerca de 1,4–1,6 ms nesta amostra, sem limiar absoluto/SLA,
+perfil de heap ou alegação de redução dos 52,39 s produtivos. Renders do Probe medem somente
+esta fixture/batching, não todo painel real.
+
+**Estado técnico:** implementado e testado na branch; integração/publicação G e smoke são registrados
+separadamente na PR/checkpoint, sem inferi-los do código. Uso real permanece pendente do responsável.
+Reversão do Adendo G: reverter somente seus commits pelo fluxo normal; preservar integralmente
+F1–F6/#1226/#1227. Não há migration nem mudança de dados acadêmicos a desfazer. A #1225 permanece aberta.
