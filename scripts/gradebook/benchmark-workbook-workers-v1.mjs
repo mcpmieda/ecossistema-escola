@@ -536,7 +536,9 @@ const securityHeaders = Object.fromEntries(
     }),
 );
 if (!securityHeaders['Content-Security-Policy']) throw new Error('Production CSP missing');
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+const gitExecutable =
+  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
+const git = (...args) => execFileSync(gitExecutable, args, { cwd: root, encoding: 'utf8' }).trim();
 const metadata = {
   headSha: git('rev-parse', 'HEAD'),
   treeSha: git('rev-parse', 'HEAD^{tree}'),

@@ -726,6 +726,13 @@ passou antes das últimas correções locais e build após elas passou 16,06 s. 
 resultados pertencem ao candidato e não substituem gates da árvore final. Os
 checks finais e publicação da entrega documental ficam registrados na #1225/PR.
 
+No primeiro head final `6cfadede`, verify `37068939799` e PostgreSQL `37068939299`
+passaram, mas o Sonar bloqueou a integração por S4036 no comparador: resolução do
+executável Git pelo PATH. A correção fixa os caminhos protegidos já usados por H
+(`C:\\Program Files\\Git\\cmd\\git.exe` ou `/usr/bin/git`), sem alterar amostras,
+cálculo, biblioteca ou produto. O novo head exige seus próprios gates; nenhuma
+condição do Sonar foi ignorada e nenhuma medição foi repetida para obter PASS.
+
 Reprodução opcional em checkout isolado do SHA candidato: instalar dependências
 pelo fluxo normal, `npx vite build`, depois Node 22
 `scripts/gradebook/benchmark-workbook-workers-v1.mjs`; abrir o endereço loopback
