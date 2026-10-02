@@ -622,3 +622,59 @@ indeterminada. Integração/publicação não são validação real ou homologa�
 Após a publicação, o responsável escolhe uma importação legítima, abre a versão
 publicada antes de selecionar o lote, confere Banco/Portal e copia G antes de novo
 lote/reload. Nenhuma carga artificial ou alteração de notas em produção é necessária.
+
+## Adendo I — executor local esparso e comparação W0/W1/W2
+
+A/C: head `93a84e82745bb7b18a4f64826b53d75d1d2bf1c4`, merge commit
+`652bf4b73f7aa4e8c341569167192bad229cccac`, publicação oficial `37054553625`
+aprovada. Verify `37052703993`, PostgreSQL `37052703362` e Sonar aprovaram
+a árvore final, sem bypass. A publicação não é validação acadêmica ou autenticada.
+
+A alternativa local mantém SheetJS full **0.20.3**, os bytes oficiais e a mesma
+integridade SHA384. A adaptação estática de Vite verifica esses bytes antes de
+incorporá-los ao módulo do Worker e emite a biblioteca original para o fallback
+local com SRI. Não há eval, CDN dentro do Worker, alteração de CSP, parser,
+opções S0 ou reconhecedores. `dense:true` permanece rejeitado conforme H.
+
+O cliente envia um ArrayBuffer transferido por arquivo ativo, junto do manifesto
+e File local; recebe somente resumo e tempos. O mesmo leitor/reconhecimento
+docente/Relação executa em ambos os contextos. O coordenador prepara entradas
+somente quando existe capacidade, preserva a posição original apesar da ordem
+de conclusão, mantém a barreira de reconhecimento e encerra os Workers antes
+da persistência. A fila remota, anos, auth, confirmação e retomada são as existentes.
+
+Limites da alternativa: no máximo dois Workers locais; dois somente com pelo
+menos quatro threads e memória informada de 4 GiB, um nos demais dispositivos.
+O orçamento de entradas ativas é 16 MiB de bytes de arquivos, não de heap ou
+conteúdo descomprimido. Arquivo maior roda sozinho, sem novo limite acadêmico.
+Watchdogs locais de inicialização (15 s) e tarefa (300 s) detectam falha estrutural;
+não são prazo de validade de arquivo ou timeout de transporte. Worker indisponível,
+erro, messageerror ou watchdog levam à leitura S0 no contexto principal somente
+para o arquivo ainda não concluído; buffer transferido é relido uma vez. Erro de
+conteúdo conserva o erro original e não dispara nova tentativa. Versão/integridade
+incompatível é fatal. Cancelamento, desmontagem e nova geração terminam Workers,
+listeners e timers, sem aceitar resposta tardia ou duplicada.
+
+G guarda modo, inicialização, limites e fallback em slots essenciais independentes
+da cauda; espera local, ida/volta e parsing/reconhecimento continuam separados.
+Durações internas pertencem ao contexto de origem; o pai mede inicialização e
+ida/volta completas. Não se subtraem relógios de contextos distintos nem se chama
+parsing de CPU puro. Nenhum payload, nome, hash ou erro livre é acrescentado ao
+relatório copiado.
+
+`benchmark-workbook-workers-v1.mjs` reutiliza corpus/comparador H e o executor
+real: Worker emitido pelo build, biblioteca fixada, structured clone, diagnóstico
+e pedido canônico. Os cortes são bytes disponíveis (cópia/transferência incluída)
+e File+hash+yield do `importWorkbookBatch` real, com 1/18/50 arquivos, Relação final
+e dois anos. W0/W1/W2 têm primeira rodada e cinco pares alternados, 108 amostras.
+Inicialização e fechamento entram no custo; o assert de equivalência fica fora
+da janela. A promoção se decide pelo custo completo File/hash e responsividade,
+não somente `xlsx.read` ou o corte sem File/hash/yield.
+
+Limitações do protocolo: biblioteca no contexto principal previamente carregada
+para gerar fixtures; primeira carga de Worker registrada separadamente antes do
+preflight; Workers novos em cada rodada com cache de recursos aquecido. Intervalo
+de 16 ms e rAF medem atraso no contexto principal. Heap principal é amostrado
+quando disponível; heap de Workers fica indisponível, nunca zero. Fórmulas/caches
+binários não reproduzidos fielmente pelo writer conservam a lacuna H. Fixtures
+sintéticas não representam os bytes históricos nem prometem ganho produtivo.

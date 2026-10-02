@@ -155,6 +155,49 @@ describe('relatório de tempo — botão real de cópia', () => {
     expect(remoteRequest).not.toHaveBeenCalled();
   });
 
+  it('copies retained worker initialization, input limits and original-position fallback', async () => {
+    const value = report(false);
+    value.record(1, {
+      stage: 'local-reader',
+      localReaderMode: 'W2',
+      workerInitializationMs: 10,
+      maximumLocalWorkers: 2,
+      maximumActiveLocalInputs: 2,
+      maximumActiveInputBytes: 2048,
+    });
+    value.record(1, {
+      stage: 'local-reader',
+      sourceFileIndex: 6,
+      localReaderMode: 'W0',
+      workerFallback: 'message-error',
+      workerMessage: 'sentinela-worker-privado',
+    });
+    for (let i = 0; i < 501; i++) value.record(1, { stage: 'audit-request', sourceFileIndex: 0 });
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    clipboard({ writeText });
+    render(
+      <TimingDiagnostics visible summary={value.summary()} getReport={() => value.exportText()} />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar diagnóstico' }));
+    });
+    const text = writeText.mock.calls[0]![0];
+    const copied = JSON.parse(text);
+    expect(copied.runs[0].localReader).toMatchObject({
+      localReaderMode: 'W2',
+      workerInitializationMs: 10,
+      maximumLocalWorkers: 2,
+      maximumActiveLocalInputs: 2,
+      maximumActiveInputBytes: 2048,
+    });
+    expect(copied.runs[0].files[6].localReader).toMatchObject({
+      sourceFileIndex: 6,
+      workerFallback: 'message-error',
+    });
+    expect(text).not.toContain('sentinela-');
+    expect(remoteRequest).not.toHaveBeenCalled();
+  });
+
   it.each(['absent', 'rejected', 'synchronous'] as const)(
     'G-T05: Clipboard %s oferece o mesmo snapshot sanitizado para cópia manual',
     async (failure) => {

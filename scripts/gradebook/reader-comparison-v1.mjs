@@ -1,5 +1,5 @@
 /** Local synthetic experiment. Timing assertions deliberately stay out of unit tests. */
-function equalValue(left, right, path = '$') {
+export function equalValue(left, right, path = '$') {
   if (Object.is(left, right)) return;
   if (typeof left !== typeof right || left === null || right === null) throw new Error(path);
   if (typeof left !== 'object') throw new Error(path);
@@ -86,7 +86,7 @@ function measure(reader, xlsx, variant, item, manifest, bytes) {
   };
 }
 
-function describeWorkbook(workbook) {
+export function describeWorkbook(workbook) {
   return {
     sheets: workbook.SheetNames.length,
     ranges: workbook.SheetNames.map((name) => workbook.Sheets[name]['!ref'] ?? null),
@@ -113,7 +113,7 @@ function writableCellType(value) {
   return 'n';
 }
 
-function writableWorkbook(workbook) {
+export function writableWorkbook(workbook) {
   const copy = structuredClone(workbook);
   for (const sheet of Object.values(copy.Sheets))
     for (const [address, cell] of Object.entries(sheet)) {
@@ -143,7 +143,7 @@ function largerGradeSheet(template, classCode) {
   return sheet;
 }
 
-function largerTeacher(workbook, year) {
+export function largerTeacher(workbook, year) {
   const output = { SheetNames: [], Sheets: {} };
   const templateNames = workbook.SheetNames.filter((name) => /^6A(?:[123]º|REC)$/u.test(name));
   for (let index = 0; index < 9; index += 1) {
@@ -160,7 +160,7 @@ function largerTeacher(workbook, year) {
   return output;
 }
 
-function writeFixture(xlsx, source, format) {
+export function writeFixture(xlsx, source, format) {
   try {
     return {
       data: xlsx.write(writableWorkbook(source.workbook), {
@@ -178,7 +178,7 @@ function writeFixture(xlsx, source, format) {
   }
 }
 
-function codecPart(xlsx, data, format) {
+export function codecPart(xlsx, data, format) {
   const bytes = new Uint8Array(data);
   const signature = format === 'xls' ? [0xd0, 0xcf] : [0x50, 0x4b];
   if (bytes[0] !== signature[0] || bytes[1] !== signature[1])

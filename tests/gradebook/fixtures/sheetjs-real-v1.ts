@@ -14,8 +14,8 @@ export type RealSheetJsV1 = SheetJs & {
 
 /** Same official bytes and integrity as the browser loader; no npm substitute/mock. */
 export async function loadRealSheetJsV1(): Promise<RealSheetJsV1> {
-  const source = await readFile('src/features/gradebook/import/sheetjs-loader.ts', 'utf8');
-  const url = source.match(/const SHEETJS_SRC = '([^']+)'/u)?.[1];
+  const source = await readFile('src/features/gradebook/import/sheetjs-source-v1.ts', 'utf8');
+  const url = source.match(/const SHEETJS_SOURCE_V1\s*=\s*'([^']+)'/u)?.[1];
   const integrity = source.match(/sha384-[A-Za-z0-9+/=]+/u)?.[0];
   if (!url || !integrity) throw new Error('missing-project-sheetjs-pin');
   const cache = 'node_modules/.cache/gradebook-reader-v1';
@@ -23,7 +23,7 @@ export async function loadRealSheetJsV1(): Promise<RealSheetJsV1> {
   const path = join(cache, 'sheetjs-0.20.3.js');
   let bytes: Buffer;
   try {
-    bytes = await readFile(path);
+    bytes = await readFile('public/vendor/sheetjs/0.20.3/xlsx.full.min.js.txt');
   } catch {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`sheetjs-download-http-${response.status}`);

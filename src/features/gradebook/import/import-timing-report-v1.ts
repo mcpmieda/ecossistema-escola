@@ -63,11 +63,20 @@ const numericKeys = [
   'maximumActiveYearLanes',
   'confirmedRequests',
   'processedItems',
+  'workerInitializationMs',
+  'workerLibraryEvaluationMs',
+  'maximumLocalWorkers',
+  'maximumActiveLocalInputs',
+  'maximumActiveInputBytes',
+  'inputByteBudget',
+  'localQueueMs',
+  'workerRoundTripMs',
 ] as const;
 const enums: Record<string, readonly string[]> = {
   stage: [
     'batch-start',
     'library-wait',
+    'local-reader',
     'recognition-batch',
     'recognition-file',
     'canonical-local',
@@ -125,6 +134,15 @@ const enums: Record<string, readonly string[]> = {
     'runtime',
   ],
   kind: ['ready', 'blocked', 'failed'],
+  localReaderMode: ['W0', 'W1', 'W2'],
+  workerFallback: [
+    'unavailable',
+    'initialization',
+    'initialization-timeout',
+    'crash',
+    'message-error',
+    'task-timeout',
+  ],
 };
 
 export function sanitizeImportTimingEventV1(value: unknown): ImportTimingEventV1 {
@@ -157,6 +175,7 @@ export interface ImportTimingFileV1 {
   http: ImportTimingEventV1 | null;
   persistence: ImportTimingEventV1 | null;
   commitDiagnostics: ImportCommitDiagnosticsV1 | null;
+  localReader: ImportTimingEventV1 | null;
 }
 interface TimingRun {
   runOrdinal: number;
@@ -165,6 +184,7 @@ interface TimingRun {
   recognitionStatus: 'pending' | 'performed' | 'not-performed';
   start: ImportTimingEventV1;
   library: ImportTimingEventV1 | null;
+  localReader: ImportTimingEventV1 | null;
   recognition: ImportTimingEventV1 | null;
   files: ImportTimingFileV1[];
   final: ImportTimingEventV1 | null;
@@ -213,19 +233,16 @@ export class ImportTimingReportV1 {
         http: null,
         persistence: null,
         commitDiagnostics: null,
+        localReader: null,
       }));
     const run: TimingRun = {
       runOrdinal,
       runKind,
       status: 'in-progress',
       recognitionStatus: runKind === 'resume' ? 'not-performed' : 'pending',
-      start: {
-        stage: 'batch-start',
-        runOrdinal,
-        runKind,
-        fileCount: files.length,
-      },
+      start: { stage: 'batch-start', runOrdinal, runKind, fileCount: files.length },
       library: null,
+      localReader: null,
       recognition: null,
       files,
       final: null,
@@ -261,6 +278,8 @@ export class ImportTimingReportV1 {
       return null;
     }
     if (event.stage === 'library-wait') run.library = event;
+    if (event.stage === 'local-reader' && typeof event.sourceFileIndex !== 'number')
+      run.localReader = { ...run.localReader, ...event };
     if (event.stage === 'recognition-batch') {
       run.recognition = event;
       run.recognitionStatus = 'performed';
@@ -270,6 +289,9 @@ export class ImportTimingReportV1 {
       if (!file) this.failure(runOrdinal);
       else {
         switch (event.stage) {
+          case 'local-reader':
+            file.localReader = event;
+            break;
           case 'recognition-file':
             file.recognition = event;
             break;
@@ -308,7 +330,9 @@ export class ImportTimingReportV1 {
         }
       }
     } else if (
-      !['library-wait', 'recognition-batch', 'batch-complete'].includes(String(event.stage))
+      !['library-wait', 'local-reader', 'recognition-batch', 'batch-complete'].includes(
+        String(event.stage),
+      )
     ) {
       this.failure(runOrdinal);
     }
@@ -372,6 +396,7 @@ export class ImportTimingReportV1 {
           },
           start: { ...run.start },
           library: run.library && { ...run.library },
+          localReader: run.localReader && { ...run.localReader },
           recognition: run.recognition && { ...run.recognition },
           final: run.final && { ...run.final },
           files: run.files.map((file): ImportTimingFileV1 => ({
@@ -385,6 +410,7 @@ export class ImportTimingReportV1 {
             dispatch: file.dispatch && { ...file.dispatch },
             http: file.http && { ...file.http },
             persistence: file.persistence && { ...file.persistence },
+            localReader: file.localReader && { ...file.localReader },
             commitDiagnostics: file.commitDiagnostics
               ? parseImportCommitDiagnosticsHeaderV1(
                   serializeImportCommitDiagnosticsHeaderV1(file.commitDiagnostics),
