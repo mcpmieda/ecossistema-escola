@@ -345,7 +345,7 @@ revisões, histórico, cadastro e contas/sessões. Não é PostgreSQL remoto nem
   de grafia por repetição, zero alterações de notas/fechamentos. O segundo Title não causa
   escrita redundante. Essa política existente não será trocada por first/last-wins no H.
   Grafia uniforme em 33 ofertas altera disciplina uma vez, mesmo atravessando dois blocos.
-- H-I08–12: descrição normalizada, placeholders com aluno inicial/final, null/ausente/zero/
+- H-I08–12: descrição normalizada, placeholders, observações e recortes de alunos, null/ausente/zero/
   indisponível, AM/REC/U/NC/RR/máscaras, Relação/transferências e remoção explícita preservados.
 - H-I14/contadores: três/64 alunos, 108/2.304 notas, 120/2.560 mutações bufferizadas,
   160/2.600 DML total/summary, flush por limite de linhas 0/1. `groupCounts` conta
@@ -490,7 +490,7 @@ substituída pelas amostras acima. Nenhuma delas explica a observação real de 
 
 Windows/Node24.16.0/Vitest4.1.11/jsdom: comando direcionado com nove arquivos abaixo,
 `--maxWorkers=2` somente no runner: **174/174 PASS**, 184,16s. Nenhum assert de
-milissegundos, timeout/configuração ou regra acadêmica foi alterado para aprovação.
+milissegundos, timeout existente, configuração ou regra acadêmica foi alterado para aprovação.
 
 | Cenários     | Evidência efetivamente executada                                                                                                                               | Limite                                                                                     |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
