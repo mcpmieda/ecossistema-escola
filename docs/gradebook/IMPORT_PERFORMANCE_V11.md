@@ -622,3 +622,129 @@ indeterminada. Integração/publicação não são validação real ou homologa�
 Após a publicação, o responsável escolhe uma importação legítima, abre a versão
 publicada antes de selecionar o lote, confere Banco/Portal e copia G antes de novo
 lote/reload. Nenhuma carga artificial ou alteração de notas em produção é necessária.
+
+## Adendo I — W0/W1/W2 medidos; Workers rejeitados
+
+A/C: head `93a84e82745bb7b18a4f64826b53d75d1d2bf1c4`, merge commit
+`652bf4b73f7aa4e8c341569167192bad229cccac`, publicação oficial `37054553625`
+aprovada. Verify `37052703993`, PostgreSQL `37052703362` e Sonar aprovaram
+essa árvore final, sem bypass. Publicação não é validação acadêmica ou autenticada.
+
+**Decisão B: manter W0/S0 produtivo. W1 e W2 foram rejeitados.** O candidato
+completo está preservado no commit `feddac782ebf3ccf3e84ac4af7db0ebbf42f8547`;
+a entrega final remove sua ativação e toda a adaptação produtiva de executor,
+loader, asset e build. A fila, G, V9, S0 e os reconhecedores ficam iguais à main
+publicada após A/C. Não há nova representação, biblioteca, concorrência, watchdog,
+orçamento de arquivo ou texto de interface em produção. Não há redução do tempo
+de importação entregue por B.
+
+O candidato medido integrou o hook e o `importWorkbookBatch` reais, com o leitor
+esparso e ambos os reconhecedores existentes. Transferiu ArrayBuffer por arquivo
+ativo, retornou resumo/tempos, manteve posição original apesar de conclusão fora
+de ordem, limite 50 e barreira anterior ao despacho remoto. Encerrou Workers antes
+da persistência. Testou fallback individual, reler buffer destacado uma vez,
+erro de conteúdo sem retry, versão incompatível fatal, cancelamento/geração,
+limite de entradas e timers/listeners. Revisão independente demonstrou e corrigiu
+progresso tardio após fatal W2 e fallback posterior sem razão/posição.
+
+Limites candidatos: máximo dois Workers, dois apenas com quatro threads e memória
+informada de 4 GiB; um nos demais. Orçamento 16 MiB de bytes de arquivos ativos,
+arquivo maior sozinho sem rejeição acadêmica. Watchdogs locais 15 s/300 s eram
+recuperação estrutural, sem alterar timeout de transporte. Não foram homologados
+como limites de heap: as fixtures cronometradas atingiram apenas 266.243 bytes
+ativos e o heap dos Workers não ficou disponível. Esses parâmetros não foram
+promovidos.
+
+SheetJS full 0.20.3 manteve bytes/SRI originais, inclusive codepages e licença.
+Adaptação Vite estática verificou SHA384 antes de incorporar a biblioteca no módulo
+Worker e emitir o mesmo original para fallback com SRI. Atributo local `-text`
+impediu conversão de linhas desse asset entre Windows/Linux. CSP permaneceu igual,
+sem CDN dentro do Worker, eval/Blob, `dense:true`, novo parser ou reconhecedor.
+O navegador executou o Worker emitido pelo build sob a CSP de `public/_headers`.
+O asset/adaptação candidata foi retirado da árvore produtiva após a rejeição.
+
+[Evidência técnica integral e sanitizada](benchmarks/1225-adendo-i-workers-v1.json):
+fonte limpa no SHA candidato, Node 22.23.3 no servidor local, Chromium 154 no navegador
+Codex/Windows, quatro threads e 16 GiB informados pelo navegador. Uma única rodada
+isolada, sem suítes pesadas concorrentes:108 amostras (1/18/50 arquivos × dois
+cortes × W0/W1/W2 × primeira+cinco pares aquecidos alternados). Nenhum banco ou
+endpoint de persistência foi chamado. 66 casos foram equivalentes integralmente
+em resumo, diagnóstico, pedido, erro e resultados ordenados; três gerações de
+workbook vazio foram indisponíveis. Lacunas binárias de fórmula/cache do writer H
+continuam explícitas e não são cobertura inventada.
+
+Custo completo inclui inicialização, File.arrayBuffer, SHA, yield, leitura,
+transferência/retorno, diagnóstico/pedido canônico local e fechamento. A comparação
+profunda de equivalência fica fora da janela. O corte com bytes disponíveis inclui
+cópia/transferência, mas exclui File/hash/yield; não governa promoção.
+
+| File+hash, medianas de cinco pares (ms) |      W0 |      W1 |      W2 |
+| --------------------------------------- | ------: | ------: | ------: |
+| Um XLSB                                 |    47,6 |   473,3 |   405,4 |
+| 18 arquivos                             | 1.076,6 | 2.414,4 | 1.701,8 |
+| 50 arquivos                             | 3.224,3 | 5.926,2 | 4.296,7 |
+
+W1 piorou o total em aproximadamente 124%/84% nos lotes 18/50; W2 em58%/33%.
+Nos cinco pares, W1 variou 2.195–2.754ms/5.655–6.340ms nesses lotes;
+W2,1.555–1.869ms/4.093–19.511ms. A amostra extrema de W2 é conservada, sem
+atribuir causa não medida nem repetir até melhorar. Até o recorte de leitura
+local sem preparação canônica perdeu: medianas850,9/2.466,5ms no W0 contra
+1.798,3/4.720,8 no W1 e1.190,1/3.186,6 no W2, incluindo File/hash/yield;
+inicialização é medida separadamente. Primeiro boot W1:206,3ms no pai e113,3ms
+de avaliação interna; primeira inicialização W2, recurso já aquecido:745,9ms no
+pai. Somas internas de Workers paralelos não são tempo de lote, CPU ou speedup.
+
+| Mediana do maior atraso do intervalo 16 ms, File+hash (ms) |    W0 |    W1 |    W2 |
+| ---------------------------------------------------------- | ----: | ----: | ----: |
+| Um XLSB                                                    |  31,7 |  25,1 |  18,4 |
+| 18 arquivos                                                | 215,1 | 249,9 | 272,9 |
+| 50 arquivos                                                | 663,9 | 728,3 | 780,0 |
+
+No corte sem File/hash/yield, Workers reduziram a mediana do maior atraso do intervalo:
+18 arquivos 1.028,7→251,6/277,4ms;50 arquivos 3.100,2→737,3/752,4ms. Também
+produziram mais frames/ticks durante a leitura. Isso não comprova benefício do
+fluxo completo: o W0 produtivo já cede ao navegador por arquivo. O maior atraso
+no corte completo inclui a construção canônica síncrona do comparador após o
+`importWorkbookBatch`; o coordenador remoto prepara itens pela fila limitada.
+Portanto esse máximo não é uma medição da UI autenticada em uso real, nem uma
+prova de piora de sua experiência. Custo local completo e dispersão foram
+insuficientes para promover W1/W2; não se infere ganho produtivo desse kernel.
+
+Limitações: biblioteca principal previamente carregada para gerar fixtures;
+primeira rodada cronometrada ocorre após preflight, com recursos aquecidos;
+Workers novos em cada rodada, inicialização incluída. Sem controle de GC/JIT ou
+causa atribuída ao outlier. Heap principal amostrado 46,9–418,8MB inclui fixtures,
+referências e comparador; não é heap isolado do produto. Heap Worker é null,
+nunca zero. Relógios de contextos distintos não foram subtraídos. Fixtures
+sintéticas não representam os bytes históricos nem explicam 20.874,7 ms produtivos.
+Consultas de progresso ao navegador demoraram/uma expirou; a rodada não foi
+reiniciada e todos os 108 resultados foram preservados.
+
+Validações candidatas: 42 regressões de cliente/fila/transferência/fallback PASS;
+G 8 e cópia efetiva 14 PASS; biblioteca real/integridade 7 PASS. Typecheck direcionado
+passou antes das últimas correções locais e build após elas passou 16,06 s. Esses
+resultados pertencem ao candidato e não substituem gates da árvore final. Os
+checks finais e publicação da entrega documental ficam registrados na #1225/PR.
+
+No primeiro head final `6cfadede`, verify `37068939799` e PostgreSQL `37068939299`
+passaram, mas o Sonar bloqueou a integração por S4036 no comparador: resolução do
+executável Git pelo PATH. A correção fixa os caminhos protegidos já usados por H
+(`C:\\Program Files\\Git\\cmd\\git.exe` ou `/usr/bin/git`), sem alterar amostras,
+cálculo, biblioteca ou produto. O novo head exige seus próprios gates; nenhuma
+condição do Sonar foi ignorada e nenhuma medição foi repetida para obter PASS.
+
+Reprodução opcional em checkout isolado do SHA candidato: instalar dependências
+pelo fluxo normal, `npx vite build`, depois Node 22
+`scripts/gradebook/benchmark-workbook-workers-v1.mjs`; abrir o endereço loopback
+e usar uma janela exclusiva. A árvore final informa a rejeição se esse comparador
+for chamado sem os arquivos candidatos. Não se copia outro importador nem se
+habilita Worker/dense em produção para reproduzir. Os helpers H exportados mantêm
+as mesmas implementações. Nenhuma nova rodada é necessária para o aceite desta
+rejeição.
+
+Reversão B remove somente documentação/comparador/evidência desta avaliação;
+W0 produtivo permanece intacto. Reversão A/C continua separada e não desfaz dados
+confirmados. F1–F6/G/H/#1230 preservados, F7 fora do escopo, e causa histórica do
+sétimo `applied` indeterminada. Uso legítimo posterior é conduzido pelo responsável:
+abrir a versão publicada antes do lote, conferir Banco/Portal e copiar G antes de
+novo lote/reload. Nenhuma edição fictícia, reset ou carga produtiva é necessária.
