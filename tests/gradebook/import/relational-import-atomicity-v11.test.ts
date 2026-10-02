@@ -187,7 +187,7 @@ describe('V11/V10/V9 refusal atomicity on the real PostgreSQL facade', () => {
   });
 
   it('rolls back earlier valid offers, including physically flushed notes', async () => {
-    await refused(notes([offer(), offer('SYN-MISSING')]), 'blocked');
+    await refused(notes([offer(), offer('SYN-B', 99)]), 'blocked');
     expect(noteGroups).toBeGreaterThan(0);
   });
 

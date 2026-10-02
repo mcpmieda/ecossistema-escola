@@ -561,7 +561,7 @@ describe('native import reset revisions', () => {
       {...term(1),alunos:[[99,[3000],3000]] as const},term(2),term(3)] as const};
     const changedBeforeRefusal = {...notes.ofertas[0]!,trimestres:[
       {...term(1),alunos:[[1,[4000],4000]] as const},term(2),term(3)] as const};
-    for (const ofertas of [[absent], [changedBeforeRefusal,absent], [unbound]]) {
+    for (const ofertas of [[absent], [changedBeforeRefusal,unbound], [unbound]]) {
       queries.length=0;
       expect(await service.execute({...notes,professor:'SYNTHETIC REFUSED TEACHER',ofertas})).toMatchObject({state:'blocked'});
       expect(await snapshot()).toEqual(stable);

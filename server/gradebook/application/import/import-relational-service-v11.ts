@@ -5,6 +5,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createBufferedRelationalImportDatabaseV11 } from '../../persistence/postgres/relational-import-write-buffer-v11';
+import type { ImportPerformanceObserverV1 } from '../../persistence/postgres/import-performance-observer-v1';
 import { createGradebookRelationalImportServiceV10 } from './import-relational-service-v10';
 
 /**
@@ -16,9 +17,12 @@ import { createGradebookRelationalImportServiceV10 } from './import-relational-s
  * recordset statements inside the same transaction. No academic semantics,
  * response contract or write counts are changed.
  */
-export function createGradebookRelationalImportServiceV11(database: GradebookPostgresWritePortV1) {
+export function createGradebookRelationalImportServiceV11(
+  database: GradebookPostgresWritePortV1,
+  observer?: ImportPerformanceObserverV1,
+) {
   const service = createGradebookRelationalImportServiceV10(
-    createBufferedRelationalImportDatabaseV11(database),
+    createBufferedRelationalImportDatabaseV11(database, observer),
   );
   return {
     execute(

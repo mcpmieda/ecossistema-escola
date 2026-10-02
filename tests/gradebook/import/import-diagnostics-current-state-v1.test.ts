@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-function source(path: string): string { return readFileSync(path,'utf8'); }
+function source(path: string): string {
+  return readFileSync(path, 'utf8');
+}
 
 describe('current import diagnostics retention', () => {
   it('routes complete observations through the atomic snapshot service', () => {
@@ -20,9 +22,11 @@ describe('current import diagnostics retention', () => {
     const hook = source('src/features/gradebook/import/use-import-batch.ts');
     const route = source('functions/api/gradebook/import-persistence.ts');
     expect(hook).not.toContain('if (diagnostics.length === 0) return;');
-    expect(hook).toContain('await auditDiagnostics(result, diagnostics);');
+    expect(hook).toContain('await persistGradebookImportDiagnosticsAuditV1(request)');
+    expect(hook).toContain('gradebookImportDiagnosticsAuditRequestV1(result, diagnostics)');
     expect(route).not.toContain('DELETE FROM gradebook.importacao_diagnostico');
     expect(route).not.toContain('clearStaleImportDiagnostics');
-    expect(route).toContain('createGradebookRelationalImportServiceV11(database).execute(canonical)');
+    expect(route).toContain('createGradebookRelationalImportServiceV11(');
+    expect(route).toContain('observer.wrap(database)');
   });
 });

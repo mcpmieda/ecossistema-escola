@@ -1,5 +1,9 @@
 # Banco de Notas — ponto de entrada
 
+## Importação — manutenção #1225 (02/10/2026)
+
+A entrega F1–F6 preserva V9/V10/V11 e a autoridade acadêmica vigente; corrige rollback, mede chamadas físicas, agrupa catálogo/estado/instrumentos e limita buffer/fila. [Fluxo, evidências, limites e prestação de contas](IMPORT_PERFORMANCE_V11.md). Integração/publicação e uso real são registrados separadamente na #1225. F7 foi retirada deste release: escopo individual do Portal depende de contrato e aprovação próprios. Nenhuma migration ou reset de dados produtivos faz parte desta entrega.
+
 ## Continuidade atual — 20/09/2026
 
 O programa funcional BN e a entrega institucional #596 continuam encerrados; a fila operacional atual é **#970**, criada para manutenção e reconciliação após os diagnósticos independentes. Não reabrir filas históricas por checkpoint antigo.
@@ -60,12 +64,12 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 ## Programa final
 
-| Fase    | Issue | Resultado                                                                                                                                      |
-| ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Concluída: consumidores relacionais, Auditoria humana, restore/contenção local e aceite visual                                                 |
-| FINAL-2 | #634  | Concluída: Desempenho, comparação trimestral, refinamentos e aceite visual                                                                     |
-| FINAL-3 | #635  | Concluída: Conselho humano, votos, histórico, fechamento e aceite visual                                                                        |
-| FINAL-4 | #406  | Concluída: piloto integral, ciclo anual descartável, matriz sanitizada e limitações classificadas                                                |
+| Fase    | Issue | Resultado                                                                                         |
+| ------- | ----- | ------------------------------------------------------------------------------------------------- |
+| FINAL-1 | #633  | Concluída: consumidores relacionais, Auditoria humana, restore/contenção local e aceite visual    |
+| FINAL-2 | #634  | Concluída: Desempenho, comparação trimestral, refinamentos e aceite visual                        |
+| FINAL-3 | #635  | Concluída: Conselho humano, votos, histórico, fechamento e aceite visual                          |
+| FINAL-4 | #406  | Concluída: piloto integral, ciclo anual descartável, matriz sanitizada e limitações classificadas |
 
 #347 encerrou o aceite acadêmico por consumidor/escopo. #596 consolida a operação institucional com o risco de backup aceito e adiado; #220 permanece expansão transversal não bloqueante. #637 foi a remediação de dependências, com [evidências próprias](SECURITY_REMEDIATION_637.md).
 
