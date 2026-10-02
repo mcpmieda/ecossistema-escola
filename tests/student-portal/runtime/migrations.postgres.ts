@@ -22,7 +22,7 @@ import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/port
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -1200,9 +1200,8 @@ it('runs synthetic account activation, sessions and bounded load through real wo
     SELECT * FROM student_portal.synchronize_profiles_v1(true);`);
   const connection = new URL(target);
   connection.username = 'student_portal_app';
-  const report = await runPortalHarnessScenariosV1(connection.toString());
-  if (process.env.PORTAL_TEST_METRICS_PATH) writeFileSync(process.env.PORTAL_TEST_METRICS_PATH, JSON.stringify(report, null, 2));
-  console.info('PORTAL_SYNTHETIC_HARNESS_METRICS', JSON.stringify(report));
+  // Export is owned by the harness finally, including partial runs and rejected performance gates.
+  await runPortalHarnessScenariosV1(connection.toString());
 }, 120_000);
 
 

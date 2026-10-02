@@ -2,26 +2,46 @@ import { expect } from 'vitest';
 import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { challengeResponseV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { createLocalPortalHarnessV1 } from './local-harness-v1';
+import { emitHarnessDiagnosticV1, HarnessDiagnosticsV1, type HarnessDiagnosticV1, type HarnessDiagnosticStateV1 } from './harness-diagnostics-v1';
 
-export async function runPortalHarnessScenariosV1(connectionString: string) {
-  const harness = await createLocalPortalHarnessV1(connectionString);
+export async function runPortalHarnessScenariosV1(connectionString: string, emit: (diagnostic: HarnessDiagnosticV1) => void = emitHarnessDiagnosticV1) {
+  let harness: Awaited<ReturnType<typeof createLocalPortalHarnessV1>> | undefined;
   const scope = { kind: 'class', academicYear: 2026, classId: 950001 };
   const samples: { kind: string; ms: number; queries: number; rows: number; bytes: number }[] = [];
+  const diagnostics = new HarnessDiagnosticsV1();
+  const state: HarnessDiagnosticStateV1 = { outcome: 'failed', phase: 'creation', scenariosComplete: false,
+    checks: 'not-reached', cleanup: 'not-created' };
+  let originalFailure = false;
+  let cleanupFailed = false;
+  let cleanupFailure: unknown;
+  let report: { kind: string; count: number; p50: number; p95: number; p99: number;
+    maxQueries: number; maxRows: number; maxBytes: number }[];
   try {
+    harness = await createLocalPortalHarnessV1(connectionString);
+    const runtime = harness.runtime;
+    state.phase = 'scenarios';
     const call = async (path: string, input?: unknown, cookie?: string, kind = 'setup', expectedStatus = 200) => {
+      const observation = diagnostics.begin(kind);
       const started = Date.now();
-      const response = await harness.runtime.dispatchFetch(`https://aluno.escolaieda.com${path}`, {
-        method: input === undefined ? 'GET' : 'POST', headers: { origin: 'https://aluno.escolaieda.com',
-          'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
-        ...(input === undefined ? {} : { body: JSON.stringify(input) }),
-      });
-      const text = await response.text();
-      samples.push({ kind, ms: Date.now() - started, queries: Number(response.headers.get('x-harness-queries')),
-        rows: Number(response.headers.get('x-harness-rows')), bytes: new TextEncoder().encode(text).byteLength });
-      expect(response.status).toBe(expectedStatus);
-      expect(response.headers.get('cache-control')).toBe('no-store');
-      expect(samples.at(-1)!.bytes).toBeLessThanOrEqual(256 * 1024);
-      return { body: JSON.parse(text) as unknown, cookie: response.headers.get('set-cookie') };
+      let response: Awaited<ReturnType<typeof runtime.dispatchFetch>> | undefined;
+      let ms: number | undefined;
+      let bytes: number | null = null;
+      try {
+        response = await runtime.dispatchFetch(`https://aluno.escolaieda.com${path}`, {
+          method: input === undefined ? 'GET' : 'POST', headers: { origin: 'https://aluno.escolaieda.com',
+            'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+          ...(input === undefined ? {} : { body: JSON.stringify(input) }),
+        });
+        const text = await response.text();
+        ms = Date.now() - started;
+        bytes = new TextEncoder().encode(text).byteLength;
+        samples.push({ kind, ms, queries: Number(response.headers.get('x-harness-queries')),
+          rows: Number(response.headers.get('x-harness-rows')), bytes });
+        expect(response.status).toBe(expectedStatus);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(samples.at(-1)!.bytes).toBeLessThanOrEqual(256 * 1024);
+        return { body: JSON.parse(text) as unknown, cookie: response.headers.get('set-cookie') };
+      } finally { diagnostics.finish(observation, ms ?? Date.now() - started, response, bytes); }
     };
     const query = async (operation: string) => adminResponseV1.parse((await call('/harness/admin/query', { contractVersion: 1, operation, scope, page: { limit: 100 } })).body);
     const command = async (input: object, kind = 'setup') => adminResponseV1.parse((await call('/harness/admin/command', { contractVersion: 1, idempotencyKey: crypto.randomUUID(), ...input }, undefined, kind)).body);
@@ -104,18 +124,39 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
     }
     expect(burstRejected).toBe(true);
 
-    const report = [...new Set(samples.map((sample) => sample.kind))].map((kind) => {
+    state.scenariosComplete = true;
+    state.phase = 'validation';
+    state.checks = 'failed';
+    report = [...new Set(samples.map((sample) => sample.kind))].map((kind) => {
       const values = samples.filter((sample) => sample.kind === kind);
       const times = values.map((sample) => sample.ms).sort((a, b) => a - b);
       const percentile = (q: number) => times[Math.ceil(q * times.length) - 1]!;
       const result = { kind, count: times.length, p50: percentile(.5), p95: percentile(.95), p99: percentile(.99),
         maxQueries: Math.max(...values.map((sample) => sample.queries)), maxRows: Math.max(...values.map((sample) => sample.rows)), maxBytes: Math.max(...values.map((sample) => sample.bytes)) };
+      return result;
+    });
+    for (const result of report) {
+      const { kind } = result;
       if (kind.startsWith('self-')) { expect(result.p95).toBeLessThanOrEqual(750); expect(result.p99).toBeLessThanOrEqual(1500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
       if (kind.startsWith('login-')) { expect(result.p95, `${kind} p95`).toBeLessThanOrEqual(1500); expect(result.p99, `${kind} p99`).toBeLessThanOrEqual(2500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
       if (kind === 'birth-batch') { expect(result.p95).toBeLessThanOrEqual(2000); expect(result.p99).toBeLessThanOrEqual(3000); expect(result.maxQueries).toBeLessThanOrEqual(65); }
       expect(result.maxRows).toBeLessThanOrEqual(1500);
-      return result;
-    });
-    return report;
-  } finally { await harness.close(); }
+    }
+    state.checks = 'passed';
+    state.phase = 'complete';
+    state.outcome = 'passed';
+  } catch (error) { originalFailure = true; throw error; }
+  finally {
+    try {
+      if (harness) { await harness.close(); state.cleanup = 'closed'; }
+    } catch (error) {
+      state.cleanup = 'failed'; state.outcome = 'failed';
+      if (!originalFailure) { state.phase = 'cleanup'; cleanupFailed = true; cleanupFailure = error; }
+    } finally {
+      try { emit(diagnostics.snapshot(state)); }
+      catch { /* Best effort only: preserve the original exception and resource closure. */ }
+    }
+  }
+  if (cleanupFailed) throw cleanupFailure;
+  return report;
 }
