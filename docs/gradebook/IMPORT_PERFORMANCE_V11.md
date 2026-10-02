@@ -748,3 +748,157 @@ confirmados. F1–F6/G/H/#1230 preservados, F7 fora do escopo, e causa históric
 sétimo `applied` indeterminada. Uso legítimo posterior é conduzido pelo responsável:
 abrir a versão publicada antes do lote, conferir Banco/Portal e copiar G antes de
 novo lote/reload. Nenhuma edição fictícia, reset ou carga produtiva é necessária.
+
+## Amostra original — perfil de fórmulas e nova observação produtiva
+
+Baseline revalidada `710b63ded6d290ee7783133f2f0dbb12ea31b849`, sem PR aberta.
+A/C da #1232 e a decisão da #1233 permanecem publicadas. O responsável forneceu
+uma amostra XLSB original local, usada somente em leitura. Sua identidade com os
+bytes do lote produtivo não está comprovada. O diagnóstico integral não foi
+disponibilizado como arquivo nesta rodada: os agregados abaixo são a observação
+expressamente fornecida pelo responsável, sem reconstrução por `recentEvents`.
+
+| Observação produtiva                                                    |       Valor |
+| ----------------------------------------------------------------------- | ----------: |
+| Lote                                                                    | 47.463,7 ms |
+| Reconhecimento                                                          | 31.933,5 ms |
+| Soma `xlsxReadMs`                                                       | 31.019,7 ms |
+| Auditoria HTTP                                                          |  8.219,5 ms |
+| Persistência HTTP                                                       |  7.157,3 ms |
+| `no-changes` / tentativas por pedido                                    |      18 / 1 |
+| Diagnósticos completos no escopo direto, categorias confirmadas zeradas |          18 |
+
+Esses tempos não formam parcelas necessariamente disjuntas. Escopo direto não
+abrange todos os efeitos de funções SQL, triggers ou Portal. O lote anterior de
+35.164,5 ms não teve condições controladas equivalentes; a diferença observada
+não prova regressão causal. W0/S0 permaneceu o leitor produtivo. O `applied`
+histórico não reapareceu nesta observação e sua causa continua indeterminada.
+
+### Fonte, ambiente e custo reproduzido
+
+[Evidência agregada](benchmarks/1225-original-reader-v1.json): Windows,
+Node 22.23.3, Edge/Chromium 154.0.4258.48 headless, Playwright local já disponível.
+Sem endpoints acadêmicos; navegador restrito a loopback e CSP vigente. SheetJS
+full 0.20.3 com SRI oficial verificado. Original mantido em memória, sem salvar,
+recalcular ou enviar a serviço externo. Igualdade privada dos bytes antes/depois
+confirmou ausência de alteração; nenhum hash real, nome, guia, valor ou fórmula
+individual foi exportado. Não há arquivo acadêmico em Git/CI/artefatos públicos.
+
+| Estrutura lida com S0/50 linhas           | Original autorizado | Fixture XLSB de nove ofertas do Adendo I |
+| ----------------------------------------- | ------------------: | ---------------------------------------: |
+| Bytes comprimidos                         |             943.201 |                                   50.041 |
+| Guias                                     |                  23 |                                       37 |
+| Células materializadas                    |              28.358 |                                    6.132 |
+| Fórmulas materializadas                   |              23.667 |                                    **0** |
+| Maior dimensão original, linhas / colunas |           130 / 284 |                                  50 / 40 |
+
+A fixture foi gerada com os mesmos helpers H e biblioteca real. A ausência de
+fórmulas emitidas pelo writer é uma diferença de carga decisiva, não cobertura de
+fórmulas reais. Seus tempos 43,8/22,4/21,2 ms não representam esta amostra nem os
+31.933,5 ms de reconhecimento do lote produtivo. A avaliação anterior permanece
+válida para seu corpus, com essa limitação agora quantificada.
+
+Leituras W0 sem profiler: 996,2/823,0/847,0 ms; após profiling:
+844,1/839,8/832,2 ms. A primeira execução é preservada separadamente; mediana
+das cinco leituras seguintes: 839,8 ms. Uma exploração inicial em Node/VM levou
+aproximadamente quatro segundos por leitura aquecida, diferença de ambiente que
+não foi usada como desempenho do navegador ou ganho do produto.
+
+### Profiling separado de duração
+
+Uma sessão CDP com amostragem de 1.000 µs mediu 934,8 ms dentro de `xlsx.read`,
+aproximadamente 11,3% acima da mediana aquecida sem profiler. A janela do perfil
+inclui também controle/CDP e estatística posterior; não é um benchmark nem uma
+decomposição aditiva de CPU. As funções referem-se aos bytes fixados da biblioteca:
+
+| Função interna | Trabalho observado no código                         | Tempo inclusivo amostrado |
+| -------------- | ---------------------------------------------------- | ------------------------: |
+| `Md`           | Reconstrução textual de fórmulas a partir dos tokens |                375,067 ms |
+| `Pa`           | Deslocamento/cópia de referências, dentro de `Md`    |                140,900 ms |
+| `K`            | Descompactação do contêiner                          |                171,391 ms |
+| `Gd`           | Leitura dos tokens binários de fórmulas              |                123,300 ms |
+| `U`            | Callback de registros/materialização das células     |                125,908 ms |
+| `yv`           | Aplicação de formato/representação da célula         |                  6,608 ms |
+
+`Md` é a maior função nomeada por tempo próprio e inclusivo entre esses trabalhos.
+`Pa` chama a cópia `Ar`, que usa JSON para esses objetos; seu tempo já está em
+`Md`. Não somar ancestrais/descendentes nem atribuir todo o custo a alocação.
+GC amostrado: 36,766 ms; ausência de heap Worker não significa zero. A evidência
+nesta amostra não explica retrospectivamente os 20.874,7 ms ou 29,69 s históricos.
+
+Uma sessão distinta acrescentou somente contadores a uma cópia local descartável
+da biblioteca. Esses tempos instrumentados não governam promoção. O código
+produtivo e o SRI oficial não foram alterados:
+
+| Contador / saída                            | `sheetRows:50` produtivo | Sem limite (`sheetRows:0`), somente investigação |
+| ------------------------------------------- | -----------------------: | -----------------------------------------------: |
+| Registros despachados                       |                   88.463 |                                           88.463 |
+| Chamadas de reconstrução textual de fórmula |                   43.412 |                                           44.204 |
+| Chamadas de cópia `Ar`                      |                  146.711 |                                          150.822 |
+| Células materializadas                      |                   28.358 |                                           32.257 |
+| Fórmulas materializadas                     |                   23.667 |                                           27.332 |
+
+O despachante chama o leitor do registro antes do callback que limita a saída.
+O limite conserva menos células, mas não evita todo o parsing dos registros.
+Contadores de chamadas incluem reconstruções internas/compartilhadas: não são
+número de fórmulas únicas, DML, tentativas remotas ou causa de `applied`.
+Não se reduziu o limite, não se retiraram guias/fórmulas e não se mudou o parser.
+
+### Reavaliação delimitada do Worker preservado
+
+Reutilizado o candidato `feddac782ebf3ccf3e84ac4af7db0ebbf42f8547` em checkout
+isolado e seu bundle emitido, conferido pelo hash público do Adendo I. W0 usa o
+`importWorkbookBatch` atual; os reconhecedores/leitor do candidato são idênticos.
+O comparador H `equalValue` permaneceu integral. Resumos, batch, manifesto,
+diagnósticos, request V9 e erros ficaram somente em memória; a comparação profunda
+ocorreu fora da janela. Mesmo arquivo/bytes em todos os braços, sem hash shortcut.
+
+Cada rodada mede File, hash, yield, leitura/reconhecimento, construção canônica,
+inicialização, transferência/retorno e fechamento. Pool novo por rodada; reutilizado
+entre arquivos da mesma rodada. Duração usa biblioteca original sem contadores ou
+profiler, em página nova. Uma falha de argumento na adaptação da fixture interrompeu
+a primeira sessão após o perfil; os dados anteriores foram preservados. A retomada
+corrigiu apenas o argumento e completou fixture/contadores; não refez leituras para
+melhorar resultados. Os benchmarks seguintes ocorreram em contexto novo.
+
+| Custo local completo                                           |                W0 |                W1 |                W2 |
+| -------------------------------------------------------------- | ----------------: | ----------------: | ----------------: |
+| Um arquivo, mediana de cinco pares após primeiro par           |          882,4 ms |        1.555,6 ms |        Não medido |
+| 18 leituras repetidas da mesma amostra, três ordens alternadas |       15.441,0 ms |       21.649,6 ms |       11.845,5 ms |
+| Faixa das três rodadas de 18 leituras                          | 14.834,3–15.678,9 | 20.873,2–22.931,2 | 10.892,8–12.567,6 |
+
+Todos os resultados comparados foram equivalentes, sem falha de reconhecimento,
+erro canônico ou fallback. Nos nove resultados de lote, cada um reconheceu 18
+entradas. São **releituras locais da mesma amostra**, não os 18 arquivos reais nem
+validação de capacidade escolar. W2 reduziu a mediana em 23,29% nesse cenário
+controlado. W1 continuou mais lento, mesmo amortizando a inicialização.
+
+A mediana do maior atraso do intervalo de 16 ms no cenário repetido caiu de
+1.038,1 ms (W0) para 239,9 ms (W1) e 228,5 ms (W2). Inclui construção canônica
+síncrona de todos os resultados no comparador; não representa a experiência
+autenticada do produto, cuja fila remota permanece limitada. Heap Worker e limites
+de memória por dispositivo não foram homologados. Não houve benchmark simultâneo
+a suíte pesada, importação ou carga em produção.
+
+### Decisão e escopo que exige autorização
+
+**W0/S0 permanece produtivo. Não há aceleração produtiva entregue nesta rodada.**
+W1 foi rejeitado por custo completo. W2 tem ganho demonstrado somente na carga
+repetida pesada; a regressão no corpus leve impede promoção geral com a evidência
+atual. Tamanho comprimido não prova complexidade de fórmulas; não se inventou um
+limiar de bytes ou seleção por nome/hash para ativá-lo.
+
+A intervenção proposta está nas cópias de referências internas (`Ar`/`Pa`/`La`)
+usadas pela reconstrução de fórmulas. Ainda **não implementada ou validada**: exige
+alterar a dependência distribuída e sua integridade, decisão específica exigida
+pelo item 8 do responsável. [Proposta de escopo e impacto](https://github.com/mcpmieda/ecossistema-escola/issues/1225#issuecomment-5962824575):
+artefato/licença/proveniência local, loader/pin, eventual emissão mínima no build,
+regressões e comparação profunda/pareada. Não é trocar codec, remover fórmula ou
+alterar contrato acadêmico. Uma biblioteca alterada não pode usar a integridade
+oficial anterior nem ser apresentada como seus bytes originais.
+
+Enquanto essa decisão não chegar, somente evidência/documentação prosseguem para
+revisão e gates; SHAs, PR e publicação são registrados na #1225. A/C, F1–F6/G/H/I
+e #1230 são preservados. Sem F7, dense, mudança de concorrência remota, retirada
+de Auditoria ou dados produtivos. Validação de eventual correção em importação
+legítima continua posterior e pertence ao responsável. A issue permanece aberta.
