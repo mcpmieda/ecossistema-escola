@@ -16,6 +16,17 @@ interface TransactionDatabaseV10 extends GradebookPostgresWritePortV1 {
 
 type Row = Record<string, unknown>;
 
+type NonCommittedImportResponseV10 = Exclude<
+  GradebookImportPersistenceResponseV9,
+  { readonly state: 'applied' | 'no-changes' }
+>;
+
+class ImportRollbackV10 extends Error {
+  constructor(readonly response: NonCommittedImportResponseV10) {
+    super('gradebook-import-transaction-not-committed');
+  }
+}
+
 function classKey(value: string): string {
   return value.trim().toUpperCase();
 }
@@ -25,7 +36,10 @@ function historicalBindingKey(turmaCodigo: string, numero: number): string {
 }
 
 function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV10 {
-  if (!('transaction' in database) || typeof (database as { transaction?: unknown }).transaction !== 'function') {
+  if (
+    !('transaction' in database) ||
+    typeof (database as { transaction?: unknown }).transaction !== 'function'
+  ) {
     throw new Error('gradebook-relational-import-requires-postgres');
   }
   return database as TransactionDatabaseV10;
@@ -60,8 +74,7 @@ function filterOffer(
       offer.recuperacao === null
         ? null
         : offer.recuperacao.filter(
-            ([numero]) =>
-              !historicalBindings.has(historicalBindingKey(offer.turmaCodigo, numero)),
+            ([numero]) => !historicalBindings.has(historicalBindingKey(offer.turmaCodigo, numero)),
           ),
   };
 }
@@ -113,15 +126,27 @@ export function createGradebookRelationalImportServiceV10(database: GradebookPos
         return createGradebookRelationalImportServiceV9(database).execute(request);
       }
 
-      return transactionDatabase(database).transaction(async (transaction) => {
-        // Hold the same year lock used by V9 while selecting the current/historical
-        // bindings, so a concurrent Relação import cannot change the movement state
-        // between filtering and persistence. V9 reuses this transaction and lock.
-        await lockResetWriterV1(transaction, request.ano);
-        const historicalBindings = await loadHistoricalBindingsV10(transaction, request.ano);
-        const filtered = filterHistoricalClassFactsV10(request, historicalBindings);
-        return createGradebookRelationalImportServiceV9(transaction).execute(filtered);
-      });
+      try {
+        return await transactionDatabase(database).transaction(async (transaction) => {
+          // Hold the same year lock used by V9 while selecting the current/historical
+          // bindings, so a concurrent Relação import cannot change the movement state
+          // between filtering and persistence. V9 reuses this transaction and lock.
+          await lockResetWriterV1(transaction, request.ano);
+          const historicalBindings = await loadHistoricalBindingsV10(transaction, request.ano);
+          const filtered = filterHistoricalClassFactsV10(request, historicalBindings);
+          const result =
+            await createGradebookRelationalImportServiceV9(transaction).execute(filtered);
+          // The native facade reuses nested transactions without a savepoint.
+          // A refusal caught by V9 must still reach the outer rollback boundary.
+          if (result.state !== 'applied' && result.state !== 'no-changes') {
+            throw new ImportRollbackV10(result);
+          }
+          return result;
+        });
+      } catch (cause) {
+        if (cause instanceof ImportRollbackV10) return cause.response;
+        throw cause;
+      }
     },
   };
 }
