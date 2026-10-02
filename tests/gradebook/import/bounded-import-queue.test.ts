@@ -6,6 +6,7 @@ import {
   useImportBatch,
 } from '../../../src/features/gradebook/import/use-import-batch';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
+import { TimingDiagnostics } from '../../../src/features/gradebook/import/import-panel';
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
@@ -243,6 +244,22 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file canonical queue (V9)', () => {
+  it('G0 preserves initial recognition in the text actually copied after 18 files', async () => {
+    mocks.read.mockImplementation(async (input, _xlsx, _progress, runtime) => {
+      input.forEach((_: File, index: number) => runtime.onFileTiming({ fileIndex: index, current: index + 1, total: input.length, fileReadMs: 1, manifestMs: 1, yieldMs: 1, recognitionMs: 1 }));
+      return { successes: input.map((_: File, index: number) => result(index)), failureDetails: [] };
+    });
+    await act(async () => flow.handleFiles(files(18)));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    await act(async () => root.render(createElement(TimingDiagnostics, { visible: true, diagnostics: flow.timingDiagnostics })));
+    await act(async () => (host.querySelector('button') as HTMLButtonElement).click());
+    expect(writeText).toHaveBeenCalledOnce();
+    const copied = writeText.mock.calls[0]![0];
+    expect(copied).toContain('batch-complete');
+    expect(copied).toContain('recognition-batch');
+    expect(copied).toContain('"fileIndex":0');
+  });
   it('reports a comparable 18-file same-year fixture with injected local/audit/persistence costs', async () => {
     let clock = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);

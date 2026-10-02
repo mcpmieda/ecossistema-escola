@@ -168,7 +168,7 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefi
   );
 }
 
-function TimingDiagnostics({
+export function TimingDiagnostics({
   visible,
   diagnostics,
 }: {
