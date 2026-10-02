@@ -1,3 +1,4 @@
+import { emptyImportCommitAffectedRowsV1 } from '../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 import { act, createElement } from 'react';
 import { appendFileSync } from 'node:fs';
 import { createRoot, type Root } from 'react-dom/client';
@@ -236,7 +237,7 @@ beforeEach(async () => {
   mocks.diagnostics.mockReturnValue([]);
   mocks.blocking.mockReturnValue([]);
   mocks.refreshYears.mockResolvedValue(undefined);
-  mocks.load.mockResolvedValue({});
+  mocks.load.mockResolvedValue({ version: '0.20.3' });
   mocks.read.mockImplementation(async (input: readonly File[], _xlsx, _progress, runtime) => {
     input.forEach((_, index) =>
       runtime.onFileTiming({ fileIndex: index, fileReadMs: 1, outcome: 'recognized' }),
@@ -500,7 +501,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     vi.spyOn(performance, 'now').mockImplementation(() => clock);
     mocks.load.mockImplementation(async () => {
       clock += 7;
-      return {};
+      return { version: '0.20.3' };
     });
     mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
       clock += 11;
@@ -1321,5 +1322,38 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.results).toHaveLength(3);
     expect(flow.pendingPersistenceCount).toBe(3);
     expect(mocks.read).toHaveBeenCalledTimes(1);
+  });
+  it('I-A carries the validated client callback into G at the original position, without another POST', async () => {
+    const rows = emptyImportCommitAffectedRowsV1();
+    rows.professor.update = 1;
+    const diagnostic = {
+      version: 1,
+      scope: 'direct-import-statements',
+      coverage: 'complete',
+      transaction: 'committed',
+      attempted: rows,
+      confirmed: rows,
+      unmeasuredStatements: 0,
+      excludedEffects: 'sql-functions-triggers-portal',
+    };
+    mocks.persist.mockImplementation(async (value, onTiming, onDispatch) => {
+      onDispatch?.();
+      onTiming?.({
+        persistRequestMs: 5,
+        outcome: 'no-changes',
+        commitDiagnostics: value.manifest.fileName === 'sintetico-6.xlsb' ? diagnostic : null,
+      });
+      return confirmed();
+    });
+    await act(async () => flow.handleFiles(files(18)));
+    const copied = JSON.parse(flow.getTimingReport());
+    expect(copied.runs[0].files[6].commitDiagnostics).toEqual(diagnostic);
+    expect(
+      copied.runs[0].files.filter(
+        (file: { commitDiagnostics: unknown }) => file.commitDiagnostics !== null,
+      ),
+    ).toHaveLength(1);
+    expect(mocks.persist).toHaveBeenCalledTimes(18);
+    expect(flow.pendingPersistenceCount).toBe(0);
   });
 });

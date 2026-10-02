@@ -2,6 +2,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimingDiagnostics } from '../../../src/features/gradebook/import/import-panel';
 import { ImportTimingReportV1 } from '../../../src/features/gradebook/import/import-timing-report-v1';
+import {
+  emptyImportCommitAffectedRowsV1,
+  type ImportCommitDiagnosticsV1,
+} from '../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 
 const clipboardDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'clipboard');
 let remoteRequest: ReturnType<typeof vi.fn>;
@@ -325,5 +329,67 @@ describe('relatório de tempo — botão real de cópia', () => {
     expect(screen.getByText('Em andamento')).toBeDefined();
     expect(getReport).toHaveBeenCalledTimes(1);
     expect(remoteRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('Adendo I confirmed direct-write categories in the text actually copied', () => {
+  it('retains the seventh original position after tail eviction and copies only bounded validated counts', async () => {
+    const value = report(false, 18);
+    const rows = emptyImportCommitAffectedRowsV1();
+    rows.disciplina.update = 1;
+    const diagnostic: ImportCommitDiagnosticsV1 = {
+      version: 1,
+      scope: 'direct-import-statements',
+      coverage: 'complete',
+      transaction: 'committed',
+      attempted: rows,
+      confirmed: rows,
+      unmeasuredStatements: 0,
+      excludedEffects: 'sql-functions-triggers-portal',
+    };
+    value.record(1, { stage: 'persist-request', commitDiagnostics: diagnostic }, 6);
+    for (let index = 0; index < 501; index++)
+      value.record(1, { stage: 'audit-request' }, index % 18);
+    value.record(1, { stage: 'batch-complete', outcome: 'completed' });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    clipboard({ writeText });
+    render(
+      <TimingDiagnostics visible summary={value.summary()} getReport={() => value.exportText()} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar diagnóstico' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = writeText.mock.calls[0]![0] as string;
+    const copied = JSON.parse(text);
+    expect(copied.runs[0].files[6].sourceFileIndex).toBe(6);
+    expect(copied.runs[0].files[6].commitDiagnostics).toEqual(diagnostic);
+    expect(copied.runs[0].files[6].commitDiagnostics.confirmed.nota).toEqual({
+      insert: 0,
+      update: 0,
+      delete: 0,
+    });
+    expect(copied.runs[0].recentEvents).toHaveLength(50);
+    expect(copied.runs[0].coverage.commitDiagnosticsMeasured).toBe(1);
+    expect(text).not.toContain('sentinela');
+    expect(remoteRequest).not.toHaveBeenCalled();
+    // The optional diagnostic is detached on collection and on export.
+    rows.disciplina.update = 888;
+    expect(
+      value.snapshot().runs[0]!.files[6]!.commitDiagnostics!.confirmed!.disciplina.update,
+    ).toBe(1);
+  });
+
+  it('keeps absent/invalid diagnostics unavailable instead of fabricating zero or leaking nested fields', () => {
+    const value = report(false, 18);
+    value.record(
+      1,
+      {
+        stage: 'persist-request',
+        commitDiagnostics: { password: 'PRIVATE-I-SENTINEL', confirmed: { nota: 0 } },
+      },
+      6,
+    );
+    expect(value.snapshot().runs[0]!.files[6]!.commitDiagnostics).toBeNull();
+    expect(value.exportText()).not.toContain('PRIVATE-I-SENTINEL');
+    expect(value.snapshot().runs[0]!.files[0]!.commitDiagnostics).toBeNull();
   });
 });

@@ -22,6 +22,10 @@ import {
   type GradebookImportPersistenceResponseV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import {
+  IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1,
+  serializeImportCommitDiagnosticsHeaderV1,
+} from '../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
+import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
@@ -36,7 +40,36 @@ type ImportObservationV1 = {
   handlerMs: number | null;
   payloadBytes: number | null;
   offerCount: number | null;
+  lifecycleCompleted: boolean;
 };
+
+function commitDiagnostics(observation: ImportObservationV1) {
+  try {
+    return (
+      observation.observer?.commitDiagnostics(
+        observation.outcome,
+        observation.lifecycleCompleted,
+      ) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+function withCommitDiagnostics(value: Response, observation: ImportObservationV1): Response {
+  try {
+    const diagnostic = serializeImportCommitDiagnosticsHeaderV1(commitDiagnostics(observation));
+    if (diagnostic === null) return value;
+    const headers = new Headers(value.headers);
+    headers.set(IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1, diagnostic);
+    return new Response(value.body, {
+      status: value.status,
+      statusText: value.statusText,
+      headers,
+    });
+  } catch {
+    return value;
+  }
+}
 function statusFor(value: GradebookImportPersistenceResponseV9): number {
   switch (value.state) {
     case 'applied':
@@ -131,6 +164,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     handlerMs: null,
     payloadBytes: null,
     offerCount: null,
+    lifecycleCompleted: false,
   };
   try {
     const env = validateEnv((context as Context).env);
@@ -142,8 +176,13 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
         observation,
       ),
     );
+    // The official wrapper has now finished its close boundary as well as the outer commit.
+    observation.lifecycleCompleted = true;
     return withSecurityHeaders(
-      routed ?? Response.json({ transportVersion: 9, state: 'unavailable' }, { status: 503 }),
+      withCommitDiagnostics(
+        routed ?? Response.json({ transportVersion: 9, state: 'unavailable' }, { status: 503 }),
+        observation,
+      ),
       true,
     );
   } catch (error) {
@@ -166,7 +205,10 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
           : { transportVersion: 9, state: 'unavailable' };
     if (status >= 500)
       console.error(JSON.stringify({ message: 'gradebook_relational_import_failed' }));
-    return withSecurityHeaders(Response.json(value, { status }), true);
+    return withSecurityHeaders(
+      withCommitDiagnostics(Response.json(value, { status }), observation),
+      true,
+    );
   } finally {
     if (observation.observer) {
       emitImportPerformanceV1({
@@ -176,6 +218,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
         requestLifecycleMs: performance.now() - started,
         payloadBytes: observation.payloadBytes,
         offerCount: observation.offerCount,
+        commitDiagnostics: commitDiagnostics(observation),
         ...observation.observer.snapshot(),
       });
     }

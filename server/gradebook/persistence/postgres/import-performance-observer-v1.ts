@@ -1,5 +1,12 @@
 import type { GradebookPostgresValueV1 } from './postgres-values-v1';
 import type { GradebookPostgresWritePortV1 } from './postgres-database-v1';
+import {
+  emptyImportCommitAffectedRowsV1,
+  IMPORT_COMMIT_DIAGNOSTICS_CATEGORIES_V1,
+  type ImportCommitActionV1,
+  type ImportCommitCategoryV1,
+  type ImportCommitDiagnosticsV1,
+} from '../../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 
 export type ImportFlushReasonV1 =
   | 'read-boundary'
@@ -103,6 +110,56 @@ function category(query: string): SqlCategoryV1 {
   return 'other';
 }
 
+const markedMutations: Partial<
+  Record<ImportSqlMarkerV1, readonly [ImportCommitCategoryV1, ImportCommitActionV1]>
+> = {
+  'catalog-disciplines-create': ['disciplina', 'insert'],
+  'catalog-disciplines-update': ['disciplina', 'update'],
+  'catalog-offers-create': ['oferta', 'insert'],
+  'instruments-create': ['instrumento', 'insert'],
+  'instruments-update': ['instrumento', 'update'],
+  'instruments-retire-notes': ['nota', 'delete'],
+  'instruments-retire': ['instrumento', 'delete'],
+};
+function directMutation(
+  query: string,
+  known: ImportSqlMarkerV1 | null,
+): {
+  category: ImportCommitCategoryV1;
+  action: ImportCommitActionV1;
+} | null {
+  const entry = known === null ? undefined : markedMutations[known];
+  if (entry) return { category: entry[0], action: entry[1] };
+  if (!/^\s*(?:insert|update|delete)\b/iu.test(query)) return null;
+  const match = /^(insert into|update|delete from) gradebook\.([a-z_]+)\b/u.exec(
+    query.trim().replace(/\s+/gu, ' ').toLowerCase(),
+  );
+  if (!match) return null;
+  const table = match[2]!;
+  const tableCategory: ImportCommitCategoryV1 = [
+    'professor',
+    'disciplina',
+    'oferta',
+    'instrumento',
+    'nota',
+    'fechamento',
+  ].includes(table)
+    ? (table as ImportCommitCategoryV1)
+    : [
+          'importacao',
+          'fechamento_historico',
+          'vinculo_historico',
+          'nota_historico',
+          'instrumento_historico',
+        ].includes(table)
+      ? 'history-import'
+      : 'other';
+  return {
+    category: tableCategory,
+    action: match[1] === 'insert into' ? 'insert' : match[1] === 'update' ? 'update' : 'delete',
+  };
+}
+
 /** One observer per authorized request, below V11's buffer; no parameters/results retained. */
 export function createImportPerformanceObserverV1() {
   const metrics = {
@@ -159,16 +216,29 @@ export function createImportPerformanceObserverV1() {
   };
 
   let currentReadSetRows = 0;
+  const attemptedRows = emptyImportCommitAffectedRowsV1();
+  const committedRows = emptyImportCommitAffectedRowsV1();
+  let unmeasuredStatements = 0;
+
+  function copyRows(rows: typeof attemptedRows) {
+    return Object.fromEntries(
+      IMPORT_COMMIT_DIAGNOSTICS_CATEGORIES_V1.map((name) => [name, { ...rows[name] }]),
+    ) as typeof attemptedRows;
+  }
 
   async function observeSql<T>(
     sql: string,
     operation: () => Promise<T>,
     rowCount: (result: T) => number,
     values: readonly GradebookPostgresValueV1[] = [],
-    changes: (result: T) => number = () => 0,
+    changes: (result: T) => number | null = () => null,
   ): Promise<T> {
     const kind = category(sql);
     const known = marker(sql);
+    const mutation = directMutation(sql, known);
+    // Compound/unclassified DML has no safe per-category cardinality attribution.
+    const unclassifiedMutation =
+      mutation === null && /\b(?:insert\s+into|update|delete\s+from)\b/iu.test(sql);
     if (known?.startsWith('catalog-')) {
       if (kind === 'read') metrics.catalogReadCalls++;
       else metrics.catalogWriteCalls++;
@@ -211,17 +281,30 @@ export function createImportPerformanceObserverV1() {
     const started = importPerformanceNowV1();
     try {
       const result = await operation();
+      if (mutation) {
+        const affected = changes(result);
+        const previous = attemptedRows[mutation.category][mutation.action];
+        if (
+          affected !== null &&
+          Number.isSafeInteger(affected) &&
+          affected >= 0 &&
+          Number.isSafeInteger(previous + affected)
+        ) {
+          attemptedRows[mutation.category][mutation.action] += affected;
+        } else unmeasuredStatements++;
+      } else if (unclassifiedMutation) unmeasuredStatements++;
       if (kind === 'read') metrics.rowsRead += rowCount(result);
       if (known?.startsWith('read-set-')) {
         currentReadSetRows += rowCount(result);
         metrics.maximumReadSetRows = Math.max(metrics.maximumReadSetRows, currentReadSetRows);
       }
-      if (known === 'instruments-create') metrics.instrumentsCreated += changes(result);
-      if (known === 'instruments-update') metrics.instrumentsUpdated += changes(result);
-      if (known === 'instruments-retire') metrics.instrumentsRetired += changes(result);
+      if (known === 'instruments-create') metrics.instrumentsCreated += changes(result) ?? 0;
+      if (known === 'instruments-update') metrics.instrumentsUpdated += changes(result) ?? 0;
+      if (known === 'instruments-retire') metrics.instrumentsRetired += changes(result) ?? 0;
       return result;
     } catch (cause) {
       metrics.sqlFailedCalls++;
+      if (mutation || unclassifiedMutation) unmeasuredStatements++;
       throw cause;
     } finally {
       if (kind === 'coordination') metrics.coordinationCallMs += duration(started);
@@ -235,6 +318,7 @@ export function createImportPerformanceObserverV1() {
         () => database.query(sql, values),
         (result) => result.length,
         values,
+        (result) => (/\bRETURNING\b/iu.test(sql) ? result.length : null),
       );
     const executeNative: GradebookPostgresWritePortV1['executeNative'] = (sql, values) =>
       observeSql(
@@ -246,6 +330,7 @@ export function createImportPerformanceObserverV1() {
       );
     const transaction: TransactionPortV1['transaction'] = async (operation) => {
       const started = importPerformanceNowV1();
+      const before = depth === 0 ? copyRows(attemptedRows) : null;
       let callbackCompleted = false;
       try {
         const result = await (database as unknown as TransactionPortV1).transaction(async (tx) => {
@@ -253,7 +338,14 @@ export function createImportPerformanceObserverV1() {
           callbackCompleted = true;
           return result;
         });
-        if (depth === 0) metrics.transactionOutcome = 'committed';
+        if (depth === 0) {
+          metrics.transactionOutcome = 'committed';
+          for (const name of IMPORT_COMMIT_DIAGNOSTICS_CATEGORIES_V1) {
+            for (const action of ['insert', 'update', 'delete'] as const) {
+              committedRows[name][action] += attemptedRows[name][action] - before![name][action];
+            }
+          }
+        }
         return result;
       } catch (cause) {
         if (depth === 0) metrics.transactionOutcome = callbackCompleted ? 'unknown' : 'rejected';
@@ -277,6 +369,25 @@ export function createImportPerformanceObserverV1() {
 
   return {
     wrap,
+    commitDiagnostics(
+      outcome: string | null,
+      lifecycleCompleted = false,
+    ): ImportCommitDiagnosticsV1 {
+      const confirmed =
+        lifecycleCompleted &&
+        metrics.transactionOutcome === 'committed' &&
+        (outcome === 'applied' || outcome === 'no-changes');
+      return {
+        version: 1,
+        scope: 'direct-import-statements',
+        coverage: unmeasuredStatements === 0 ? 'complete' : 'partial',
+        transaction: metrics.transactionOutcome ?? 'not-started',
+        attempted: copyRows(attemptedRows),
+        confirmed: confirmed ? copyRows(committedRows) : null,
+        unmeasuredStatements,
+        excludedEffects: 'sql-functions-triggers-portal',
+      };
+    },
     bufferedMutation() {
       metrics.bufferedLogicalMutations++;
     },
@@ -308,6 +419,9 @@ export function createImportPerformanceObserverV1() {
         ...metrics,
         flushReasonCounts: { ...metrics.flushReasonCounts },
         groupCounts: { ...groupCounts },
+        attemptedAffectedRows: copyRows(attemptedRows),
+        writeCoverage: unmeasuredStatements === 0 ? 'complete' : 'partial',
+        unmeasuredWriteStatements: unmeasuredStatements,
       };
     },
   };

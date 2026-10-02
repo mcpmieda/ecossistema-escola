@@ -14,6 +14,10 @@ import {
   IMPORT_PENDING_LIMITS_V1,
 } from '../../../server/gradebook/persistence/postgres/json-record-chunks-v1';
 import { createRelationalImportIdempotencyFixtureV11 } from '../fixtures/relational-import-idempotency-v11';
+import {
+  emptyImportCommitAffectedRowsV1,
+  type ImportCommitCategoryV1,
+} from '../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 
 type Fixture = Awaited<ReturnType<typeof createRelationalImportIdempotencyFixtureV11>>;
 type Execution = Awaited<ReturnType<Fixture['execute']>>;
@@ -111,6 +115,40 @@ function assertNoWrites(execution: Execution) {
     instrumentsRetired: 0,
     transactionOutcome: 'committed',
   });
+  expect(execution.diagnostics).toMatchObject({
+    coverage: 'complete',
+    transaction: 'committed',
+    unmeasuredStatements: 0,
+    attempted: emptyImportCommitAffectedRowsV1(),
+    confirmed: emptyImportCommitAffectedRowsV1(),
+  });
+}
+function assertPhysicalAffectedRows(execution: Execution) {
+  const expected = emptyImportCommitAffectedRowsV1();
+  for (const [name, measurement] of Object.entries(execution.counts.dml)) {
+    const [table, action] = name.split(':');
+    const category: ImportCommitCategoryV1 = [
+      'professor',
+      'disciplina',
+      'oferta',
+      'instrumento',
+      'nota',
+      'fechamento',
+    ].includes(table!)
+      ? (table as ImportCommitCategoryV1)
+      : ['vinculo_historico', 'fechamento_historico', 'importacao'].includes(table!)
+        ? 'history-import'
+        : 'other';
+    expected[category][action as 'insert' | 'update' | 'delete'] += measurement.affectedRows;
+  }
+  expect(execution.diagnostics).toMatchObject({
+    coverage: 'complete',
+    transaction: 'committed',
+    unmeasuredStatements: 0,
+    attempted: expected,
+    confirmed: expected,
+    excludedEffects: 'sql-functions-triggers-portal',
+  });
 }
 async function stableThree(
   request: GradebookImportPersistenceRequestV9,
@@ -120,6 +158,7 @@ async function stableThree(
   const sourceBefore = structuredClone(request);
   const firstRequest = structuredClone(request);
   const first = await fixture.execute(firstRequest);
+  assertPhysicalAffectedRows(first);
   expect(firstRequest).toEqual(sourceBefore);
   expect(first.response.state).toBe(state);
   if (state === 'no-changes') assertNoWrites(first);
@@ -202,6 +241,8 @@ describe('H1/H2: real V11 idempotency against ordered relational and Portal fact
       summary: { committedWrites: { total: 1, academicRecordVersions: 1 } },
     });
     expect(first.counts.dml).toEqual({ 'professor:update': { statements: 1, affectedRows: 1 } });
+    expect(first.diagnostics.confirmed?.professor.update).toBe(1);
+    expect(first.diagnostics.confirmed?.nota).toEqual({ insert: 0, update: 0, delete: 0 });
     expect(first.metrics.bufferedLogicalMutations).toBe(0);
     expect(await fixture.revision()).toEqual({
       academic: beforeRevision.academic,
@@ -219,6 +260,8 @@ describe('H1/H2: real V11 idempotency against ordered relational and Portal fact
     const revision = await fixture.revision();
     const changed = await stableThree(b);
     expect(changed.counts.dml).toEqual({ 'disciplina:update': { statements: 1, affectedRows: 1 } });
+    expect(changed.diagnostics.confirmed?.disciplina.update).toBe(1);
+    expect(changed.diagnostics.confirmed?.nota).toEqual({ insert: 0, update: 0, delete: 0 });
     expect(changed.metrics.bufferedLogicalMutations).toBe(0);
     expect(await fixture.revision()).toEqual({
       academic: revision.academic + 1,
@@ -652,6 +695,10 @@ describe('H1/H2: real V11 idempotency against ordered relational and Portal fact
       const before = await fixture.snapshot();
       fixture.setFailure(failure);
       await expect(fixture.execute(source)).rejects.toThrow(`synthetic-${failure}`);
+      expect(fixture.lastCommitDiagnostics()).toMatchObject({
+        transaction: 'rejected',
+        confirmed: null,
+      });
       expect(fixture.lastCounts()).toMatchObject({ commits: 0, rollbacks: 1 });
       expect(await fixture.snapshot()).toEqual(before);
       fixture.setFailure('none');

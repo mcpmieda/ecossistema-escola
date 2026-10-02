@@ -1,3 +1,9 @@
+import {
+  isImportCommitDiagnosticsV1,
+  parseImportCommitDiagnosticsHeaderV1,
+  serializeImportCommitDiagnosticsHeaderV1,
+  type ImportCommitDiagnosticsV1,
+} from '../../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 /** Browser-only, bounded diagnostics. Never accepts academic objects or free-form labels. */
 export const IMPORT_TIMING_FILE_LIMIT_V1 = 50;
 export const IMPORT_TIMING_TAIL_LIMIT_V1 = 50;
@@ -150,6 +156,7 @@ export interface ImportTimingFileV1 {
   dispatch: ImportTimingEventV1 | null;
   http: ImportTimingEventV1 | null;
   persistence: ImportTimingEventV1 | null;
+  commitDiagnostics: ImportCommitDiagnosticsV1 | null;
 }
 interface TimingRun {
   runOrdinal: number;
@@ -205,13 +212,19 @@ export class ImportTimingReportV1 {
         dispatch: null,
         http: null,
         persistence: null,
+        commitDiagnostics: null,
       }));
     const run: TimingRun = {
       runOrdinal,
       runKind,
       status: 'in-progress',
       recognitionStatus: runKind === 'resume' ? 'not-performed' : 'pending',
-      start: { stage: 'batch-start', runOrdinal, runKind, fileCount: files.length },
+      start: {
+        stage: 'batch-start',
+        runOrdinal,
+        runKind,
+        fileCount: files.length,
+      },
       library: null,
       recognition: null,
       files,
@@ -280,6 +293,14 @@ export class ImportTimingReportV1 {
             break;
           case 'persist-request':
             file.http = event;
+            {
+              const diagnostic = (value as { commitDiagnostics?: unknown })?.commitDiagnostics;
+              file.commitDiagnostics = isImportCommitDiagnosticsV1(diagnostic)
+                ? parseImportCommitDiagnosticsHeaderV1(
+                    serializeImportCommitDiagnosticsHeaderV1(diagnostic),
+                  )
+                : null;
+            }
             break;
           case 'persistence-result':
             file.persistence = event;
@@ -338,6 +359,8 @@ export class ImportTimingReportV1 {
             auditInitialMeasured: run.files.filter((file) => file.auditInitial !== null).length,
             persistenceDispatched: run.files.filter((file) => file.dispatch !== null).length,
             httpMeasured: run.files.filter((file) => file.http !== null).length,
+            commitDiagnosticsMeasured: run.files.filter((file) => file.commitDiagnostics !== null)
+              .length,
             persistenceResults: run.files.filter((file) => file.persistence !== null).length,
             measurementStatus:
               run.diagnosticFailures > 0 ||
@@ -362,6 +385,11 @@ export class ImportTimingReportV1 {
             dispatch: file.dispatch && { ...file.dispatch },
             http: file.http && { ...file.http },
             persistence: file.persistence && { ...file.persistence },
+            commitDiagnostics: file.commitDiagnostics
+              ? parseImportCommitDiagnosticsHeaderV1(
+                  serializeImportCommitDiagnosticsHeaderV1(file.commitDiagnostics),
+                )
+              : null,
           })),
           recentEvents: run.recentEvents.map((event) => ({ ...event })),
         })),
