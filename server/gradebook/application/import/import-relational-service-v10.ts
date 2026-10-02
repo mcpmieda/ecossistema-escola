@@ -21,6 +21,12 @@ type NonCommittedImportResponseV10 = Exclude<
   { readonly state: 'applied' | 'no-changes' }
 >;
 
+function isNonCommittedImportResponseV10(
+  response: GradebookImportPersistenceResponseV9,
+): response is NonCommittedImportResponseV10 {
+  return response.state !== 'applied' && response.state !== 'no-changes';
+}
+
 class ImportRollbackV10 extends Error {
   constructor(readonly response: NonCommittedImportResponseV10) {
     super('gradebook-import-transaction-not-committed');
@@ -138,7 +144,7 @@ export function createGradebookRelationalImportServiceV10(database: GradebookPos
             await createGradebookRelationalImportServiceV9(transaction).execute(filtered);
           // The native facade reuses nested transactions without a savepoint.
           // A refusal caught by V9 must still reach the outer rollback boundary.
-          if (result.state !== 'applied' && result.state !== 'no-changes') {
+          if (isNonCommittedImportResponseV10(result)) {
             throw new ImportRollbackV10(result);
           }
           return result;
