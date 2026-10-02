@@ -42,6 +42,10 @@ it('keeps the actual admin account filter and detail for the same identity, but 
   const user = userEvent.setup();
   const filter = await screen.findByLabelText('Buscar aluno');
   await user.type(filter, 'SYNTHETIC');
+  // Open the filtered results after the debounced search replaces the previous list.
+  await waitFor(() => expect(mock.queries).toContainEqual(expect.objectContaining({
+    operation: 'accounts-read', nameSearch: 'SYNTHETIC',
+  })));
   await user.click(
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }),
   );
