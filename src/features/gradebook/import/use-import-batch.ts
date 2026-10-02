@@ -13,10 +13,7 @@ import {
   type BatchSuccess,
   type ImportWorkbookFileTimingV1,
 } from './import-batch';
-import { preloadSheetJs } from './sheetjs-loader';
-import { WorkbookWorkerClientV1, workbookWorkerCapacityV1 } from './workbook-worker-client-v1';
-import { SHEETJS_VERSION_V1 } from './sheetjs-source-v1';
-import type { SheetJs } from './spreadsheet-recognizer';
+import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
 import {
   createGradebookCanonicalImportRequestV9,
   unavailableCellsV9,
@@ -272,8 +269,6 @@ export function selectPendingGradebookImportResultsV1(
 export function useImportBatch() {
   const academicContext = useGradebookYear();
   const inFlight = useRef(false);
-  const localReader = useRef<WorkbookWorkerClientV1 | null>(null);
-  const readAbort = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const batchTiming = useRef<BatchObservationV1 | null>(null);
   const runOrdinal = useRef(0);
@@ -311,9 +306,6 @@ export function useImportBatch() {
     preloadSheetJs();
     return () => {
       mounted.current = false;
-      readAbort.current?.abort();
-      localReader.current?.close();
-      localReader.current = null;
       generation.current++;
       inFlight.current = false;
       batchTiming.current = null;
@@ -1072,49 +1064,11 @@ export function useImportBatch() {
     );
     const batchStartedAt = observation.startedAt;
     let recognitionStartedAt: number | null = null;
-    const controller = new AbortController();
-    readAbort.current?.abort();
-    localReader.current?.close();
-    readAbort.current = controller;
-    const capacity = workbookWorkerCapacityV1(
-      navigator.hardwareConcurrency,
-      (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
-    );
-    const reader = new WorkbookWorkerClientV1({
-      generation: observation.generation,
-      concurrency: selected.length > 1 ? capacity : 1,
-      onReady: (workerInitializationMs, workerLibraryEvaluationMs, maximumLocalWorkers) => {
-        if (isCurrent(observation))
-          appendTiming(
-            '[gradebook-import-browser-timing]',
-            {
-              version: 2,
-              stage: 'local-reader',
-              localReaderMode: maximumLocalWorkers === 2 ? 'W2' : 'W1',
-              workerInitializationMs,
-              workerLibraryEvaluationMs,
-              maximumLocalWorkers,
-            },
-            observation,
-          );
-      },
-      onFallback: (workerFallback, sourceFileIndex) => {
-        if (isCurrent(observation))
-          appendTiming(
-            '[gradebook-import-browser-timing]',
-            { version: 2, stage: 'local-reader', localReaderMode: 'W0', workerFallback },
-            observation,
-            sourceFileIndex ?? undefined,
-          );
-      },
-    });
-    localReader.current = reader;
     try {
       const libraryStartedAt = nowMs();
-      let xlsx: Pick<SheetJs, 'version'> | undefined;
+      let xlsx;
       try {
-        await reader.initialize();
-        xlsx = { version: SHEETJS_VERSION_V1 };
+        xlsx = await loadSheetJs();
       } finally {
         observation.sheetJsWaitMs = elapsedMs(libraryStartedAt);
         appendTiming(
@@ -1139,16 +1093,6 @@ export function useImportBatch() {
         },
         {
           captureValues: true,
-          localExecutor: reader,
-          signal: controller.signal,
-          onLocalTiming: (timing) => {
-            if (isCurrent(observation))
-              appendTiming(
-                '[gradebook-import-browser-timing]',
-                { version: 2, stage: 'local-reader', ...timing },
-                observation,
-              );
-          },
           onFileTiming: (timing: ImportWorkbookFileTimingV1) => {
             if (isCurrent(observation))
               appendTiming(
@@ -1164,8 +1108,6 @@ export function useImportBatch() {
           },
         },
       );
-      reader.close();
-      if (localReader.current === reader) localReader.current = null;
       if (!isCurrent(observation)) return;
       observation.recognitionCallMs = elapsedMs(recognitionStartedAt);
       observation.recognitionFinishedAtMs = elapsedMs(observation.startedAt);
@@ -1244,10 +1186,6 @@ export function useImportBatch() {
         setError(failureMessage(cause, 'Não foi possível concluir a importação.'));
       }
     } finally {
-      controller.abort();
-      reader.close();
-      if (localReader.current === reader) localReader.current = null;
-      if (readAbort.current === controller) readAbort.current = null;
       if (isCurrent(observation)) {
         finishBatchTiming(observation);
         setLoading(false);

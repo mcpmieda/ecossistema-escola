@@ -20,7 +20,6 @@ import {
   type WorkbookSummary,
 } from './spreadsheet-recognizer';
 import { readWorkbookData, type WorkbookReadTimingV1 } from './workbook-reader';
-import type { WorkbookLocalExecutorV1 } from './workbook-worker-protocol-v1';
 
 export const MAX_NOTES_IMPORT_FILES = 50;
 
@@ -58,8 +57,6 @@ export interface ImportWorkbookFileTimingV1 {
   readonly current: number;
   readonly total: number;
   readonly fileReadMs: number | null;
-  readonly localQueueMs?: number | null;
-  readonly workerRoundTripMs?: number | null;
   readonly manifestMs: number | null;
   readonly yieldMs: number | null;
   readonly recognitionMs: number | null;
@@ -91,13 +88,6 @@ export type BatchResult = {
 
 export interface ImportBatchRuntime extends FileManifestRuntime {
   readonly captureValues?: boolean;
-  readonly localExecutor?: WorkbookLocalExecutorV1;
-  readonly signal?: AbortSignal;
-  readonly onLocalTiming?: (timing: {
-    maximumActiveLocalInputs: number;
-    maximumActiveInputBytes: number;
-    inputByteBudget: number;
-  }) => void;
   readonly onStageProgress?: (progress: BatchProgress) => void;
   readonly yieldBeforeRecognition?: () => Promise<void>;
   readonly onFileTiming?: (timing: ImportWorkbookFileTimingV1) => void;
@@ -313,7 +303,7 @@ function createBatchResult(
 
 export async function importWorkbookBatch(
   files: File[],
-  xlsx: SheetJs | Pick<SheetJs, 'version'>,
+  xlsx: SheetJs,
   onProgress: (progress: BatchProgress) => void,
   runtime: ImportBatchRuntime = {},
 ): Promise<BatchResult> {
@@ -324,37 +314,10 @@ export async function importWorkbookBatch(
   const failureDetails: BatchFailureDetail[] = [];
   const fileResults: ImportBatchFileResultV1[] = [];
   const diagnostics: ImportFileDiagnosticV1[] = [];
-  const outcomes: {
-    successes: BatchSuccess[];
-    failures: BatchFailure[];
-    failureDetails: BatchFailureDetail[];
-    fileResults: ImportBatchFileResultV1[];
-    diagnostics: ImportFileDiagnosticV1[];
-  }[] = [];
-  let completed = 0;
-  const localStartedAt = nowMs();
-  let maximumActiveLocalInputs = 0;
-  let maximumActiveInputBytes = 0;
-  let fatal: { cause: unknown } | null = null;
-  function checkLocalReadState(): void {
-    runtime.signal?.throwIfAborted();
-    if (fatal) throw fatal.cause;
-  }
-  async function processFile(index: number): Promise<void> {
-    checkLocalReadState();
-    const file = files[index]!;
-    const localQueueMs = runtime.localExecutor ? elapsedMs(localStartedAt) : null;
-    const local = {
-      successes: [] as BatchSuccess[],
-      failures: [] as BatchFailure[],
-      failureDetails: [] as BatchFailureDetail[],
-      fileResults: [] as ImportBatchFileResultV1[],
-      diagnostics: [] as ImportFileDiagnosticV1[],
-    };
-    outcomes[index] = local;
-    const { successes, failures, failureDetails, fileResults, diagnostics } = local;
-    const failureCollections = { failures, failureDetails, fileResults, diagnostics };
-    const current = runtime.localExecutor ? completed + 1 : index + 1;
+  const failureCollections = { failures, failureDetails, fileResults, diagnostics };
+
+  for (const [index, file] of files.entries()) {
+    const current = index + 1;
     const importFileId = `import-file:${String(batchId)}:${index}` as ImportFileId;
     const descriptor = sourceFileDescriptor(file);
     const preparationProgress = {
@@ -380,7 +343,6 @@ export async function importWorkbookBatch(
         current,
         total: files.length,
         fileReadMs,
-        ...(runtime.localExecutor ? { localQueueMs, workerRoundTripMs: recognitionMs } : {}),
         manifestMs,
         yieldMs,
         recognitionMs,
@@ -411,16 +373,14 @@ export async function importWorkbookBatch(
         failureCollections,
       );
       emitFileTiming('failed', 'unsupported-format');
-      return;
+      continue;
     }
 
     let data: ArrayBuffer;
     const fileReadStartedAt = nowMs();
     try {
       data = await file.arrayBuffer();
-      checkLocalReadState();
     } catch (cause) {
-      checkLocalReadState();
       fileReadMs = elapsedMs(fileReadStartedAt);
       const message = failureMessage(cause, 'Não foi possível ler o arquivo.');
       recordFailure(
@@ -437,7 +397,7 @@ export async function importWorkbookBatch(
         failureCollections,
       );
       emitFileTiming('failed', 'file-read');
-      return;
+      continue;
     }
     fileReadMs = elapsedMs(fileReadStartedAt);
 
@@ -445,9 +405,7 @@ export async function importWorkbookBatch(
     const manifestStartedAt = nowMs();
     try {
       manifest = await createSourceFileManifest(file, data, xlsx.version, runtime);
-      checkLocalReadState();
     } catch (cause) {
-      checkLocalReadState();
       manifestMs = elapsedMs(manifestStartedAt);
       const message = failureMessage(cause, 'Não foi possível calcular o SHA-256 do arquivo.');
       recordFailure(
@@ -464,7 +422,7 @@ export async function importWorkbookBatch(
         failureCollections,
       );
       emitFileTiming('failed', 'manifest');
-      return;
+      continue;
     }
     manifestMs = elapsedMs(manifestStartedAt);
 
@@ -476,33 +434,21 @@ export async function importWorkbookBatch(
     });
     const yieldStartedAt = nowMs();
     await (runtime.yieldBeforeRecognition?.() ?? yieldToBrowser());
-    checkLocalReadState();
     yieldMs = elapsedMs(yieldStartedAt);
 
     const recognitionStartedAt = nowMs();
     let outcome: ImportWorkbookFileTimingV1['outcome'] = 'failed';
     try {
-      const timingObserver = (timing: WorkbookReadTimingV1): void => {
-        workbookTiming = timing;
-      };
-      const summary = runtime.localExecutor
-        ? await runtime.localExecutor.read(
-            file,
-            data,
-            manifest,
-            index,
-            runtime.captureValues ?? false,
-            timingObserver,
-          )
-        : readWorkbookData(
-            file,
-            data,
-            xlsx as SheetJs,
-            manifest,
-            timingObserver,
-            runtime.captureValues,
-          );
-      checkLocalReadState();
+      const summary = readWorkbookData(
+        file,
+        data,
+        xlsx,
+        manifest,
+        (timing) => {
+          workbookTiming = timing;
+        },
+        runtime.captureValues,
+      );
       successes.push({ id: importFileId, summary, manifest });
       fileResults.push({
         id: importFileId,
@@ -513,12 +459,6 @@ export async function importWorkbookBatch(
       });
       outcome = 'recognized';
     } catch (cause) {
-      checkLocalReadState();
-      if (
-        cause instanceof Error &&
-        ['WorkbookWorkerSecurityErrorV1', 'AbortError'].includes(cause.name)
-      )
-        throw cause;
       const message = failureMessage(cause, 'Não foi possível reconhecer a planilha.');
       recordFailure(
         {
@@ -543,63 +483,6 @@ export async function importWorkbookBatch(
           : (measuredWorkbookTiming?.failureStage ?? 'workbook-recognition'),
       );
     }
-  }
-
-  // Prepare at most one input per worker. Oversize input runs alone, never rejected.
-  const active = new Map<Promise<void>, number>();
-  const concurrency = runtime.localExecutor?.concurrency ?? 1;
-  const budget = runtime.localExecutor?.inputByteBudget ?? Number.POSITIVE_INFINITY;
-  let nextIndex = 0;
-  while (nextIndex < files.length || active.size > 0) {
-    runtime.signal?.throwIfAborted();
-    if (fatal) throw (fatal as { cause: unknown }).cause;
-    const activeBytes = [...active.values()].reduce((sum, value) => sum + value, 0);
-    const nextFile = files[nextIndex];
-    if (
-      nextFile &&
-      active.size < concurrency &&
-      (active.size === 0 || activeBytes + nextFile.size <= budget)
-    ) {
-      const index = nextIndex++;
-      const task = processFile(index)
-        .catch((cause: unknown) => {
-          fatal ??= { cause };
-          throw cause;
-        })
-        .finally(() => {
-          active.delete(task);
-          completed++;
-          if (runtime.localExecutor && !fatal && !runtime.signal?.aborted) {
-            onProgress({
-              current: completed,
-              total: files.length,
-              fileName: files[index]!.name,
-              stage: 'recognizing',
-            });
-          }
-        });
-      // Retain handlers for every active task, including cancellation/fatal failures.
-      void task.catch(() => undefined);
-      active.set(task, nextFile.size);
-      maximumActiveLocalInputs = Math.max(maximumActiveLocalInputs, active.size);
-      maximumActiveInputBytes = Math.max(maximumActiveInputBytes, activeBytes + nextFile.size);
-      continue;
-    }
-    await Promise.race(active.keys());
-  }
-  if (fatal) throw (fatal as { cause: unknown }).cause;
-  if (runtime.localExecutor)
-    observeDiagnostic(runtime.onLocalTiming, {
-      maximumActiveLocalInputs,
-      maximumActiveInputBytes,
-      inputByteBudget: budget,
-    });
-  for (const outcome of outcomes) {
-    successes.push(...outcome.successes);
-    failures.push(...outcome.failures);
-    failureDetails.push(...outcome.failureDetails);
-    fileResults.push(...outcome.fileResults);
-    diagnostics.push(...outcome.diagnostics);
   }
 
   const updatedAt = (runtime.now?.() ?? new Date()).toISOString();

@@ -46,10 +46,10 @@ function routeContent(url, html, library, bundles) {
 }
 await mkdir(cache, { recursive: true });
 const loader = await readFile(
-  join(root, 'src/features/gradebook/import/sheetjs-source-v1.ts'),
+  join(root, 'src/features/gradebook/import/sheetjs-loader.ts'),
   'utf8',
 );
-const libraryUrl = loader.match(/const SHEETJS_SOURCE_V1\s*=\s*'([^']+)'/u)?.[1];
+const libraryUrl = loader.match(/const SHEETJS_SRC = '([^']+)'/u)?.[1];
 const integrity = loader.match(/sha384-[A-Za-z0-9+/=]+/u)?.[0];
 if (!libraryUrl || !integrity) throw new Error('Cannot read project library pin');
 const libraryPath = join(cache, 'sheetjs-0.20.3.js');

@@ -113,7 +113,7 @@ function writableCellType(value) {
   return 'n';
 }
 
-export function writableWorkbook(workbook) {
+function writableWorkbook(workbook) {
   const copy = structuredClone(workbook);
   for (const sheet of Object.values(copy.Sheets))
     for (const [address, cell] of Object.entries(sheet)) {

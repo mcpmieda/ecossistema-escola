@@ -5,59 +5,6 @@ import {
 } from '../../../src/features/gradebook/import/import-timing-report-v1';
 
 describe('bounded essential import timing report (G1)', () => {
-  it('retains bounded worker measures and original-position fallback independently of the tail', () => {
-    const report = new ImportTimingReportV1();
-    report.begin(1, 'initial', [0, 6]);
-    report.record(1, {
-      stage: 'local-reader',
-      localReaderMode: 'W2',
-      workerInitializationMs: 12,
-      workerLibraryEvaluationMs: 8,
-      maximumLocalWorkers: 2,
-    });
-    report.record(1, {
-      stage: 'local-reader',
-      maximumActiveLocalInputs: 2,
-      maximumActiveInputBytes: 1024,
-      inputByteBudget: 16 * 1024 * 1024,
-    });
-    report.record(1, {
-      stage: 'local-reader',
-      sourceFileIndex: 6,
-      localReaderMode: 'W0',
-      workerFallback: 'crash',
-      fileName: 'PRIVATE-WORKER-SENTINEL',
-      workerPayload: { password: 'PRIVATE-WORKER-SENTINEL' },
-    });
-    report.record(1, {
-      stage: 'recognition-file',
-      sourceFileIndex: 6,
-      localQueueMs: 0,
-      workerRoundTripMs: null,
-      xlsxReadMs: 4,
-    });
-    for (let i = 0; i < 501; i++) report.record(1, { stage: 'audit-request', sourceFileIndex: 0 });
-    const run = report.snapshot().runs[0]!;
-    expect(run.localReader).toMatchObject({
-      localReaderMode: 'W2',
-      maximumLocalWorkers: 2,
-      workerInitializationMs: 12,
-      maximumActiveLocalInputs: 2,
-      maximumActiveInputBytes: 1024,
-    });
-    expect(run.files[1]!.localReader).toMatchObject({
-      sourceFileIndex: 6,
-      workerFallback: 'crash',
-    });
-    expect(run.files[1]!.recognition).toMatchObject({
-      localQueueMs: 0,
-      workerRoundTripMs: null,
-      xlsxReadMs: 4,
-    });
-    expect(JSON.stringify(run)).not.toContain('PRIVATE-WORKER-SENTINEL');
-    run.localReader!.maximumLocalWorkers = 99;
-    expect(report.snapshot().runs[0]!.localReader!.maximumLocalWorkers).toBe(2);
-  });
   it('keeps at most 100 essential positions and 100 recent events across arbitrarily many resumes', () => {
     const report = new ImportTimingReportV1();
     const positions = Array.from({ length: 50 }, (_, index) => index);

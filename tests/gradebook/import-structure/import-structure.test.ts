@@ -103,14 +103,13 @@ describe('gradebook importer structure', () => {
 
   it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
     const sheetJsLoader = source('src/features/gradebook/import/sheetjs-loader.ts');
-    const sheetJsPin = source('src/features/gradebook/import/sheetjs-source-v1.ts');
-    expect(sheetJsPin).toContain(
+    expect(sheetJsLoader).toContain(
       'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
     );
-    expect(sheetJsPin).toContain(
+    expect(sheetJsLoader).toContain(
       'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT',
     );
-    expect(sheetJsLoader).toContain('script.integrity = SHEETJS_INTEGRITY');
+    expect(sheetJsLoader).toContain("script.integrity = SHEETJS_INTEGRITY");
     expect(sheetJsLoader).toContain("script.crossOrigin = 'anonymous'");
     expect(WORKBOOK_READ_OPTIONS).toEqual({
       type: 'array',
@@ -142,9 +141,7 @@ describe('gradebook importer structure', () => {
     expect(hook).toContain('createGradebookCanonicalImportRequestV9');
     expect(hook).toContain('persistGradebookCanonicalImportV9');
     expect(bridge).toContain("fetch('/api/gradebook/import-persistence'");
-    expect(panel).toContain(
-      'Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.',
-    );
+    expect(panel).toContain('Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.');
     expect(panel).toContain('Sem mudanças acadêmicas');
     expect(panel).not.toContain('Importação por valores V8');
     expect(`${panel}\n${hook}`).not.toContain('import-persistence-client-v2');

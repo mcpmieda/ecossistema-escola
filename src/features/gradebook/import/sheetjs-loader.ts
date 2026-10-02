@@ -1,9 +1,8 @@
 import type { SheetJs } from './spreadsheet-recognizer';
-import {
-  SHEETJS_LOCAL_SOURCE_V1 as SHEETJS_SRC,
-  SHEETJS_INTEGRITY_V1 as SHEETJS_INTEGRITY,
-  SHEETJS_VERSION_V1,
-} from './sheetjs-source-v1';
+
+const SHEETJS_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+const SHEETJS_INTEGRITY =
+  'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
 
 declare global {
   interface Window {
@@ -14,10 +13,7 @@ declare global {
 let sheetJsPromise: Promise<SheetJs> | null = null;
 
 export function loadSheetJs(): Promise<SheetJs> {
-  if (window.XLSX)
-    return window.XLSX.version === SHEETJS_VERSION_V1
-      ? Promise.resolve(window.XLSX)
-      : Promise.reject(new Error('A versão do leitor de planilhas é incompatível.'));
+  if (window.XLSX) return Promise.resolve(window.XLSX);
   if (sheetJsPromise) return sheetJsPromise;
 
   const pending = new Promise<SheetJs>((resolve, reject) => {
@@ -27,7 +23,7 @@ export function loadSheetJs(): Promise<SheetJs> {
     script.crossOrigin = 'anonymous';
     script.async = true;
     script.addEventListener('load', () => {
-      if (window.XLSX?.version === SHEETJS_VERSION_V1) resolve(window.XLSX);
+      if (window.XLSX) resolve(window.XLSX);
       else reject(new Error('O leitor de planilhas não foi carregado.'));
     });
     script.addEventListener('error', () => {
