@@ -89,7 +89,7 @@ async function status() {
 describe('native miscellaneous reads for B-15 slice 4', () => {
   it('reads historical bindings after the year locks and passes filtered facts to V9 in the same transaction', async () => {
     const { database, calls, transaction } = fixture(() => [{ turma_codigo: ' 6A ', numero: 1 }]);
-    mocks.persist.mockResolvedValue({ state: 'persisted' });
+    mocks.persist.mockResolvedValue({ transportVersion: 9, state: 'no-changes', summary: {} });
     const source = notes();
     await createGradebookRelationalImportServiceV10(database).execute(source);
     expect(calls).toEqual([
@@ -108,7 +108,9 @@ describe('native miscellaneous reads for B-15 slice 4', () => {
   it('preserves an empty historical selection and the unchanged input', async () => {
     const { database } = fixture(() => []);
     const source = notes();
-    await createGradebookRelationalImportServiceV10(database).execute(source);
+    const response = { transportVersion: 9, state: 'no-changes', summary: {} };
+    mocks.persist.mockResolvedValue(response);
+    expect(await createGradebookRelationalImportServiceV10(database).execute(source)).toBe(response);
     expect(mocks.persist.mock.calls[0]![1]).toBe(source);
   });
 
