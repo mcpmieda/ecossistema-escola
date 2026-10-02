@@ -10,7 +10,10 @@ import {
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresQuerySqlV1,
   type GradebookPostgresSqlV1,
+  type GradebookPostgresTransactionV1,
+  type GradebookPostgresScalarV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import type { GradebookPostgresValueV1 } from '../../../server/gradebook/persistence/postgres/postgres-values-v1';
 import { replaceGradebookImportDiagnosticsSnapshotV1 as replace } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import type { GradebookImportDiagnosticsAuditRequestV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { onRequest } from '../../../functions/api/gradebook/import-diagnostics';
@@ -34,6 +37,7 @@ let pg:PGlite;
 let database:GradebookPostgresDatabaseV1;
 let failInsert=false;
 let wrongInsertCount=false;
+let failCoordination=false;
 let transactions=0;
 const queries:string[]=[];
 
@@ -43,6 +47,7 @@ async function execute(client:Pick<PGlite,'query'>,query:string,values:readonly 
     throw new Error('snapshot-write-or-lock-outside-transaction');
   }
   if (failInsert && query.startsWith('INSERT INTO gradebook.importacao_diagnostico')) throw new Error('synthetic-insert-failure');
+  if (failCoordination && query.includes('ensure_year_coordination_v1')) throw new Error('synthetic-coordination-failure');
   const result=await client.query<Row>(query,[...values]);
   const count=wrongInsertCount && query.startsWith('INSERT INTO gradebook.importacao_diagnostico') ? 0 : result.affectedRows ?? result.rows.length;
   return Object.assign(result.rows,{count});
@@ -71,7 +76,7 @@ beforeAll(async () => {
 },30_000);
 afterAll(async () => { await database?.close(); });
 beforeEach(async () => {
-  failInsert=false; wrongInsertCount=false; transactions=0; queries.length=0;
+  failInsert=false; wrongInsertCount=false; failCoordination=false; transactions=0; queries.length=0;
   await pg.exec('TRUNCATE gradebook.importacao_diagnostico_tratamento, gradebook.importacao_diagnostico;');
   mocks.auth.mockReset().mockResolvedValue({oid:'00000000-0000-4000-8000-000000000001'});
   mocks.authorize.mockReset().mockReturnValue({});
@@ -98,6 +103,113 @@ async function request(method:'GET'|'POST',body?:unknown,origin='https://school.
 }
 
 describe('atomic current diagnostic snapshot on the complete relational schema', () => {
+  it('uses eleven physical calls for a changed one-year snapshot and seven for an identical one', async () => {
+    expect(await replace(database,observation(['a','z','A']))).toBe(3);
+    // The SQL facade counts physical unsafe calls, including locks and revisions.
+    expect(queries).toHaveLength(11);
+    const annualLock=queries.findIndex((query)=>query==='SELECT pg_advisory_xact_lock(613,$1::integer)');
+    expect(annualLock).toBeGreaterThan(0);
+    expect(queries[annualLock+1]).toContain('ensure_year_coordination_v1(y.ano)');
+    expect(queries.filter((query)=>query.includes('ensure_year_coordination_v1'))).toHaveLength(1);
+    expect(queries.filter((query)=>query.startsWith('SELECT DISTINCT ano'))).toHaveLength(1);
+    expect(queries.filter((query)=>query.includes('AS previous_years_json'))).toHaveLength(1);
+    const previous=await state();
+    queries.length=0;
+    expect(await replace(database,observation(['z','A','a']))).toBe(0);
+    expect(queries).toHaveLength(7);
+    expect(await state()).toEqual(previous);
+    expect(queries.some((query)=>/^(DELETE|INSERT) /u.test(query))).toBe(false);
+  });
+
+  it('validates newly observed years before accepting equality and retries under the same lock order', async () => {
+    await replace(database,observation(['same']));
+    const previous=await state();
+    queries.length=0;
+    let attempts=0;
+    const scoped={
+      ...database,
+      transaction<T>(operation:(transaction:GradebookPostgresTransactionV1)=>Promise<T>) {
+        attempts++;
+        return database.transaction((transaction)=>operation({
+          query:async <Row extends Record<string,unknown>>(text:string,parameters:readonly GradebookPostgresScalarV1[])=>{
+            const result=await transaction.query<Row>(text,parameters);
+            return (attempts===2 && text.startsWith('SELECT DISTINCT ano')
+              ? [{ano:2090},{ano:2091}] : result) as unknown as readonly Row[];
+          },
+          executeNative:async <Row extends Record<string,unknown>>(text:string,parameters:readonly GradebookPostgresValueV1[])=>{
+            const result=await transaction.executeNative<Row>(text,parameters);
+            return attempts===1 && text.includes('AS previous_years_json')
+              ? {...result,rows:[{previous_years_json:'[2090,2091]',unchanged:1}] as unknown as readonly Row[]}
+              : result;
+          },
+        }));
+      },
+    };
+    expect(await replace(scoped,observation(['same']))).toBe(0);
+    expect(attempts).toBe(2);
+    expect(await state()).toEqual(previous);
+    const firstContent=queries.findIndex((query)=>query.includes('hashtextextended'));
+    const nextTransaction=queries.findIndex((query,index)=>index>0 && query.includes('pg_advisory_xact_lock_shared'));
+    expect(queries.slice(firstContent,nextTransaction).some((query)=>query==='SELECT pg_advisory_xact_lock(613,$1::integer)')).toBe(false);
+    expect(queries.some((query)=>/^(DELETE|INSERT) /u.test(query))).toBe(false);
+  });
+
+  it('propagates a persistent scope change after exactly three transactions without writing', async () => {
+    let attempts=0;
+    const scoped={
+      ...database,
+      transaction<T>(operation:(transaction:GradebookPostgresTransactionV1)=>Promise<T>) {
+        attempts++;
+        return database.transaction((transaction)=>operation({
+          query:transaction.query.bind(transaction),
+          executeNative:async <Row extends Record<string,unknown>>(text:string,parameters:readonly GradebookPostgresValueV1[])=>{
+            const result=await transaction.executeNative<Row>(text,parameters);
+            return text.includes('AS previous_years_json')
+              ? {...result,rows:[{previous_years_json:'[2091]',unchanged:1}] as unknown as readonly Row[]}
+              : result;
+          },
+        }));
+      },
+    };
+    await expect(replace(scoped,observation(['same']))).rejects.toThrow('diagnostic-year-scope-changed');
+    expect(attempts).toBe(3);
+    expect(await state()).toEqual([]);
+    expect(queries.some((query)=>/^(DELETE|INSERT) /u.test(query))).toBe(false);
+  });
+
+  it('captures the request before the first asynchronous lock and uses the original observation', async () => {
+    const value=observation(['original']);
+    let changed=false;
+    const scoped={
+      ...database,
+      transaction<T>(operation:(transaction:GradebookPostgresTransactionV1)=>Promise<T>) {
+        return database.transaction((transaction)=>operation({
+          query:async <Row extends Record<string,unknown>>(text:string,parameters:readonly GradebookPostgresScalarV1[])=>{
+            if (!changed) {
+              changed=true;
+              Object.assign(value,{academicYear:2091,fileName:'late-mutated.xlsx',sha256:'f'.repeat(64)});
+              Object.assign(value.diagnostics[0]!,{key:'late-mutated',foundValue:'late-private-sentinel'});
+            }
+            return transaction.query<Row>(text,parameters);
+          },
+          executeNative:transaction.executeNative.bind(transaction),
+        }));
+      },
+    };
+    expect(await replace(scoped,value)).toBe(1);
+    expect(await state()).toMatchObject([{ano:2090,arquivo:'synthetic.xlsx',hash:'a'.repeat(64),chave:'original'}]);
+  });
+
+  it('preserves the previous evidence and revisions if conditional coordination fails', async () => {
+    await replace(database,observation(['old']));
+    const previous=await state();
+    const revision=(await pg.query('SELECT * FROM student_portal.academic_revision ORDER BY academic_year')).rows;
+    failCoordination=true;
+    await expect(replace(database,observation(['new'],{hash:'b'}))).rejects.toThrow('synthetic-coordination-failure');
+    expect(await state()).toEqual(previous);
+    expect((await pg.query('SELECT * FROM student_portal.academic_revision ORDER BY academic_year')).rows).toEqual(revision);
+  });
+
   it('keeps an identical observation unchanged and revisions only years whose evidence changes', async () => {
     const revision = async (year:number) => (await pg.query<{reset_counter:number;academic_counter:number}>(
       'SELECT reset_counter::integer,academic_counter::integer FROM student_portal.academic_revision WHERE academic_year=$1',[year])).rows[0];
@@ -115,6 +227,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
 
   it('ignores annual diagnostics for an unmaterialized year without recreating coordination', async () => {
     expect(await replace(database,observation(['stale'],{year:2092,hash:'f'}))).toBe(0);
+    expect(queries).toHaveLength(4);
     expect(await state()).toEqual([]);
     expect(
       (await pg.query(`SELECT
@@ -211,11 +324,22 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
   });
 
   it('preserves the exact previous rows if insertion fails after deletion', async () => {
-    await replace(database,observation(['old']));
+    await pg.exec("INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2) ON CONFLICT DO NOTHING");
+    await replace(database,observation(['old'],{year:2026}));
     const previous=await state();
+    const row=previous[0]!;
+    await pg.query(`INSERT INTO gradebook.importacao_diagnostico_tratamento
+      (diagnostico_origem_id,ano,arquivo,hash,chave,nivel,codigo,campo,acao,nota,chave_idempotencia,registrado_por)
+      VALUES ($1,2026,'synthetic.xlsx',decode(repeat('a',64),'hex'),'old','blocking-error','invalid-text','assessment',1,NULL,'rollback-treatment','00000000-0000-4000-8000-000000000001')`,[row.id]);
+    const treatments=(await pg.query('SELECT * FROM gradebook.importacao_diagnostico_tratamento')).rows;
+    const revisions=(await pg.query('SELECT * FROM student_portal.academic_revision ORDER BY academic_year')).rows;
+    const events=(await pg.query('SELECT * FROM student_portal.revision_event ORDER BY event_id')).rows;
     failInsert=true;
-    await expect(replace(database,observation(['new'],{hash:'b'}))).rejects.toThrow('synthetic-insert-failure');
+    await expect(replace(database,observation(['new'],{hash:'b',year:2026}))).rejects.toThrow('synthetic-insert-failure');
     expect(await state()).toEqual(previous);
+    expect((await pg.query('SELECT * FROM gradebook.importacao_diagnostico_tratamento')).rows).toEqual(treatments);
+    expect((await pg.query('SELECT * FROM student_portal.academic_revision ORDER BY academic_year')).rows).toEqual(revisions);
+    expect((await pg.query('SELECT * FROM student_portal.revision_event ORDER BY event_id')).rows).toEqual(events);
   });
 
   it('rolls back an incomplete write confirmation instead of reporting a partial snapshot', async () => {
@@ -254,6 +378,12 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     await replace(database,observation(['new'],{year:null,hash:'b'}));
     expect(await state()).toMatchObject([{ano:null,chave:'new'}]);
     expect(await state()).toHaveLength(1);
+    const previous=await state();
+    queries.length=0;
+    expect(await replace(database,observation(['new'],{year:null,hash:'b'}))).toBe(0);
+    expect(queries).toHaveLength(5);
+    expect(await state()).toEqual(previous);
+    expect(queries.some((query)=>query.includes('ensure_year_coordination_v1'))).toBe(false);
   });
 
   it('rejects duplicate keys and missing transaction support before writing', async () => {

@@ -96,12 +96,13 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         for (const year of years) {
           await transaction.query('SELECT pg_advisory_xact_lock(613,$1::integer)', [year]);
           const state = (await transaction.query<{ present: boolean | number }>(
-            'SELECT EXISTS(SELECT 1 FROM gradebook.ano_letivo WHERE ano=$1::smallint) AS present',
+            `SELECT TRUE AS present,
+       student_portal.ensure_year_coordination_v1(y.ano) AS coordination
+       FROM gradebook.ano_letivo y WHERE y.ano=$1::smallint`,
             [year],
           ))[0];
           const present = state?.present === true || state?.present === 1;
           if (present) {
-            await transaction.query('SELECT student_portal.ensure_year_coordination_v1($1::smallint)', [year]);
             materializedYears.add(year);
           }
         }
@@ -112,10 +113,15 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
           await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked', [key]);
         }
         // Never acquire an additional annual lock after the content lock: restart instead.
-        const previousYears = await affectedYears();
-        if (previousYears.some((year) => !years.includes(year))) throw scopeChanged;
-        const same = (await transaction.executeNative<{ unchanged: number }>(
-            `SELECT COALESCE(jsonb_agg(
+        // Both aggregates observe the same rows once, after the source/content locks.
+        // JSON uses the adapter's explicit *_json normalization, not a driver array cast.
+        const current = (await transaction.executeNative<{
+          previous_years_json: string;
+          unchanged: number;
+        }>(
+            `SELECT COALESCE(jsonb_agg(DISTINCT d.ano ORDER BY d.ano)
+         FILTER (WHERE d.ano IS NOT NULL), '[]'::jsonb) AS previous_years_json,
+       COALESCE(jsonb_agg(
          (to_jsonb(d)-'id'-'hash'-'primeiro_em'-'ultimo_em'-'ocorrencias')
          || jsonb_build_object('hash_hex',encode(d.hash,'hex'))
          ORDER BY d.chave COLLATE "C"), '[]'::jsonb) = $1::jsonb AS unchanged
@@ -123,7 +129,12 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
        WHERE (ano IS NOT DISTINCT FROM $2 AND arquivo = $3) OR hash = decode($4, 'hex')`,
           [postgresJsonTextV1(serialized), academicYear, fileName, sha256],
         )).rows[0];
-        if (same?.unchanged === 1) return 0;
+        if (!current) throw new Error('import-diagnostics-snapshot-state-unavailable');
+        const previousYears = JSON.parse(current.previous_years_json) as number[];
+        // Equality must never skip revalidation: a new year requires a bounded retry
+        // before any decision, never an additional annual lock after the content lock.
+        if (previousYears.some((year) => !years.includes(year))) throw scopeChanged;
+        if (current.unchanged === 1) return 0;
         const changedYears = [
           ...new Set([
             ...previousYears,

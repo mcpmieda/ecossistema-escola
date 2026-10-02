@@ -540,3 +540,85 @@ Reversão pelo fluxo normal somente dos commits H de testes/harness/documentaç�
 S0 ficou produtivo, não há configuração de representação, migration ou dados acadêmicos
 a desfazer; preservar F1–F6/G. Se futura proposta adotar outra representação, terá seus
 próprios gates/evidência e reversão delimitada. A #1225 permanece aberta.
+
+# Adendo I — diagnóstico de escritas e consultas da Auditoria
+
+Baseline revalidada: `a833f0debb78cb11125e6af87ae08da6df706038`, publicação
+`37045525765` aprovada. O [Adendo I consolidado](https://github.com/mcpmieda/ecossistema-escola/issues/1225#issuecomment-5958695356)
+incorpora o anexo do responsável antes da implementação. Nesta entrega A+C,
+as mudanças abaixo estão implementadas/testadas na branch; os SHAs finais,
+gates, integração e publicação são registrados na #1225.
+
+O header técnico opcional `X-Gradebook-Commit-Diagnostics` v1 contém somente
+categorias fechadas (`professor`, `disciplina`, `oferta`, `instrumento`, `nota`,
+`fechamento`, `history-import`, `other`), ação insert/update/delete e cardinalidades
+efetivas. Limite ASCII de 2 KiB, validação estrita e compatibilidade com ausência
+ou versão desconhecida. Não muda o corpo acadêmico V9, status, origem, autorização,
+requests ou as decisões de escrita. Uma falha do diagnóstico não altera o resultado.
+
+`attempted` mede linhas afetadas pelos comandos diretos observados abaixo do buffer,
+uma vez por execução física; UPDATE pode contar uma linha sem diferença de valor.
+`confirmed` só fica disponível após a transação externa e o fechamento do wrapper
+concluírem, com `applied`/`no-changes`. Rollback, recusa, finalizador ou fechamento
+incerto preservam tentativas e confirmação indisponível, sem inventar zero.
+Uma tentativa revertida/repetida não aumenta a matriz confirmada.
+
+`scope=direct-import-statements`, `coverage=complete|partial` e
+`unmeasuredStatements` delimitam a cobertura. Complete refere-se somente às
+instruções diretas observadas; `excludedEffects=sql-functions-triggers-portal`
+continua explícito. Efeitos internos de funções/triggers/Portal não viram notas
+contadas. Contadores lógicos V9 permanecem independentes. Não há síntese exclusiva
+`catalog-only` nem investigação retrospectiva por inferência.
+
+O cliente entrega somente o header validado pelo callback já associado à posição
+original. G mantém `commitDiagnostics` em um slot por posição, separado da cauda
+de 50 eventos, com 50 arquivos na execução inicial e na última retomada. Cópia
+é desligada dos objetos recebidos; ausência/invalidade fica null. Nenhum nome,
+valor acadêmico, ID, hash, SQL, parâmetro ou corpo entra nesse slot ou header.
+O teste da cópia usa o texto efetivamente entregue ao Clipboard após 501 eventos.
+
+Na Auditoria, o lock anual permanece explícito e anterior à consulta condicional
+que reúne presença do ano e coordenação. Ano ausente não é materializado.
+Depois dos mesmos locks de fonte/conteúdo, uma única agregação obtém anos anteriores
+distintos/não nulos/ordenados e igualdade JSON sobre o mesmo OR fonte/conteúdo.
+Preserva exclusões de campos técnicos, encode/decode, COLLATE C e a codificação
+JSON oficial. A revalidação de escopo ocorre antes de aceitar igualdade; escopo
+ampliado reinicia a transação pelo limite atual, sem lock anual tardio.
+
+| Cenário PostgreSQL nativo |    Baseline | Candidata | Resultado preservado                |
+| ------------------------- | ----------: | --------: | ----------------------------------- |
+| Primeiro snapshot, um ano | 13 chamadas |        11 | affected=1                          |
+| Snapshot idêntico         |           9 |         7 | affected=0                          |
+| Mudança de ano            |          17 |        14 | affected=2, mesmos eventos/revisões |
+
+[Evidência agregada](benchmarks/1225-adendo-i-audit-v1.json): PostgreSQL 18.6 local,
+Node 22.23.3, fixtures descartáveis e comparação baseline/candidata em estados
+frescos equivalentes. Os dois cenários nativos passaram nos dois lados, inclusive
+crescimento de escopo com contenção/retry real. 31 regressões direcionadas cobrem
+vazio, ano ausente/nulo, captura antes do await, tratamentos, rollback após DELETE,
+revisões, cardinalidade e limites de retry. Mantém a limitação V1 de ausência de
+ordenação causal entre observações atrasadas.
+
+Cinco pares alternados de leituras vs agregação, sem suítes concorrentes:
+um achado 1,000→0,594 ms; 5.000 achados 161,050→159,983 ms (medianas locais).
+Com 5.000, EXPLAIN mediu 129,543→130,129 ms no servidor em amostras individuais;
+isso não demonstra redução de CPU. Não há varredura adicional/materialização;
+o custo estimado da agregação é menor que a soma das duas leituras. A promoção
+se apoia na equivalência e nas chamadas removidas, sem promessa de ganho remoto
+ou dos 6.528,8 ms históricos da Auditoria.
+
+A: 36 testes unit/HTTP e 19 cenários H/PGlite passaram, confrontando o recorder
+físico independente com catálogo, grupos, nota/instrumento/fechamento/histórico,
+no-changes e rollback. Revisão independente da confirmação/header concluída.
+Os checks completos são concentrados no head final desta PR, sem usar um SHA
+anterior como gate e sem diminuir a política de aprovação.
+
+A/C têm commits separáveis. Reverter A remove o header/slot opcional sem alterar
+V9; reverter C restaura o SQL anterior. Nenhuma reversão de código desfaz dados
+acadêmicos confirmados. F1–F6/G/H/#1230 preservados; F7 continua fora do escopo.
+S0 continua esparso. A causa histórica de `applied` em `sourceFileIndex:6` permanece
+indeterminada. Integração/publicação não são validação real ou homologação acadêmica.
+
+Após a publicação, o responsável escolhe uma importação legítima, abre a versão
+publicada antes de selecionar o lote, confere Banco/Portal e copia G antes de novo
+lote/reload. Nenhuma carga artificial ou alteração de notas em produção é necessária.

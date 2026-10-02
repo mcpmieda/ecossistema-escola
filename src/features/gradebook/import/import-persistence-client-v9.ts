@@ -5,12 +5,18 @@ import {
   type GradebookImportPersistenceRequestV9,
   type GradebookImportPersistenceResponseV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import {
+  IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1,
+  parseImportCommitDiagnosticsHeaderV1,
+  type ImportCommitDiagnosticsV1,
+} from '../../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 
 export interface ImportPersistenceHttpTimingV1 {
   readonly serializationMs: number | null;
   readonly payloadBytes: number | null;
   readonly persistRequestMs: number | null;
   readonly outcome: GradebookImportPersistenceResponseV9['state'] | 'confirmation-required';
+  readonly commitDiagnostics?: ImportCommitDiagnosticsV1 | null;
 }
 
 function nowMs(): number {
@@ -35,6 +41,7 @@ export async function persistGradebookCanonicalImportV9(
   let payloadBytes: number | null = null;
   let requestStartedAt: number | null = null;
   let outcome: ImportPersistenceHttpTimingV1['outcome'] = 'confirmation-required';
+  let commitDiagnostics: ImportCommitDiagnosticsV1 | null = null;
   try {
     const serializationStartedAt = nowMs();
     const body = JSON.stringify(request);
@@ -76,6 +83,20 @@ export async function persistGradebookCanonicalImportV9(
     const raw = response.headers.get('X-Gradebook-Server-Ms');
     const parsed = raw === null || raw.trim() === '' ? NaN : Number(raw);
     outcome = value.state;
+    try {
+      commitDiagnostics = parseImportCommitDiagnosticsHeaderV1(
+        response.headers.get(IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1),
+      );
+      // A diagnostic cannot claim confirmation for an academically unconfirmed response.
+      if (
+        value.state !== 'applied' &&
+        value.state !== 'no-changes' &&
+        commitDiagnostics?.confirmed !== null
+      )
+        commitDiagnostics = null;
+    } catch {
+      /* Optional diagnostics cannot change confirmation or repeat the POST. */
+    }
     if (value.state === 'applied' || value.state === 'no-changes') notifyLiveChangeV1('gradebook');
     return {
       response: value,
@@ -90,6 +111,7 @@ export async function persistGradebookCanonicalImportV9(
           payloadBytes,
           persistRequestMs: requestStartedAt === null ? null : nowMs() - requestStartedAt,
           outcome,
+          commitDiagnostics,
         });
       } catch {
         /* Optional timing cannot change a confirmed or uncertain result. */

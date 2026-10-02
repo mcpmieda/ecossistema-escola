@@ -136,6 +136,9 @@ export async function createRelationalImportIdempotencyFixtureV11() {
     lastMetrics() {
       return lastObserver.snapshot();
     },
+    lastCommitDiagnostics() {
+      return lastObserver.commitDiagnostics('unavailable', true);
+    },
     async execute(request: GradebookImportPersistenceRequestV9) {
       counts = emptyCounts();
       lastObserver = createImportPerformanceObserverV1();
@@ -143,7 +146,14 @@ export async function createRelationalImportIdempotencyFixtureV11() {
         lastObserver.wrap(database),
         lastObserver,
       ).execute(request);
-      return { response, counts: structuredClone(counts), metrics: lastObserver.snapshot() };
+      return {
+        response,
+        counts: structuredClone(counts),
+        metrics: lastObserver.snapshot(),
+        // This reusable fixture has no per-request resource wrapper; execute has
+        // completed the real outer transaction. HTTP close is tested separately.
+        diagnostics: lastObserver.commitDiagnostics(response.state, true),
+      };
     },
     async snapshot() {
       const snapshot: Record<string, readonly Row[]> = {};
