@@ -13,6 +13,7 @@ import {
   loadRelationalImportReadSetV11,
   resolveRelationalImportCatalogV11,
 } from '../../../server/gradebook/persistence/postgres/relational-import-read-set-v11';
+import { inspectGradebookImportPersistenceRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
@@ -55,6 +56,25 @@ function notes(count: number, label = 'SYNTHETIC SUBJECT'): GradebookNotesImport
         GradebookImportTermV9,
       ],
       recuperacao: [[1, ['n'], ['r'], ['u'], 21000]],
+    })),
+  };
+}
+function whitespaceNotes(count: number, label: string): GradebookNotesImportRequestV9 {
+  const source = notes(count, label);
+  const completeTerm = (term: GradebookImportTermV9): GradebookImportTermV9 => ({
+    ...term,
+    instrumentos: [...term.instrumentos, [2, 10000, 'AV2']],
+    alunos: term.alunos.map(([number, values, am]) => [number, [...values, ['u']], am]),
+  });
+  return {
+    ...source,
+    ofertas: source.ofertas.map((offer) => ({
+      ...offer,
+      trimestres: [
+        completeTerm(offer.trimestres[0]),
+        completeTerm(offer.trimestres[1]),
+        completeTerm(offer.trimestres[2]),
+      ],
     })),
   };
 }
@@ -343,6 +363,80 @@ describe('V11 bounded read sets through the canonical service chain', () => {
         )
       ).rows,
     ).toEqual(before);
+  });
+  it.each(['\t', '\u00a0'])(
+    'preserves accepted raw subject whitespace %j and its legacy repeated conflict',
+    async (whitespace) => {
+      const service = createGradebookRelationalImportServiceV11(database);
+      await service.execute(notes(1));
+      const label = whitespace === '\t' ? 'SYNTHETIC TAB SUBJECT' : 'SYNTHETIC NBSP SUBJECT';
+      const request = whitespaceNotes(1, `${whitespace}${label}${whitespace}`);
+      expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
+      expect(await service.execute(request)).toMatchObject({
+        state: 'applied',
+        summary: { committedWrites: { total: 28 } },
+      });
+      expect(
+        (await pg.query('SELECT nome FROM gradebook.disciplina WHERE nome=$1', [label])).rows,
+      ).toEqual([{ nome: label }]);
+      const before = (
+        await pg.query(
+          'SELECT to_jsonb(n) AS row FROM gradebook.nota n ORDER BY instrumento_id,aluno_id',
+        )
+      ).rows;
+      const beforeCommits = commits;
+      expect((await service.execute(request)).state).toBe('conflict');
+      expect(commits).toBe(beforeCommits);
+      expect(
+        (
+          await pg.query(
+            'SELECT to_jsonb(n) AS row FROM gradebook.nota n ORDER BY instrumento_id,aluno_id',
+          )
+        ).rows,
+      ).toEqual(before);
+    },
+  );
+
+  it('preserves source order when raw-whitespace and plain subject labels share the inserted identity', async () => {
+    const service = createGradebookRelationalImportServiceV11(database);
+    await service.execute(notes(2));
+    const label = 'SYNTHETIC MIXED WHITESPACE SUBJECT';
+    const source = whitespaceNotes(2, label);
+    const request = {
+      ...source,
+      ofertas: source.ofertas.map((offer, index) => ({
+        ...offer,
+        disciplina: index === 0 ? `\t${label}\t` : label,
+      })),
+    };
+    expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
+    expect(await service.execute(request)).toMatchObject({
+      state: 'applied',
+      summary: { committedWrites: { total: 54 } },
+    });
+    expect(
+      (
+        await pg.query(
+          `SELECT d.nome,count(o.id)::integer AS offers FROM gradebook.disciplina d JOIN gradebook.oferta o ON o.disciplina_id=d.id WHERE d.nome=$1 GROUP BY d.nome`,
+          [label],
+        )
+      ).rows,
+    ).toEqual([{ nome: label, offers: 2 }]);
+    const reverseLabel = 'SYNTHETIC REVERSED WHITESPACE SUBJECT';
+    const reverse = {
+      ...source,
+      ofertas: source.ofertas.map((offer, index) => ({
+        ...offer,
+        disciplina: index === 0 ? reverseLabel : `\t${reverseLabel}\t`,
+      })),
+    };
+    expect(inspectGradebookImportPersistenceRequestV9(reverse)).toBe('ready');
+    const beforeCommits = commits;
+    expect((await service.execute(reverse)).state).toBe('conflict');
+    expect(commits).toBe(beforeCommits);
+    expect(
+      (await pg.query('SELECT nome FROM gradebook.disciplina WHERE nome=$1', [reverseLabel])).rows,
+    ).toEqual([]);
   });
 });
 

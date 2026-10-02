@@ -166,116 +166,132 @@ export async function resolveRelationalImportCatalogV11(
   writes: number;
   globalAcademicChange: boolean;
 }> {
-  const groups = new Map<
-    string,
-    {
-      source: ImportCatalogSourceV11;
-      id: number | null;
-      currentName: string | null;
-      sources: ImportCatalogSourceV11[];
-    }
-  >();
   const sourceByIndex = new Map(sources.map((source) => [source.sourceIndex, source]));
   if (sourceByIndex.size !== sources.length)
     throw new Error('gradebook-import-duplicate-source-index');
-  const seen = new Set<number>();
-  const disciplineKeysById = new Map<number, string>();
-  for (const chunk of jsonRecordChunksV1(
-    sources.map((source) =>
-      serializeJsonRecordV1({ source_index: source.sourceIndex, nome: source.name }),
-    ),
-  )) {
-    const rows = (
-      await database.executeNative<Row>(
-        `SELECT s.source_index, lower(btrim(s.nome)) AS normalized, d.id, d.nome
-       FROM gradebook.disciplina d RIGHT JOIN jsonb_to_recordset($2::text::jsonb) AS s(source_index integer, nome text)
-         ON d.ano = $1 AND lower(btrim(d.nome)) = lower(btrim(s.nome)) /* import-catalog:disciplines-read */`,
-        [ano, postgresJsonTextV1(chunk.jsonText)],
-      )
-    ).rows;
-    if (rows.length !== chunk.rows)
-      throw new Error('gradebook-import-catalog-cardinality-mismatch');
-    for (const row of rows) {
-      const index = importReadIntegerV11(row.source_index, 'source-index');
-      const source = sourceByIndex.get(index);
-      if (!source || seen.has(index) || typeof row.normalized !== 'string')
-        throw new Error('gradebook-import-catalog-unexpected-source');
-      seen.add(index);
-      const id = row.id === null ? null : importReadIntegerV11(row.id, 'discipline-id');
-      const currentName = nullableText(row.nome);
-      if (id !== null) {
-        const priorKey = disciplineKeysById.get(id);
-        if (priorKey !== undefined && priorKey !== row.normalized)
-          throw new Error('gradebook-import-catalog-duplicate-discipline-id');
-        disciplineKeysById.set(id, row.normalized);
-      }
-      const group = groups.get(row.normalized);
-      if (group) {
-        if (group.id !== id || group.currentName !== currentName)
-          throw new Error('gradebook-import-catalog-ambiguous-result');
-        group.sources.push(source);
-      } else groups.set(row.normalized, { source, id, currentName, sources: [source] });
-    }
-  }
-  if (seen.size !== sources.length) throw new Error('gradebook-import-catalog-missing-source');
   let writes = 0;
   let globalAcademicChange = false;
   const disciplineIds = new Map<number, { id: number; changed: boolean }>();
-  const creates: Array<{ nome: string; normalized: string }> = [];
-  const updates: Array<{ id: number; nome: string }> = [];
-  for (const [normalized, group] of groups) {
-    if (new Set(group.sources.map((source) => source.name.trim())).size > 1) {
-      for (const source of group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex))
-        disciplineIds.set(source.sourceIndex, await resolveAmbiguous(source.name));
-      continue;
+  // V9 reads the raw label with SQL btrim (U+0020 only), then persists JS trim.
+  // Other boundary whitespace therefore requires its original source-order
+  // resolver for every subject; mixing preloaded creates would change conflicts.
+  const needsSequentialWhitespace = sources.some(
+    (source) => source.name.trim() !== source.name.replace(/^ +| +$/gu, ''),
+  );
+  if (needsSequentialWhitespace) {
+    for (const source of [...sources].sort((a, b) => a.sourceIndex - b.sourceIndex)) {
+      const resolved = await resolveAmbiguous(source.name);
+      disciplineIds.set(source.sourceIndex, {
+        id: importReadIntegerV11(resolved.id, 'discipline-id'),
+        changed: resolved.changed,
+      });
     }
-    const changed = group.id === null || group.currentName !== group.source.name.trim();
-    if (group.id === null) creates.push({ nome: group.source.name.trim(), normalized });
-    else {
-      if (changed) {
-        updates.push({ id: group.id, nome: group.source.name.trim() });
-        globalAcademicChange = true;
+  } else {
+    const groups = new Map<
+      string,
+      {
+        source: ImportCatalogSourceV11;
+        id: number | null;
+        currentName: string | null;
+        sources: ImportCatalogSourceV11[];
       }
-      for (const source of group.sources)
-        disciplineIds.set(source.sourceIndex, { id: group.id, changed });
+    >();
+    const seen = new Set<number>();
+    const disciplineKeysById = new Map<number, string>();
+    for (const chunk of jsonRecordChunksV1(
+      sources.map((source) =>
+        serializeJsonRecordV1({ source_index: source.sourceIndex, nome: source.name }),
+      ),
+    )) {
+      const rows = (
+        await database.executeNative<Row>(
+          `SELECT s.source_index, lower(btrim(s.nome)) AS normalized, d.id, d.nome
+       FROM gradebook.disciplina d RIGHT JOIN jsonb_to_recordset($2::text::jsonb) AS s(source_index integer, nome text)
+         ON d.ano = $1 AND lower(btrim(d.nome)) = lower(btrim(s.nome)) /* import-catalog:disciplines-read */`,
+          [ano, postgresJsonTextV1(chunk.jsonText)],
+        )
+      ).rows;
+      if (rows.length !== chunk.rows)
+        throw new Error('gradebook-import-catalog-cardinality-mismatch');
+      for (const row of rows) {
+        const index = importReadIntegerV11(row.source_index, 'source-index');
+        const source = sourceByIndex.get(index);
+        if (!source || seen.has(index) || typeof row.normalized !== 'string')
+          throw new Error('gradebook-import-catalog-unexpected-source');
+        seen.add(index);
+        const id = row.id === null ? null : importReadIntegerV11(row.id, 'discipline-id');
+        const currentName = nullableText(row.nome);
+        if (id !== null) {
+          const priorKey = disciplineKeysById.get(id);
+          if (priorKey !== undefined && priorKey !== row.normalized)
+            throw new Error('gradebook-import-catalog-duplicate-discipline-id');
+          disciplineKeysById.set(id, row.normalized);
+        }
+        const group = groups.get(row.normalized);
+        if (group) {
+          if (group.id !== id || group.currentName !== currentName)
+            throw new Error('gradebook-import-catalog-ambiguous-result');
+          group.sources.push(source);
+        } else groups.set(row.normalized, { source, id, currentName, sources: [source] });
+      }
     }
-  }
-  for (const chunk of jsonRecordChunksV1(creates.map(serializeJsonRecordV1))) {
-    const execution = await database.executeNative<Row>(
-      `INSERT INTO gradebook.disciplina (ano, nome)
+    if (seen.size !== sources.length) throw new Error('gradebook-import-catalog-missing-source');
+    const creates: Array<{ nome: string; normalized: string }> = [];
+    const updates: Array<{ id: number; nome: string }> = [];
+    for (const [normalized, group] of groups) {
+      if (new Set(group.sources.map((source) => source.name.trim())).size > 1) {
+        for (const source of group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex))
+          disciplineIds.set(source.sourceIndex, await resolveAmbiguous(source.name));
+        continue;
+      }
+      const changed = group.id === null || group.currentName !== group.source.name.trim();
+      if (group.id === null) creates.push({ nome: group.source.name.trim(), normalized });
+      else {
+        if (changed) {
+          updates.push({ id: group.id, nome: group.source.name.trim() });
+          globalAcademicChange = true;
+        }
+        for (const source of group.sources)
+          disciplineIds.set(source.sourceIndex, { id: group.id, changed });
+      }
+    }
+    for (const chunk of jsonRecordChunksV1(creates.map(serializeJsonRecordV1))) {
+      const execution = await database.executeNative<Row>(
+        `INSERT INTO gradebook.disciplina (ano, nome)
        SELECT $1, s.nome FROM jsonb_to_recordset($2::text::jsonb) AS s(nome text, normalized text)
        RETURNING id, lower(btrim(nome)) AS normalized /* import-catalog:disciplines-create */`,
-      [ano, postgresJsonTextV1(chunk.jsonText)],
-    );
-    assertImportChangesV11(execution.changes, chunk.rows);
-    if (execution.rows.length !== chunk.rows)
-      throw new Error('gradebook-import-catalog-cardinality-mismatch');
-    const expected = new Set<string>(
-      (JSON.parse(chunk.jsonText) as typeof creates).map((row) => row.normalized),
-    );
-    for (const row of execution.rows) {
-      if (typeof row.normalized !== 'string' || !expected.delete(row.normalized))
-        throw new Error('gradebook-import-catalog-unexpected-discipline');
-      const group = groups.get(row.normalized)!;
-      const id = importReadIntegerV11(row.id, 'discipline-id');
-      if (disciplineKeysById.has(id))
-        throw new Error('gradebook-import-catalog-duplicate-discipline-id');
-      disciplineKeysById.set(id, row.normalized);
-      for (const source of group.sources)
-        disciplineIds.set(source.sourceIndex, { id, changed: true });
+        [ano, postgresJsonTextV1(chunk.jsonText)],
+      );
+      assertImportChangesV11(execution.changes, chunk.rows);
+      if (execution.rows.length !== chunk.rows)
+        throw new Error('gradebook-import-catalog-cardinality-mismatch');
+      const expected = new Set<string>(
+        (JSON.parse(chunk.jsonText) as typeof creates).map((row) => row.normalized),
+      );
+      for (const row of execution.rows) {
+        if (typeof row.normalized !== 'string' || !expected.delete(row.normalized))
+          throw new Error('gradebook-import-catalog-unexpected-discipline');
+        const group = groups.get(row.normalized)!;
+        const id = importReadIntegerV11(row.id, 'discipline-id');
+        if (disciplineKeysById.has(id))
+          throw new Error('gradebook-import-catalog-duplicate-discipline-id');
+        disciplineKeysById.set(id, row.normalized);
+        for (const source of group.sources)
+          disciplineIds.set(source.sourceIndex, { id, changed: true });
+      }
+      if (expected.size > 0) throw new Error('gradebook-import-catalog-missing-discipline');
+      writes += execution.changes;
     }
-    if (expected.size > 0) throw new Error('gradebook-import-catalog-missing-discipline');
-    writes += execution.changes;
-  }
-  for (const chunk of jsonRecordChunksV1(updates.map(serializeJsonRecordV1))) {
-    const execution = await database.executeNative(
-      `UPDATE gradebook.disciplina d SET nome = s.nome
+    for (const chunk of jsonRecordChunksV1(updates.map(serializeJsonRecordV1))) {
+      const execution = await database.executeNative(
+        `UPDATE gradebook.disciplina d SET nome = s.nome
        FROM jsonb_to_recordset($2::text::jsonb) AS s(id bigint, nome text)
        WHERE d.id = s.id AND d.ano = $1 /* import-catalog:disciplines-update */`,
-      [ano, postgresJsonTextV1(chunk.jsonText)],
-    );
-    assertImportChangesV11(execution.changes, chunk.rows);
-    writes += execution.changes;
+        [ano, postgresJsonTextV1(chunk.jsonText)],
+      );
+      assertImportChangesV11(execution.changes, chunk.rows);
+      writes += execution.changes;
+    }
   }
   const offerKey = (turmaId: number, disciplinaId: number) =>
     `${turmaId}:${professorId}:${disciplinaId}`;
