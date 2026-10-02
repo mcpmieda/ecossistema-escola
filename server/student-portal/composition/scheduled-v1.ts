@@ -1,3 +1,4 @@
+import { cleanupPortalLiveEventsV1 } from '../live/live-outbox-v1';
 import { cleanupPortalV1 } from '../maintenance/retention-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
@@ -6,6 +7,13 @@ import { portalDatabaseV1 } from './database-v1';
 export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<void> {
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
   try {
-    await portalDatabaseV1(env, 'cleanup', (sql) => cleanupPortalV1(sql, 100));
+    await portalDatabaseV1(env, 'cleanup', async (sql) => {
+      let failed = false;
+      // Each family owns its transaction; failure must not suppress unrelated retention.
+      for (const cleanup of [cleanupPortalLiveEventsV1, cleanupPortalV1]) {
+        try { await cleanup(sql); } catch { failed = true; }
+      }
+      if (failed) throw new Error('student-portal-cleanup-unavailable');
+    });
   } catch { /* The connection wrapper already emitted sanitized unavailable. */ }
 }

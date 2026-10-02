@@ -58,89 +58,100 @@ function eventFromRowV1(input: unknown): LivePublishEventV1 {
   });
 }
 
-/** Claims are short transactions. Use JSON at array boundaries because the production
- * postgres.js client deliberately disables dynamic type discovery (fetch_types:false).
- * JSON text is bound as text BEFORE casting, avoiding a second JSON serialization.
- * DO calls happen after releasing PostgreSQL; only the lease holder may acknowledge it.
+/** Runs from scheduled maintenance even when there are no new notifications. */
+export async function cleanupPortalLiveEventsV1(sql: StudentPortalPostgresSqlV1): Promise<number> {
+  return sql.begin(async (tx) => (await tx.unsafe(`WITH expired AS (
+    SELECT id FROM student_portal.live_event_outbox_v1
+    WHERE delivered_at<statement_timestamp()-interval '7 days'
+    ORDER BY delivered_at,id LIMIT 100 FOR UPDATE SKIP LOCKED)
+    DELETE FROM student_portal.live_event_outbox_v1 event USING expired
+    WHERE event.id=expired.id RETURNING event.id`)).length);
+}
+
+async function publishBeforeDeadlineV1(env: PortalCompositionEnvV1, input: unknown, deadline: number) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) throw new Error('student-portal-live-delivery-unavailable');
+  const event = eventFromRowV1(input);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      portalLiveStubV1(env, event.audience).publish(event),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('student-portal-live-delivery-unavailable')), remaining);
+      }),
+    ]);
+  } finally { if (timer !== undefined) clearTimeout(timer); }
+}
+
+async function settleLiveEventsV1(env: PortalCompositionEnvV1, token: string,
+  delivered: string[], failed: string[], deferred: string[]) {
+  return portalDatabaseV1(env, 'live-drain', async (sql) => {
+    let acknowledged = 0;
+    if (delivered.length) {
+      const rows = await sql.unsafe(`UPDATE student_portal.live_event_outbox_v1
+        SET delivered_at=statement_timestamp(),lease_token=NULL,lease_until=NULL
+        WHERE lease_token=$1::uuid
+          AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))
+        RETURNING id::text`, [token, JSON.stringify(delivered)]);
+      acknowledged = rows.length;
+    }
+    if (failed.length) await sql.unsafe(`UPDATE student_portal.live_event_outbox_v1
+      SET lease_token=NULL,lease_until=NULL,next_attempt_at=statement_timestamp()+
+        make_interval(secs=>LEAST(300,power(2,LEAST(attempts,8))::integer))
+      WHERE lease_token=$1::uuid
+        AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))`,
+    [token, JSON.stringify(failed)]);
+    if (deferred.length) await sql.unsafe(`UPDATE student_portal.live_event_outbox_v1
+      SET lease_token=NULL,lease_until=NULL,attempts=GREATEST(0,attempts-1)
+      WHERE lease_token=$1::uuid
+        AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))`,
+    [token, JSON.stringify(deferred)]);
+    return acknowledged;
+  });
+}
+
+/** At most four batches and 20 seconds of delivery work, below each 30-second lease.
+ * Database settlement can exceed that budget; token guards prevent acknowledging a new owner.
+ * A timed-out RPC may finish remotely: the existing cursor deduplication handles its retry.
+ * JSON boundaries preserve production fetch_types:false compatibility.
  */
-export async function dispatchPortalLiveEventsV1(
-  env: PortalCompositionEnvV1,
-  limit = 50,
-): Promise<number> {
+export async function dispatchPortalLiveEventsV1(env: PortalCompositionEnvV1, limit = 50): Promise<number> {
   if (!env.PORTAL_LIVE) return 0;
-  const started = Date.now();
-  const token = crypto.randomUUID();
-  let claimed = 0,
-    accepted = 0,
-    acknowledged = 0,
-    rejected = 0;
+  const started = Date.now(), deadline = started + 20_000;
+  const size = Math.max(1, Math.min(100, Math.trunc(limit) || 50));
+  let claimed = 0, accepted = 0, acknowledged = 0, rejected = 0;
   let outcome: 'ok' | 'unavailable' = 'unavailable';
   try {
-    const events = await portalDatabaseV1(env, 'live-drain', (sql) =>
-      claimLiveEventsV1(sql, token, Math.max(1, Math.min(100, limit))),
-    );
-    claimed = events.length;
-    if (!claimed) {
-      outcome = 'ok';
-      return 0;
-    }
-    const delivered: string[] = [];
-    const failed: string[] = [];
-    for (const input of events) {
-      try {
-        const event = eventFromRowV1(input);
-        await portalLiveStubV1(env, event.audience).publish(event);
-        delivered.push(input.id as string);
-      } catch {
-        failed.push(input.id as string);
+    for (let batch = 0; batch < 4 && Date.now() < deadline; batch++) {
+      const token = crypto.randomUUID();
+      const events = Array.from(await portalDatabaseV1(env, 'live-drain', (sql) => claimLiveEventsV1(sql, token, size)));
+      claimed += events.length;
+      if (!events.length) break;
+      // UPDATE RETURNING does not preserve the pending CTE's priority ordering.
+      events.sort((a, b) => Number(b.security_relevant) - Number(a.security_relevant)
+        || (BigInt(a.id as string) < BigInt(b.id as string) ? -1 : 1));
+      const delivered: string[] = [], failed: string[] = [], deferred: string[] = [];
+      for (const input of events) {
+        if (Date.now() >= deadline) { deferred.push(input.id as string); continue; }
+        try {
+          await publishBeforeDeadlineV1(env, input, deadline);
+          delivered.push(input.id as string);
+        } catch { failed.push(input.id as string); }
       }
+      accepted += delivered.length;
+      rejected += failed.length;
+      const settled = await settleLiveEventsV1(env, token, delivered, failed, deferred);
+      acknowledged += settled;
+      if (failed.length || settled !== delivered.length)
+        throw new Error('student-portal-live-delivery-unavailable');
+      if (events.length < size || deferred.length) break;
     }
-    accepted = delivered.length;
-    rejected = failed.length;
-    await portalDatabaseV1(env, 'live-drain', async (sql) => {
-      if (delivered.length) {
-        const rows = await sql.unsafe(
-          `UPDATE student_portal.live_event_outbox_v1
-          SET delivered_at=statement_timestamp(),lease_token=NULL,lease_until=NULL
-          WHERE lease_token=$1::uuid
-            AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))
-          RETURNING id::text`,
-          [token, JSON.stringify(delivered)],
-        );
-        acknowledged = rows.length;
-      }
-      if (failed.length)
-        await sql.unsafe(
-          `UPDATE student_portal.live_event_outbox_v1
-        SET lease_token=NULL,lease_until=NULL,next_attempt_at=statement_timestamp()+
-          make_interval(secs=>LEAST(300,power(2,LEAST(attempts,8))::integer))
-        WHERE lease_token=$1::uuid
-          AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))`,
-          [token, JSON.stringify(failed)],
-        );
-      await sql.unsafe(`WITH expired AS (SELECT id FROM student_portal.live_event_outbox_v1
-        WHERE delivered_at<statement_timestamp()-interval '7 days' ORDER BY delivered_at,id LIMIT 100)
-        DELETE FROM student_portal.live_event_outbox_v1 event USING expired WHERE event.id=expired.id`);
-    });
-    if (failed.length || acknowledged !== accepted)
-      throw new Error('student-portal-live-delivery-unavailable');
     outcome = 'ok';
     return acknowledged;
   } finally {
-    if (claimed || outcome === 'unavailable') {
-      // Fixed aggregate diagnostic only: no routing identifiers, SQL, tokens or raw errors.
-      console.info(
-        JSON.stringify({
-          event: 'student-portal-live-drain-v1',
-          outcome,
-          occurredAt: new Date().toISOString(),
-          elapsedMs: Math.max(0, Date.now() - started),
-          claimed,
-          accepted,
-          acknowledged,
-          rejected,
-        }),
-      );
-    }
+    if (claimed || outcome === 'unavailable') console.info(JSON.stringify({
+      event: 'student-portal-live-drain-v1', outcome, occurredAt: new Date().toISOString(),
+      elapsedMs: Math.max(0, Date.now() - started), claimed, accepted, acknowledged, rejected,
+    }));
   }
 }

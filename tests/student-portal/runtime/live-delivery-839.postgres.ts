@@ -1,7 +1,8 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dispatchPortalLiveEventsV1 } from '../../../server/student-portal/live/live-outbox-v1';
+import { cleanupPortalLiveEventsV1, dispatchPortalLiveEventsV1 } from '../../../server/student-portal/live/live-outbox-v1';
 import type { PortalCompositionEnvV1 } from '../../../server/student-portal/composition/config-v1';
+import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import type { LivePublishEventV1 } from '../../../shared/student-portal-contracts/live-v1';
 
 // Never connect to a remote or production database. This suite owns a separate disposable
@@ -23,7 +24,7 @@ const env: PortalCompositionEnvV1 = {
   PORTAL_DB: { connectionString: appUrl.toString() },
   PORTAL_LIVE: {
     idFromName: (value) => ({ toString: () => value }) as DurableObjectId,
-    get: () => ({ presence: async () => ({ connectedStudents: 0, observedAt: new Date().toISOString(), windowSeconds: 60 }), fetch: async () => new Response(null, { status: 404 }), publish: async (input) => {
+    get: () => ({ renewSecurity: async () => false, presence: async () => ({ connectedStudents: 0, observedAt: new Date().toISOString(), windowSeconds: 60 }), fetch: async () => new Response(null, { status: 404 }), publish: async (input) => {
       if (failDelivery) throw new Error('synthetic-delivery-failure');
       accepted.push(input as LivePublishEventV1);
       return 'delivered' as const;
@@ -110,6 +111,29 @@ describe('real postgres.js production options and live delivery', () => {
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(2);
     expect(new Set(accepted.map((event) => event.cursor)).size).toBe(2);
     expect(accepted).toHaveLength(2);
+  });
+
+  it('drains more than one full batch but leaves excess for the next invocation', async () => {
+    await admin.unsafe(`INSERT INTO student_portal.live_event_outbox_v1(audience,domain,version)
+      SELECT 'admin','gradebook','revision:1' FROM generate_series(1, 205)`);
+    expect(await dispatchPortalLiveEventsV1(env)).toBe(200);
+    expect(await dispatchPortalLiveEventsV1(env)).toBe(5);
+    expect(new Set(accepted.map((event) => event.cursor)).size).toBe(205);
+  });
+
+  it('cleans delivered history without pending events, bounded to 100 and preserving pending rows', async () => {
+    await admin.unsafe(`INSERT INTO student_portal.live_event_outbox_v1(audience,domain,version,delivered_at)
+      SELECT 'admin','gradebook','revision:1',statement_timestamp()-interval '8 days' FROM generate_series(1, 105)`);
+    await admin.unsafe(`INSERT INTO student_portal.live_event_outbox_v1(audience,domain,version,next_attempt_at)
+      VALUES('admin','gradebook','revision:1',statement_timestamp()+interval '1 hour')`);
+    expect(await dispatchPortalLiveEventsV1(env)).toBe(0);
+    const sql = postgres(appUrl.toString(), { max: 1, fetch_types: false, prepare: true });
+    try {
+      expect(await cleanupPortalLiveEventsV1(sql as unknown as StudentPortalPostgresSqlV1)).toBe(100);
+      expect(await cleanupPortalLiveEventsV1(sql as unknown as StudentPortalPostgresSqlV1)).toBe(5);
+      expect(await cleanupPortalLiveEventsV1(sql as unknown as StudentPortalPostgresSqlV1)).toBe(0);
+    } finally { await sql.end({ timeout: 1 }); }
+    expect((await admin.unsafe('SELECT count(*)::integer AS count FROM student_portal.live_event_outbox_v1'))[0]?.count).toBe(1);
   });
 
   it('logs only aggregate delivery evidence, never event identities or credentials', async () => {

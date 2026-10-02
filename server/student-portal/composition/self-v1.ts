@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   activateRequestV1,
   challengeRequestV1,
@@ -21,7 +22,7 @@ import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { portalNoticesForPolicyV1 } from '../policies/calendar-v1';
 import { accountScopeV1, authNowV1 } from '../auth/transaction-v1';
 import { portalDatabaseV1 } from './database-v1';
-import { connectPortalLiveV1 } from '../live/live-connect-v1';
+import { connectPortalLiveV1, portalLiveStubV1, type SecurityRenewalV1 } from '../live/live-connect-v1';
 import { servePortalPhotoV1 } from '../photos/http-v1';
 import {
   STUDENT_PHOTO_META_PATH_V1,
@@ -45,7 +46,17 @@ export async function servePortalSelfV1(
 ): Promise<Response> {
   if (!portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN))
     return portalJsonV1(portalFailureV1('forbidden'), 403);
-  const path = new URL(request.url).pathname;
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const connectionId = url.searchParams.get('connectionId');
+  if (connectionId !== null && (
+    !['/api/student/session', '/api/student/live'].includes(path) ||
+    url.searchParams.getAll('connectionId').length !== 1 ||
+    !z.uuid().safeParse(connectionId).success ||
+    !z.uuid().safeParse(url.searchParams.get('accountId')).success ||
+    url.searchParams.getAll('accountId').length !== 1 ||
+    (path === '/api/student/live' && url.searchParams.get('purpose') !== 'security')
+  )) return portalJsonV1(portalFailureV1('invalid-request'), 400);
   if (path === STUDENT_PHOTO_META_PATH_V1 || path === STUDENT_PHOTO_CONTENT_PATH_V1)
     return servePortalPhotoV1(request, env);
   if (path === '/healthz' && request.method === 'GET')
@@ -96,14 +107,34 @@ export async function servePortalSelfV1(
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);
-      return portalDatabaseV1(env, 'self', (sql) =>
+      const verifiedAt = Date.now();
+      let renewal: SecurityRenewalV1 | undefined;
+      const result = await portalDatabaseV1(env, 'self', (sql) =>
         new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).read(
           token,
           requestId,
           expectedAccountId,
           includeClosed,
+          connectionId === null ? undefined : async (context, tx, session) => {
+            if (!context.account.link) return;
+            const classes = await tx.unsafe(
+              `SELECT class_id FROM student_portal.academic_binding_v1
+               WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6
+               ORDER BY class_id LIMIT 2`, [context.account.link.studentId]);
+            if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
+            renewal = { connectionId, sessionId: session.id, accountId: context.account.id,
+              studentId: context.account.link.studentId,
+              classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
+              verifiedAt, expiresAt: session.expiresAt };
+          },
         ),
       );
+      if (connectionId !== null && result?.state === 'authenticated') {
+        // The snapshot has ended; RPC never holds a database transaction open.
+        const liveRenewed = renewal ? await portalLiveStubV1(env, 'student').renewSecurity(renewal) : false;
+        return { ...result, liveRenewed };
+      }
+      return result;
     };
     if (path === '/api/student/live') {
       if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
@@ -133,6 +164,7 @@ export async function servePortalSelfV1(
             if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
             return {
               audience: 'student' as const,
+              ...(connectionId === null ? {} : { connectionId, sessionId: session.id }),
               purpose: purpose === 'security' ? ('security' as const) : ('academic' as const),
               expiresAt:
                 purpose === 'security'

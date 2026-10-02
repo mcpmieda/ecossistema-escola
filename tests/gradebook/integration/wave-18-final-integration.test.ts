@@ -29,7 +29,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const surface = source('src/platform/gradebook-council-surface.tsx');
 
-    expect(functions).toContain('handleCouncilWorkspaceRequestV1(request, env)');
+    expect(functions).toContain('handleCouncilWorkspaceRequestV1(request, env, afterCommit)');
     expect(functions).not.toContain('.councilInstitutionalWorkspace(');
     expect(route.split('/api/gradebook/council-workspace')).toHaveLength(2);
     expect(runtime).toContain('createCouncilInstitutionalWorkspaceV2');

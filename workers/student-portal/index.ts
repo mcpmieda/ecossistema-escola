@@ -12,6 +12,7 @@ import type { PortalCompositionEnvV1 } from '../../server/student-portal/composi
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
 import { PortalLiveUpdatesV1 } from '../../server/student-portal/live/live-updates-v1';
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
+import { allowPortalLiveDrainV1 } from '../../server/student-portal/composition/live-drain-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
 export { PortalLiveUpdatesV1 };
 const selfMayEnqueueLiveV1 = (request: Request) => request.method !== 'GET'
@@ -37,6 +38,11 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return connectPortalLiveV1(this.env, request, { audience: 'admin', expiresAt: parsed.data.expiresAt,
       accountId: null, studentId: null, classId: null });
+  }
+  async drainLive(context: unknown): Promise<boolean> {
+    if (!allowPortalLiveDrainV1(this.env, context)) return false;
+    this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
+    return true;
   }
   async monitoring(context: unknown) { return portalMonitoringRpcV1(this.env, context); }
   async monitoringHistory(context: unknown, before: unknown) { return portalHistoryRpcV1(this.env, context, before); }

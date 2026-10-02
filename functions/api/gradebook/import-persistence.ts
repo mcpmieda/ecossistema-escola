@@ -1,3 +1,4 @@
+import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
@@ -36,7 +37,7 @@ async function readPayload(request: Request): Promise<unknown> {
   if (new TextEncoder().encode(text).byteLength > GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9) throw new HttpError(413,'Payload too large');
   try { return JSON.parse(text) as unknown; } catch { return null; }
 }
-async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
+async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookAfterCommitV1): Promise<Response> {
   const started = performance.now();
   if (request.method !== 'POST') throw new HttpError(405,'Method not allowed');
   enforceOfficialOrigin(request,env);
@@ -57,12 +58,13 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   // Diagnostics are replaced only by a complete diagnostic observation, including [].
   // Academic persistence must not clear another tab's newer evidence or erase it on failure.
   const result = await createGradebookRelationalImportServiceV11(database).execute(canonical);
+  if (result.state === 'applied') afterCommit(session);
   return response(result,performance.now()-started);
 }
 export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   try {
     const env = validateEnv((context as Context).env);
-    const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv));
+    const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv,gradebookAfterCommitV1(env, (work) => context.waitUntil(work))));
     return withSecurityHeaders(routed ?? Response.json({transportVersion:9,state:'unavailable'},{status:503}),true);
   } catch (error) {
     const status = error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError ? error.status : 500;

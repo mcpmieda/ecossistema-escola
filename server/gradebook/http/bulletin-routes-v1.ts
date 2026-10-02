@@ -1,3 +1,4 @@
+import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import {
   BULLETIN_CONTRACT_VERSION_V1,
 } from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
@@ -78,6 +79,7 @@ function relationalStatus(response: RelationalBulletinResponseV2): number {
 export async function handleBulletinRequestV1(
   request: Request,
   env: RuntimeEnv,
+  afterCommit?: GradebookAfterCommitV1,
 ): Promise<Response | null> {
   if (new URL(request.url).pathname !== GRADEBOOK_BULLETIN_ROUTE_V1) return null;
 
@@ -126,6 +128,8 @@ export async function handleBulletinRequestV1(
         snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
       });
       const response = await service.execute(parsed.data, { issuerOid: session.oid });
+      if (response.state === 'ready' && (response.operation === 'emit'
+        || (response.operation === 'emit-batch' && response.ready.length > 0))) afterCommit?.(session);
       return noStoreJson(response, relationalStatus(response));
     } catch {
       return relationalFailure(parsed.data, 'unavailable', 503);

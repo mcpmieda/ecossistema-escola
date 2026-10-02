@@ -1,3 +1,4 @@
+import { gradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
@@ -33,7 +34,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   try {
     const env = validateEnv((context as Context).env);
     const routed = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
-      handler((context as Context).request, executionEnv),
+      handler((context as Context).request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
     );
     return withSecurityHeaders(routed ?? failure(), true);
   } catch (cause) {

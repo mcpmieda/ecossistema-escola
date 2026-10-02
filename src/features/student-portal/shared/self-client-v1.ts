@@ -59,10 +59,11 @@ export function createPortalSelfClientV1(options: PortalTransportOptionsV1 = {})
     }
   };
   return {
-    session: (signal?: AbortSignal, expectedAccountId?: string) =>
+    session: (signal?: AbortSignal, expectedAccountId?: string, connectionId?: string) =>
       send(
         '/api/student/session' +
-          (expectedAccountId ? '?accountId=' + encodeURIComponent(expectedAccountId) : ''),
+          (expectedAccountId ? '?accountId=' + encodeURIComponent(expectedAccountId) +
+            (connectionId ? '&connectionId=' + encodeURIComponent(connectionId) : '') : ''),
         sessionResponseV1,
         signal,
       ),

@@ -1,5 +1,10 @@
+export interface SecurityRenewalV1 {
+  connectionId: string; sessionId: string; accountId: string; studentId: number; classId: number | null;
+  verifiedAt: number; expiresAt: string;
+}
 interface LiveStubV1 {
   fetch(request: Request): Promise<Response>;
+  renewSecurity(input: SecurityRenewalV1): Promise<boolean>;
   publish(input: unknown): Promise<'delivered' | 'duplicate'>;
   presence(
     input: unknown,
@@ -26,6 +31,8 @@ export function connectPortalLiveV1(
     audience: 'admin' | 'student';
     expiresAt: string;
     effectiveExpiresAt?: string;
+    connectionId?: string;
+    sessionId?: string;
     accountId: string | null;
     studentId: number | null;
     classId: number | null;
@@ -37,6 +44,10 @@ export function connectPortalLiveV1(
     'x-live-purpose': identity.purpose ?? 'academic',
     'x-live-expires-at': identity.expiresAt,
   });
+  if (identity.connectionId && identity.sessionId) {
+    headers.set('x-live-connection-id', identity.connectionId);
+    headers.set('x-live-session-id', identity.sessionId);
+  }
   if (identity.accountId) headers.set('x-live-account-id', identity.accountId);
   if (identity.studentId) headers.set('x-live-student-id', String(identity.studentId));
   if (identity.classId) headers.set('x-live-class-id', String(identity.classId));

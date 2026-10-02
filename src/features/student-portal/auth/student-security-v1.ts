@@ -11,15 +11,18 @@ export interface StudentSecuritySocketV1 {
 
 /** Security leases never request or invalidate the academic snapshot. */
 export function createStudentSecurityV1(options: {
-  connect: () => StudentSecuritySocketV1;
+  connect: (connectionId?: string) => StudentSecuritySocketV1;
   /** Session-only check. Must publish and throw on revocation; throws on network uncertainty. */
-  authorize: (signal: AbortSignal) => Promise<void>;
+  authorize: (signal: AbortSignal, connectionId?: string) => Promise<boolean | void>;
   /** Receives only the effective expiry confirmed by the authorized handshake. */
   onAuthorized?: (expiresAt: string, startedAt: number) => boolean;
 }) {
   let disposed = false;
   let socket: StudentSecuritySocketV1 | undefined;
   let retry = 1000;
+  let connectionId: string | undefined;
+  let renewable = false;
+  let attemptRenewal = true;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let rotation: ReturnType<typeof setTimeout> | undefined;
@@ -33,6 +36,8 @@ export function createStudentSecurityV1(options: {
   const disconnect = () => {
     clearInterval(heartbeat);
     clearTimeout(rotation);
+    renewable = false;
+    connectionId = undefined;
     if (!socket) return;
     const previous = socket;
     socket = undefined;
@@ -52,7 +57,7 @@ export function createStudentSecurityV1(options: {
   };
   const renew = (verifiedAt = Date.now()) => {
     clearTimeout(lease);
-    lease = setTimeout(() => void authorize(), Math.max(0, 60_000 - (Date.now() - verifiedAt)));
+    lease = setTimeout(() => void authorize(), Math.max(0, (renewable ? 45_000 : 60_000) - (Date.now() - verifiedAt)));
   };
   // Stable login (owner decision, 22/09/2026): when the lease is due, re-check the session over
   // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
@@ -70,8 +75,10 @@ export function createStudentSecurityV1(options: {
     const controller = new AbortController();
     request = controller;
     try {
-      await Promise.race([
-        options.authorize(controller.signal),
+      const current = socket;
+      const renewalId = renewable ? connectionId : undefined;
+      const renewed = await Promise.race([
+        options.authorize(controller.signal, renewalId),
         new Promise((_, reject) => {
           requestTimeout = setTimeout(() => {
             controller.abort();
@@ -80,7 +87,13 @@ export function createStudentSecurityV1(options: {
         }),
       ]);
       controller.signal.throwIfAborted();
-      if (!disposed && !again) renew(startedAt);
+      if (!disposed && !again) {
+        if (renewalId && current === socket && renewed !== true) {
+          disconnect();
+          connect();
+        }
+        renew(startedAt);
+      }
     } catch {
       // Network uncertainty does not revoke an account or extend its authorization lease.
       if (!disposed) {
@@ -114,7 +127,8 @@ export function createStudentSecurityV1(options: {
       version = noticeVersion;
     let acknowledged = false;
     try {
-      current = options.connect();
+      connectionId = attemptRenewal ? crypto.randomUUID() : undefined;
+      current = options.connect(connectionId);
     } catch {
       schedule();
       return;
@@ -156,13 +170,18 @@ export function createStudentSecurityV1(options: {
       }
       if (value.type === 'security-connected' && !acknowledged) {
         const keys = Object.keys(value).length;
+        const supportsRenewal = value.renewable === true;
         const expiry = instantV1.safeParse(value.expiresAt);
-        if (keys !== 2 && (keys !== 3 || !expiry.success)) return;
+        if (supportsRenewal ? keys !== 4 || !expiry.success : keys !== 2 && (keys !== 3 || !expiry.success)) return;
         acknowledged = true;
+        if (supportsRenewal) {
+          renewable = true;
+          clearTimeout(rotation);
+        }
         // An older handshake cannot override a security event or a newer HTTP observation.
         if (version !== noticeVersion || startedAt < lastHttpStartedAt) return;
         if (
-          keys === 3 &&
+          (keys === 3 || supportsRenewal) &&
           expiry.success &&
           options.onAuthorized &&
           Date.now() < startedAt + 60_000 &&
@@ -173,7 +192,12 @@ export function createStudentSecurityV1(options: {
       }
     };
     current.onclose = current.onerror = () => {
-      if (!disposed && socket === current) schedule();
+      if (!disposed && socket === current) {
+        // Older deployments can reject unknown query parameters before acknowledging.
+        // Retry their unchanged URL and retain the existing rotation protocol.
+        if (!acknowledged) attemptRenewal = false;
+        schedule();
+      }
     };
   };
   renew();

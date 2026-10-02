@@ -126,7 +126,7 @@ export async function createIntegrationHarnessV1(databaseUrl: string) {
           method: 'POST',
           body: JSON.stringify(input),
         }),
-      connectStudentSecurity: (accountId: string, cookie: string) => runtime.dispatchFetch('http://security-integration.invalid/api/student/live?purpose=security&accountId=' + accountId, { headers: { Upgrade: 'websocket', origin: 'https://aluno.escolaieda.com', cookie } }),
+      connectStudentSecurity: (accountId: string, cookie: string, connectionId?: string) => runtime.dispatchFetch('http://security-integration.invalid/api/student/live?purpose=security&accountId=' + accountId + (connectionId ? '&connectionId=' + connectionId : ''), { headers: { Upgrade: 'websocket', origin: 'https://aluno.escolaieda.com', cookie } }),
       scheduled: async () => (await runtime.getWorker('portal')).scheduled({ cron: '* * * * *' }),
       dispose: () => runtime.dispose(),
     };

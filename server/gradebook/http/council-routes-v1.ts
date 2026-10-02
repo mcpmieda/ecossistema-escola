@@ -1,3 +1,4 @@
+import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import {
   COUNCIL_INSTITUTIONAL_CONTRACT_VERSION_V2,
   COUNCIL_INSTITUTIONAL_OPERATIONS_V2,
@@ -121,8 +122,8 @@ function invalidInstitutional(): Response {
   );
 }
 
-export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env: RuntimeEnv) => Promise<Response | null> {
-  return async (request, env) => {
+export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1) => Promise<Response | null> {
+  return async (request, env, afterCommit) => {
     if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
 
     enforceOfficialOrigin(request, env);
@@ -161,6 +162,8 @@ export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env
           env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
           session.oid,
         ).execute(parsed.data);
+        if (response.state === 'ready' && ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation))
+          afterCommit?.(session);
         const status = response.state === 'ready' ? 200
           : response.state === 'not-found' ? 404
             : response.state === 'invalid-request' ? 400
