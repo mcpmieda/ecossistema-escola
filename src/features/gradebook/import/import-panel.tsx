@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, ProgressBar, Surface } from '@heroui/react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
@@ -11,6 +11,7 @@ import {
 import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1';
 import { WorkbookInspector } from './workbook-inspector';
+import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -69,7 +70,9 @@ function persistenceLabel(state: ImportPersistenceStateV9 | undefined): string {
     case 'confirmation-required':
       return 'Confirmação pendente';
     case 'failed':
-      return state.kind === 'validation' ? 'Bloqueado para correção' : `Indisponível: ${state.message}`;
+      return state.kind === 'validation'
+        ? 'Bloqueado para correção'
+        : `Indisponível: ${state.message}`;
     case 'completed': {
       const labels = {
         applied: 'Aplicado',
@@ -139,7 +142,9 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefi
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Planilha bloqueada para correção</Alert.Title>
-            <Alert.Description>{state.message} Nenhum dado deste arquivo foi enviado.</Alert.Description>
+            <Alert.Description>
+              {state.message} Nenhum dado deste arquivo foi enviado.
+            </Alert.Description>
           </Alert.Content>
         </Alert>
       );
@@ -170,11 +175,48 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefi
 
 export function TimingDiagnostics({
   visible,
-  diagnostics,
+  summary,
+  getReport,
 }: {
   visible: boolean;
-  diagnostics: readonly string[];
+  summary: ImportTimingSummaryV1;
+  getReport: () => string;
 }) {
+  const mounted = useRef(true);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
+  const [manualText, setManualText] = useState<string | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  // A manual snapshot belongs to the clicked run, not a later selection/resume.
+  const copyRun = useRef(summary.runOrdinal);
+  useEffect(() => {
+    copyRun.current = summary.runOrdinal;
+    setManualText(null);
+    setCopyStatus('idle');
+  }, [summary.runOrdinal]);
+  async function copyReport() {
+    const ordinal = summary.runOrdinal;
+    let text: string | null = null;
+    setCopyStatus('copying');
+    try {
+      text = getReport();
+      if (!globalThis.navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await globalThis.navigator.clipboard.writeText(text);
+      if (mounted.current && copyRun.current === ordinal) {
+        setManualText(null);
+        setCopyStatus('copied');
+      }
+    } catch {
+      if (mounted.current && copyRun.current === ordinal) {
+        setManualText(text);
+        setCopyStatus('failed');
+      }
+    }
+  }
   if (!visible) return null;
   return (
     <Surface variant="secondary" className="mt-3 rounded-2xl p-4">
@@ -182,22 +224,58 @@ export function TimingDiagnostics({
         <div className="mr-auto">
           <p className="text-sm font-medium">Diagnóstico de tempo</p>
           <p className="mt-1 text-xs text-muted">
-            Copie e envie o diagnóstico após cada teste. Ele contém somente tempos, contagens e modo
-            de execução e fica apenas na memória enquanto esta tela estiver aberta.
+            Tempos e contagens ficam somente em memória. Novo lote substitui o relatório; recarregar
+            ou fechar a tela apaga o histórico.
           </p>
         </div>
         <Button
           size="sm"
           variant="secondary"
-          isDisabled={diagnostics.length === 0}
+          isDisabled={summary.runOrdinal === null || copyStatus === 'copying'}
           onPress={() => {
-            const text = diagnostics.join('\n');
-            if (text) void globalThis.navigator.clipboard?.writeText(text);
+            void copyReport();
           }}
         >
           Copiar diagnóstico
         </Button>
       </div>
+      <p className="mt-2 text-xs text-muted">
+        {summary.status === 'in-progress'
+          ? 'Em andamento'
+          : summary.status === 'paused'
+            ? 'Pausado'
+            : 'Finalizado'}
+        {summary.diagnosticFailures > 0 ? ' · Diagnóstico parcial' : ''}
+        {summary.discardedEvents > 0
+          ? ` · ${summary.discardedEvents} eventos recentes descartados`
+          : ''}
+        {summary.omittedResumes > 0
+          ? ` · ${summary.omittedResumes} retomadas intermediárias omitidas`
+          : ''}
+      </p>
+      <p role="status" aria-live="polite" className="mt-2 text-sm">
+        {copyStatus === 'copied'
+          ? 'Diagnóstico copiado.'
+          : copyStatus === 'failed'
+            ? manualText === null
+              ? 'Não foi possível obter o diagnóstico.'
+              : 'Não foi possível copiar. Selecione o texto abaixo para copiar manualmente.'
+            : copyStatus === 'copying'
+              ? 'Copiando diagnóstico…'
+              : ''}
+      </p>
+      {manualText !== null && (
+        <label className="mt-2 block text-sm">
+          Diagnóstico para cópia manual
+          <textarea
+            readOnly
+            value={manualText}
+            rows={8}
+            className="mt-2 w-full rounded-xl border border-default p-3 font-mono text-xs"
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </label>
+      )}
     </Surface>
   );
 }
@@ -220,7 +298,8 @@ export function NotesImportPanel() {
     selectedResult,
     setSelectedId,
     sourceDiagnostics,
-    timingDiagnostics,
+    timingReportSummary,
+    getTimingReport,
     totals,
   } = useImportBatch();
 
@@ -256,8 +335,8 @@ export function NotesImportPanel() {
           <p className="mt-2 text-sm text-muted">
             Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é lido
             localmente. Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.
-            Nas atividades e avaliações, vazio significa “Não fez” e 0 significa “Tirou zero”.
-            A nota 0,1 é um número comum e entra nos cálculos.
+            Nas atividades e avaliações, vazio significa “Não fez” e 0 significa “Tirou zero”. A
+            nota 0,1 é um número comum e entra nos cálculos.
           </p>
         </div>
         <Button
@@ -452,19 +531,15 @@ export function NotesImportPanel() {
                 auditFailure={diagnosticAuditFailures[selectedResult.id]}
               />
               <PersistenceResult state={selectedPersistence} />
-              <TimingDiagnostics
-                visible={
-                  selectedPersistence?.state === 'completed' ||
-                  selectedPersistence?.state === 'failed' ||
-                  selectedPersistence?.state === 'confirmation-required' ||
-                  selectedPersistence?.state === 'auth-required'
-                }
-                diagnostics={timingDiagnostics}
-              />
             </>
           )}
         </div>
       )}
+      <TimingDiagnostics
+        visible={timingReportSummary.runOrdinal !== null}
+        summary={timingReportSummary}
+        getReport={getTimingReport}
+      />
     </Surface>
   );
 }

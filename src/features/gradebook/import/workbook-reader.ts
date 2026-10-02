@@ -1,14 +1,7 @@
 import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import { createSourceFileManifest } from './file-manifest';
-import {
-  recognizeWorkbook,
-  type SheetJs,
-  type WorkbookSummary,
-} from './spreadsheet-recognizer';
-import {
-  recognizeMasterRelationV9,
-  type MasterRelationRecognitionV9,
-} from './master-relation-v9';
+import { recognizeWorkbook, type SheetJs, type WorkbookSummary } from './spreadsheet-recognizer';
+import { recognizeMasterRelationV9, type MasterRelationRecognitionV9 } from './master-relation-v9';
 
 export const WORKBOOK_READ_OPTIONS = {
   type: 'array',
@@ -23,10 +16,13 @@ export const WORKBOOK_READ_OPTIONS = {
 
 export interface WorkbookReadTimingV1 {
   readonly totalMs: number;
-  readonly xlsxReadMs: number;
-  readonly recognizeWorkbookMs: number;
+  readonly xlsxReadMs: number | null;
+  readonly masterRelationRecognitionMs: number | null;
+  readonly recognizeWorkbookMs: number | null;
   /** Kept in timing output for log compatibility after the retired V6 roster pass was removed. */
-  readonly canonicalRostersMs: number;
+  readonly canonicalRostersMs: number | null;
+  readonly outcome: 'recognized' | 'failed';
+  readonly failureStage: 'workbook-read' | 'relation-recognition' | 'workbook-recognition' | null;
 }
 
 export interface WorkbookSummaryWithRelationV9 extends WorkbookSummary {
@@ -92,38 +88,71 @@ export function readWorkbookData(
   captureValues = false,
 ): WorkbookSummaryWithRelationV9 {
   const totalStartedAt = nowMs();
-  const readStartedAt = nowMs();
-  const parsed = xlsx.read(data, WORKBOOK_READ_OPTIONS);
-  const xlsxReadMs = elapsedMs(readStartedAt);
-  if (parsed.SheetNames.length === 0) {
-    throw new Error('A planilha não contém abas reconhecíveis.');
+  let xlsxReadMs: number | null = null;
+  let masterRelationRecognitionMs: number | null = null;
+  let recognizeWorkbookMs: number | null = null;
+  let outcome: WorkbookReadTimingV1['outcome'] = 'failed';
+  let failureStage: WorkbookReadTimingV1['failureStage'] = 'workbook-read';
+  try {
+    const readStartedAt = nowMs();
+    let parsed: ReturnType<SheetJs['read']>;
+    try {
+      parsed = xlsx.read(data, WORKBOOK_READ_OPTIONS);
+    } finally {
+      xlsxReadMs = elapsedMs(readStartedAt);
+    }
+    if (parsed.SheetNames.length === 0) {
+      throw new Error('A planilha não contém abas reconhecíveis.');
+    }
+
+    failureStage = 'relation-recognition';
+    const relationStartedAt = nowMs();
+    let masterRelationV9: MasterRelationRecognitionV9 | null;
+    try {
+      masterRelationV9 = recognizeMasterRelationV9(parsed);
+    } finally {
+      masterRelationRecognitionMs = elapsedMs(relationStartedAt);
+    }
+
+    failureStage = 'workbook-recognition';
+    const recognizeStartedAt = nowMs();
+    let summary: WorkbookSummary;
+    try {
+      const recognized = recognizeWorkbook(file, parsed, xlsx, {
+        fileSha256: manifest.sha256,
+        captureValues,
+      });
+      summary = preserveOriginalWorksheetDimensions(recognized, parsed, xlsx);
+    } finally {
+      recognizeWorkbookMs = elapsedMs(recognizeStartedAt);
+    }
+    if (summary.gradeSheets.length === 0 && !masterRelationV9) {
+      throw new Error('Nenhuma guia corresponde ao padrão de notas configurado.');
+    }
+
+    outcome = 'recognized';
+    failureStage = null;
+    return {
+      ...summary,
+      ...(masterRelationV9
+        ? { academicYear: masterRelationV9.ano, teacherName: null, masterRelationV9 }
+        : {}),
+    };
+  } finally {
+    try {
+      onTiming?.({
+        totalMs: elapsedMs(totalStartedAt),
+        xlsxReadMs,
+        masterRelationRecognitionMs,
+        recognizeWorkbookMs,
+        canonicalRostersMs: outcome === 'recognized' ? 0 : null,
+        outcome,
+        failureStage,
+      });
+    } catch {
+      // Optional diagnostics must not change the recognized result or the original error.
+    }
   }
-
-  const masterRelationV9 = recognizeMasterRelationV9(parsed);
-  const recognizeStartedAt = nowMs();
-  const recognized = recognizeWorkbook(file, parsed, xlsx, {
-    fileSha256: manifest.sha256,
-    captureValues,
-  });
-  const summary = preserveOriginalWorksheetDimensions(recognized, parsed, xlsx);
-  const recognizeWorkbookMs = elapsedMs(recognizeStartedAt);
-  if (summary.gradeSheets.length === 0 && !masterRelationV9) {
-    throw new Error('Nenhuma guia corresponde ao padrão de notas configurado.');
-  }
-
-  onTiming?.({
-    totalMs: elapsedMs(totalStartedAt),
-    xlsxReadMs,
-    recognizeWorkbookMs,
-    canonicalRostersMs: 0,
-  });
-
-  return {
-    ...summary,
-    ...(masterRelationV9
-      ? { academicYear: masterRelationV9.ano, teacherName: null, masterRelationV9 }
-      : {}),
-  };
 }
 
 export async function readWorkbook(
