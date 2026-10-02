@@ -35,6 +35,13 @@ async function command(input: object) {
 }
 beforeAll(async () => {
   await openSyntheticSchoolV1(sql as unknown as StudentPortalPostgresSqlV1);
+  // The historical native migration suite intentionally stops before the live outbox.
+  // This composed scheduled runtime exercises its existing retention contract too.
+  const outbox = await sql`SELECT to_regclass('student_portal.live_event_outbox_v1') AS relation`;
+  if (outbox[0]?.relation === null) {
+    for (const name of ['0011_live_event_outbox_v1.sql', '0017_security_event_priority_v1.sql'])
+      await sql.unsafe(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
+  }
   // Schema was replayed by the preceding native suite. New synthetic class avoids all H fixture state.
   await sql.unsafe(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(970001,2026,'I715','SYNTHETIC COMPOSITION',6,'TESTE');
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES(970001,2026,'SYNTHETIC COMPOSITION ACCOUNT');
@@ -112,9 +119,16 @@ it('executes the actual scheduled entrypoint and physically removes expired synt
   await sql`INSERT INTO student_portal.operation_receipt(idempotency_key,actor_id,request_digest,operation_id,version,created_at,expires_at)
     VALUES(${id},'synthetic-cron-715',${'a'.repeat(64)},${crypto.randomUUID()},0,
       statement_timestamp()-interval '2 minutes',statement_timestamp()-interval '1 minute')`;
+  const eventId = crypto.randomUUID();
+  await sql`INSERT INTO student_portal.live_event_outbox_v1
+    (source_event_id,audience,domain,academic_year,version,occurred_at,delivered_at)
+    VALUES(${eventId},'admin','portal',2026,'1',statement_timestamp()-interval '9 days',
+      statement_timestamp()-interval '8 days')`;
   const worker = await runtime.getWorker('portal');
   await worker.scheduled({ cron: '* * * * *' });
   const rows = await sql`SELECT count(*)::integer AS count FROM student_portal.operation_receipt WHERE idempotency_key=${id}`;
   expect(rows[0]!.count).toBe(0);
+  const expired = await sql`SELECT count(*)::integer AS count FROM student_portal.live_event_outbox_v1 WHERE source_event_id=${eventId}`;
+  expect(expired[0]!.count).toBe(0);
   expect((await query('health')).state).toBe('health');
 });

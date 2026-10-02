@@ -8,8 +8,12 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<vo
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
   try {
     await portalDatabaseV1(env, 'cleanup', async (sql) => {
-      await cleanupPortalLiveEventsV1(sql);
-      await cleanupPortalV1(sql, 100);
+      let failed = false;
+      // Each family owns its transaction; failure must not suppress unrelated retention.
+      for (const cleanup of [cleanupPortalLiveEventsV1, cleanupPortalV1]) {
+        try { await cleanup(sql); } catch { failed = true; }
+      }
+      if (failed) throw new Error('student-portal-cleanup-unavailable');
     });
   } catch { /* The connection wrapper already emitted sanitized unavailable. */ }
 }

@@ -78,6 +78,21 @@ it('scheduled retention deletes only old delivered events even with no socket bi
   expect(mocks.publish).not.toHaveBeenCalled();
 });
 
+it('does not suppress privacy retention when the independent outbox cleanup fails', async () => {
+  const unsafe = vi.fn(async (query: string) => {
+    if (query.includes('live_event_outbox_v1')) throw new Error('synthetic-missing-outbox');
+    return [];
+  });
+  const sql = { unsafe, begin: async (run: (tx: { unsafe: typeof unsafe }) => unknown) => run({ unsafe }) };
+  let recordedFailure: unknown;
+  mocks.database.mockImplementation(async (_env, _operation, run) => {
+    try { return await run(sql); } catch (error) { recordedFailure = error; throw error; }
+  });
+  await portalScheduledV1(env);
+  expect(unsafe.mock.calls.some(([query]) => query.includes('DELETE FROM student_portal.operation_receipt'))).toBe(true);
+  expect(recordedFailure).toMatchObject({ message: 'student-portal-cleanup-unavailable' });
+});
+
 it('the private drain accepts only a fresh same-tenant BN capability in a serving production deployment', () => {
   expect(allowPortalLiveDrainV1(env, context())).toBe(true);
   for (const input of [{}, { ...context(), capability: 'platform.settings.write' },
