@@ -411,3 +411,126 @@ produtivos sem cópia integral do reconhecedor; `sheetjs-real-v1.ts` valida pin/
 as regressões de codecs; `workbook-reader-real-codecs-v1.test.ts` cobre dimensões reais e
 aplica requests produzidos à composição PGlite; `reader-comparison-v1.mjs` contém a lógica
 compartilhada Node/browser do CLI local. Não criam rota, dependência ou serviço produtivo.
+
+### H4/H5 — amostras finais do navegador e rejeição
+
+Fonte: [amostras individuais e metadados](benchmarks/1225-adendo-h-reader-v1.json),
+coleta concluída em `2026-10-02T14:42:41.028Z`, commit limpo
+`5bbb6970ff87fc4c8f91563540266cf740e9fbe6`; baseline `9f95387a4588653a2631288f929d94b4350bb5d6`.
+Windows x64 (UA NT10), navegador interno Chromium `154.0.0.0`/engine Chromium;
+versão específica de V8 não coletada. Codex/automação e abas existentes abertas; sem
+suítes locais simultâneas durante esta rodada. Nenhum DevTools manual/GC forçado.
+Script/bytes oficiais 0.20.3 com SRI do loader; fingerprints dos bundles/comparador no JSON.
+
+21 casos funcionais + dois docentes ampliados (2025/2026), três formatos: **66 equivalências
+completas e três lacunas do writer**, sem falsos PASS para workbook vazio. Cada arquivo
+ampliado tem nove ofertas/37 guias e 12 estudantes sintéticos por turma, dimensões A1:AN50.
+Os lotes reutilizam os seis buffers docentes (dois anos × três formatos), com Relação
+na última posição. São 18/50 leituras sequenciais, não 18/50 arquivos produtivos distintos.
+Tamanhos/contagens/dimensões e resultados por caso estão no JSON; campos acadêmicos,
+nomes, notas, manifests/hashes de arquivos e SQL não são exportados.
+
+Valores em ms; **n=5** aquecidas por linha, após preflight e rodada inicial medida
+separadamente. Medianas dos trechos são independentes: não somá-las para obter o total.
+Adaptação não converte/copia workbook (`0`), custo do acesso incluído em reconhecimento.
+Total de bytes fixos cobre leitor/diagnóstico/canônico; File/hash inclui também leitura
+e SHA. Nenhum trecho remoto, heap (não medido), p95/SLA ou inferência de ganho produtivo.
+
+| Corpus/recorte            | Variante | Parse mediano | Reconhecimento | Canônico/diagnóstico | Total mediano | Min–max total | Δ total vs S0 |
+| ------------------------- | -------- | ------------: | -------------: | -------------------: | ------------: | ------------- | ------------- |
+| single-xlsx/fixed-bytes   | S0       |          56,0 |           12,2 |                 13,3 |          83,1 | 78,2–93,0     | 0,0 (0,0%)    |
+| single-xlsx/fixed-bytes   | S1       |          55,2 |           12,2 |                 13,7 |          79,8 | 77,1–88,2     | -3,3 (-4,0%)  |
+| single-xlsx/fixed-bytes   | D1       |          53,8 |           18,9 |                 12,2 |          85,5 | 79,3–110,0    | 2,4 (2,9%)    |
+| single-xlsx/file-and-hash | S0       |          53,1 |           11,3 |                 14,4 |          87,0 | 78,3–90,2     | 0,0 (0,0%)    |
+| single-xlsx/file-and-hash | S1       |          57,2 |           12,1 |                 14,0 |          84,4 | 80,5–171,1    | -2,6 (-3,0%)  |
+| single-xlsx/file-and-hash | D1       |          52,1 |           19,4 |                 12,4 |          85,1 | 78,2–89,1     | -1,9 (-2,2%)  |
+| single-xlsb/fixed-bytes   | S0       |          20,6 |           10,1 |                 11,9 |          42,3 | 39,4–49,7     | 0,0 (0,0%)    |
+| single-xlsb/fixed-bytes   | S1       |          20,8 |           10,2 |                 12,5 |          44,1 | 39,4–45,6     | 1,8 (4,3%)    |
+| single-xlsb/fixed-bytes   | D1       |          18,3 |           17,2 |                 11,1 |          46,9 | 45,2–49,1     | 4,6 (10,9%)   |
+| single-xlsb/file-and-hash | S0       |          20,0 |            9,8 |                 11,6 |          43,9 | 40,1–45,7     | 0,0 (0,0%)    |
+| single-xlsb/file-and-hash | S1       |          22,1 |            9,8 |                 12,6 |          46,0 | 43,7–47,0     | 2,1 (4,8%)    |
+| single-xlsb/file-and-hash | D1       |          18,4 |           18,8 |                 10,8 |          50,3 | 48,7–55,1     | 6,4 (14,6%)   |
+| single-xls/fixed-bytes    | S0       |          27,4 |           10,0 |                 11,5 |          48,3 | 47,1–50,9     | 0,0 (0,0%)    |
+| single-xls/fixed-bytes    | S1       |          29,2 |           10,5 |                 11,3 |          49,5 | 48,9–52,5     | 1,2 (2,5%)    |
+| single-xls/fixed-bytes    | D1       |          25,6 |           19,7 |                 11,2 |          57,0 | 55,5–57,5     | 8,7 (18,0%)   |
+| single-xls/file-and-hash  | S0       |          30,3 |            9,9 |                 11,8 |          53,1 | 31,2–60,0     | 0,0 (0,0%)    |
+| single-xls/file-and-hash  | S1       |          30,2 |           10,7 |                 11,0 |          56,1 | 48,3–153,3    | 3,0 (5,6%)    |
+| single-xls/file-and-hash  | D1       |          26,8 |           20,3 |                 11,6 |          61,1 | 57,9–62,4     | 8,0 (15,1%)   |
+| batch-18/fixed-bytes      | S0       |         616,6 |          172,5 |                198,1 |        1001,1 | 959,5–1075,9  | 0,0 (0,0%)    |
+| batch-18/fixed-bytes      | S1       |         617,2 |          181,3 |                204,5 |        1016,4 | 978,0–1075,4  | 15,3 (1,5%)   |
+| batch-18/fixed-bytes      | D1       |         560,5 |          327,7 |                203,8 |        1086,5 | 1075,2–1102,0 | 85,4 (8,5%)   |
+| batch-18/file-and-hash    | S0       |         592,0 |          172,8 |                199,8 |         992,9 | 973,3–1014,2  | 0,0 (0,0%)    |
+| batch-18/file-and-hash    | S1       |         588,2 |          181,6 |                191,4 |         998,0 | 965,5–1004,1  | 5,1 (0,5%)    |
+| batch-18/file-and-hash    | D1       |         545,6 |          338,6 |                204,6 |        1164,4 | 1092,0–1195,1 | 171,5 (17,3%) |
+| batch-50/fixed-bytes      | S0       |        1687,7 |          488,5 |                563,6 |        2735,0 | 2707,5–2863,4 | 0,0 (0,0%)    |
+| batch-50/fixed-bytes      | S1       |        1727,7 |          529,7 |                591,8 |        2884,3 | 2793,6–2927,9 | 149,3 (5,5%)  |
+| batch-50/fixed-bytes      | D1       |        1588,8 |          926,2 |                579,1 |        3110,1 | 3070,4–3204,4 | 375,1 (13,7%) |
+| batch-50/file-and-hash    | S0       |        1661,9 |          487,5 |                566,3 |        2803,5 | 2703,7–2882,9 | 0,0 (0,0%)    |
+| batch-50/file-and-hash    | S1       |        1656,5 |          518,4 |                578,9 |        2870,5 | 2801,4–2991,2 | 67,0 (2,4%)   |
+| batch-50/file-and-hash    | D1       |        1562,2 |          954,0 |                579,9 |        3213,1 | 3167,6–3357,6 | 409,6 (14,6%) |
+
+D1 piorou o total em todos os recortes de lote: **+8,5%/+17,3%** (18, bytes/File-hash),
+**+13,7%/+14,6%** (50). XLSB individual: +10,9%/+14,6%; XLS: +18,0%/+15,1%.
+XLSX File/hash teve −2,2% nesta rodada, mas bytes fixos +2,9%; não omitir esse resultado
+nem extrapolar uma amostra isolada. S1 também não demonstrou benefício consistente.
+**Decisão final: manter S0 produtivo; D1 e S1 rejeitados para promoção.**
+A perda de fórmulas pelos writers XLSB/XLS permanece uma lacuna adicional; igualdade
+entre variantes lendo os mesmos bytes gerados não prova equivalência com todas as fontes
+reais. Casos de fórmula/cache/erro/fallback continuam protegidos nas fixtures de objetos.
+
+Reprodução: `node --experimental-strip-types scripts/gradebook/benchmark-workbook-reader-v1.mjs`
+na raiz; abrir somente URL local emitida e executar o comparador. `--baseline=<SHA>` fixa
+a referência; `--node` é complementar, sem substituir o navegador. Saída em
+`node_modules/.cache/gradebook-reader-v1/browser-report.json`; script oficial conferido
+por SRI a cada execução (download só quando ausente). Não apontar para dados reais/produção.
+A execução Edge sem relatório foi descartada; a rodada preliminar em working tree foi
+substituída pelas amostras acima. Nenhuma delas explica a observação real de 20.874,7ms.
+
+### H6 — matriz e verificação
+
+Windows/Node24.16.0/Vitest4.1.11/jsdom: comando direcionado com nove arquivos abaixo,
+`--maxWorkers=2` somente no runner: **174/174 PASS**, 184,16s. Nenhum assert de
+milissegundos, timeout/configuração ou regra acadêmica foi alterado para aprovação.
+
+| Cenários     | Evidência efetivamente executada                                                                                                                               | Limite                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| H-I01/I04–16 | `relational-import-idempotency-v11.test.ts`: 19 casos, V11/V10/V9 reais, snapshots e categorias/revisões/rollback                                              | PGlite sintético; caminhos possíveis não atribuem causa real                               |
+| H-I02/I03    | `workbook-reader-equivalence-v1.test.ts`, real-codecs: repetição de bytes/manifesto, alteração exclusiva de `readAt`                                           | Metadado temporal testado separadamente, sem excluir campos do oráculo acadêmico           |
+| H-R01–03     | `worksheet-cell-access-v1.test.ts`: 33 casos, A1/AA/AN/AZ/$, buracos/ausências, objeto sem v, dense autoritativo                                               | Sem cache global, conversão ou preenchimento                                               |
+| H-R04–08     | `workbook-reader-equivalence-v1.test.ts`: valor/tipo, manual/fórmula, cache zero/ausente/vazio/erro, w/observações                                             | Objetos; fórmulas XLSB/XLS não homologadas pelo writer                                     |
+| H-R09–16     | Mesmo leitor: dimensões/ordem/recusas, CONFIGURAÇÃO/fallback, Relação/AZ48/transferências, instrumentos/qualitativos/máscaras, datas/booleanos/mesclagens      | 21 casos funcionais com summary/diagnóstico/canônico integral e asserts de conteúdo        |
+| H-R17/R22    | `workbook-reader-real-codecs-v1.test.ts`: seis testes, três codecs reais, dimensões120/captura50; requests S0/S1/D1 e repetições sem DML/revisões em PGlite    | Fórmulas binárias/caches sem fidelidade universal; sem uso produtivo                       |
+| H-R18        | Leitor e `synthetic-import-batch.test.ts`: erro original de leitura/hash/parser e callback que lança, sem sucesso silencioso                                   | Falhas injetadas são funcionais, não medidas de parsing                                    |
+| H-R19        | Comparador real18/50, anos2025/2026/Relação final; `bounded-import-queue.test.ts`/synthetic: ordem/barreira/quatro anos/limites/corpos                         | Comparador mede leitor sequencial; regressões do hook protegem despacho/fila separadamente |
+| H-R20        | `bounded-import-queue.test.ts`, `auth-resume-v1.test.ts`: auth, resultado incerto, retomadas/pending, confirmações/unmount                                     | Sem sessão produtiva real                                                                  |
+| H-R21        | `import-timing-report-v1.test.ts`, `import-timing-copy-v1.test.tsx`, bounded/synthetic: sentinelas privadas, texto copiado, Clipboard falho, allowlist/limites | Exportação G real exercitada na fixture; heap não medido                                   |
+
+Comando executado: `npx vitest run tests/gradebook/import/worksheet-cell-access-v1.test.ts tests/gradebook/import/workbook-reader-equivalence-v1.test.ts tests/gradebook/import/workbook-reader-real-codecs-v1.test.ts tests/gradebook/import/relational-import-idempotency-v11.test.ts tests/gradebook/import/synthetic-import-batch.test.ts tests/gradebook/import/bounded-import-queue.test.ts tests/gradebook/import/import-timing-report-v1.test.ts tests/gradebook/import/import-timing-copy-v1.test.tsx tests/gradebook/import/auth-resume-v1.test.ts --maxWorkers=2`.
+Baseline H0 97/97, H1/H2 19/19 e direcionados do leitor61/61 + real-codecs6/6 registrados
+separadamente; não somar execuções repetidas como testes distintos. Gates completos
+`npm run lint`, `npm run typecheck`, `npm run verify` e CI/nativo aplicáveis são registrados
+com SHA/ambiente/resultado nos checkpoints da #1225/PR, inclusive eventual falha local.
+
+### H7 — estados, reversão e coleta mínima
+
+Implementado: investigação/testes `2437b75473da93c4494ea7da97c1606d4cbf9011`, comparador
+`5bbb6970ff87fc4c8f91563540266cf740e9fbe6`; testado conforme evidências acima.
+**Nenhuma otimização produtiva nem correção de integridade foi promovida.** Integração
+e publicação dependem dos gates no head final e do workflow oficial; SHA/árvore/execuções
+efetivos constam nos checkpoints da [#1225](https://github.com/mcpmieda/ecossistema-escola/issues/1225).
+CI/publicação não são homologação acadêmica, uso autenticado nem explicação da posição6.
+Validação em uso real e causa da execução recebida continuam pendentes de evidência.
+
+Somente o responsável coleta no próximo lote legítimo escolhido por ele: copiar relatório
+G antes de novo lote/reload; conferir reconhecimento, diagnósticos e Banco/Portal normais;
+anotar formatos/ambiente/cache e separar applied/no-changes. Se possível, preservar
+privadamente evidência de mesmos bytes, pedido/resposta validados da posição original6,
+categorias agregadas já disponíveis e estado anterior/alterações de catálogo/Relação.
+Sem o estado anterior e o detalhe correspondente, manter a causa indeterminada; novo
+estado do banco não reconstrói automaticamente a aplicação passada. Nenhuma edição de
+nota, carga sintética em produção, reimportação artificial ou exposição de conteúdo é pedida.
+
+Reversão pelo fluxo normal somente dos commits H de testes/harness/documentação. Como
+S0 ficou produtivo, não há configuração de representação, migration ou dados acadêmicos
+a desfazer; preservar F1–F6/G. Se futura proposta adotar outra representação, terá seus
+próprios gates/evidência e reversão delimitada. A #1225 permanece aberta.
