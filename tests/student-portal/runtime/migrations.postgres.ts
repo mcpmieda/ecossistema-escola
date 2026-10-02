@@ -542,6 +542,32 @@ describe('native import reset revisions', () => {
     expect(bufferIndexes.length).toBeGreaterThan(0);
     expect(bufferIndexes.every((index)=>index<eventIndex)).toBe(true);
     expect(queries.filter((query)=>query.includes('record_gradebook_change_v1'))).toHaveLength(1);
+    // #1225: logical refusals must reach the physical rollback boundary as well.
+    const snapshot = async () => {
+      const tables = await admin`SELECT table_schema,table_name FROM information_schema.tables
+        WHERE table_schema IN ('gradebook','student_portal') AND table_type='BASE TABLE'
+        ORDER BY table_schema,table_name`;
+      const state: Record<string, unknown> = {};
+      for (const table of tables) {
+        const schema = String(table.table_schema), name = String(table.table_name);
+        if (!/^[a-z_][a-z_0-9]*$/u.test(schema) || !/^[a-z_][a-z_0-9]*$/u.test(name)) throw new Error('unsafe-fixture-table');
+        state[schema + '.' + name] = await admin.unsafe(`SELECT to_jsonb(t) AS row FROM ${schema}.${name} t ORDER BY to_jsonb(t)::text`);
+      }
+      return state;
+    };
+    const stable = await snapshot();
+    const absent = {...notes.ofertas[0]!,turmaCodigo:'SYNTHETIC-MISSING'};
+    const unbound = {...notes.ofertas[0]!,disciplina:'SYNTHETIC NEW SUBJECT',trimestres:[
+      {...term(1),alunos:[[99,[3000],3000]] as const},term(2),term(3)] as const};
+    const changedBeforeRefusal = {...notes.ofertas[0]!,trimestres:[
+      {...term(1),alunos:[[1,[4000],4000]] as const},term(2),term(3)] as const};
+    for (const ofertas of [[absent], [changedBeforeRefusal,absent], [unbound]]) {
+      queries.length=0;
+      expect(await service.execute({...notes,professor:'SYNTHETIC REFUSED TEACHER',ofertas})).toMatchObject({state:'blocked'});
+      expect(await snapshot()).toEqual(stable);
+      if (ofertas[0] === changedBeforeRefusal) expect(queries.some((query)=>query.includes('jsonb_to_recordset') && /(?:INSERT INTO|UPDATE) gradebook\.nota/u.test(query))).toBe(true);
+      expect(queries.some((query)=>query.includes('record_gradebook_change_v1'))).toBe(false);
+    }
     const before=await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2020`;
     expect(await service.execute(notes)).toMatchObject({state:'no-changes'});
     expect(await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2020`).toEqual(before);
