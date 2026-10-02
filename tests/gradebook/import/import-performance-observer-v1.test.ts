@@ -121,7 +121,8 @@ describe('request-local import performance observer', () => {
         );
       });
     });
-    expect(stringify).toHaveBeenCalledTimes(1);
+    expect(stringify).toHaveBeenCalledTimes(2);
+    expect(stringify.mock.calls.every(([value]) => !Array.isArray(value))).toBe(true);
     await buffer.flush();
     const metrics = observer.snapshot();
     expect(metrics).toMatchObject({
@@ -148,6 +149,57 @@ describe('request-local import performance observer', () => {
     expect(logs[0]).not.toMatch(
       /12345|23456|67890|private-value|private-token|SELECT|INSERT|instrumento_id|aluno_id/u,
     );
+  });
+
+  it('measures only fixed read-set/catalog/instrument aggregates without retaining values', async () => {
+    const observer = createImportPerformanceObserverV1();
+    const database = observer.wrap(
+      createGradebookPostgresDatabaseFromSqlV1({
+        unsafe: async (sql) =>
+          Object.assign(
+            Array.from({ length: sql.includes('notes') ? 7 : 2 }, () => ({ private: 'never-log' })),
+            { count: 2 },
+          ),
+        begin: async () => {
+          throw new Error('not-used');
+        },
+        end: async () => undefined,
+      }),
+    );
+    const values = [2090, { jsonText: '[12345,67890]' }];
+    for (const name of ['instruments', 'notes', 'closings'])
+      await database.executeNative(
+        `SELECT i FROM gradebook.instrumento /* import-read-set:${name} */`,
+        values,
+      );
+    await database.executeNative('SELECT d /* import-catalog:disciplines-read */', values);
+    await database.executeNative('INSERT d /* import-catalog:disciplines-create */', values);
+    for (const name of ['create', 'update', 'retire'])
+      await database.executeNative(`UPDATE i /* import-instruments:${name} */`, values);
+    const metrics = observer.snapshot();
+    expect(metrics).toMatchObject({
+      sqlCalls: 8,
+      sqlReadCalls: 4,
+      sqlWriteCalls: 4,
+      readSetBlocks: 1,
+      readSetOffers: 2,
+      maximumReadSetOffers: 2,
+      maximumReadSetRows: 11,
+      catalogReadCalls: 1,
+      catalogWriteCalls: 1,
+      instrumentStatements: 3,
+      instrumentsCreated: 2,
+      instrumentsUpdated: 2,
+      instrumentsRetired: 2,
+      maximumInstrumentGroupRows: 2,
+      maximumInstrumentGroupBytes: 13,
+    });
+    expect(JSON.stringify(metrics)).not.toMatch(/12345|67890|never-log/u);
+    await database.executeNative('UPDATE i /* import-instruments:create */', [
+      2090,
+      { jsonText: 'invalid-json' },
+    ]);
+    expect(observer.snapshot().sqlCalls).toBe(9);
   });
 
   it('records group mismatch as failure without completed groups and preserves rejection', async () => {

@@ -1,6 +1,13 @@
+import type { GradebookPostgresValueV1 } from './postgres-values-v1';
 import type { GradebookPostgresWritePortV1 } from './postgres-database-v1';
 
-export type ImportFlushReasonV1 = 'read-boundary' | 'non-buffered-write' | 'transaction-end';
+export type ImportFlushReasonV1 =
+  | 'read-boundary'
+  | 'non-buffered-write'
+  | 'transaction-end'
+  | 'dependency-boundary'
+  | 'row-limit'
+  | 'byte-limit';
 export type ImportGroupCategoryV1 =
   | 'note-delete'
   | 'note-update'
@@ -25,8 +32,47 @@ function duration(started: number): number {
   return Math.max(0, Math.round((importPerformanceNowV1() - started) * 10) / 10);
 }
 
+type ImportSqlMarkerV1 =
+  | 'read-set-instruments'
+  | 'read-set-notes'
+  | 'read-set-closings'
+  | 'catalog-disciplines-read'
+  | 'catalog-disciplines-create'
+  | 'catalog-disciplines-update'
+  | 'catalog-offers-read'
+  | 'catalog-offers-create'
+  | 'instruments-create'
+  | 'instruments-update'
+  | 'instruments-retire-notes'
+  | 'instruments-retire';
+function marker(query: string): ImportSqlMarkerV1 | null {
+  const match =
+    /\/\* import-(read-set|catalog|instruments):(instruments|notes|closings|disciplines-read|disciplines-create|disciplines-update|offers-read|offers-create|create|update|retire-notes|retire) \*\/\s*$/u.exec(
+      query,
+    );
+  if (!match) return null;
+  const name = `${match[1]}-${match[2]}`;
+  const allowed: readonly string[] = [
+    'read-set-instruments',
+    'read-set-notes',
+    'read-set-closings',
+    'catalog-disciplines-read',
+    'catalog-disciplines-create',
+    'catalog-disciplines-update',
+    'catalog-offers-read',
+    'catalog-offers-create',
+    'instruments-create',
+    'instruments-update',
+    'instruments-retire-notes',
+    'instruments-retire',
+  ];
+  return allowed.includes(name) ? (name as ImportSqlMarkerV1) : null;
+}
+
 // Only fixed operation categories leave this module. Unknown SQL stays "other".
 function category(query: string): SqlCategoryV1 {
+  const known = marker(query);
+  if (known) return known.startsWith('read-set-') || known.endsWith('-read') ? 'read' : 'write';
   const sql = query.trim().replace(/\s+/gu, ' ').toLowerCase();
   if (
     /^select (?:pg_advisory_xact_lock(?:_shared)?|student_portal\.ensure_year_coordination_v1)\(/u.test(
@@ -66,12 +112,33 @@ export function createImportPerformanceObserverV1() {
     sqlOtherCalls: 0,
     sqlFailedCalls: 0,
     rowsRead: 0,
+    readSetBlocks: 0,
+    readSetOffers: 0,
+    maximumReadSetOffers: 0,
+    maximumReadSetRows: 0,
+    catalogReadCalls: 0,
+    catalogWriteCalls: 0,
+    instrumentsCreated: 0,
+    instrumentsUpdated: 0,
+    instrumentsRetired: 0,
+    instrumentStatements: 0,
+    maximumInstrumentGroupRows: 0,
+    maximumInstrumentGroupBytes: 0,
     coordinationCallMs: 0,
     transactionMs: null as number | null,
     transactionOutcome: null as TransactionOutcomeV1 | null,
     bufferedLogicalMutations: 0,
     flushesWithWork: 0,
-    flushReasonCounts: { 'read-boundary': 0, 'non-buffered-write': 0, 'transaction-end': 0 },
+    flushReasonCounts: {
+      'read-boundary': 0,
+      'non-buffered-write': 0,
+      'transaction-end': 0,
+      'dependency-boundary': 0,
+      'row-limit': 0,
+      'byte-limit': 0,
+    },
+    maximumPendingRows: 0,
+    maximumPendingJsonBytes: 0,
     groupedStatements: 0,
     groupedStatementsCompleted: 0,
     groupedStatementsFailed: 0,
@@ -91,12 +158,52 @@ export function createImportPerformanceObserverV1() {
     'closing-insert': 0,
   };
 
+  let currentReadSetRows = 0;
+
   async function observeSql<T>(
     sql: string,
     operation: () => Promise<T>,
     rowCount: (result: T) => number,
+    values: readonly GradebookPostgresValueV1[] = [],
+    changes: (result: T) => number = () => 0,
   ): Promise<T> {
     const kind = category(sql);
+    const known = marker(sql);
+    if (known?.startsWith('catalog-')) {
+      if (kind === 'read') metrics.catalogReadCalls++;
+      else metrics.catalogWriteCalls++;
+    }
+    if (known === 'read-set-instruments' || known?.startsWith('instruments-')) {
+      const body = values[1];
+      if (typeof body === 'object' && body !== null) {
+        // The bounded JSON array is inspected only for its length; no values survive.
+        let count: number | null = null;
+        try {
+          const rows: unknown = JSON.parse(body.jsonText);
+          if (Array.isArray(rows)) count = rows.length;
+        } catch {
+          /* Optional measurement must not reject a persistence call. */
+        }
+        if (count !== null) {
+          if (known === 'read-set-instruments') {
+            currentReadSetRows = 0;
+            metrics.readSetBlocks++;
+            metrics.readSetOffers += count;
+            metrics.maximumReadSetOffers = Math.max(metrics.maximumReadSetOffers, count);
+          } else {
+            metrics.instrumentStatements++;
+            metrics.maximumInstrumentGroupRows = Math.max(
+              metrics.maximumInstrumentGroupRows,
+              count,
+            );
+            metrics.maximumInstrumentGroupBytes = Math.max(
+              metrics.maximumInstrumentGroupBytes,
+              new TextEncoder().encode(body.jsonText).byteLength,
+            );
+          }
+        }
+      }
+    }
     metrics.sqlCalls++;
     if (kind === 'read') metrics.sqlReadCalls++;
     else if (kind === 'write' || kind === 'finalizer') metrics.sqlWriteCalls++;
@@ -105,6 +212,13 @@ export function createImportPerformanceObserverV1() {
     try {
       const result = await operation();
       if (kind === 'read') metrics.rowsRead += rowCount(result);
+      if (known?.startsWith('read-set-')) {
+        currentReadSetRows += rowCount(result);
+        metrics.maximumReadSetRows = Math.max(metrics.maximumReadSetRows, currentReadSetRows);
+      }
+      if (known === 'instruments-create') metrics.instrumentsCreated += changes(result);
+      if (known === 'instruments-update') metrics.instrumentsUpdated += changes(result);
+      if (known === 'instruments-retire') metrics.instrumentsRetired += changes(result);
       return result;
     } catch (cause) {
       metrics.sqlFailedCalls++;
@@ -120,12 +234,15 @@ export function createImportPerformanceObserverV1() {
         sql,
         () => database.query(sql, values),
         (result) => result.length,
+        values,
       );
     const executeNative: GradebookPostgresWritePortV1['executeNative'] = (sql, values) =>
       observeSql(
         sql,
         () => database.executeNative(sql, values),
         (result) => result.rows.length,
+        values,
+        (result) => result.changes,
       );
     const transaction: TransactionPortV1['transaction'] = async (operation) => {
       const started = importPerformanceNowV1();
@@ -162,6 +279,10 @@ export function createImportPerformanceObserverV1() {
     wrap,
     bufferedMutation() {
       metrics.bufferedLogicalMutations++;
+    },
+    pendingSize(rows: number, bytes: number) {
+      metrics.maximumPendingRows = Math.max(metrics.maximumPendingRows, rows);
+      metrics.maximumPendingJsonBytes = Math.max(metrics.maximumPendingJsonBytes, bytes);
     },
     flush(reason: ImportFlushReasonV1) {
       metrics.flushesWithWork++;
