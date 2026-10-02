@@ -147,6 +147,49 @@ it('honors committed withdrawal and revocation on the next snapshot and prohibit
   await release('unpublish'); expect((await self())?.state).toBe('no-publication');
   await owner.unsafe('UPDATE student_portal.session SET revoked_at=now()'); expect(await self()).toBeNull();
 });
+it('reads a session once per authorization snapshot but retains the locked reread for commands', async () => {
+  const queries: string[] = [];
+  const tracked: StudentPortalPostgresSqlV1 = {
+    unsafe: (query, values) => sql.unsafe(query, values),
+    begin: (operation) => sql.begin((tx) => operation({ unsafe: (query, values) => {
+      queries.push(query); return tx.unsafe(query, values);
+    } })),
+  };
+  const sessionQueries = () => queries.filter((query) => query.includes('FROM student_portal.session WHERE token_hash='));
+  const snapshot = new SessionServiceV1(tracked, cryptoPort, null, true);
+  expect(await snapshot.read(token, crypto.randomUUID(), own, false, async (context, tx, session) => {
+    expect(context.account.id).toBe(own);
+    expect(session.id).toEqual(expect.any(String));
+    expect((await tx.unsafe('SHOW transaction_read_only'))[0]?.transaction_read_only).toBe('on');
+  })).toMatchObject({ state: 'authenticated' });
+  expect(sessionQueries()).toHaveLength(1);
+  expect(queries[0]).toBe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+  expect(queries.some((query) => query.includes('FOR UPDATE'))).toBe(false);
+  queries.length = 0;
+  expect(await new SessionServiceV1(tracked, cryptoPort).read(token, crypto.randomUUID(), own))
+    .toMatchObject({ state: 'authenticated' });
+  expect(sessionQueries()).toHaveLength(2);
+  expect(sessionQueries()[1]).toContain('FOR UPDATE');
+  const accountLock = queries.findIndex((query) => query.includes('FROM student_portal.account') && query.includes('FOR UPDATE'));
+  expect(accountLock).toBeGreaterThan(-1);
+  expect(queries.indexOf(sessionQueries()[1]!)).toBeGreaterThan(accountLock);
+});
+it('rechecks session identity, security version and expiry on each fresh authorization snapshot', async () => {
+  const snapshot = new SessionServiceV1(sql, cryptoPort, null, true);
+  let authorizedCalls = 0;
+  const read = (accountId = own) => snapshot.read(token, crypto.randomUUID(), accountId, false,
+    () => { authorizedCalls += 1; });
+  expect(await read(readAccountIdV2(2))).toBeNull();
+  expect(authorizedCalls).toBe(0);
+  expect(await read()).toMatchObject({ state: 'authenticated' });
+  expect(authorizedCalls).toBe(1);
+  await owner.unsafe('UPDATE student_portal.session SET security_version=security_version+1');
+  expect(await read()).toBeNull();
+  await owner.unsafe(`UPDATE student_portal.session SET security_version=security_version-1,
+    created_at=now()-interval '2 hour',expires_at=now()-interval '1 hour'`);
+  expect(await read()).toBeNull();
+  expect(authorizedCalls).toBe(1);
+});
 it('rolls back prepared editions together with the write and preserves a frozen publication', async () => {
   await policy(false);
   const before = await metrics();

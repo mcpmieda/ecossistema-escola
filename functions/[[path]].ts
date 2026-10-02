@@ -1,3 +1,4 @@
+import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../server/env';
 import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
@@ -170,11 +171,12 @@ function authFailureResponse({
 async function routeOfficialGradebookRequestV1(
   request: Request,
   env: RuntimeEnv,
+  afterCommit: GradebookAfterCommitV1,
 ): Promise<Response | null> {
-  const assessmentNamesResponse = await handleAssessmentNamesRequestV1(request, env);
+  const assessmentNamesResponse = await handleAssessmentNamesRequestV1(request, env, afterCommit);
   if (assessmentNamesResponse) return assessmentNamesResponse;
 
-  const yearResetResponse = await handleYearResetRequestV1(request, env);
+  const yearResetResponse = await handleYearResetRequestV1(request, env, afterCommit);
   if (yearResetResponse) return yearResetResponse;
 
   const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
@@ -183,10 +185,10 @@ async function routeOfficialGradebookRequestV1(
   const performanceResponse = await handlePerformanceRequestV1(request, env);
   if (performanceResponse) return performanceResponse;
 
-  const bulletinResponse = await handleBulletinRequestV1(request, env);
+  const bulletinResponse = await handleBulletinRequestV1(request, env, afterCommit);
   if (bulletinResponse) return bulletinResponse;
 
-  const councilResponse = await handleCouncilWorkspaceRequestV1(request, env);
+  const councilResponse = await handleCouncilWorkspaceRequestV1(request, env, afterCommit);
   if (councilResponse) return councilResponse;
 
   return handleInstitutionalReportsRequestV1(request, env);
@@ -422,7 +424,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
 
   if (url.pathname.startsWith('/api/gradebook/')) {
     const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
-      routeOfficialGradebookRequestV1(request, executionEnv),
+      routeOfficialGradebookRequestV1(request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
     );
     if (gradebookResponse) return gradebookResponse;
   }

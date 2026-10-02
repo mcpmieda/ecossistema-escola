@@ -1,3 +1,4 @@
+import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import {
   IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
   IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1,
@@ -57,7 +58,7 @@ function statusFor(value: ImportDiagnosticTreatmentResponseV1): number {
 }
 
 export function createImportDiagnosticTreatmentRequestHandlerV1() {
-  return async (request: Request, env: RuntimeEnv): Promise<Response | null> => {
+  return async (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1): Promise<Response | null> => {
     if (new URL(request.url).pathname !== IMPORT_DIAGNOSTIC_TREATMENT_ROUTE_V1) return null;
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
@@ -95,6 +96,7 @@ export function createImportDiagnosticTreatmentRequestHandlerV1() {
         env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
         session.oid,
       ).execute(payload);
+      if (value.state === 'ready' && value.operation === 'record') afterCommit?.(session);
       return response(value, statusFor(value));
     } catch {
       return failure('unavailable', 503);

@@ -1,3 +1,4 @@
+import type { LiveDrainContextV1 } from './live-v1';
 import type { z } from 'zod';
 import type { AdminReadQueryV2, AdminReadResponseV2 } from './admin-read-v2';
 import type { AdminCommandV1, AdminQueryV1, AdminResponseV1, auditEventV1, trustedAdminContextV1 } from './admin-v1';
@@ -95,5 +96,6 @@ export interface PortalAdminEntrypointV1 {
   command(context: TrustedAdminContextV1, request: AdminCommandV1): Promise<AdminResponseV1 | FailureV1>;
 }
 export interface PortalAdminServiceBindingV1 extends PortalAdminEntrypointV1 {
+  drainLive?(context: LiveDrainContextV1): Promise<boolean>;
   fetch?(request: Request): Promise<Response>;
 }

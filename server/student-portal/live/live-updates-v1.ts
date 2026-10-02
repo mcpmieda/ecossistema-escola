@@ -15,6 +15,9 @@ const socketIdentityV1 = z
   .object({
     purpose: z.enum(['academic', 'security']).default('academic'),
     authorizedAt: z.number().optional(),
+    invalidatedAt: z.number().optional(),
+    connectionId: z.uuid().optional(),
+    sessionId: z.uuid().optional(),
     audience: liveAudienceV1,
     expiresAt: z.iso.datetime({ offset: true }),
     accountId: z.uuid().nullable(),
@@ -89,6 +92,7 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     const parsed = socketIdentityV1.safeParse({
       purpose: request.headers.get('x-live-purpose') ?? 'academic',
       authorizedAt: Date.now(),
+      ...(request.headers.has('x-live-connection-id') ? { connectionId: request.headers.get('x-live-connection-id'), sessionId: request.headers.get('x-live-session-id') } : {}),
       audience: request.headers.get('x-live-audience'),
       expiresAt: request.headers.get('x-live-expires-at'),
       accountId: request.headers.get('x-live-account-id') || null,
@@ -131,18 +135,48 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     const pair = new WebSocketPair();
     const client = pair[0],
       server = pair[1];
-    this.ctx.acceptWebSocket(server, [parsed.data.audience]);
+    this.ctx.acceptWebSocket(server, [parsed.data.audience,
+      ...(parsed.data.connectionId ? ['connection:' + parsed.data.connectionId] : []),
+    ]);
     server.serializeAttachment({ ...parsed.data, resumed: false } satisfies SocketIdentityV1);
     if (parsed.data.purpose === 'security')
       server.send(
         JSON.stringify({
           contractVersion: 1,
           type: 'security-connected',
+          ...(parsed.data.connectionId && parsed.data.sessionId ? { renewable: true } : {}),
           // Older callers provide only the short lease, not the session expiry.
           ...(effectiveHeader === null ? {} : { expiresAt: effectiveExpiresAt }),
         }),
       );
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /** Private RPC: only the HTTP composition supplies freshly cookie-authorized identities. */
+  async renewSecurity(input: unknown): Promise<boolean> {
+    const renewal = z.object({
+      connectionId: z.uuid(), sessionId: z.uuid(), accountId: z.uuid(),
+      studentId: z.number().int().positive().safe(), classId: z.number().int().positive().safe().nullable(),
+      verifiedAt: z.number().int().positive(), expiresAt: z.iso.datetime({ offset: true }),
+    }).strict().parse(input);
+    const now = Date.now();
+    const end = Math.min(Date.parse(renewal.expiresAt), renewal.verifiedAt + 60_000);
+    if (renewal.verifiedAt > now || end <= now) return false;
+    for (const socket of this.ctx.getWebSockets('connection:' + renewal.connectionId)) {
+      const parsed = socketAttachmentV1.safeParse(socket.deserializeAttachment());
+      if (!parsed.success || socket.readyState !== 1) continue;
+      const identity = parsed.data;
+      if (identity.purpose !== 'security' || identity.connectionId !== renewal.connectionId ||
+          identity.sessionId !== renewal.sessionId || identity.accountId !== renewal.accountId) continue;
+      // A verification started before an intervening security notice or a newer result cannot
+      // restore presence. Use server timestamps, never a browser-provided authorization time.
+      if (renewal.verifiedAt <= (identity.invalidatedAt ?? 0) ||
+          renewal.verifiedAt <= (identity.authorizedAt ?? 0)) return false;
+      socket.serializeAttachment({ ...identity, authorizedAt: renewal.verifiedAt,
+        expiresAt: new Date(end).toISOString(), studentId: renewal.studentId, classId: renewal.classId });
+      return true;
+    }
+    return false;
   }
 
   async publish(input: unknown): Promise<'delivered' | 'duplicate'> {
@@ -182,8 +216,8 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       if (event.audience === 'student' && !this.matches(identity.data, event)) continue;
       if (identity.data.purpose === 'security') {
         if (event.securityRelevant) {
-          // Invalidate presence immediately; only a new authorized handshake restores it.
-          socket.serializeAttachment({ ...identity.data, authorizedAt: 0 });
+          // Invalidate presence immediately; a fresh authenticated verification restores it.
+          socket.serializeAttachment({ ...identity.data, authorizedAt: 0, invalidatedAt: Date.now() });
           try {
             socket.send(JSON.stringify({ contractVersion: 1, type: 'reauthorize' }));
           } catch {

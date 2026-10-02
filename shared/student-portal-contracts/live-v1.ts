@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { trustedAdminContextV1 } from './admin-v1';
 import { instantV1, portalIdV1, revisionV1 } from './core-v1';
 
 export const liveAudienceV1 = z.enum(['admin', 'student']);
@@ -67,3 +68,9 @@ export const liveAdminContextV1 = z
   })
   .strict();
 export type LiveAdminContextV1 = z.infer<typeof liveAdminContextV1>;
+
+/** Private binding metadata; the ADM must authorize the real BN session before calling. */
+export const liveDrainContextV1 = trustedAdminContextV1.extend({
+  capability: z.literal('gradebook.persistence.admin'),
+});
+export type LiveDrainContextV1 = z.infer<typeof liveDrainContextV1>;

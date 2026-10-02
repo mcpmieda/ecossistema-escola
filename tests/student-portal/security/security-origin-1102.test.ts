@@ -9,6 +9,8 @@ const allowed = (path: string, headers?: HeadersInit) =>
 describe('security query allowlist #1102', () => {
   it('permits only account-bound session and security socket parameters', () => {
     expect(allowed(`/api/student/session?accountId=${account}`)).toBe(true);
+    expect(allowed(`/api/student/session?accountId=${account}&connectionId=${account}`)).toBe(true);
+    expect(allowed(`/api/student/live?purpose=security&accountId=${account}&connectionId=${account}`)).toBe(true);
     expect(allowed(`/api/student/live?purpose=security&accountId=${account}`)).toBe(true);
     expect(allowed('/api/student/session')).toBe(true);
     expect(allowed('/api/student/live')).toBe(true);
@@ -20,6 +22,9 @@ describe('security query allowlist #1102', () => {
       `/api/student/live?purpose=security&purpose=security&accountId=${account}`,
       '/api/student/live?purpose=security',
       '/api/student/session?accountId=invalid',
+      `/api/student/session?connectionId=${account}`,
+      `/api/student/session?accountId=${account}&connectionId=invalid`,
+      `/api/student/session?accountId=${account}&connectionId=${account}&connectionId=${account}`,
     ])
       expect(allowed(path)).toBe(false);
   });

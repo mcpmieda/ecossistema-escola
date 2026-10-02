@@ -100,16 +100,19 @@ export class SessionServiceV1 {
     const hash = await this.cryptoPort.hashOpaqueToken(token);
     const transact = this.snapshotReads ? readPortalSnapshotV2 : accountTransactionV1;
     return transact(this.sql, async (tx, store) => {
-      const located = await tx.unsafe('SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
+      // A read-only repeatable snapshot cannot see a different session on a second lookup.
+      // Commands still locate first, lock the account, then reread and lock the session below.
+      const located = await tx.unsafe(this.snapshotReads
+        ? 'SELECT account_id,id,security_version::text,expires_at,revoked_at,persistent,created_at FROM student_portal.session WHERE token_hash=$1'
+        : 'SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
       if (located.length !== 1) return null;
       const accountId = z.uuid().parse(located[0]!.account_id);
       if (expectedAccountId !== undefined && accountId !== expectedAccountId.toLowerCase()) return null;
       if (!this.snapshotReads) await store.lockAccounts([accountId]);
       const context = await accessContextV1(this.sql, tx, store, accountId, includeClosed);
       if (!context || context.account.state !== 'active') return null;
-      const rows = await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
-        FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid${this.snapshotReads ? '' : ' FOR UPDATE'}`, [hash, accountId]);
-      const row = rows[0];
+      const row = this.snapshotReads ? located[0] : (await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
+        FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid FOR UPDATE`, [hash, accountId]))[0];
       if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
       const persistent = z.boolean().parse(row.persistent);
       const ttl = persistent ? context.policy.enforcedValue.risk.persistentSeconds : context.policy.enforcedValue.risk.shortSeconds;
@@ -128,10 +131,15 @@ export class SessionServiceV1 {
     return result?.state === 'ready' ? result.value : null;
   }
 
-  async read(token: string, requestId: string, expectedAccountId?: string, includeClosed = false) {
-    const result = await this.withSession(token, includeClosed, expectedAccountId, async (_context, _tx, session) => sessionResponseV1.parse({
-      contractVersion: 1, requestId, state: 'authenticated', expiresAt: session.expiresAt, persistent: session.persistent,
-    }));
+  async read(token: string, requestId: string, expectedAccountId?: string, includeClosed = false,
+    onAuthorized?: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
+      session: { id: string; expiresAt: string; persistent: boolean }) => void | Promise<void>) {
+    const result = await this.withSession(token, includeClosed, expectedAccountId, async (context, tx, session) => {
+      await onAuthorized?.(context, tx, session);
+      return sessionResponseV1.parse({
+        contractVersion: 1, requestId, state: 'authenticated', expiresAt: session.expiresAt, persistent: session.persistent,
+      });
+    });
     if (result?.state === 'access-closed') return { contractVersion: 1 as const, requestId, state: 'access-closed' as const };
     return result?.state === 'ready' ? result.value : null;
   }

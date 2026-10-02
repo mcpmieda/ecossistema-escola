@@ -41,7 +41,7 @@ export const challengeResponseV1 = z.discriminatedUnion('state', [
   z.object({ ...input, requestId: portalIdV1, state: z.literal('credential-required'), next: z.enum(['pin', 'password', 'risk']) }).strict(),
   z.object({ ...input, requestId: portalIdV1, state: z.literal('password-creation'), challenge: opaqueV1, expiresAt: instantV1 }).strict(),
 ]);
-export const sessionResponseV1 = z.object({ ...input, requestId: portalIdV1, state: z.literal('authenticated'), expiresAt: instantV1, persistent: z.boolean() }).strict();
+export const sessionResponseV1 = z.object({ ...input, requestId: portalIdV1, state: z.literal('authenticated'), expiresAt: instantV1, persistent: z.boolean(), liveRenewed: z.boolean().optional() }).strict();
 export const logoutResponseV1 = z.object({ ...input, requestId: portalIdV1, state: z.literal('logged-out') }).strict();
 export const SESSION_COOKIE_V1 = { name: '__Host-student_portal_session', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' } as const;
 export const ACCESS_CLOSED_ACCEPT_HEADER_V1 = 'X-Student-Portal-Access-Status';

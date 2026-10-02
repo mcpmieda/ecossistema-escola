@@ -39,7 +39,10 @@ function securityQueryAllowedV1(url: URL): boolean {
   const account = url.searchParams.get('accountId');
   if (!account || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(account)
     || url.searchParams.getAll('accountId').length !== 1) return false;
-  const keys = [...url.searchParams.keys()];
+  const connection = url.searchParams.get('connectionId');
+  if (connection !== null && (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(connection)
+    || url.searchParams.getAll('connectionId').length !== 1)) return false;
+  const keys = [...url.searchParams.keys()].filter(key => key !== 'connectionId');
   if (url.pathname === '/api/student/session') return keys.length === 1;
   return url.pathname === '/api/student/live' && keys.length === 2
     && url.searchParams.getAll('purpose').length === 1 && url.searchParams.get('purpose') === 'security';

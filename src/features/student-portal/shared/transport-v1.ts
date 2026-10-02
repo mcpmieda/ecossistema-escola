@@ -64,7 +64,7 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
       !/^\/api\/(?:student\/(?:session|me|status|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(
         path,
       ) &&
-      !/^\/api\/student\/session\?accountId=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(
+      !/^\/api\/student\/session\?accountId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:&connectionId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?$/iu.test(
         path,
       )
     )

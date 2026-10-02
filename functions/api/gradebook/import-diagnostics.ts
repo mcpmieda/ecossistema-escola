@@ -1,3 +1,4 @@
+import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
@@ -111,7 +112,7 @@ function actionFor(code: string): string {
     default: return 'Recalcule e salve a planilha no Excel antes de reimportar.';
   }
 }
-async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
+async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookAfterCommitV1): Promise<Response> {
   enforceOfficialOrigin(request, env);
   const session = await requireAuth(request, env);
   authorizeGradebookRuntimeV1(session);
@@ -134,12 +135,13 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   const payload = await readPayload(request);
   if (!isGradebookImportDiagnosticsAuditRequestV1(payload)) return response({version:1,state:'invalid-request'},400);
   const affected = await replaceGradebookImportDiagnosticsSnapshotV1(database,payload);
+  if (affected > 0) afterCommit(session);
   return response({version:1,state:'recorded',affected});
 }
 export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   try {
     const env = validateEnv((context as Context).env);
-    const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv));
+    const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv,gradebookAfterCommitV1(env, (work) => context.waitUntil(work))));
     return withSecurityHeaders(routed ?? response({version:1,state:'unavailable'},503),true);
   } catch (error) {
     const status = error instanceof InvalidImportDiagnosticsSnapshotV1 ? 400 :

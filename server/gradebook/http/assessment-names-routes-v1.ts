@@ -1,4 +1,5 @@
-import { type AssessmentNamesResponseV1 } from '../../../shared/gradebook-contracts/settings/assessment-names-v1';
+import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
+import { assessmentNamesRequestSchemaV1, type AssessmentNamesResponseV1 } from '../../../shared/gradebook-contracts/settings/assessment-names-v1';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -42,14 +43,15 @@ function statusFor(value: AssessmentNamesResponseV1): number {
 }
 
 export function createAssessmentNamesRequestHandlerV1() {
-  return async (request: Request, env: RuntimeEnv): Promise<Response | null> => {
+  return async (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1): Promise<Response | null> => {
     if (new URL(request.url).pathname !== ASSESSMENT_NAMES_ROUTE_V1) return null;
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
+    let session: Awaited<ReturnType<typeof requireAuth>>;
     try {
-      const session = await requireAuth(request, env);
+      session = await requireAuth(request, env);
       authorizeGradebookRuntimeV1(session);
     } catch (cause) {
       if (cause instanceof AuthenticationError) return failure('not-authorized', 401);
@@ -78,6 +80,9 @@ export function createAssessmentNamesRequestHandlerV1() {
       const value = await createAssessmentNamesServiceV1(
         env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
       ).execute(payload);
+      const parsed = assessmentNamesRequestSchemaV1.safeParse(payload);
+      if (value.state === 'ready' && parsed.success && parsed.data.operation === 'save'
+        && value.version > parsed.data.expectedVersion) afterCommit?.(session);
       return response(value, statusFor(value));
     } catch {
       return failure('unavailable', 503);

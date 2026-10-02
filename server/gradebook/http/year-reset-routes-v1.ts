@@ -1,3 +1,4 @@
+import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import {
   YEAR_RESET_BODY_BYTES_V1,
   YEAR_RESET_CONTRACT_VERSION_V1,
@@ -44,15 +45,16 @@ function statusFor(value: YearResetResponseV1): number {
 }
 
 export function createYearResetRequestHandlerV1() {
-  return async (request: Request, env: RuntimeEnv): Promise<Response | null> => {
+  return async (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1): Promise<Response | null> => {
     if (new URL(request.url).pathname !== YEAR_RESET_ROUTE_V1) return null;
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
     let actorOid: string;
+    let session: Awaited<ReturnType<typeof requireAuth>>;
     try {
-      const session = await requireAuth(request, env);
+      session = await requireAuth(request, env);
       authorizeGradebookRuntimeV1(session);
       actorOid = session.oid;
     } catch (cause) {
@@ -84,6 +86,7 @@ export function createYearResetRequestHandlerV1() {
         actorOid,
       ).execute(payload);
       if (value.state === 'ready' && value.operation === 'execute') {
+        afterCommit?.(session);
         console.info(
           JSON.stringify({
             message: 'gradebook_year_reset_completed',

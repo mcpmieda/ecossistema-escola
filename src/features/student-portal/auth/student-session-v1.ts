@@ -65,18 +65,19 @@ export function createStudentSessionV1(
     timer = setTimeout(checkExpiry, Math.min(2147483647, end - now()));
     return true;
   };
-  const authorizeSecurity = async (signal: AbortSignal) => {
+  const authorizeSecurity = async (signal: AbortSignal, connectionId?: string) => {
     if (blocked || disposed || lastLoad.state !== 'ready') return;
     const generation = securityGeneration;
     const accountId = lastLoad.data.profile.accountId;
     const startedAt = now();
     try {
-      const result = await client.session(signal, accountId);
+      const result = await client.session(signal, accountId, connectionId);
       signal.throwIfAborted();
       if (disposed || generation !== securityGeneration) return;
       if (Date.parse(result.expiresAt) <= now())
         throw new PortalClientErrorV1('unauthenticated', 401);
       acceptSecurityAuthorization(result.expiresAt, accountId, startedAt);
+      return result.liveRenewed;
     } catch (error) {
       if (
         signal.aborted ||
@@ -220,11 +221,12 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     if (!securityAccountId || !session.current) return;
     const current = session.current;
     const security = createStudentSecurityV1({
-      connect: () => {
+      connect: (connectionId) => {
         const url = new URL('/api/student/live', window.location.href);
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         url.searchParams.set('purpose', 'security');
         url.searchParams.set('accountId', securityAccountId);
+        if (connectionId) url.searchParams.set('connectionId', connectionId);
         return new window.WebSocket(url);
       },
       authorize: current.authorizeSecurity,
