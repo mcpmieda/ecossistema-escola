@@ -403,14 +403,14 @@ da página. Cinco rodadas aquecidas pareadas, ordem alternada; 18/50 leituras se
 Relação na última posição e docentes 2025/2026. Parsing de bytes fixos é separado do fluxo
 File/hash; total não soma pais/filhos. `adaptationMs:0` indica ausência de conversão/cópia:
 custo do getter está no reconhecimento/leitura. Sem heap medido, GC forçado, p95 ou SLA.
-Node é evidência complementar, com concorrência local nas amostras preliminares;
+O ensaio preliminar Node foi evidência complementar, com concorrência local nas amostras;
 não fundamenta ganho de navegador nem redução dos 20.874,7 ms reais.
 
 Paths auxiliares além dos propostos: `reader-candidate-v1.ts` isola S1/D1 dos módulos
 produtivos sem cópia integral do reconhecedor; `sheetjs-real-v1.ts` valida pin/bytes para
 as regressões de codecs; `workbook-reader-real-codecs-v1.test.ts` cobre dimensões reais e
 aplica requests produzidos à composição PGlite; `reader-comparison-v1.mjs` contém a lógica
-compartilhada Node/browser do CLI local. Não criam rota, dependência ou serviço produtivo.
+do comparador browser do CLI local. Não criam rota, dependência ou serviço produtivo.
 
 ### H4/H5 — amostras finais do navegador e rejeição
 
@@ -480,11 +480,17 @@ reais. Casos de fórmula/cache/erro/fallback continuam protegidos nas fixtures d
 
 Reprodução: `node --experimental-strip-types scripts/gradebook/benchmark-workbook-reader-v1.mjs`
 na raiz; abrir somente URL local emitida e executar o comparador. `--baseline=<SHA>` fixa
-a referência; `--node` é complementar, sem substituir o navegador. Saída em
+a referência. O CLI final executa o experimento somente no navegador; o modo Node opcional
+preliminar foi retirado. Git usa caminho absoluto fixo (`C:\Program Files\Git\cmd\git.exe`
+no Windows, `/usr/bin/git` em Unix), sem resolver executável pelo PATH. Saída em
 `node_modules/.cache/gradebook-reader-v1/browser-report.json`; script oficial conferido
 por SRI a cada execução (download só quando ausente). Não apontar para dados reais/produção.
 A execução Edge sem relatório foi descartada; a rodada preliminar em working tree foi
 substituída pelas amostras acima. Nenhuma delas explica a observação real de 20.874,7ms.
+Correções posteriores do gate no harness: retirada da execução VM opcional do CLI,
+Git com caminho fixo, comparador de chaves explícito e decodificação linear de endereços
+do gerador. As funções de medição/consumidores/opções/bytes acadêmicos não foram alteradas;
+as amostras continuam atribuídas ao SHA `5bbb6970`, não ao head posterior.
 
 ### H6 — matriz e verificação
 

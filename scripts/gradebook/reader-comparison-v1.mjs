@@ -10,14 +10,22 @@ function equalValue(left, right, path = '$') {
     return;
   }
   if (Array.isArray(left) !== Array.isArray(right)) throw new Error(path);
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
+  const leftKeys = Object.keys(left).sort(comparePropertyNames);
+  const rightKeys = Object.keys(right).sort(comparePropertyNames);
   if (leftKeys.length !== rightKeys.length) throw new Error(`${path}: keys`);
   for (let index = 0; index < leftKeys.length; index += 1) {
     if (leftKeys[index] !== rightKeys[index]) throw new Error(`${path}: key`);
     equalValue(left[leftKeys[index]], right[rightKeys[index]], `${path}.${leftKeys[index]}`);
   }
   if (Array.isArray(left) && left.length !== right.length) throw new Error(`${path}: length`);
+}
+
+function comparePropertyNames(left, right) {
+  const comparison = left.localeCompare(right);
+  if (comparison !== 0) return comparison;
+  // Locale-equivalent strings still denote distinct object properties.
+  if (left < right) return -1;
+  return Number(left > right);
 }
 
 function errorText(error) {
@@ -119,7 +127,8 @@ function largerGradeSheet(template, classCode) {
   const sheet = structuredClone(template);
   const rowCells = Object.entries(sheet).filter(([address]) => /^[A-Z]+5$/u.test(address));
   for (const key of Object.keys(sheet)) {
-    if (/^[A-Z]+\d+$/u.test(key) && Number(key.match(/\d+$/u)[0]) >= 5) delete sheet[key];
+    const address = /^[A-Z]+([0-9]+)$/u.exec(key);
+    if (address && Number(address[1]) >= 5) delete sheet[key];
   }
   for (let row = 5; row <= 16; row += 1) {
     for (const [address, cell] of rowCells)
@@ -138,7 +147,7 @@ function largerTeacher(workbook, year) {
   const output = { SheetNames: [], Sheets: {} };
   const templateNames = workbook.SheetNames.filter((name) => /^6A(?:[123]º|REC)$/u.test(name));
   for (let index = 0; index < 9; index += 1) {
-    const classCode = `6${String.fromCharCode(65 + index)}`;
+    const classCode = `6${String.fromCodePoint(65 + index)}`;
     for (const templateName of templateNames) {
       const name = templateName.replace('6A', classCode);
       output.SheetNames.push(name);
@@ -175,11 +184,11 @@ function codecPart(xlsx, data, format) {
   if (bytes[0] !== signature[0] || bytes[1] !== signature[1])
     throw new Error(`Wrong codec container: ${format}`);
   const parts = xlsx.CFB.read(bytes, { type: 'array' }).FullPaths;
-  const workbookExtension = format === 'xlsb' ? 'bin' : 'xml';
-  const expected =
-    format === 'xls'
-      ? /\/(?:Workbook|Book)$/u
-      : new RegExp(`/xl/workbook\\.${workbookExtension}$`, 'u');
+  const expected = {
+    xls: /\/(?:Workbook|Book)$/u,
+    xlsb: /\/xl\/workbook\.bin$/u,
+    xlsx: /\/xl\/workbook\.xml$/u,
+  }[format];
   const part = parts.find((value) => expected.test(value));
   if (!part) throw new Error(`Wrong workbook part: ${format}`);
   return part;

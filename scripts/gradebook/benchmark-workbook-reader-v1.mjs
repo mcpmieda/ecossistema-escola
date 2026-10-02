@@ -3,12 +3,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
-import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
-import { compareWorkbookReadersV1 } from './reader-comparison-v1.mjs';
 import { adaptWorksheetConsumersV1 } from '../../tests/gradebook/fixtures/reader-candidate-v1.ts';
 
 const root = process.cwd();
+const gitExecutable =
+  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 const baseline =
   process.argv.find((value) => value.startsWith('--baseline='))?.slice(11) ??
   '9f95387a4588653a2631288f929d94b4350bb5d6';
@@ -76,7 +76,7 @@ const original = new Map(
     const path = `src/features/gradebook/import/${name}`;
     return [
       resolve(root, path),
-      execFileSync('git', ['show', `${baseline}:${path}`], { encoding: 'utf8', cwd: root }),
+      execFileSync(gitExecutable, ['show', `${baseline}:${path}`], { encoding: 'utf8', cwd: root }),
     ];
   }),
 );
@@ -130,9 +130,9 @@ for (const variant of ['S0', 'S1']) {
 }
 const metadata = {
   baselineSha: baseline,
-  candidateSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  candidateSha: execFileSync(gitExecutable, ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   workingTreeModified:
-    execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() !== '',
+    execFileSync(gitExecutable, ['status', '--porcelain'], { encoding: 'utf8' }).trim() !== '',
   libraryUrl,
   integrity,
   modelSha256: Object.fromEntries(
@@ -147,45 +147,9 @@ const metadata = {
 };
 for (const [path, bytes] of Object.entries(bundles))
   await writeFile(join(cache, path.slice(1)), bytes);
-if (process.argv.includes('--node')) {
-  const context = {
-    ArrayBuffer,
-    Uint8Array,
-    Date,
-    TextDecoder,
-    TextEncoder,
-    Buffer,
-    console,
-    structuredClone,
-    performance,
-    crypto,
-    File,
-  };
-  runInNewContext(library.toString(), context);
-  for (const contents of Object.values(bundles))
-    runInNewContext(Buffer.from(contents).toString(), context);
-  const report = {
-    ...metadata,
-    ...(await compareWorkbookReadersV1(context.HReaderS0, context.HReaderS1, context.XLSX)),
-  };
-  const path = join(cache, 'node-report.json');
-  await writeFile(path, JSON.stringify(report, null, 2));
-  console.log(
-    JSON.stringify(
-      {
-        path,
-        equivalence: report.equivalence.filter((item) => item.equivalent === true).length,
-        gaps: report.equivalence.filter((item) => item.equivalent !== true).length,
-        statistics: report.statistics,
-      },
-      null,
-      2,
-    ),
-  );
-} else {
-  const run = await build({
-    stdin: {
-      contents: `import { compareWorkbookReadersV1 } from './scripts/gradebook/reader-comparison-v1.mjs';
+const run = await build({
+  stdin: {
+    contents: `import { compareWorkbookReadersV1 } from './scripts/gradebook/reader-comparison-v1.mjs';
 const progress = document.getElementById('progress');
 document.getElementById('run').onclick = async () => {
  document.getElementById('run').disabled = true;
@@ -197,35 +161,34 @@ document.getElementById('run').onclick = async () => {
   progress.textContent = 'Concluído';
  } catch (error) { progress.textContent = 'Falha: ' + error.message; }
 };`,
-      resolveDir: root,
-      loader: 'js',
-    },
-    bundle: true,
-    platform: 'browser',
-    write: false,
-  });
-  bundles['/run.js'] = run.outputFiles[0].contents;
-  const html =
-    '<!doctype html><meta charset="utf-8"><title>Adendo H — experimento sintético local</title><h1>Leitura local S0/S1/D1</h1><button id="run">Executar comparador</button><p id="progress">Pronto; sem acesso ao banco</p><pre id="report"></pre><script src="/sheetjs.js"></script><script src="/s0.js"></script><script src="/s1.js"></script><script src="/run.js"></script>';
-  const server = createServer(async (request, response) => {
-    if (request.url === '/report' && request.method === 'POST') {
-      try {
-        await saveBrowserReport(request);
-        response.writeHead(200).end('saved');
-      } catch (error) {
-        console.error(error);
-        response.writeHead(400).end('invalid report');
-      }
-      return;
+    resolveDir: root,
+    loader: 'js',
+  },
+  bundle: true,
+  platform: 'browser',
+  write: false,
+});
+bundles['/run.js'] = run.outputFiles[0].contents;
+const html =
+  '<!doctype html><meta charset="utf-8"><title>Adendo H — experimento sintético local</title><h1>Leitura local S0/S1/D1</h1><button id="run">Executar comparador</button><p id="progress">Pronto; sem acesso ao banco</p><pre id="report"></pre><script src="/sheetjs.js"></script><script src="/s0.js"></script><script src="/s1.js"></script><script src="/run.js"></script>';
+const server = createServer(async (request, response) => {
+  if (request.url === '/report' && request.method === 'POST') {
+    try {
+      await saveBrowserReport(request);
+      response.writeHead(200).end('saved');
+    } catch (error) {
+      console.error(error);
+      response.writeHead(400).end('invalid report');
     }
-    const content = routeContent(request.url, html, library, bundles);
-    response.writeHead(content ? 200 : 404, {
-      'content-type': request.url === '/' ? 'text/html; charset=utf-8' : 'text/javascript',
-      'cache-control': 'no-store',
-    });
-    response.end(content ?? 'not found');
+    return;
+  }
+  const content = routeContent(request.url, html, library, bundles);
+  response.writeHead(content ? 200 : 404, {
+    'content-type': request.url === '/' ? 'text/html; charset=utf-8' : 'text/javascript',
+    'cache-control': 'no-store',
   });
-  server.listen(0, '127.0.0.1', () =>
-    console.log(`Local benchmark: http://127.0.0.1:${server.address().port}/`),
-  );
-}
+  response.end(content ?? 'not found');
+});
+server.listen(0, '127.0.0.1', () =>
+  console.log(`Local benchmark: http://127.0.0.1:${server.address().port}/`),
+);
