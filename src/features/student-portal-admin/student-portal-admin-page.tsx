@@ -5,7 +5,6 @@ import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
 import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -45,6 +44,10 @@ import {
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
+import {
+  preloadedSectionV1,
+  usePreloadedSectionsV1,
+} from '../../shared/ui/preloaded-section-v1';
 import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 import {
@@ -58,52 +61,48 @@ import {
   LiveRefreshScopeV1,
 } from '../../shared/live-data/live-refresh-scope-v1';
 
-const StudentAccountsV1 = lazy(() =>
-  import('./accounts/student-accounts-v1').then((module) => ({
-    default: module.StudentAccountsV1,
-  })),
+const StudentAccountsV1 = preloadedSectionV1(() =>
+  import('./accounts/student-accounts-v1').then((module) => module.StudentAccountsV1),
 );
-const StudentBirthYearsV1 = lazy(() =>
-  import('./birth-year/student-birth-years-v1').then((module) => ({
-    default: module.StudentBirthYearsV1,
-  })),
+const StudentBirthYearsV1 = preloadedSectionV1(() =>
+  import('./birth-year/student-birth-years-v1').then((module) => module.StudentBirthYearsV1),
 );
-const StudentCredentialsV1 = lazy(() =>
-  import('./credentials/student-credentials-v1').then((module) => ({
-    default: module.StudentCredentialsV1,
-  })),
+const StudentCredentialsV1 = preloadedSectionV1(() =>
+  import('./credentials/student-credentials-v1').then((module) => module.StudentCredentialsV1),
 );
-const StudentSettingsV1 = lazy(() =>
-  import('./settings/student-settings-v1').then((module) => ({
-    default: module.StudentSettingsV1,
-  })),
+const StudentSettingsV1 = preloadedSectionV1(() =>
+  import('./settings/student-settings-v1').then((module) => module.StudentSettingsV1),
 );
-const StudentSessionsV1 = lazy(() =>
-  import('./sessions/student-sessions-v1').then((module) => ({
-    default: module.StudentSessionsV1,
-  })),
+const StudentSessionsV1 = preloadedSectionV1(() =>
+  import('./sessions/student-sessions-v1').then((module) => module.StudentSessionsV1),
 );
-const StudentAuditV1 = lazy(() =>
-  import('./audit/student-audit-v1').then((module) => ({ default: module.StudentAuditV1 })),
+const StudentAuditV1 = preloadedSectionV1(() =>
+  import('./audit/student-audit-v1').then((module) => module.StudentAuditV1),
 );
-const StudentOverviewV1 = lazy(() =>
-  import('./overview/student-overview-v1').then((module) => ({
-    default: module.StudentOverviewV1,
-  })),
+const StudentOverviewV1 = preloadedSectionV1(() =>
+  import('./overview/student-overview-v1').then((module) => module.StudentOverviewV1),
 );
-const CustomizationTargetV1 = lazy(() =>
-  import('./settings/customization-target-v1').then((module) => ({
-    default: module.CustomizationTargetV1,
-  })),
+const CustomizationTargetV1 = preloadedSectionV1(() =>
+  import('./settings/customization-target-v1').then((module) => module.CustomizationTargetV1),
 );
-const StudentPoliciesV1 = lazy(() =>
-  import('./settings/student-policies-v1').then((module) => ({
-    default: module.StudentPoliciesV1,
-  })),
+const StudentPoliciesV1 = preloadedSectionV1(() =>
+  import('./settings/student-policies-v1').then((module) => module.StudentPoliciesV1),
 );
-const AuditWorkspaceV1 = lazy(() =>
-  import('./audit/audit-workspace-v1').then((module) => ({ default: module.AuditWorkspaceV1 })),
+const AuditWorkspaceV1 = preloadedSectionV1(() =>
+  import('./audit/audit-workspace-v1').then((module) => module.AuditWorkspaceV1),
 );
+const PANEL_SECTIONS_V1 = [
+  StudentOverviewV1,
+  StudentAccountsV1,
+  StudentPoliciesV1,
+  StudentSessionsV1,
+  AuditWorkspaceV1,
+  StudentAuditV1,
+  StudentSettingsV1,
+  StudentBirthYearsV1,
+  StudentCredentialsV1,
+  CustomizationTargetV1,
+];
 const sectionFallback = (
   <output className="block py-6 text-sm text-muted">Carregando área do Painel…</output>
 );
@@ -193,6 +192,7 @@ function PortalWorkspace({
   fetcher?: PortalFetchV1;
 }) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
+  usePreloadedSectionsV1(PANEL_SECTIONS_V1);
   const liveState = useAdministrativeLiveV1({
     identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),

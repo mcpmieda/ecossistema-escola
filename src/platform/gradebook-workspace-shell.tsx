@@ -2,7 +2,6 @@ import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { LiveRefreshScopeV1 } from '../shared/live-data/live-refresh-scope-v1';
 import {
   Component,
-  lazy,
   Suspense,
   type ComponentType,
   type KeyboardEvent,
@@ -15,6 +14,7 @@ import { Alert, Button, Spinner, Surface } from '@heroui/react';
 import { GradebookYearContextBanner, GradebookYearProvider } from './gradebook-year-provider';
 import { useGradebookYear } from './gradebook-year-context';
 import { NotesImportPanel } from '../features/gradebook/import/import-panel';
+import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 
 export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
@@ -86,42 +86,51 @@ function replaceWorkspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): vo
   if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
 }
 
-const OperationalWorkspaceSurface = lazy(async () => {
-  const module = await import('./gradebook-operational-surface');
-  return { default: module.GradebookOperationalSurface };
-});
+const OperationalWorkspaceSurface = preloadedSectionV1(() =>
+  import('./gradebook-operational-surface').then((module) => module.GradebookOperationalSurface),
+);
 
-const GradebookAuditSurface = lazy(async () => {
-  const module = await import('../features/gradebook/audit-workspace/gradebook-audit-surface');
-  return { default: module.GradebookAuditSurface };
-});
+const GradebookAuditSurface = preloadedSectionV1(() =>
+  import('../features/gradebook/audit-workspace/gradebook-audit-surface').then(
+    (module) => module.GradebookAuditSurface,
+  ),
+);
 
-const PerformancePage = lazy(async () => {
-  const module = await import('../features/gradebook/performance/relational-performance-page-v2');
-  return { default: module.RelationalPerformancePageV2 };
-});
+const PerformancePage = preloadedSectionV1<{ isActive?: boolean }>(() =>
+  import('../features/gradebook/performance/relational-performance-page-v2').then(
+    (module) => module.RelationalPerformancePageV2,
+  ),
+);
 
-const BulletinPage = lazy(async () => {
-  const module = await import('../features/gradebook/bulletins/bulletin-page');
-  return { default: module.BulletinPage };
-});
+const BulletinPage = preloadedSectionV1(() =>
+  import('../features/gradebook/bulletins/bulletin-page').then((module) => module.BulletinPage),
+);
 
-const InstitutionalReportsPage = lazy(async () => {
-  const module =
-    await import('../features/gradebook/reports/relational-institutional-reports-page-v2');
-  return { default: module.GradebookRelationalInstitutionalReportsPage };
-});
+const InstitutionalReportsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
+  import('../features/gradebook/reports/relational-institutional-reports-page-v2').then(
+    (module) => module.GradebookRelationalInstitutionalReportsPage,
+  ),
+);
 
-const CouncilWorkspaceSurface = lazy(async () => {
-  const module = await import('./gradebook-council-surface');
-  return { default: module.GradebookCouncilSurface };
-});
+const CouncilWorkspaceSurface = preloadedSectionV1(() =>
+  import('./gradebook-council-surface').then((module) => module.GradebookCouncilSurface),
+);
 
-const SettingsPage = lazy(async () => {
-  const module = await import('../features/gradebook/settings/gradebook-settings-page-v1');
-  return { default: module.GradebookSettingsPageV1 };
-});
+const SettingsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
+  import('../features/gradebook/settings/gradebook-settings-page-v1').then(
+    (module) => module.GradebookSettingsPageV1,
+  ),
+);
 
+const WORKSPACE_SECTIONS_V1 = [
+  OperationalWorkspaceSurface,
+  GradebookAuditSurface,
+  PerformancePage,
+  BulletinPage,
+  InstitutionalReportsPage,
+  CouncilWorkspaceSurface,
+  SettingsPage,
+];
 const SURFACE_COMPONENTS: Record<
   Exclude<GradebookWorkspaceSurfaceId, 'importacao'>,
   ComponentType
@@ -251,6 +260,7 @@ export function GradebookWorkspaceShell() {
 
 function GradebookWorkspaceShellContent() {
   const scope = useGradebookYear();
+  usePreloadedSectionsV1(WORKSPACE_SECTIONS_V1);
   const [activeSurface, setActiveSurface] = useState<GradebookWorkspaceSurfaceId>(() =>
     workspaceSurfaceFromHash(),
   );
