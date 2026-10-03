@@ -99,6 +99,15 @@ async function exportVariant(source: PhotoSourceV1, geometry: PhotoGeometryV1, q
     return { ...geometry.output, blob, geometry };
   } finally { canvas.width = 0; canvas.height = 0; }
 }
+/** The avatar alone, for a portrait already saved; the same checks as the two-variant draft. */
+export async function prepareAvatarDraftV1(source: PhotoSourceV1, controls: CropControlsV1, quality: number,
+  signal: AbortSignal, browser: PhotoBrowserV1 = defaultBrowser): Promise<PreparedPhotoV1> {
+  if (![0.92, 0.86, 0.8].includes(quality)) throw new PhotoPreparationErrorV1('encode');
+  const avatar = await exportVariant(source, photoGeometryV1(source, controls, 'avatar'), quality,
+    PHOTO_AVATAR_MAX_BYTES_V1, signal, browser);
+  signal.throwIfAborted();
+  return avatar;
+}
 /** Generates two drafts; success is NOT a server save or authorization for Portal publication. */
 export async function preparePhotoDraftV1(source: PhotoSourceV1, options: PhotoExportOptionsV1,
   signal: AbortSignal, browser: PhotoBrowserV1 = defaultBrowser): Promise<PhotoDraftV1> {

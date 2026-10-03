@@ -139,7 +139,7 @@ export function clearPhotoMemoryV1(reload = false) {
     for (const [url, entry] of entries) if (entry.interest > 0) enqueueV1(url, entry, false);
 }
 /** A saved photo may be shown under another reference: revalidate what is on screen, keep it meanwhile. */
-function refreshV1() {
+export function refreshPhotoMemoryV1() {
   for (const [url, entry] of entries) {
     entry.loadedAt = 0;
     entry.retryAt = 0;
@@ -153,7 +153,7 @@ function startV1() {
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) clearPhotoMemoryV1(true);
   });
-  window.addEventListener(PHOTO_CHANGED_EVENT_V1, refreshV1);
+  window.addEventListener(PHOTO_CHANGED_EVENT_V1, refreshPhotoMemoryV1);
 }
 function retainV1(url: string, urgent: boolean) {
   startV1();
