@@ -1,3 +1,4 @@
+import { Buffer as NodeBuffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext, type Context } from 'node:vm';
@@ -26,15 +27,15 @@ import {
 } from '../fixtures/workbook-reader-equivalence-v1';
 
 type LibraryRealm = { context: Context; library: RealSheetJsV1 };
-let upstreamBytes: Buffer;
-let derivativeBytes: Buffer;
+let upstreamBytes: Uint8Array;
+let derivativeBytes: Uint8Array;
 let original: LibraryRealm;
 let derivative: LibraryRealm;
 
 // Private functions are exposed only in this test VM. Neither distributed artifact changes.
-function libraryRealm(bytes: Buffer): LibraryRealm {
+function libraryRealm(bytes: Uint8Array): LibraryRealm {
   const anchor = 'function make_xlsx_lib(e){';
-  const source = bytes.toString('utf8');
+  const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   if (source.split(anchor).length !== 2) throw new Error('test-injection-anchor-mismatch');
   const injection =
     'e.__referenceTestsV1={Ar:Ar,Pa:Pa,La:La,Md:Md,copyRef:typeof escolaCopyRef1==="function"?escolaCopyRef1:Ar};';
@@ -42,7 +43,7 @@ function libraryRealm(bytes: Buffer): LibraryRealm {
     ArrayBuffer,
     Uint8Array,
     Date,
-    Buffer,
+    Buffer: NodeBuffer,
     TextEncoder,
     TextDecoder,
     XLSX: undefined as RealSheetJsV1 | undefined,
@@ -73,6 +74,14 @@ function functionSource(source: string, name: string, nextName: string): string 
   return source.slice(start, end);
 }
 
+function exactBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 beforeAll(async () => {
   try {
     upstreamBytes = await readFile('node_modules/.cache/gradebook-reader-v1/sheetjs-0.20.3.js');
@@ -80,17 +89,17 @@ beforeAll(async () => {
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     const response = await fetch(UPSTREAM_URL);
     if (!response.ok) throw new Error(`sheetjs-download-http-${response.status}`, { cause: error });
-    upstreamBytes = Buffer.from(await response.arrayBuffer());
+    upstreamBytes = new Uint8Array(await response.arrayBuffer());
   }
   expect(createHash('sha256').update(upstreamBytes).digest('hex')).toBe(UPSTREAM_SHA256);
-  derivativeBytes = patchSheetJsReferenceV1(upstreamBytes);
+  derivativeBytes = patchSheetJsReferenceV1(NodeBuffer.from(upstreamBytes));
   original = libraryRealm(upstreamBytes);
   derivative = libraryRealm(derivativeBytes);
 });
 
 describe('reference-copy patch — fixed upstream and bounded derivative', () => {
   it('reproduces the reviewed rejected derivative in memory with only two changed anchors', () => {
-    const source = upstreamBytes.toString('utf8');
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(upstreamBytes);
     expect(source.split('function Pa(e,r,t){var a=Ar(e);')).toHaveLength(2);
     expect(source.split('e.version="0.20.3";')).toHaveLength(2);
     const expected =
@@ -101,22 +110,24 @@ describe('reference-copy patch — fixed upstream and bounded derivative', () =>
           `${REFERENCE_COPY_SOURCE}\nfunction Pa(e,r,t){var a=escolaCopyRef1(e);`,
         )
         .replace('e.version="0.20.3";', `e.version="${PATCH_VERSION}";`);
-    expect(derivativeBytes.equals(Buffer.from(expected))).toBe(true);
+    expect(exactBytes(derivativeBytes, new TextEncoder().encode(expected))).toBe(true);
     expect(createHash('sha256').update(derivativeBytes).digest('hex')).toBe(OUTPUT_SHA256);
-    expect(patchSheetJsReferenceV1(upstreamBytes).equals(derivativeBytes)).toBe(true);
+    expect(
+      exactBytes(patchSheetJsReferenceV1(NodeBuffer.from(upstreamBytes)), derivativeBytes),
+    ).toBe(true);
     expect(original.library.version).toBe('0.20.3');
     expect(derivative.library.version).toBe(PATCH_VERSION);
   });
 
   it('rejects modified input before patching and leaves global Ar, La, Ma and Md intact', () => {
-    const tampered = Buffer.from(upstreamBytes);
-    tampered[0] ^= 1;
+    const tampered = NodeBuffer.from(upstreamBytes);
+    tampered[0] = (tampered[0] ?? 0) ^ 1;
     expect(() => patchSheetJsReferenceV1(tampered)).toThrow('sheetjs-upstream-integrity-mismatch');
-    expect(() => patchSheetJsReferenceV1(derivativeBytes)).toThrow(
+    expect(() => patchSheetJsReferenceV1(NodeBuffer.from(derivativeBytes))).toThrow(
       'sheetjs-upstream-integrity-mismatch',
     );
-    const source = upstreamBytes.toString('utf8');
-    const patched = derivativeBytes.toString('utf8');
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(upstreamBytes);
+    const patched = new TextDecoder('utf-8', { fatal: true }).decode(derivativeBytes);
     for (const [name, nextName] of [
       ['Ar', 'Tr'],
       ['La', 'Ma'],
@@ -494,7 +505,7 @@ describe('reference-copy patch — real fixed codecs, synthetic files, no benchm
             expect(expected.request.turmas.at(-1)?.alunos.at(-1)?.[0]).toBe(46);
           }
         }
-        expect(Buffer.from(bytes).equals(Buffer.from(beforeBytes))).toBe(true);
+        expect(exactBytes(new Uint8Array(bytes), beforeBytes)).toBe(true);
         expect(testCase.workbook).toStrictEqual(beforeFixture);
       },
     );
