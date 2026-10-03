@@ -9,6 +9,7 @@ import { accountsMockV1 } from '../student-portal/ui/accounts/fixtures-v1';
 import {
   backfillIdV1 as id,
   backfillPortsV1 as ports,
+  backfillReferenceV1 as reference,
   backfillSubjectV1 as subject,
 } from './avatar-backfill-fixture-v1';
 
@@ -21,7 +22,7 @@ const start = () => screen.getByRole('button', { name: 'Gerar miniaturas que fal
 
 it('runs only on request and reports what was created, what existed and what has no photo', async () => {
   const { value, spies } = ports((who) =>
-    who.accountIds[0] === id(2) ? { hasAvatar: true } : who.accountIds[0] === id(3) ? { hasPortrait: false } : {},
+    reference(who) === id(2) ? { hasAvatar: true } : reference(who) === id(3) ? { hasPortrait: false } : {},
   );
   render(<AvatarBackfillPanelV1 subjects={[1, 2, 3, 4].map(subject)} ready ports={value} />);
   expect(spies.catalog).not.toHaveBeenCalled();

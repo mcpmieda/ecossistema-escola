@@ -9,6 +9,7 @@ import type { PhotoPreviewApprovalV1 } from '../../shared/student-photos/preview
 import {
   backfillIdV1 as id,
   backfillPortsV1 as ports,
+  backfillReferenceV1 as reference,
   backfillStateV1 as state,
   backfillSubjectV1 as subject,
 } from './avatar-backfill-fixture-v1';
@@ -101,13 +102,13 @@ describe('batch', () => {
     let running = 0;
     let most = 0;
     const { value, spies } = ports((who) =>
-      who.accountIds[0] === id(2) ? { hasAvatar: true } : who.accountIds[0] === id(3) ? { hasPortrait: false } : {},
+      reference(who) === id(2) ? { hasAvatar: true } : reference(who) === id(3) ? { hasPortrait: false } : {},
     );
     spies.client.preview.mockImplementation(async (who: PhotoAdminSubjectV1) => {
       most = Math.max(most, ++running);
       await new Promise((resolve) => setTimeout(resolve, 5));
       running -= 1;
-      if (who.accountIds[0] === id(4)) throw new PhotoAdminClientErrorV1('conflict');
+      if (reference(who) === id(4)) throw new PhotoAdminClientErrorV1('conflict');
       return { approval: {} as PhotoPreviewApprovalV1, images: { portrait: null, avatar: null } };
     });
     const progress = vi.fn();
@@ -123,7 +124,7 @@ describe('batch', () => {
   it('stops at once when the session is lost and writes for nobody else', async () => {
     const { value, spies } = ports();
     spies.catalog.mockImplementation(async (who: PhotoAdminSubjectV1) => {
-      if (who.accountIds[0] === id(2)) throw new PhotoAdminClientErrorV1('unauthenticated');
+      if (reference(who) === id(2)) throw new PhotoAdminClientErrorV1('unauthenticated');
       return { version: 1, state: 'catalog', traceId: id(700), canWrite: true, catalog: state() };
     });
     await expect(

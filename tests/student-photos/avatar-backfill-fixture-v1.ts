@@ -10,6 +10,9 @@ export const backfillSubjectV1 = (n: number): PhotoAdminSubjectV1 => ({
   academicYear: 2026,
   accountIds: [backfillIdV1(n)],
 });
+/** The account a synthetic subject points to. */
+export const backfillReferenceV1 = (subject: PhotoAdminSubjectV1) =>
+  subject.source === 'portal' ? subject.accountIds[0] : undefined;
 export const backfillStateV1 = (overrides: Partial<PhotoCatalogStateV1> = {}): PhotoCatalogStateV1 => ({
   version: 1,
   studentUid: backfillIdV1(900),
@@ -50,9 +53,9 @@ export function backfillPortsV1(catalog: (subject: PhotoAdminSubjectV1) => Parti
       geometry: { crop: { x: 0, y: 32, width: 600, height: 600 }, output: { width: 320, height: 320 } },
     })),
     client: {
-      preview: vi.fn(async () => ({
+      preview: vi.fn(async (_subject: PhotoAdminSubjectV1) => ({
         approval: { synthetic: 'approval' } as unknown as PhotoPreviewApprovalV1,
-        images: { portrait: null, avatar: new Uint8Array(32) },
+        images: { portrait: null, avatar: new Uint8Array(32) as Uint8Array | null },
       })),
       save: vi.fn(async (_subject: PhotoAdminSubjectV1, command: { requestId: string }) => ({
         version: 1 as const,
