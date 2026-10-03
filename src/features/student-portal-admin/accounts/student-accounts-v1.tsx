@@ -366,6 +366,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
   // A row hidden by a filter never stays selected for a QR or bulk operation.
   const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
+  // Discard the old keys so returning to this view cannot restore a previous selection.
+  if (selection.owner !== selectionOwner && selection.keys.size > 0)
+    setSelection({ owner: selectionOwner, keys: NO_SELECTION_V1 });
   const selectedQr = selection.owner === selectionOwner ? selection.keys : NO_SELECTION_V1;
   const setSelectedQr = (keys: Set<string>) => setSelection({ owner: selectionOwner, keys });
   const classItems = useMemo(
