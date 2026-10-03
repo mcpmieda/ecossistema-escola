@@ -45,11 +45,9 @@ export function patchSheetJsReferenceV1(input) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const input = await readFile(
-    process.argv[2] && process.argv[2] !== '--check'
-      ? process.argv[2]
-      : 'node_modules/.cache/gradebook-reader-v1/sheetjs-0.20.3.js',
-  );
+  if (process.argv.slice(2).some((argument) => argument !== '--check'))
+    throw new Error('sheetjs-patch-unsupported-argument');
+  const input = await readFile('node_modules/.cache/gradebook-reader-v1/sheetjs-0.20.3.js');
   const output = patchSheetJsReferenceV1(input);
   if (process.argv.includes('--check')) {
     if (!(await readFile(ARTIFACT_PATH)).equals(output))

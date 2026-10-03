@@ -28,8 +28,8 @@ node scripts/gradebook/patch-sheetjs-reference-v1.mjs
 node scripts/gradebook/patch-sheetjs-reference-v1.mjs --check
 ```
 
-An explicit path to the downloaded official file can be supplied as the first
-argument. Downloading must never replace the digest verification. New bytes
+The CLI only reads the fixed cache path above; arbitrary input paths are rejected.
+Downloading must never replace the digest verification. New bytes
 require a new variant name, digest and loader integrity, never silent reuse.
 
 ## Scope and assumptions
