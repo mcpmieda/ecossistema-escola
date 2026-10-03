@@ -44,6 +44,26 @@ it('immediately hides the old photo on account change and discards a late respon
   expect(hook.result.current).toBe(next.src);
 });
 
+it('keeps the photo on screen while the same account is read again and hides it when the answer has none', async () => {
+  const pending: ((value: PortraitObjectV1 | undefined) => void)[] = [];
+  const client = vi.fn<PortraitClientV1>().mockImplementation(() => new Promise(resolve => pending.push(resolve)));
+  const hook = renderHook(({ scope }: { scope: PortraitScopeV1 | null }) => useStudentPortraitV1(scope, client),
+    { initialProps, wrapper });
+  await waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+  const image = photo('first'), renewed = photo('renewed');
+  await act(async () => { pending[0]!(image); });
+  expect(hook.result.current).toBe(image.src);
+  hook.rerender({ scope: { ...first, requestId: '60000000-0000-4000-8000-000000000003' } });
+  await waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+  expect(hook.result.current).toBe(image.src); expect(image.dispose).not.toHaveBeenCalled();
+  await act(async () => { pending[1]!(renewed); });
+  expect(hook.result.current).toBe(renewed.src); expect(image.dispose).toHaveBeenCalledTimes(1);
+  hook.rerender({ scope: { ...first, requestId: '60000000-0000-4000-8000-000000000004' } });
+  await waitFor(() => expect(client).toHaveBeenCalledTimes(3));
+  await act(async () => { pending[2]!(undefined); });
+  expect(hook.result.current).toBeUndefined(); expect(renewed.dispose).toHaveBeenCalledTimes(1);
+});
+
 it('clears a loaded image on logout and never reuses its revoked object after re-entry with the same self object', async () => {
   const image = photo('first');
   const client = vi.fn<PortraitClientV1>().mockResolvedValueOnce(image).mockResolvedValue(undefined);
