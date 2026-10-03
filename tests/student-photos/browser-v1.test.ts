@@ -1,7 +1,7 @@
 // @vitest-environment node
 import sharp from 'sharp';
 import { expect, it, vi } from 'vitest';
-import { loadPhotoSourceV1, preparePhotoDraftV1, type PhotoBrowserV1, type PhotoCanvasV1, type PhotoSourceV1 } from '../../src/features/student-photos/browser-v1';
+import { loadPhotoSourceV1, prepareAvatarDraftV1, preparePhotoDraftV1, type PhotoBrowserV1, type PhotoCanvasV1, type PhotoSourceV1 } from '../../src/features/student-photos/browser-v1';
 import { initialPhotoCropV1 } from '../../shared/student-photos/crop-v1';
 
 const image = () => sharp({ create: { width: 300, height: 400, channels: 3, background: { r: 31, g: 81, b: 137 } } });
@@ -40,6 +40,16 @@ it('decodes the source, exports two real WebPs and releases pixel surfaces witho
   expect(s.draw.mock.calls[1]?.slice(1, 5)).toEqual([0, 16, 300, 300]);
   expect(s.canvases.every(canvas => canvas.width === 0 && canvas.height === 0)).toBe(true);
   source.dispose(); source.dispose(); expect(s.close).toHaveBeenCalledOnce(); expect(s.release).toHaveBeenCalledOnce();
+});
+it('exports the avatar alone for a saved portrait, with the same framing and checks', async () => {
+  const s = setup(), source = await loadPhotoSourceV1(new Blob([new Uint8Array(await image().jpeg().toBuffer()).buffer], { type: 'image/jpeg' }), signal(), s.browser);
+  const avatar = await prepareAvatarDraftV1(source, initialPhotoCropV1('avatar'), 0.86, signal(), s.browser);
+  expect([avatar.width, avatar.height]).toEqual([300, 300]);
+  expect((await sharp(Buffer.from(await avatar.blob.arrayBuffer())).metadata()).format).toBe('webp');
+  expect(s.draw).toHaveBeenCalledOnce();
+  expect(s.draw.mock.calls[0]?.slice(1, 5)).toEqual([0, 16, 300, 300]);
+  await expect(prepareAvatarDraftV1(source, initialPhotoCropV1('avatar'), 0.5, signal(), s.browser)).rejects.toThrow('student-photo-encode');
+  source.dispose();
 });
 it('rejects unsupported or mislabeled input before invoking the decoder', async () => {
   const s = setup(), jpeg = new Uint8Array(await image().jpeg().toBuffer()).buffer;

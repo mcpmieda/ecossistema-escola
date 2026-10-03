@@ -1,5 +1,7 @@
 import {
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -48,7 +50,11 @@ import { accountCredentialPreparableV1 } from './accounts-values-v1';
 import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
-import { panelHashAccountIdV1, writePanelHashParamsV1 } from '../shared/panel-hash-v1';
+import {
+  panelHashAccountIdV1,
+  readPanelHashParamV1,
+  writePanelHashParamsV1,
+} from '../shared/panel-hash-v1';
 import {
   firstAccessLabelV1,
   accountPageMatchesV1,
@@ -279,6 +285,12 @@ function useStableRowsV1() {
   }, []);
 }
 const NO_SELECTION_V1: Set<string> = new Set();
+/** Maintenance of saved photos, asked for by the address: `manutencao=miniaturas`. */
+const AvatarBackfillPanelV1 = lazy(() =>
+  import('../../student-photos/avatar-backfill-panel-v1').then((module) => ({
+    default: module.AvatarBackfillPanelV1,
+  })),
+);
 /** Accents and case do not separate what the operator types from the official name. */
 const foldNameV1 = (value: string) =>
   value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
@@ -322,6 +334,10 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
   const [selection, setSelection] = useState({ owner: '', keys: NO_SELECTION_V1 });
+  const [photoMaintenance] = useState(
+    () => readPanelHashParamV1('manutencao') === 'miniaturas',
+  );
+  const maintenance = photoMaintenance && props.canWrite && props.query.scope.kind === 'school';
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
@@ -371,6 +387,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // alphabetical browsing reads only visited pages.
   const { more, refreshing, loadMore } = read;
   const wholeCollection =
+    maintenance ||
     props.order !== 'name' ||
     props.classId !== null ||
     props.search !== '' ||
@@ -381,6 +398,17 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
       loadMore();
   }, [wholeCollection, authorizationError, more, refreshing, read.refreshError, loadMore]);
   const sealAccountIds = useMemo(() => classItems.map((item) => item.accountId), [classItems]);
+  const photoSubjects = useMemo(
+    () =>
+      maintenance
+        ? classItems.map((item) => ({
+            source: 'portal' as const,
+            academicYear: 2026,
+            accountIds: [item.accountId],
+          }))
+        : [],
+    [maintenance, classItems],
+  );
   const seals = useSealCountsV1(
     props.reader,
     props.order === 'seals' && current && sealAccountIds.length ? { accountIds: sealAccountIds } : null,
@@ -521,6 +549,15 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             />
           </div>
 
+          {maintenance && current ? (
+            <Suspense fallback={null}>
+              <AvatarBackfillPanelV1
+                key={props.classId ?? 'school'}
+                subjects={photoSubjects}
+                ready={!current.nextCursor}
+              />
+            </Suspense>
+          ) : null}
           {(read.state.state === 'idle' || read.state.state === 'loading') && (
             <p role="status">Consultando contas…</p>
           )}
