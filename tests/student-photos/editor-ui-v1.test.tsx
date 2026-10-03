@@ -71,23 +71,23 @@ it('uses the Portal gradient fallback without an overriding solid color', () => 
   expect(circle.style.backgroundColor).toBe('');
   expect(fallback?.style.backgroundColor).toBe('');
 });
-it('exercises a loaded HeroUI image, then an actual error, then a new source without a conditional assertion', async () => {
+it('paints an image over its fallback at once, then an actual error, then a new source without a conditional assertion', async () => {
   const preloaders: HTMLImageElement[] = [];
   vi.stubGlobal('Image', class SyntheticImage {
     constructor() { const element = document.createElement('img'); preloaders.push(element); return element; }
   });
   const view = render(<StudentPhotoAvatarV1 identityKey="synthetic-a" photo={{ identityKey: 'synthetic-a', src: 'blob:first' }} />);
-  await waitFor(() => expect(preloaders).toHaveLength(1));
-  fireEvent.load(preloaders[0]!);
-  await waitFor(() => expect(view.container.querySelector('img')?.getAttribute('src')).toBe('blob:first'));
+  // No second, hidden download decides whether the visible image may appear.
+  expect(view.container.querySelector('img')?.getAttribute('src')).toBe('blob:first');
+  expect(preloaders).toHaveLength(0);
   expect(view.container.querySelector('img')?.style.objectFit).toBe('cover');
+  const circle = screen.getByRole('img', { name: 'Foto do aluno' });
+  expect(circle.querySelector('[data-slot="avatar-fallback"]')).not.toBeNull();
   fireEvent.error(view.container.querySelector('img')!);
   await waitFor(() => expect(view.container.querySelector('img')).toBeNull());
-  const circle = screen.getByRole('img', { name: 'Foto do aluno' });
   const fallback = circle.querySelector<HTMLElement>('[aria-hidden="true"]');
   expect(fallback).not.toBeNull(); expect(fallback!.style.backgroundColor).toBe(circle.style.backgroundColor);
   view.rerender(<StudentPhotoAvatarV1 identityKey="synthetic-a" photo={{ identityKey: 'synthetic-a', src: 'blob:second' }} />);
-  await waitFor(() => expect(preloaders).toHaveLength(2));
-  fireEvent.load(preloaders[1]!);
-  await waitFor(() => expect(view.container.querySelector('img')?.getAttribute('src')).toBe('blob:second'));
+  expect(view.container.querySelector('img')?.getAttribute('src')).toBe('blob:second');
+  expect(preloaders).toHaveLength(0);
 });

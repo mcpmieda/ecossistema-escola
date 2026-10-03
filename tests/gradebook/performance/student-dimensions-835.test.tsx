@@ -88,7 +88,8 @@ it('renders the canonical numbers instead of the adjusted summary without reques
   expect(block.getByText(delta(40))).toBeTruthy();
   expect(block.getByText('Duas avaliações · antes da paralela')).toBeTruthy();
   expect(block.getByText('Componentes comparados: 1.')).toBeTruthy();
-  expect(fetch).not.toHaveBeenCalled();
+  // The student's photo is the only request; no academic data is asked for again.
+  expect(fetch.mock.calls.filter(([url]) => !String(url).startsWith('/api/student-photos/admin/image?'))).toEqual([]);
 });
 it('does not compare disjoint complete groups or manufacture a zero when there is no common component', () => {
   const { value } = comparisonFixture(true);
