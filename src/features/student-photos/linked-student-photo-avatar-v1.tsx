@@ -3,6 +3,7 @@ import { photoImageUrlV1, photoSubjectKeyV1 } from '../../../shared/student-phot
 import { photoAdminSubjectV1, type PhotoAdminSubjectV1 } from '../../../shared/student-photos/admin-http-v1';
 import { StudentPhotoAvatarV1, type StudentPhotoAvatarPropsV1 } from './student-photo-avatar-v1';
 import { PHOTO_CHANGED_EVENT_V1, type PhotoChangedDetailV1 } from './catalog-client-v1';
+import { usePhotoMemoryV1 } from './photo-memory-v1';
 
 export interface LinkedStudentPhotoAvatarPropsV1 extends Pick<StudentPhotoAvatarPropsV1, 'size' | 'label' | 'className' | 'decorative' | 'fallbackTone' | 'loading'> {
   subject: PhotoAdminSubjectV1;
@@ -14,6 +15,20 @@ export function LinkedStudentPhotoAvatarV1(props: Readonly<LinkedStudentPhotoAva
   if (!parsed.success) return <StudentPhotoAvatarV1 size={props.size} label={props.label} className={props.className} decorative={props.decorative} fallbackTone={props.fallbackTone} loading={props.loading}
     identityKey={props.studentUid ?? 'unresolved-student'} />;
   return <LinkedAvatarSessionV1 key={photoSubjectKeyV1(parsed.data)} {...props} subject={parsed.data} />;
+}
+/** Whether the row is on, or about to enter, the screen: its photo downloads before the others. */
+function useNearScreenV1(eager: boolean) {
+  const [near, setNear] = useState(eager || typeof IntersectionObserver === 'undefined');
+  const [node, setNode] = useState<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    if (near || !node) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setNear(true);
+    }, { rootMargin: '600px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [near, node]);
+  return [near, setNode] as const;
 }
 function LinkedAvatarSessionV1({ subject, studentUid, revision, ...props }: Readonly<LinkedStudentPhotoAvatarPropsV1>) {
   const subjectKey = photoSubjectKeyV1(subject);
@@ -31,6 +46,7 @@ function LinkedAvatarSessionV1({ subject, studentUid, revision, ...props }: Read
   }, [subjectKey, studentUid]);
   const identityKey = changed?.studentUid ?? studentUid ?? subjectKey;
   const currentRevision = changed ? changed.revision : revision;
-  const src = photoImageUrlV1(subject, 'avatar', currentRevision);
-  return <StudentPhotoAvatarV1 {...props} identityKey={identityKey} photo={{ identityKey, src }} />;
+  const [near, rootRef] = useNearScreenV1(props.loading === 'eager');
+  const src = usePhotoMemoryV1(photoImageUrlV1(subject, 'avatar', currentRevision), near);
+  return <StudentPhotoAvatarV1 {...props} rootRef={rootRef} identityKey={identityKey} photo={src ? { identityKey, src } : undefined} />;
 }

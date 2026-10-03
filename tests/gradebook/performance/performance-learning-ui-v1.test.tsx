@@ -42,7 +42,8 @@ it('filters from the KPI, searches and opens the existing student detail without
   expect(model.onCell).toHaveBeenCalledWith(2, undefined);
   await user.type(screen.getByRole('searchbox'), 'não existe');
   expect(screen.getByText('Nenhum aluno encontrado nesta busca.')).toBeTruthy();
-  expect(fetch).not.toHaveBeenCalled();
+  // Student photos are the only requests; no academic data is asked for again.
+  expect(fetch.mock.calls.filter(([url]) => !String(url).startsWith('/api/student-photos/admin/image?'))).toEqual([]);
 });
 it('shows all participation students and their existing granular-detail entry point', async () => {
   const model = props(); render(<PerformanceAnalyticsWorkspaceV6 {...model} />);

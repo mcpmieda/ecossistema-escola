@@ -22,8 +22,8 @@ export class PhotoCatalogRepositoryV1 {
   constructor(readonly database: PhotoWriteDatabaseV1) {}
   private transaction<T>(work: (tx: PhotoWriteQueryV1) => Promise<T>) {
     return this.database.transaction(async tx => {
-      await tx.query("SET LOCAL lock_timeout='3s'");
-      await tx.query("SET LOCAL statement_timeout='10s'");
+      // Both transaction-local limits in one round trip.
+      await tx.query("SELECT set_config('lock_timeout','3s',true),set_config('statement_timeout','10s',true)");
       return work(tx);
     });
   }

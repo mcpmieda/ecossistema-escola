@@ -90,7 +90,9 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
         || await repository.resolve(subject) !== context.studentUid) throw new AccessDenied(403);
       request.signal.throwIfAborted();
     };
-    await authorize(context);
+    // The image read authorizes before the catalog and again after Storage; repeating either
+    // check back to back only added database round trips to every avatar.
+    if (!parsedImage) await authorize(context);
     const service = createPhotoRuntimeServiceV1({ env, database: connection.database, codec, authorize });
     if (parsedImage) {
       const bytes = await service.catalog.read(context, parsedImage.variant, parsedImage.revision, request.signal);
@@ -106,7 +108,6 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
         return new Response(null, { status: 404, headers: privateHeaders });
       }
       try {
-        await authorize(context);
         return new Response(new Uint8Array(bytes).buffer, { headers: { ...privateHeaders,
           'Content-Type': 'image/webp', 'Content-Length': String(bytes.length) } });
       } finally { bytes.fill(0); }
