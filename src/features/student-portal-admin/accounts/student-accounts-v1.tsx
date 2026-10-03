@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   Button,
@@ -21,9 +29,11 @@ import {
   type SealCountsCacheV1,
 } from './brilliant-seals-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
-import type { AdminReadQueryV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
+import type {
+  AdminAccountReadV2,
+  AdminReadQueryV2,
+} from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { ADMIN_ACCOUNTS_PAGE_SIZE_V2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
-import { useDebouncedSearchV1 } from '../shared/debounced-search-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
@@ -49,7 +59,6 @@ import {
   ACCOUNT_STATE_OPTIONS_V1,
   ACCOUNT_BLOCK_OPTIONS_V1,
   matchesAccountFiltersV1,
-  type AccountStateFilterV1,
 } from './account-filters-v1';
 import './student-accounts-v1.css';
 import '../credentials/student-credentials-v1.css';
@@ -66,10 +75,15 @@ export interface StudentAccountsPropsV1 extends Pick<
   identityKey: string;
   scopeLabel?: string;
 }
+const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
+/** A class is a view of the school collection: changing class keeps what was already read. */
+const readScopeV1 = (scope: ScopeV1) => (scope.kind === 'account' ? scope : SCHOOL_V1);
 export function StudentAccountsV1(props: StudentAccountsPropsV1) {
   return (
     <AccountsBodyV1
-      key={props.identityKey + ':' + settingsScopeKeyV1(props.scope) + ':' + props.canWrite}
+      key={
+        props.identityKey + ':' + settingsScopeKeyV1(readScopeV1(props.scope)) + ':' + props.canWrite
+      }
       {...props}
     />
   );
@@ -84,31 +98,40 @@ const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string }[] = [
 function AccountsBodyV1(props: StudentAccountsPropsV1) {
   const sealCache = useSealCountsCacheV1(props.reader);
   const [name, setName] = useState('');
-  const nameSearch = useDebouncedSearchV1(name.trim());
   const [order, setOrder] = useState<AccountOrderV1>('name');
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
   const [qrMount, setQrMount] = useState<HTMLDivElement | null>(null);
   const [bulkMount, setBulkMount] = useState<HTMLDivElement | null>(null);
-  const scope = useMemo<ScopeV1>(
-    () =>
-      props.scope.kind === 'school' && selectedClass
-        ? { kind: 'class', academicYear: 2026, classId: selectedClass.id }
-        : props.scope,
-    [props.scope, selectedClass],
+  // The controls answer the click at once; the list follows without blocking them.
+  const listOrder = useDeferredValue(order);
+  const listStates = useDeferredValue(states);
+  const listBlocks = useDeferredValue(blocks);
+  const listSearch = useDeferredValue(name.trim());
+  // The class comes from the panel, or from this list's own tabs when it stands alone.
+  const classId =
+    props.scope.kind === 'class'
+      ? props.scope.classId
+      : props.scope.kind === 'school'
+        ? (selectedClass?.id ?? null)
+        : null;
+  const listClassId = useDeferredValue(classId);
+  const listClassLabel = useDeferredValue(
+    props.scope.kind === 'class' ? props.scopeLabel : selectedClass?.label,
   );
+  const classSelected = classId !== null;
+  // One read brings the school; class, search, Situação and Bloqueio narrow what is already in
+  // memory, so each of them answers without a request.
+  const readScope = readScopeV1(props.scope);
   const query = useMemo<AdminReadQueryV2>(
     () => ({
       contractVersion: 2,
       operation: 'accounts-read',
-      scope,
+      scope: readScope,
       page: { limit: ADMIN_ACCOUNTS_PAGE_SIZE_V2 },
-      ...(nameSearch ? { nameSearch } : {}),
-      ...(states.size === 1 ? { accountState: [...states][0] as AccountStateFilterV1 } : {}),
-      ...(blocks.size === 1 ? { blocked: blocks.has('blocked') } : {}),
     }),
-    [scope, nameSearch, states, blocks],
+    [readScope],
   );
   return (
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
@@ -116,7 +139,7 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
         <h2>Alunos</h2>
       </header>
       <Card
-        className={`pa-account-controls-card${scope.kind === 'class' ? ' pa-account-controls-card--class' : ''}`}
+        className={`pa-account-controls-card${classSelected ? ' pa-account-controls-card--class' : ''}`}
       >
         <Card.Content className="pa-account-controls">
           <div className="pa-account-filters">
@@ -181,25 +204,23 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
             />
           </div>
           <div ref={setQrMount} className="pa-account-qr-mount" />
-          {scope.kind === 'class' && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
+          {classSelected && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
         </Card.Content>
       </Card>
       <AccountsResultsV1
-        key={JSON.stringify([
-          query,
-          [...states].sort((left, right) => left.localeCompare(right)),
-          [...blocks].sort((left, right) => left.localeCompare(right)),
-        ])}
+        key={JSON.stringify(query)}
         {...props}
         query={query}
         sealCache={sealCache}
-        order={order}
-        states={states}
-        blocks={blocks}
+        order={listOrder}
+        states={listStates}
+        blocks={listBlocks}
+        search={listSearch}
+        classId={listClassId}
         qrMount={qrMount}
         bulkMount={bulkMount}
         bulkScopeLabel={
-          selectedClass?.label ?? props.scopeLabel ?? (scope.kind === 'school' ? 'Escola' : 'Turma')
+          listClassLabel ?? props.scopeLabel ?? (listClassId === null ? 'Escola' : 'Turma')
         }
       />
     </section>
@@ -231,26 +252,76 @@ function SealCountV1({ count }: { count: number | null | undefined }) {
     </span>
   );
 }
-function AccountsResultsV1(
+type AccountRowV1 = AdminAccountReadV2 & { seals: number | null | undefined };
+/** Rows on screen grow with the scroll: every row mounted is paid again on each sort, filter,
+ * selection and re-read. Without an observer nothing would ask for more, so all rows mount. */
+const rowWindowV1 = () =>
+  typeof IntersectionObserver === 'undefined' ? ADMIN_ACCOUNTS_PAGE_SIZE_V2 : 60;
+/** An account whose content did not change keeps its row object across re-reads, filters and
+ * sorting: React Aria re-renders only the rows that are new or different. */
+function useStableRowsV1() {
+  const saved = useRef(
+    new Map<
+      string,
+      { account: AdminAccountReadV2; content: string; seals: AccountRowV1['seals']; row: AccountRowV1 }
+    >(),
+  );
+  return useCallback((account: AdminAccountReadV2, seals: AccountRowV1['seals']) => {
+    const previous = saved.current.get(account.accountId);
+    if (previous?.account === account && previous.seals === seals) return previous.row;
+    const content = JSON.stringify(account);
+    const row =
+      previous?.content === content && previous.seals === seals
+        ? previous.row
+        : { ...account, seals };
+    saved.current.set(account.accountId, { account, content, seals, row });
+    return row;
+  }, []);
+}
+const NO_SELECTION_V1: Set<string> = new Set();
+/** Accents and case do not separate what the operator types from the official name. */
+const foldNameV1 = (value: string) =>
+  value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
+const AccountsResultsV1 = memo(function AccountsResultsV1(
   props: StudentAccountsPropsV1 & {
     query: AdminReadQueryV2;
     sealCache: SealCountsCacheV1;
     order: AccountOrderV1;
     states: Set<string>;
     blocks: Set<string>;
+    search: string;
+    classId: number | null;
     qrMount: HTMLDivElement | null;
     bulkMount: HTMLDivElement | null;
     bulkScopeLabel: string;
   },
 ) {
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [visibleLimit, setVisibleLimit] = useState(ADMIN_ACCOUNTS_PAGE_SIZE_V2);
+  const [rowWindow] = useState(rowWindowV1);
+  // The class chosen in the school list is a view of the same collection, with its own tools.
+  const scope = useMemo<ScopeV1>(
+    () =>
+      props.query.scope.kind === 'school' && props.classId !== null
+        ? { kind: 'class', academicYear: 2026, classId: props.classId }
+        : props.query.scope,
+    [props.query.scope, props.classId],
+  );
+  const narrowed = [props.classId ?? '', props.search, ...props.states, '', ...props.blocks].join(
+    '|',
+  );
+  // A new order or filter starts again from the first rows.
+  const view = props.order + '|' + narrowed;
+  const [shown, setShown] = useState({ view, limit: rowWindow });
+  const visibleLimit = shown.view === view ? shown.limit : rowWindow;
+  // Each request for more triples the rows, so the end of a long list is two scrolls away.
+  const showMoreRows = () => setShown({ view, limit: visibleLimit * 3 });
+  const stableRow = useStableRowsV1();
   const [selectedId, setSelectedId] = useState<string | null>(() => panelHashAccountIdV1('aluno'));
   const rankingActive = useLiveRefreshScopeV1() && selectedId === null;
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
-  const [selectedQr, setSelectedQr] = useState<Set<string>>(() => new Set());
+  const [selection, setSelection] = useState({ owner: '', keys: NO_SELECTION_V1 });
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
@@ -277,22 +348,39 @@ function AccountsResultsV1(
     ADMIN_ACCOUNTS_PAGE_SIZE_V2,
   );
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
-  const filteredItems = useMemo(
+  // A row hidden by a filter never stays selected for a QR or bulk operation.
+  const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
+  const selectedQr = selection.owner === selectionOwner ? selection.keys : NO_SELECTION_V1;
+  const setSelectedQr = (keys: Set<string>) => setSelection({ owner: selectionOwner, keys });
+  const classItems = useMemo(
     () =>
-      current?.items.filter((item) => matchesAccountFiltersV1(item, props.states, props.blocks)) ??
-      [],
-    [current?.items, props.states, props.blocks],
+      props.classId === null
+        ? (current?.items ?? [])
+        : (current?.items.filter((item) => item.classId === props.classId) ?? []),
+    [current?.items, props.classId],
   );
-  // Global rankings need the complete collection; alphabetical browsing reads only visited pages.
+  const filteredItems = useMemo(() => {
+    const search = foldNameV1(props.search);
+    return classItems.filter(
+      (item) =>
+        matchesAccountFiltersV1(item, props.states, props.blocks) &&
+        (!search || foldNameV1(item.name).includes(search)),
+    );
+  }, [classItems, props.search, props.states, props.blocks]);
+  // Rankings and anything that narrows the list need the complete collection; plain
+  // alphabetical browsing reads only visited pages.
   const { more, refreshing, loadMore } = read;
+  const wholeCollection =
+    props.order !== 'name' ||
+    props.classId !== null ||
+    props.search !== '' ||
+    props.states.size > 0 ||
+    props.blocks.size > 0;
   useEffect(() => {
-    if (props.order !== 'name' && !authorizationError && more && !refreshing && !read.refreshError)
+    if (wholeCollection && !authorizationError && more && !refreshing && !read.refreshError)
       loadMore();
-  }, [props.order, authorizationError, more, refreshing, read.refreshError, loadMore]);
-  const sealAccountIds = useMemo(
-    () => (current?.items ?? []).map((item) => item.accountId),
-    [current?.items],
-  );
+  }, [wholeCollection, authorizationError, more, refreshing, read.refreshError, loadMore]);
+  const sealAccountIds = useMemo(() => classItems.map((item) => item.accountId), [classItems]);
   const seals = useSealCountsV1(
     props.reader,
     props.order === 'seals' && current && sealAccountIds.length ? { accountIds: sealAccountIds } : null,
@@ -302,11 +390,13 @@ function AccountsResultsV1(
   // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
   const orderedItems = useMemo(
     () =>
-      orderAccountsV1(filteredItems, props.order, sealCounts).map((account) => ({
-        ...account,
-        seals: props.order === 'seals' ? sealCounts?.get(account.accountId) : undefined,
-      })),
-    [filteredItems, props.order, sealCounts],
+      orderAccountsV1(filteredItems, props.order, sealCounts).map((account) =>
+        stableRow(
+          account,
+          props.order === 'seals' ? sealCounts?.get(account.accountId) : undefined,
+        ),
+      ),
+    [filteredItems, props.order, sealCounts, stableRow],
   );
   const visibleItems = useMemo(
     () => orderedItems.slice(0, visibleLimit),
@@ -314,19 +404,28 @@ function AccountsResultsV1(
   );
   const moreRows = rankingActive && (orderedItems.length > visibleLimit || read.more);
   const loadRows = () => {
-    if (orderedItems.length > visibleLimit)
-      setVisibleLimit((limit) => limit + ADMIN_ACCOUNTS_PAGE_SIZE_V2);
+    if (orderedItems.length > visibleLimit) showMoreRows();
     else if (read.more && read.canReload) {
-      setVisibleLimit((limit) => limit + ADMIN_ACCOUNTS_PAGE_SIZE_V2);
+      showMoreRows();
       read.loadMore();
     }
   };
   const loadingRows = orderedItems.length <= visibleLimit && read.refreshing;
-  const qrClass = props.query.scope.kind === 'class' ? props.query.scope : null;
-  const eligibleQr = new Set(
-    orderedItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
+  const qrClass = scope.kind === 'class' ? scope : null;
+  const eligibleQr = useMemo(
+    () =>
+      new Set(
+        orderedItems.filter(accountCredentialPreparableV1).map((account) => account.accountId),
+      ),
+    [orderedItems],
   );
-  useEffect(() => setSelectedQr(new Set()), [current?.scopeVersion]);
+  const disabledRows = useMemo(
+    () =>
+      visibleItems
+        .filter((account) => !props.canWrite || !eligibleQr.has(account.accountId))
+        .map((account) => account.accountId),
+    [visibleItems, props.canWrite, eligibleQr],
+  );
   const protectedFailure =
     read.state.state === 'error' &&
     ['unauthenticated', 'forbidden'].includes(read.state.error.state);
@@ -370,6 +469,7 @@ function AccountsResultsV1(
             <h2>QR code</h2>
             {qrClass && current ? (
               <QrBatchToolsV1
+                key={qrClass.classId}
                 client={props.client}
                 accounts={orderedItems}
                 selected={selectedQr}
@@ -395,11 +495,12 @@ function AccountsResultsV1(
       {props.bulkMount &&
         !authorizationError &&
         !protectedFailure &&
-        props.query.scope.kind === 'class' &&
+        scope.kind === 'class' &&
         createPortal(
           <StudentBulkV1
+            key={scope.classId}
             client={props.client}
-            scope={props.query.scope}
+            scope={scope}
             scopeLabel={props.bulkScopeLabel}
             canWrite={props.canWrite}
             selected={selectedQr}
@@ -439,7 +540,8 @@ function AccountsResultsV1(
             <p role="status">Nenhuma conta encontrada neste filtro.</p>
           )}
           {current && visibleItems.length > 0 && (
-            <Table className="pa-account-table">
+            // Rows are kept per account; a class adds the selection column, so its table is another.
+            <Table key={qrClass ? 'class' : 'all'} className="pa-account-table">
               <Table.ScrollContainer
                 className="pa-account-scroll"
                 tabIndex={0}
@@ -451,9 +553,7 @@ function AccountsResultsV1(
                   selectionMode={qrClass ? 'multiple' : 'none'}
                   selectedKeys={selectedQr}
                   disabledBehavior="selection"
-                  disabledKeys={visibleItems
-                    .filter((account) => !props.canWrite || !eligibleQr.has(account.accountId))
-                    .map((account) => account.accountId)}
+                  disabledKeys={disabledRows}
                   onSelectionChange={(keys) =>
                     setSelectedQr(
                       new Set(
@@ -548,7 +648,9 @@ function AccountsResultsV1(
                     )}
                   </Table.Body>
                 </Table.Content>
+                {/* Observed again after each growth: a tall screen may still show the end. */}
                 <ContinuousEndV1
+                  key={visibleLimit}
                   more={moreRows}
                   busy={loadingRows}
                   failed={Boolean(read.refreshError)}
@@ -572,7 +674,7 @@ function AccountsResultsV1(
       {selectedId && !protectedFailure && !authorizationError && (
         <AccountDetailV1
           accountId={selectedId}
-          parentScope={props.query.scope}
+          parentScope={scope}
           reader={props.reader}
           client={props.client}
           canWrite={props.canWrite}
@@ -593,4 +695,4 @@ function AccountsResultsV1(
       )}
     </>
   );
-}
+});
