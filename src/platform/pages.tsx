@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -24,18 +24,30 @@ import {
   Settings2,
   ShieldCheck,
 } from 'lucide-react';
-import type {
-  ModuleIntegrationState,
-  PlatformRoute,
-  PlatformSnapshotContract,
+import {
+  normalizePlatformRoute,
+  type ModuleIntegrationState,
+  type PlatformRoute,
+  type PlatformSnapshotContract,
 } from '../../shared/platform-contract';
+import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
-const SystemHealthPage = lazy(() => import('./system-health-page-v1').then(
-  (module) => ({ default: module.SystemHealthPageV1 }),
-));
-const StudentPortalAdminPage = lazy(() => import('../features/student-portal-admin/student-portal-admin-page').then(
-  (module) => ({ default: module.StudentPortalAdminPage }),
-));
+const SystemHealthPage = preloadedSectionV1(() =>
+  import('./system-health-page-v1').then((module) => module.SystemHealthPageV1),
+);
+const StudentPortalAdminPage = preloadedSectionV1(() =>
+  import('../features/student-portal-admin/student-portal-admin-page').then(
+    (module) => module.StudentPortalAdminPage,
+  ),
+);
+const ROUTE_PAGES_V1 = [StudentPortalAdminPage, SystemHealthPage];
+// The page in the address is needed as soon as the session is confirmed: ask for it at once,
+// while the session is still being checked.
+if (typeof window !== 'undefined') {
+  const opened = normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, ''));
+  if (opened === 'painel-do-aluno') StudentPortalAdminPage.preload();
+  if (opened === 'operacao') SystemHealthPage.preload();
+}
 import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
 
 function integrationStateLabel(state: ModuleIntegrationState): string {
@@ -744,6 +756,7 @@ export function PageContent({
   route: PlatformRoute;
   snapshot: PlatformSnapshotContract;
 }) {
+  usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
     case 'painel-do-aluno':
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
