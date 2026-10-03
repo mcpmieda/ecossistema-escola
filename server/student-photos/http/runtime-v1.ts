@@ -12,10 +12,15 @@ import { PhotoCatalogRepositoryV1 } from '../catalog-repository-v1';
 import { createPhotoRuntimeServiceV1 } from '../runtime-service-v1';
 import type { StudentWebpCodecV1 } from '../webp-codec-v1';
 import { servePhotoAdminV1 } from './admin-v1';
+import { PhotoStorageV1 } from '../storage-v1';
+import { readAvatarBatchV1 } from '../avatar-batch-service-v1';
+import { PHOTO_AVATAR_BATCH_PATH_V1, PHOTO_AVATAR_BATCH_TYPE_V1, encodePhotoAvatarBatchV1,
+  photoAvatarBatchRequestV1 } from '../../../shared/student-photos/avatar-batch-v1';
 
 const paths = {
   state: '/api/student-photos/admin/state', open: '/api/student-photos/admin/open',
   recover: '/api/student-photos/admin/recover', image: '/api/student-photos/admin/image',
+  avatars: PHOTO_AVATAR_BATCH_PATH_V1,
 };
 const recoverRequest = photoCatalogRequestV1.extend({ requestId: studentUidV1 }).strict();
 const imageQuery = z.object({ source: z.enum(['portal', 'gradebook']),
@@ -76,6 +81,27 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
       resolveSubject: async (_admin, subject, signal) => { signal.throwIfAborted(); return repository.resolve(subject); },
       createService: authorize => createPhotoRuntimeServiceV1({ env, database: connection!.database, codec, authorize }).edit,
     });
+    if (path === paths.avatars) {
+      const batch = photoAvatarBatchRequestV1.parse(await readPhotoJsonV1(request, request.signal));
+      // Read-only transport: any upload or removal attempted through it is refused.
+      const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => { throw new PhotoWriteErrorV1('invalid'); });
+      const images = await readAvatarBatchV1(batch.subjects, {
+        families: subjects => repository.avatarFamilies(subjects),
+        read: (asset, signal) => storage.read(asset, signal),
+        authorize: async () => {
+          request.signal.throwIfAborted();
+          const current = await verifiedPagesContextV1(request, env, false, traceId);
+          if (typeof current === 'string') throw new AccessDenied(current === 'unauthenticated' ? 401 : 403);
+          if (current.actorId.toLowerCase() !== initial.actorId.toLowerCase() || current.tenantId !== initial.tenantId)
+            throw new AccessDenied(403);
+        },
+      }, request.signal);
+      try {
+        const body = encodePhotoAvatarBatchV1(images);
+        return new Response(body.buffer as ArrayBuffer, { headers: { ...privateHeaders,
+          'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1, 'Content-Length': String(body.length) } });
+      } finally { for (const item of images) if (item instanceof Uint8Array) item.fill(0); }
+    }
     const parsedImage = image ? readImageQuery(url) : null;
     const raw: unknown = image ? null : await readPhotoJsonV1(request, request.signal);
     const input = image ? null : path === paths.recover ? recoverRequest.parse(raw) : photoCatalogRequestV1.parse(raw);

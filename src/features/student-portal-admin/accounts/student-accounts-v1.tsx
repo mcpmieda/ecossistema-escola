@@ -48,6 +48,8 @@ import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import { accountCredentialPreparableV1 } from './accounts-values-v1';
 import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
+import { primePhotoMemoryV1 } from '../../student-photos/photo-memory-v1';
+import { studentAvatarPhotoV1 } from '../shared/student-avatar-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import {
@@ -294,6 +296,21 @@ const AvatarBackfillPanelV1 = lazy(() =>
 /** Accents and case do not separate what the operator types from the official name. */
 const foldNameV1 = (value: string) =>
   value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
+/** The accounts a view shows, before ordering: one rule for the list and for what it asks ahead. */
+function narrowAccountsV1<T extends AdminAccountReadV2>(
+  items: readonly T[],
+  view: { search: string; states: ReadonlySet<string>; blocks: ReadonlySet<string> },
+): T[] {
+  const search = foldNameV1(view.search);
+  return items.filter(
+    (item) =>
+      matchesAccountFiltersV1(item, view.states, view.blocks) &&
+      (!search || foldNameV1(item.name).includes(search)),
+  );
+}
+const inClassV1 = <T extends AdminAccountReadV2>(items: readonly T[], classId: number | null) =>
+  classId === null ? [...items] : items.filter((item) => item.classId === classId);
+
 const AccountsResultsV1 = memo(function AccountsResultsV1(
   props: StudentAccountsPropsV1 & {
     query: AdminReadQueryV2;
@@ -341,6 +358,22 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
+  // The photos of the first rows are asked for when the accounts arrive, before the rows mount,
+  // so both appear together. Ordering by seals waits for the counts and is left to the rows.
+  const askPhotosAhead = useRef<(items: readonly AdminAccountReadV2[]) => void>(() => undefined);
+  askPhotosAhead.current = (items) => {
+    if (props.order === 'seals') return;
+    const first = orderAccountsV1(
+      narrowAccountsV1(inClassV1(items, props.classId), props),
+      props.order,
+      null,
+    ).slice(0, rowWindow);
+    try {
+      primePhotoMemoryV1(first.map((account) => studentAvatarPhotoV1(account.accountId)));
+    } catch {
+      /* Photos are optional; the rows ask again when they mount. */
+    }
+  };
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await props.reader.query(
@@ -351,7 +384,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
         signal,
       );
       if (result.state !== 'accounts-read') throw new PortalClientErrorV1('invalid-response');
-      return accountPageMatchesV1(result, props.query.scope);
+      const page = accountPageMatchesV1(result, props.query.scope);
+      if (!cursor && !signal.aborted) askPhotosAhead.current(page.items);
+      return page;
     },
     [props.reader, props.query, refreshVersion],
   );
@@ -369,20 +404,18 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const selectedQr = selection.owner === selectionOwner ? selection.keys : NO_SELECTION_V1;
   const setSelectedQr = (keys: Set<string>) => setSelection({ owner: selectionOwner, keys });
   const classItems = useMemo(
-    () =>
-      props.classId === null
-        ? (current?.items ?? [])
-        : (current?.items.filter((item) => item.classId === props.classId) ?? []),
+    () => inClassV1(current?.items ?? [], props.classId),
     [current?.items, props.classId],
   );
-  const filteredItems = useMemo(() => {
-    const search = foldNameV1(props.search);
-    return classItems.filter(
-      (item) =>
-        matchesAccountFiltersV1(item, props.states, props.blocks) &&
-        (!search || foldNameV1(item.name).includes(search)),
-    );
-  }, [classItems, props.search, props.states, props.blocks]);
+  const filteredItems = useMemo(
+    () =>
+      narrowAccountsV1(classItems, {
+        search: props.search,
+        states: props.states,
+        blocks: props.blocks,
+      }),
+    [classItems, props.search, props.states, props.blocks],
+  );
   // Rankings and anything that narrows the list need the complete collection; plain
   // alphabetical browsing reads only visited pages.
   const { more, refreshing, loadMore } = read;

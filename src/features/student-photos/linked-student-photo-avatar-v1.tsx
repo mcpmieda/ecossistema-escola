@@ -47,6 +47,7 @@ function LinkedAvatarSessionV1({ subject, studentUid, revision, ...props }: Read
   const identityKey = changed?.studentUid ?? studentUid ?? subjectKey;
   const currentRevision = changed ? changed.revision : revision;
   const [near, rootRef] = useNearScreenV1(props.loading === 'eager');
-  const src = usePhotoMemoryV1(photoImageUrlV1(subject, 'avatar', currentRevision), near);
+  // A current avatar is read together with the others on screen; a given revision is read alone.
+  const src = usePhotoMemoryV1(photoImageUrlV1(subject, 'avatar', currentRevision), near, currentRevision ? undefined : subject);
   return <StudentPhotoAvatarV1 {...props} rootRef={rootRef} identityKey={identityKey} photo={src ? { identityKey, src } : undefined} />;
 }

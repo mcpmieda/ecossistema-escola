@@ -75,6 +75,13 @@ function previewSettingsV1(scope: PolicyScopeV1): EffectiveSettingsV1 {
   return effectiveSettingsV1.parse({ scope, version: previewSettingsVersion, value, sources });
 }
 import { publicationFixtureV1 } from '../../tests/student-portal/ui/publication/fixtures-v1';
+import {
+  PHOTO_AVATAR_BATCH_PATH_V1,
+  PHOTO_AVATAR_BATCH_TYPE_V1,
+  encodePhotoAvatarBatchV1,
+} from '../../shared/student-photos/avatar-batch-v1';
+import { photoImageUrlV1 } from '../../shared/student-photos/catalog-v1';
+import type { PhotoAdminSubjectV1 } from '../../shared/student-photos/admin-http-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
 import syntheticPortraitWebp from './assets/synthetic-student-portrait.webp';
 import '../styles.css';
@@ -182,6 +189,24 @@ const previewFetch: PortalFetchV1 = async (path, init) => {
     return response.headers.get('content-type')?.split(';', 1)[0] === 'image/webp'
       ? response
       : new Response(null, { status: 404 });
+  }
+  if (path === PHOTO_AVATAR_BATCH_PATH_V1) {
+    // The joint avatar read, served from the same local or synthetic images as the single read.
+    const { subjects } = JSON.parse(String(init.body)) as { subjects: PhotoAdminSubjectV1[] };
+    const images = await Promise.all(
+      subjects.map(async (subject) => {
+        const response = await nativeFetch(
+          syntheticView ? syntheticPortraitWebp : photoImageUrlV1(subject, 'avatar'),
+          { signal: init.signal },
+        );
+        return response.headers.get('content-type')?.split(';', 1)[0] === 'image/webp'
+          ? new Uint8Array(await response.arrayBuffer())
+          : null;
+      }),
+    );
+    return new Response(encodePhotoAvatarBatchV1(images).buffer as ArrayBuffer, {
+      headers: { 'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1 },
+    });
   }
   if (path === '/api/me')
     return opJsonV1({

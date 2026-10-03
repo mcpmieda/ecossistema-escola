@@ -137,3 +137,25 @@ it('keeps recovery fenced and denies public writes to private catalog tables', a
   const grants = await db.unsafe("SELECT has_table_privilege('gradebook_app','student_photos.asset_delivery_v1','INSERT') AS direct_insert,has_table_privilege('student_portal_app','student_photos.asset_delivery_v1','DELETE') AS portal_delete");
   expect(grants[0]).toMatchObject({ direct_insert: false, portal_delete: false });
 });
+
+it('reads the avatar image of several subjects in one statement, as the runtime role', async () => {
+  const edited = await person(); await edited.catalog.initialize(edited.context, null, null);
+  const command = { requestId: crypto.randomUUID(), expectedRevision: null, kind: 'replace' as const };
+  const assets = { portrait: asset(portrait, 30, 40, edited.context.studentUid, command.requestId),
+    avatar: asset(avatar, 32, 32, edited.context.studentUid, command.requestId, 'avatar') };
+  await edited.writer.claim(edited.context, command, planOf(assets), { portrait, avatar });
+  await edited.writer.commit(edited.context, command.requestId, assets);
+  const adopted = await person(true), reference = await adopted.catalog.legacy(adopted.context.studentUid);
+  const original = asset(portrait, 30, 40, adopted.context.studentUid);
+  await db.unsafe('SELECT student_photos.adopt_storage_photo_v1($1::uuid,$2::text::jsonb,$3::text::jsonb)',
+    [adopted.context.studentUid, JSON.stringify(reference), JSON.stringify(original)]);
+  const without = await person();
+  await db.unsafe('INSERT INTO gradebook.aluno(id,ano,student_uid) VALUES(72,2026,$1)', [edited.context.studentUid]);
+  const portal = (accountId: string) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [accountId] });
+  // The avatar when there is one, the portrait while there is none, nothing without a photo,
+  // and no person at all for a reference that resolves to nobody.
+  expect(await edited.catalog.avatarFamilies([portal(edited.accountId), portal(adopted.accountId),
+    portal(without.accountId), portal(crypto.randomUUID()), { source: 'gradebook', academicYear: 2026, studentIds: [72] }]))
+    .toEqual([{ uid: edited.context.studentUid, asset: assets.avatar }, { uid: adopted.context.studentUid, asset: original },
+      { uid: without.context.studentUid, asset: null }, null, { uid: edited.context.studentUid, asset: assets.avatar }]);
+});
