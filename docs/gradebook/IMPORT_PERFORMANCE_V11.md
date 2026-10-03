@@ -902,3 +902,116 @@ revisão e gates; SHAs, PR e publicação são registrados na #1225. A/C, F1–F
 e #1230 são preservados. Sem F7, dense, mudança de concorrência remota, retirada
 de Auditoria ou dados produtivos. Validação de eventual correção em importação
 legítima continua posterior e pertence ao responsável. A issue permanece aberta.
+
+## Decisão final — candidato de cópia de referências rejeitado
+
+A [decisão final de escopo](https://github.com/mcpmieda/ecossistema-escola/issues/1225#issuecomment-5963405108)
+resolveu a autorização pendente acima. Baseline desta rodada:
+`ac021503e3a7be3acf849abb9a589af40e2df16f`. **Resultado B: candidato implementado,
+medido e rejeitado; nenhuma aceleração adicional incorporada ao produto.**
+Loader, URL/SRI oficiais, opções W0/S0, reconhecedores e V9 foram preservados.
+Nenhum artefato candidato é emitido no site. Não há nova conferência de uso a
+solicitar ao responsável para esta tentativa, nem ciclo de pesquisa automático.
+
+### Patch e revisão
+
+`scripts/gradebook/patch-sheetjs-reference-v1.mjs` preserva a reprodução isolada
+na cache local, com digest de entrada/saída e exatamente duas âncoras verificadas.
+[Proveniência e licença](benchmarks/sheetjs-reference-rejected/PROVENANCE.md).
+A variante `0.20.3-escola-ref1` especializa somente a cópia de referência em `Pa`;
+`Ar` genérico, `La`, `Ma` e reconstrução de fórmulas permanecem byte a byte iguais.
+Referências planas na ordem r/c/cRel/rRel usam objeto independente; outros formatos
+conservam `Ar`, sem executar getters extras no reconhecimento do formato.
+
+O primeiro candidato foi rejeitado antes de publicação: atribuições dinâmicas
+podiam acionar setters herdados nos campos. A correção para objeto literal e
+ordem exata motivou uma nova comparação completa, não uma repetição em busca de
+PASS. [Todas as amostras anteriores](benchmarks/1225-sheetjs-reference-rejected-v0.json)
+permanecem identificadas como superadas e não entram nos números finais.
+A revisão independente também verificou call sites e preservação de bytes/SRI.
+Após a decisão negativa pelo controle leve, a revisão de regressões encontrou
+outra limitação do candidato: setters numéricos herdados podem interferir no
+array temporário `values`. Essa divergência é reproduzida explicitamente; não
+se afirma equivalência universal nem se promove o patch com defeito conhecido.
+A rodada termina sem alterar novamente o algoritmo ou iniciar novos benchmarks.
+
+### Medição decisiva
+
+[Amostras individuais e estatísticas finais](benchmarks/1225-sheetjs-reference-patch-v1.json).
+Windows, Node 22.23.3, Edge/Chromium 154.0.4258.48 headless; HTML/scripts UTF-8,
+CSP vigente, rede restrita a loopback. Mesmos bytes autorizados em ambos os braços,
+nenhuma chamada acadêmica. O arquivo atual tem 947.786 bytes; não é a amostra
+anterior de 943.201 bytes e seus tempos não foram combinados. Original confirmado
+inalterado privadamente; nenhum hash real ou conteúdo acadêmico publicado.
+Sem profiler ou suítes pesadas concorrentes nas medições.
+
+Primeiro par após preflight separado; cinco pares aquecidos com ordem alternada
+por cenário. Custo completo inclui File, hash/manifesto, yield, leitura,
+reconhecimento, diagnóstico e construção canônica, com fallback interno normal.
+Comparação profunda fora da janela. Somente a versão técnica foi controlada por
+fachada comum na comparação; versões reais verificadas separadamente. Nenhum
+campo acadêmico foi removido ou tolerado.
+
+| Cenário / mediana aquecida completa |     Oficial |   Candidato | Diferença |
+| ----------------------------------- | ----------: | ----------: | --------: |
+| Uma leitura original                |    873,1 ms |    789,4 ms |    −9,59% |
+| 18 releituras do mesmo original     | 15.390,2 ms | 14.102,7 ms |    −8,37% |
+| Corpus leve existente, 60 casos     |    239,4 ms |    257,0 ms |    +7,35% |
+
+Na amostra individual, os cinco deltas candidato menos oficial foram
+−64,3/−105,3/−82,8/−96,3/−99,0 ms; nas 18 releituras,
+−1.701,4/−1.181,8/−1.586,6/−1.205,1/−1.287,5 ms. Faixas completas:
+individual 830,0–888,4 / 733,7–808,8 ms; 18 releituras
+15.294,8–15.487,8 / 13.593,4–14.282,7 ms. Medianas de `xlsx.read`:
+843,7/763,5 ms individual e 14.903,6/13.645,1 ms nas 18 releituras.
+
+O controle leve ficou mais lento nos cinco pares: +27,9/+2,4/+3,8/+16,8/+0,5 ms.
+A mediana dos deltas pareados é +3,8 ms; a diferença entre medianas é +17,6 ms
+(+7,35%), estatísticas distintas. Faixas 235,9–259,5 / 239,9–263,8 ms;
+parser mediano 131,5/139,8 ms. Não foi demonstrada ausência de regressão
+consistente no controle, por isso o ganho pesado não autoriza a promoção.
+
+Uma sessão separada, sem cronometrar, contou **zero chamadas de Pa** nos três
+formatos do controle. A inspeção do writer confirma que XLS/XLSB não convertem
+`.f` textual em tokens binários nessas fixtures; XLSX usa o caminho XML.
+Logo, não há evidência para atribuir a diferença leve ao guard de Pa: sua causa
+permanece indeterminada. Não descartamos o resultado nem repetimos a série.
+São 60 casos técnicos, não mudança do limite produtivo de 50 arquivos.
+Os 15 erros de leitura e 13 erros canônicos esperados em cada braço são iguais.
+
+Artefato: 951.904 → 952.788 bytes (+884). Uma observação de carregamento e
+avaliação local dos scripts foi 331,2/258,1 ms: ordem fixa/loopback, sem alegação
+de ganho de CDN/cache/rede. As bibliotecas estavam carregadas durante os pares.
+A observação não mede uma primeira visita produtiva.
+
+### Equivalência, testes e conclusão
+
+62 comparações completas de workbooks passaram: original com opções produtivas,
+original sem limite de linhas com formatos/estilos/VBA, e 60 fixtures existentes
+XLSX/XLS/XLSB. As três lacunas de escrita de workbook vazio continuam explícitas.
+Nos 36 resultados cronometrados, batch, reconhecimento, Relação quando presente,
+diagnóstico integral, pedido V9 e erros foram profundamente iguais. Isso não
+elimina a divergência de protótipo sintético identificada acima.
+Regressões pontuais confrontam cópia, mutabilidade, flags, intervalos, tokens,
+fallback e integridade com a implementação oficial; a limitação conhecida é
+um teste explícito de divergência, não uma declaração de segurança do candidato.
+
+Execução direcionada final: 127/127 testes passaram (22,06 s no Windows local),
+ESLint e Prettier passaram. A primeira execução teve 125/127: foi corrigida a
+comparação de bytes para `Buffer.equals` exato e registrada a perda de fórmulas
+pelo writer binário, sem aumentar timeout ou alegar cobertura inexistente.
+Revisão independente conferiu resultados, privacidade e ausência de diff produtivo.
+
+O teste provisório do loader (20 casos) e a checagem de navegador com CSP,
+preload, versão incompatível e corrupção SRI passaram antes da última correção;
+não são alegados como aprovação do artefato final. Toda ativação foi retirada.
+O loader/helper oficial não tem diff. Não houve mudanças em build, CSP, contratos,
+planilha original ou produção. Gates/SHAs da entrega documental e das regressões
+ficam registrados na #1225, separados da rejeição do candidato de produto.
+
+Esta rodada não obteve aceleração adicional publicável. As 18 releituras locais
+não representam os 18 arquivos diferentes do lote produtivo e não explicam seus
+tempos históricos. Não há ganho produtivo ou homologação acadêmica demonstrados.
+O `applied` histórico permanece indeterminado. F1–F6/G/H/I/#1230 e A/C preservados;
+F7, Workers, dense e novas estratégias ficam fora da rodada. A issue principal
+permanece aberta; outra intervenção exige uma nova decisão do responsável.
