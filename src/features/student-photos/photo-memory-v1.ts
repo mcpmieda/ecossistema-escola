@@ -22,6 +22,8 @@ const RETRY_MS_V1 = 30_000;
 const entries = new Map<string, PhotoMemoryEntryV1>();
 const queue: string[] = [];
 let running = 0;
+// Bumped when everything is forgotten: a download cancelled then no longer holds a slot.
+let epoch = 0;
 let listening = false;
 
 function entryV1(url: string) {
@@ -66,6 +68,7 @@ const isWebpV1 = (response: Response) =>
 
 async function loadV1(url: string, entry: PhotoMemoryEntryV1) {
   const controller = new AbortController();
+  const started = epoch;
   entry.controller = controller;
   entry.state = 'loading';
   running += 1;
@@ -84,8 +87,10 @@ async function loadV1(url: string, entry: PhotoMemoryEntryV1) {
     entry.retryAt = Date.now() + RETRY_MS_V1;
   } finally {
     if (entry.controller === controller) entry.controller = undefined;
-    running -= 1;
-    pumpV1();
+    if (started === epoch) {
+      running -= 1;
+      pumpV1();
+    }
   }
 }
 function pumpV1() {
@@ -117,6 +122,8 @@ function enqueueV1(url: string, entry: PhotoMemoryEntryV1, urgent: boolean) {
 /** Forgets every image. Mounted avatars ask again only when `reload` is set. */
 export function clearPhotoMemoryV1(reload = false) {
   queue.length = 0;
+  epoch += 1;
+  running = 0;
   for (const [url, entry] of entries) {
     entry.controller?.abort();
     entry.controller = undefined;
