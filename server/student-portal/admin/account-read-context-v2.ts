@@ -4,7 +4,10 @@ import {
   academicBindingSchemaV1,
   resolveEligibilityV1,
 } from '../../../shared/gradebook-contracts/student-portal/eligibility-v1';
-import { resolvePolicySnapshotRowsV1 } from '../policies/policy-service-v1';
+import {
+  resolvePolicyValuesRowsV1,
+  type PolicyResolutionMemoV1,
+} from '../policies/policy-service-v1';
 import { accessGateV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { adminInstantV1 } from './common-v1';
 
@@ -32,6 +35,13 @@ export const ADMIN_ACCOUNT_FIELDS_V2 = `a.id,a.gradebook_student_id,a.auth_state
     EXISTS(SELECT 1 FROM student_portal.password_credential c WHERE c.account_id=a.id AND c.pin_verifier IS NOT NULL
       AND c.pin_version=a.pin_version) AS pin_current`;
 
+// Built once: a schema created for each account costs more than the validation it performs.
+const accountIdV2 = z.uuid();
+const studentIdV2 = z.number().int().positive().safe();
+const dataVersionV2 = z.string();
+const bindingsV2 = z.array(academicBindingSchemaV1);
+const securityVersionV2 = z.coerce.number().int().nonnegative().safe();
+
 function firstAccessV2(row: Record<string, unknown>) {
   const qrIssued = row.qr_issued === true;
   const recoveryReady =
@@ -51,24 +61,28 @@ function firstAccessV2(row: Record<string, unknown>) {
   return { state: 'ready' as const, qrIssued, recoveryReady };
 }
 
-export async function accountReadContextV2(row: Record<string, unknown>, now: Date) {
-  const accountId = z.uuid().parse(row.id);
+export async function accountReadContextV2(
+  row: Record<string, unknown>,
+  now: Date,
+  memo?: PolicyResolutionMemoV1,
+) {
+  const accountId = accountIdV2.parse(row.id);
   const link =
     row.gradebook_student_id === null
       ? null
       : {
           academicYear: 2026 as const,
-          studentId: z.number().int().positive().safe().parse(row.gradebook_student_id),
+          studentId: studentIdV2.parse(row.gradebook_student_id),
         };
   const eligibility =
     link === null
       ? 'unlinked'
       : resolveEligibilityV1(
           link,
-          z.string().parse(row.data_version),
-          z.array(academicBindingSchemaV1).parse(row.bindings),
+          dataVersionV2.parse(row.data_version),
+          bindingsV2.parse(row.bindings),
         ).state;
-  let policy: Awaited<ReturnType<typeof resolvePolicySnapshotRowsV1>> | null = null;
+  let policy: ReturnType<typeof resolvePolicyValuesRowsV1> | null = null;
   let access: z.infer<typeof adminAccountReadV2>['access'] = {
     state: 'unresolved',
     enabled: null,
@@ -77,9 +91,12 @@ export async function accountReadContextV2(row: Record<string, unknown>, now: Da
     accessPermitted: false,
   };
   if (row.resolved === true) {
-    policy = await resolvePolicySnapshotRowsV1({ kind: 'account', academicYear: 2026, accountId }, [
-      row,
-    ]);
+    // The list applies the policy; nothing here reads its version digest.
+    policy = resolvePolicyValuesRowsV1(
+      { kind: 'account', academicYear: 2026, accountId },
+      [row],
+      memo,
+    );
     const accessPermitted =
       eligibility === 'eligible' &&
       row.eligibility === 'eligible' &&
@@ -113,6 +130,6 @@ export async function accountReadContextV2(row: Record<string, unknown>, now: Da
   return {
     item,
     policy,
-    securityVersion: z.coerce.number().int().nonnegative().safe().parse(row.security_version),
+    securityVersion: securityVersionV2.parse(row.security_version),
   };
 }

@@ -61,6 +61,10 @@ const storedRow = z.object({
   version: versionV1,
 });
 type StoredRowV1 = z.infer<typeof storedRow>;
+// Built once: a schema created for each target costs more than the validation it performs.
+const storedRowsV1 = z.array(storedRow);
+const targetClassIdV1 = z.number().int().positive();
+const accountVersionV1 = z.coerce.number().int().safe().nonnegative();
 
 function normalizedScope(input: PolicyScopeV1): PolicyScopeV1 {
   const scope = policyScopeV1.parse(input);
@@ -220,44 +224,96 @@ function resolvedValuesV1(records: readonly StoredRowV1[], chain: readonly Polic
   return { value, sources };
 }
 
+const resolvedPolicyV1 = effectiveSettingsV1.pick({ value: true, sources: true });
+type ResolvedPolicyV1 = z.infer<typeof resolvedPolicyV1> & {
+  enforced: ReturnType<typeof enforceSchoolAccessV1>;
+  epoch: number;
+};
+/**
+ * Work of one read shared by the targets whose stored rows are identical. Without an account rule
+ * among those rows the resolved value, its sources and the enforced value cannot depend on which
+ * account is being resolved; only the scope and the version are the account's own. The memory
+ * belongs to the read that created it and is never kept by this module.
+ */
+export type PolicyResolutionMemoV1 = Map<string, ResolvedPolicyV1>;
+export const createPolicyResolutionMemoV1 = (): PolicyResolutionMemoV1 => new Map();
+
 /** Shared pure policy resolution for single-target and batched administrative reads. */
 export async function resolvePolicySnapshotRowsV1(
   input: PolicyScopeV1,
   rows: readonly Record<string, unknown>[],
+  memo?: PolicyResolutionMemoV1,
+) {
+  const resolved = resolvePolicyValuesRowsV1(input, rows, memo);
+  const { settings, classId, shift } = resolved;
+  return { ...resolved, policyVersion: `policy:${await hash({ settings, classId, shift })}` };
+}
+
+/** The same resolution without the version digest, for a reader that only applies the policy. */
+export function resolvePolicyValuesRowsV1(
+  input: PolicyScopeV1,
+  rows: readonly Record<string, unknown>[],
+  memo?: PolicyResolutionMemoV1,
 ) {
   const scope = normalizedScope(input);
   if (rows.length !== 1 || rows[0]!.resolved !== true)
     throw new Error('student-portal-policy-target-unresolved');
   const target = rows[0]!;
-  const records = z.array(storedRow).parse(target.settings_rows);
-  const school = schoolDefaultsV1(records);
-  const epoch = school[0]!.version;
-  const classId =
-    target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
-  // A shift scope is its own level; any other target takes the shift of its class, if known.
-  const shift =
-    scope.kind === 'shift'
-      ? scope.shift
-      : target.shift === null || target.shift === undefined
-        ? null
-        : shiftV1.parse(target.shift);
-  const { value, sources } = resolvedValuesV1(records, scopeChainV1(scope, classId, shift));
-  for (const [field, fallback] of Object.entries(OPTIONAL_SCHOOL_DEFAULTS_V1))
-    if (!(field in value)) {
-      value[field] = fallback;
-      sources[field] = SCHOOL;
-    }
-  const accountVersion = z.coerce.number().int().safe().nonnegative().parse(target.account_version);
-  const version = versionV1.parse(epoch + accountVersion);
-  const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
-  return {
-    settings,
-    enforcedValue: enforceSchoolAccessV1(settings, settingsValueV1.parse(schoolValueV1(school))),
-    classId,
-    shift,
-    epoch,
-    policyVersion: `policy:${await hash({ settings, classId, shift })}`,
+  const memoKey = memo
+    ? JSON.stringify([
+        scope.kind === 'account' ? 'account' : scope,
+        target.class_id ?? null,
+        target.shift ?? null,
+        target.settings_rows,
+      ])
+    : null;
+  let resolved = memoKey === null ? undefined : memo!.get(memoKey);
+  if (!resolved) {
+    const records = storedRowsV1.parse(target.settings_rows);
+    const school = schoolDefaultsV1(records);
+    const { value, sources } = resolvedValuesV1(
+      records,
+      scopeChainV1(scope, targetClassV1(target), targetShiftV1(scope, target)),
+    );
+    for (const [field, fallback] of Object.entries(OPTIONAL_SCHOOL_DEFAULTS_V1))
+      if (!(field in value)) {
+        value[field] = fallback;
+        sources[field] = SCHOOL;
+      }
+    const checked = resolvedPolicyV1.parse({ value, sources });
+    resolved = {
+      ...checked,
+      enforced: enforceSchoolAccessV1(checked, settingsValueV1.parse(schoolValueV1(school))),
+      epoch: school[0]!.version,
+    };
+    // An account's own rule makes the result that account's alone.
+    if (memoKey !== null && !records.some((row) => row.scope_key.startsWith('account:')))
+      memo!.set(memoKey, resolved);
+  }
+  const classId = targetClassV1(target);
+  const shift = targetShiftV1(scope, target);
+  const accountVersion = accountVersionV1.parse(target.account_version);
+  const version = versionV1.parse(resolved.epoch + accountVersion);
+  // Each target receives its own objects: nothing resolved for one can be changed through another.
+  const own = <T>(part: T): T => (memo ? structuredClone(part) : part);
+  const settings: EffectiveSettingsV1 = {
+    scope,
+    version,
+    value: own(resolved.value),
+    sources: own(resolved.sources),
   };
+  return { settings, enforcedValue: own(resolved.enforced), classId, shift, epoch: resolved.epoch };
+}
+function targetClassV1(target: Record<string, unknown>) {
+  return target.class_id === null ? null : targetClassIdV1.parse(target.class_id);
+}
+/** A shift scope is its own level; any other target takes the shift of its class, if known. */
+function targetShiftV1(scope: PolicyScopeV1, target: Record<string, unknown>) {
+  return scope.kind === 'shift'
+    ? scope.shift
+    : target.shift === null || target.shift === undefined
+      ? null
+      : shiftV1.parse(target.shift);
 }
 
 type SettingsSetCommandV1 = Extract<AdminCommandV1, { operation: 'settings-set' }>;

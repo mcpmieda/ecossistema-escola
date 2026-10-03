@@ -15,6 +15,8 @@ import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 import { sealContextsBatchV1, sealSourcesBatchV1 } from './seal-source-batch-v1';
 import { readSealCacheV1, type SealCacheWriteV1 } from './seal-cache-v1';
 
+const accountIdV1 = z.uuid();
+
 /**
  * Selos brilhantes in the ADM (owner request 29/09/2026): the count each student sees on the
  * Portal, from the same projection and the same shared rule, never a second rule. One record or
@@ -63,7 +65,7 @@ export async function readSealsV1(
     for (let offset = 0; offset < rows.length; offset += 200) {
       const loaded = await sealContextsBatchV1(
         tx,
-        rows.slice(offset, offset + 200).map((row) => z.uuid().parse(row.id)),
+        rows.slice(offset, offset + 200).map((row) => accountIdV1.parse(row.id)),
         pendingCacheWrites !== undefined ? now : undefined,
       );
       for (const [id, context] of loaded) contexts.set(id, context);
@@ -74,13 +76,13 @@ export async function readSealsV1(
     const selected = rows.slice(offset, offset + 200);
     const misses = contexts
       ? selected.flatMap((row) => {
-          const context = contexts.get(z.uuid().parse(row.id));
+          const context = contexts.get(accountIdV1.parse(row.id));
           return context && !plans?.get(context.account.id)?.hit ? [context] : [];
         })
       : [];
     const sources = contexts && misses.length ? await sealSourcesBatchV1(tx, misses) : undefined;
     for (const row of selected) {
-      const accountId = z.uuid().parse(row.id);
+      const accountId = accountIdV1.parse(row.id);
       if (!contexts)
         items.push({ accountId, seals: await sealsOfV1(sql, tx, accountId, requestId) });
       else {

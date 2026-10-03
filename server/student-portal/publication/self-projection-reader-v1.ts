@@ -72,6 +72,20 @@ export async function publicationContextV1(
   return publicationContextFromRowsV1(context, rows);
 }
 
+// Built once: a schema created for each student costs more than the validation it performs.
+const profileNameV1 = z.string().min(1).max(200);
+const profileClassLabelV1 = z.string().min(1).max(80);
+const profileAssessmentsV1 = z
+  .array(
+    z.object({
+      id: z.number().int().positive(),
+      term: z.number().int().min(1).max(3),
+      slot: z.union([z.literal(1), z.literal(2)]),
+      label: z.string().nullable(),
+    }),
+  )
+  .max(600);
+
 /** Single-target and batched reads share this profile validation and presentation assembly. */
 export function publicationContextFromRowsV1(
   context: {
@@ -94,23 +108,13 @@ export function publicationContextFromRowsV1(
   const profile = {
     accountId,
     link: context.account.link!,
-    name: z.string().min(1).max(200).parse(row.name),
-    classLabel: z.string().min(1).max(80).parse(row.class_name),
+    name: profileNameV1.parse(row.name),
+    classLabel: profileClassLabelV1.parse(row.class_name),
     academicState,
     result: academicState === 'assisted' ? ('not-applicable' as const) : ('in-progress' as const),
   };
   const names = assessmentNamesSchemaV1.parse(row.assessment_names ?? {});
-  const assessments = z
-    .array(
-      z.object({
-        id: z.number().int().positive(),
-        term: z.number().int().min(1).max(3),
-        slot: z.union([z.literal(1), z.literal(2)]),
-        label: z.string().nullable(),
-      }),
-    )
-    .max(600)
-    .parse(row.assessments ?? []);
+  const assessments = profileAssessmentsV1.parse(row.assessments ?? []);
   const assessmentLabels = new Map(
     assessments.map((item) => [
       item.id,

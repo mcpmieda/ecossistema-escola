@@ -16,6 +16,7 @@ import {
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1 } from './common-v1';
 import { accessEndV1 } from '../policies/calendar-v1';
+import { createPolicyResolutionMemoV1 } from '../policies/policy-service-v1';
 import {
   ACCOUNT_JOIN_V1,
   ENROLLED_ACCOUNT_SQL_V1,
@@ -23,6 +24,9 @@ import {
   studentNameOrderSqlV1,
 } from './queries-v1';
 import type { AdminCursorV1 } from './cursor-v1';
+
+const sessionAccountV2 = z.uuid();
+const sessionCountV2 = z.number().int().nonnegative().safe();
 
 /** Fixed query count: one bounded account/policy batch, one session aggregate.
  * The caller owns a read-only repeatable-read transaction; no lock or per-account query.
@@ -96,8 +100,10 @@ export async function readAdminV2(
     short: number;
   }[] = [];
   const items: z.infer<typeof adminAccountReadV2>[] = [];
+  // Classmates share the same stored rules: resolve them once for this read.
+  const policies = createPolicyResolutionMemoV1();
   for (const row of selected) {
-    const { item, policy, securityVersion } = await accountReadContextV2(row, now);
+    const { item, policy, securityVersion } = await accountReadContextV2(row, now, policies);
     items.push(item);
     if (item.access.accessPermitted && item.state === 'active' && policy) {
       const end = accessEndV1(policy.enforcedValue, now);
@@ -122,10 +128,7 @@ export async function readAdminV2(
       [JSON.stringify(sessionPolicies), now.toISOString()],
     );
     const counts = new Map(
-      sessions.map((row) => [
-        z.uuid().parse(row.account_id),
-        z.number().int().nonnegative().safe().parse(row.count),
-      ]),
+      sessions.map((row) => [sessionAccountV2.parse(row.account_id), sessionCountV2.parse(row.count)]),
     );
     for (const item of items) item.validSessionCount = counts.get(item.accountId) ?? 0;
   }
