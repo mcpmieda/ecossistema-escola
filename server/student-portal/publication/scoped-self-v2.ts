@@ -51,6 +51,8 @@ function newestSourceV2(current: SourceV2 | undefined, candidate: SourceV2 | und
   return current;
 }
 
+const preparedPayloadV2 = z.record(z.string(), z.unknown());
+
 function preparedSourceV2(
   row: ScopedRowV2,
   revision: string,
@@ -62,7 +64,7 @@ function preparedSourceV2(
   if (cached) return cached;
   const accountId = context.account.id;
   const source = reader.projectPreparedSourceV2(context.account.link!, revision, {
-    ...z.record(z.string(), z.unknown()).parse(row.payload_json),
+    ...preparedPayloadV2.parse(row.payload_json),
     account_id: accountId,
     data_version: revision,
   });

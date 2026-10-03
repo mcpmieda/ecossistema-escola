@@ -7,6 +7,8 @@ import { LEGACY_ALLOWED_SQL_V1, releaseSelectionSqlV1 } from './release-selectio
 
 export const scopedKeyV2 = (scope: ScopeV1) => scope.kind === 'school' ? 'school:2026'
   : scope.kind === 'class' ? `class:2026:${scope.classId}` : `account:2026:${scope.accountId.toLowerCase()}`;
+const sourceAccountIdV2 = z.uuid();
+
 export async function scopedPublicationEnabledV2(sql: StudentPortalPostgresQueryV1): Promise<boolean> {
   const rows = await sql.unsafe('SELECT enabled FROM student_portal.publication_control_v2 WHERE academic_year=2026');
   if (rows.length !== 1 || typeof rows[0]!.enabled !== 'boolean') throw new Error('student-portal-scoped-publication-unavailable');
@@ -97,7 +99,7 @@ export async function readScopedSourceBatchV2(
   );
   const byAccount = new Map<string, Record<string, unknown>[]>();
   for (const row of rows) {
-    const id = z.uuid().parse(row.account_id);
+    const id = sourceAccountIdV2.parse(row.account_id);
     const existing = byAccount.get(id) ?? [];
     existing.push(row);
     byAccount.set(id, existing);

@@ -1,12 +1,19 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react';
+import { Component, Suspense, type ReactNode } from 'react';
 import { Alert, Button, Spinner, Surface } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { routeLoadFailureV1, type RouteLoadFailureV1 } from '../shared/live-data/route-load-failure-v1';
+import { normalizePlatformRoute } from '../../shared/platform-contract';
+import { preloadedSectionV1 } from '../shared/ui/preloaded-section-v1';
 
-const GradebookWorkspacePage = lazy(async () => {
-  const module = await import('./gradebook-workspace-page');
-  return { default: module.GradebookWorkspacePage };
-});
+const GradebookWorkspacePage = preloadedSectionV1(() =>
+  import('./gradebook-workspace-page').then((module) => module.GradebookWorkspacePage),
+);
+// Opened directly on the Banco de notas: its bundle is asked for while the session is checked.
+if (
+  typeof window !== 'undefined' &&
+  normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, '')) === 'banco-de-notas'
+)
+  GradebookWorkspacePage.preload();
 
 type GradebookRouteBoundaryState = { readonly failure: RouteLoadFailureV1 | null };
 

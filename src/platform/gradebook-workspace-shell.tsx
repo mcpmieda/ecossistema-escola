@@ -122,6 +122,18 @@ const SettingsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
   ),
 );
 
+// The area in the address is the first one shown: ask for it at once.
+if (typeof window !== 'undefined') {
+  const opened = workspaceSurfaceFromHash();
+  if (opened === 'operational') OperationalWorkspaceSurface.preload();
+  else if (opened === 'audit') GradebookAuditSurface.preload();
+  else if (opened === 'performance') PerformancePage.preload();
+  else if (opened === 'bulletins') BulletinPage.preload();
+  else if (opened === 'reports') InstitutionalReportsPage.preload();
+  else if (opened === 'council') CouncilWorkspaceSurface.preload();
+  else if (opened === 'settings') SettingsPage.preload();
+}
+
 const WORKSPACE_SECTIONS_V1 = [
   OperationalWorkspaceSurface,
   GradebookAuditSurface,

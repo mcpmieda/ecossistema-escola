@@ -1,5 +1,12 @@
+import { photoImageUrlV1 } from '../../../../shared/student-photos/catalog-v1';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import './student-avatar-v1.css';
+
+/** The image this avatar asks for, so a list can request its first rows before they mount. */
+export function studentAvatarPhotoV1(id: string, academicYear = 2026) {
+  const subject = { source: 'portal' as const, academicYear, accountIds: [id] };
+  return { url: photoImageUrlV1(subject, 'avatar'), subject };
+}
 
 /** All callers provide a Portal account reference, never a guessed canonical person ID. */
 export function StudentAvatarV1({ id, academicYear = 2026, detail = false }: { id: string; academicYear?: number; detail?: boolean }) {
