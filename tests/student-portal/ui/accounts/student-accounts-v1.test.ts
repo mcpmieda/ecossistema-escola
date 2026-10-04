@@ -4,10 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAccountsV1 } from '../../../../src/features/student-portal-admin/accounts/student-accounts-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
+import { clearPhotoMemoryV1 } from '../../../../src/features/student-photos/photo-memory-v1';
+import {
+  PHOTO_AVATAR_BATCH_PATH_V1,
+  PHOTO_AVATAR_BATCH_TYPE_V1,
+  encodePhotoAvatarBatchV1,
+} from '../../../../shared/student-photos/avatar-batch-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 import {
   accountsMockV1,
+  accountFixtureV1,
   accountJsonV1,
+  accountPageV1,
   ACCOUNT_META_V1,
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
@@ -404,6 +412,85 @@ describe('account list and detail', () => {
     const reads = mock.queries.filter((query) => query.operation === 'accounts-read');
     expect(reads).toHaveLength(1);
     expect(reads[0]).not.toHaveProperty('nameSearch');
+  });
+  it('asks for the photos of the rows left on screen together with the list after a reload', async () => {
+    window.sessionStorage.clear();
+    clearPhotoMemoryV1();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: () => 'blob:synthetic' });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
+    const events: string[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url !== PHOTO_AVATAR_BATCH_PATH_V1) return new Response(null, { status: 404 });
+      const { subjects } = JSON.parse(String(init?.body)) as { subjects: unknown[] };
+      events.push('photos:' + subjects.length);
+      const body = encodePhotoAvatarBatchV1(subjects.map(() => new Uint8Array(64).fill(7)));
+      return new Response(body.buffer as ArrayBuffer, {
+        headers: { 'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1 },
+      });
+    });
+    const photos = () => document.querySelectorAll('img.avatar__image').length;
+    const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    /** A list whose answer waits for `release`. */
+    const pendingList = () => {
+      let answer = () => {};
+      const mock = accountsMockV1({
+        query: (input) => {
+          if (input.operation !== 'accounts-read') return undefined;
+          events.push('list');
+          return new Promise<Response>((resolve) => {
+            answer = () => resolve(accountJsonV1(accountPageV1([1, 2, 3].map((n) => accountFixtureV1(n)))));
+          });
+        },
+      });
+      return { props: mock.props, release: () => answer() };
+    };
+    try {
+      // First visit: nothing is known, so the photos are asked for when the accounts arrive.
+      const first = pendingList();
+      const view = render(createElement(StudentAccountsV1, first.props));
+      await waitFor(() => expect(events).toEqual(['list']));
+      await settle();
+      expect(events).toEqual(['list']);
+      first.release();
+      await ready();
+      await waitFor(() => expect(photos()).toBe(3));
+      expect(events).toEqual(['list', 'photos:3']);
+      // The tab keeps account identifiers only.
+      const kept = window.sessionStorage.getItem('pa-first-rows-v1')!;
+      expect(JSON.parse(kept).accountIds).toEqual([1, 2, 3].map((n) => accountFixtureV1(n).accountId));
+      expect(kept).not.toContain('SYNTHETIC');
+      // Reload: the page memory is gone, the tab still knows which rows were first.
+      view.unmount();
+      clearPhotoMemoryV1();
+      events.length = 0;
+      const second = pendingList();
+      render(createElement(StudentAccountsV1, second.props));
+      await waitFor(() => expect(events).toContain('photos:3'));
+      expect(events.filter((event) => event === 'list')).toHaveLength(1);
+      await settle();
+      second.release();
+      await ready();
+      // The rows mount with their photos and nothing is asked for again.
+      expect(photos()).toBe(3);
+      expect(events.filter((event) => event.startsWith('photos'))).toEqual(['photos:3']);
+      // Another administrator in the same tab starts without them.
+      cleanup();
+      clearPhotoMemoryV1();
+      events.length = 0;
+      const third = pendingList();
+      render(createElement(StudentAccountsV1, { ...third.props, identityKey: 'another-admin' }));
+      await waitFor(() => expect(events).toEqual(['list']));
+      await settle();
+      expect(events).toEqual(['list']);
+      third.release();
+      await ready();
+      await waitFor(() => expect(events).toEqual(['list', 'photos:3']));
+    } finally {
+      cleanup();
+      clearPhotoMemoryV1();
+      Reflect.deleteProperty(URL, 'createObjectURL');
+      Reflect.deleteProperty(URL, 'revokeObjectURL');
+    }
   });
   it('recovers an uncertain response under StrictMode with identical bytes', async () => {
     let attempt = 0;
