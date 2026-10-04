@@ -19,11 +19,10 @@ export function writePanelHashParamsV1(values: Record<string, string | null>) {
   if (next !== window.location.hash) window.history.replaceState(window.history.state, '', next);
 }
 
+const ACCOUNT_ID_V1 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 export function panelHashAccountIdV1(key: string): string | null {
   const value = readPanelHashParamV1(key);
-  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value)
-    ? value.toLowerCase()
-    : null;
+  return value && ACCOUNT_ID_V1.test(value) ? value.toLowerCase() : null;
 }
 
 const PANEL_OWNER_KEY_V1 = 'pa-panel-owner-v1';
@@ -50,4 +49,37 @@ export function claimPanelHashV1(identityKey: string) {
   }
   if (previous !== owner)
     writePanelHashParamsV1(Object.fromEntries(PANEL_KEYS_V1.map((key) => [key, null])));
+}
+
+const PANEL_FIRST_ROWS_KEY_V1 = 'pa-first-rows-v1';
+/**
+ * The accounts on the first rows of a list, kept for this tab like the view in the address: after
+ * a reload their photos are asked for while the list is still being read. Identifiers only, never
+ * a name or an image, and only for the administrator and the view that left them.
+ */
+export function readPanelFirstRowsV1(view: string, limit: number): string[] {
+  try {
+    const saved: unknown = JSON.parse(
+      window.sessionStorage.getItem(PANEL_FIRST_ROWS_KEY_V1) ?? 'null',
+    );
+    if (typeof saved !== 'object' || saved === null) return [];
+    const { view: owner, accountIds } = saved as { view?: unknown; accountIds?: unknown };
+    if (owner !== fingerprintV1(view) || !Array.isArray(accountIds)) return [];
+    return accountIds
+      .filter((id): id is string => typeof id === 'string' && ACCOUNT_ID_V1.test(id))
+      .slice(0, limit)
+      .map((id) => id.toLowerCase());
+  } catch {
+    return [];
+  }
+}
+export function writePanelFirstRowsV1(view: string, accountIds: readonly string[]) {
+  try {
+    window.sessionStorage.setItem(
+      PANEL_FIRST_ROWS_KEY_V1,
+      JSON.stringify({ view: fingerprintV1(view), accountIds }),
+    );
+  } catch {
+    // Storage unavailable (private mode): nothing is kept and the list asks as it arrives.
+  }
 }

@@ -54,7 +54,9 @@ import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1'
 import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import {
   panelHashAccountIdV1,
+  readPanelFirstRowsV1,
   readPanelHashParamV1,
+  writePanelFirstRowsV1,
   writePanelHashParamsV1,
 } from '../shared/panel-hash-v1';
 import {
@@ -263,8 +265,9 @@ function SealCountV1({ count }: { count: number | null | undefined }) {
 type AccountRowV1 = AdminAccountReadV2 & { seals: number | null | undefined };
 /** Rows on screen grow with the scroll: every row mounted is paid again on each sort, filter,
  * selection and re-read. Without an observer nothing would ask for more, so all rows mount. */
+const ROW_WINDOW_V1 = 60;
 const rowWindowV1 = () =>
-  typeof IntersectionObserver === 'undefined' ? ADMIN_ACCOUNTS_PAGE_SIZE_V2 : 60;
+  typeof IntersectionObserver === 'undefined' ? ADMIN_ACCOUNTS_PAGE_SIZE_V2 : ROW_WINDOW_V1;
 /** An account whose content did not change keeps its row object across re-reads, filters and
  * sorting: React Aria re-renders only the rows that are new or different. */
 function useStableRowsV1() {
@@ -358,6 +361,29 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
+  // The view a reload brings back: order and filters start again, the scope returns from the
+  // address. Its first rows are most likely the ones left on screen, so after a reload their
+  // photos are asked for together with the list and the rows mount with them.
+  const restorable =
+    props.order === 'name' &&
+    props.search === '' &&
+    props.states.size === 0 &&
+    props.blocks.size === 0 &&
+    (props.classId === null || props.scope.kind === 'class');
+  const rowsView = props.identityKey + '|' + settingsScopeKeyV1(props.scope);
+  useEffect(() => {
+    if (!restorable) return;
+    try {
+      primePhotoMemoryV1(
+        readPanelFirstRowsV1(rowsView, ROW_WINDOW_V1).map((accountId) =>
+          studentAvatarPhotoV1(accountId),
+        ),
+      );
+    } catch {
+      /* Photos are optional; the rows ask when they mount. */
+    }
+    // Only when the list mounts: any later view is shown from what was already read.
+  }, []);
   // The photos of the first rows are asked for when the accounts arrive, before the rows mount,
   // so both appear together. Ordering by seals waits for the counts and is left to the rows.
   const askPhotosAhead = useRef<(items: readonly AdminAccountReadV2[]) => void>(() => undefined);
@@ -463,6 +489,19 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     () => orderedItems.slice(0, visibleLimit),
     [orderedItems, visibleLimit],
   );
+  const firstRows = useMemo(
+    () =>
+      visibleItems
+        .slice(0, ROW_WINDOW_V1)
+        .map((account) => account.accountId)
+        .join(','),
+    [visibleItems],
+  );
+  const listed = current !== null;
+  useEffect(() => {
+    if (restorable && listed)
+      writePanelFirstRowsV1(rowsView, firstRows ? firstRows.split(',') : []);
+  }, [restorable, listed, rowsView, firstRows]);
   const moreRows = rankingActive && (orderedItems.length > visibleLimit || read.more);
   const loadRows = () => {
     if (orderedItems.length > visibleLimit) showMoreRows();
