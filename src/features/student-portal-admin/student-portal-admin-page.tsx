@@ -103,6 +103,18 @@ const PANEL_SECTIONS_V1 = [
   StudentCredentialsV1,
   CustomizationTargetV1,
 ];
+// The area in the address is the first one shown: ask for it at once, while the session is
+// still being checked.
+if (typeof window !== 'undefined') {
+  const opened = portalSectionFromHash(window.location.hash);
+  if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
+  else if (opened === 'birth') StudentBirthYearsV1.preload();
+  else if (opened === 'sessions') StudentSessionsV1.preload();
+  else if (opened === 'audit') AuditWorkspaceV1.preload();
+  else if (opened === 'policies' || opened === 'publication') StudentPoliciesV1.preload();
+  else if (opened === 'settings') StudentSettingsV1.preload();
+  else StudentOverviewV1.preload();
+}
 const sectionFallback = (
   <output className="block py-6 text-sm text-muted">Carregando área do Painel…</output>
 );

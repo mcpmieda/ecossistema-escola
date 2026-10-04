@@ -20,6 +20,7 @@ import {
   type PerformanceSelectionV6,
 } from './performance-analytics-workspace-v6';
 import { PerformanceStudentDetailV2 } from './performance-student-detail-v2';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import { PerformanceResultMatrixV2 } from './performance-result-matrix-v2';
 import { PerformanceAnalysisPanelV3 } from './performance-analysis-panel-v3';
 import { PerformanceTermComparisonPanelV4 } from './performance-term-comparison-panel-v4';
@@ -156,8 +157,11 @@ export function RelationalPerformancePageV2({
   const changeOpenSelect = useCallback((id: PerformanceSelectId, isOpen: boolean) => {
     setOpenSelect((current) => (isOpen ? id : current === id ? null : current));
   }, []);
+  // The student whose detail was asked for: the name already on screen heads the drawer at once.
+  const [openingId, setOpeningId] = useState<number | null>(null);
   const open = (studentId: number, offerId?: number) => {
     lastFocus.current = document.activeElement as HTMLElement;
+    setOpeningId(studentId);
     void state.open(studentId, offerId);
   };
   const close = () => {
@@ -181,6 +185,11 @@ export function RelationalPerformancePageV2({
       </p>
     );
   const detail = state.detail;
+  const openingName =
+    openingId === null
+      ? undefined
+      : (state.matrix?.rows.find((row) => row.student.id === openingId)?.student.name ??
+        analytics.data?.students.find((item) => item.student.id === openingId)?.student.name);
   const comparisonDisabled =
     state.filters.lens === 'assessments' ||
     state.filters.period === 1 ||
@@ -464,7 +473,7 @@ export function RelationalPerformancePageV2({
               <PerformanceStudentDetailV2
                 detail={detail}
                 focusPeriod={state.filters.period}
-                openComponent={(id, offerId) => void state.open(id, offerId)}
+                openComponent={open}
                 openCenter={(id) => {
                   close();
                   state.openStudent?.(id);
@@ -472,9 +481,29 @@ export function RelationalPerformancePageV2({
               />
             ) : (
               <>
-                <Drawer.Header>
-                  <Drawer.Heading>Detalhe do aluno</Drawer.Heading>
-                </Drawer.Header>
+                {openingId !== null && openingName ? (
+                  <Drawer.Header className="border-b border-separator pb-5 pr-10">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <LinkedStudentPhotoAvatarV1
+                        decorative
+                        size="lg"
+                        className="size-16 shrink-0"
+                        subject={{
+                          source: 'gradebook',
+                          academicYear: state.year,
+                          studentIds: [openingId],
+                        }}
+                      />
+                      <Drawer.Heading className="min-w-0 break-words text-2xl font-bold tracking-tight">
+                        {openingName}
+                      </Drawer.Heading>
+                    </div>
+                  </Drawer.Header>
+                ) : (
+                  <Drawer.Header>
+                    <Drawer.Heading>Detalhe do aluno</Drawer.Heading>
+                  </Drawer.Header>
+                )}
                 <Drawer.Body>
                   {state.busy.detail ? <p role="status">Carregando detalhe…</p> : null}
                   {state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}

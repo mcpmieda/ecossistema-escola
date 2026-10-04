@@ -7,10 +7,14 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
+import { createPolicyResolutionMemoV1 } from '../policies/policy-service-v1';
 import type { AdminCursorV1 } from './cursor-v1';
 import { accessEndV1 } from '../policies/calendar-v1';
 
 type SessionContextV2 = Awaited<ReturnType<typeof accountReadContextV2>>;
+// Built once: a schema created for each session costs more than the validation it performs.
+const sessionIdV2 = z.uuid();
+const sessionPersistentV2 = z.boolean();
 type SessionItemV2 = Extract<
   ReturnType<typeof adminReadResponseV2.parse>,
   { state: 'sessions-read' }
@@ -74,7 +78,7 @@ async function loadSessionContextsV2(
   contexts: Map<string, SessionContextV2>,
   now: Date,
 ) {
-  const ids = [...new Set(rows.map((row) => z.uuid().parse(row.account_id)))].filter(
+  const ids = [...new Set(rows.map((row) => sessionIdV2.parse(row.account_id)))].filter(
     (id) => !contexts.has(id),
   );
   if (!ids.length) return;
@@ -83,8 +87,9 @@ async function loadSessionContextsV2(
      WHERE a.academic_year=2026 AND a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) ORDER BY a.id`,
     [JSON.stringify(ids)],
   );
+  const policies = createPolicyResolutionMemoV1();
   for (const account of accounts) {
-    const context = await accountReadContextV2(account, now);
+    const context = await accountReadContextV2(account, now, policies);
     contexts.set(context.item.accountId, context);
   }
 }
@@ -106,7 +111,7 @@ function appendSessionRowsV2(
   let scanned = 0;
   for (const row of rows) {
     const mapped = mapSession(row, contexts, now);
-    position = z.uuid().parse(row.id);
+    position = sessionIdV2.parse(row.id);
     scanned += 1;
     if (!sessionMatchesViewV2(view, mapped)) continue;
     items.push(mapped);
@@ -238,17 +243,17 @@ function mapSession(
   contexts: Map<string, SessionContextV2>,
   now: Date,
 ): SessionItemV2 {
-  const accountId = z.uuid().parse(row.account_id);
+  const accountId = sessionIdV2.parse(row.account_id);
   const context = contexts.get(accountId);
   if (!context) throw new Error('student-portal-admin-scope-unavailable');
   const expiresAt = adminInstantV1(row.expires_at);
   const createdAt = adminInstantV1(row.created_at);
   const created = Date.parse(createdAt);
-  const persistent = z.boolean().parse(row.persistent);
+  const persistent = sessionPersistentV2.parse(row.persistent);
   const effectiveExpiresAt = effectiveSessionExpiryV2(expiresAt, created, persistent, context, now);
   const revokedAt = row.revoked_at === null ? null : adminInstantV1(row.revoked_at);
   return {
-    sessionId: z.uuid().parse(row.id),
+    sessionId: sessionIdV2.parse(row.id),
     accountId,
     name: context.item.name,
     classLabel: context.item.classLabel,

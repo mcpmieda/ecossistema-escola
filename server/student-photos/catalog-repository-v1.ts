@@ -4,6 +4,7 @@ import { photoAdminSubjectV1, type PhotoAdminSubjectV1 } from '../../shared/stud
 import { photoAssetsV1, photoAssetV1, photoWriteReceiptV1, PhotoWriteErrorV1,
   type PhotoAssetV1, type PhotoWriteContextV1 } from '../../shared/student-photos/write-v1';
 import { photoCatalogStateV1, type PhotoCatalogStateV1 } from '../../shared/student-photos/catalog-v1';
+import { PHOTO_AVATAR_BATCH_MAX_V1 } from '../../shared/student-photos/avatar-batch-v1';
 import type { PhotoWriteDatabaseV1, PhotoWriteQueryV1 } from './write-repository-v1';
 
 export const legacyPhotoSnapshotV1 = z.object({
@@ -12,6 +13,7 @@ export const legacyPhotoSnapshotV1 = z.object({
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 }).strict();
 export type LegacyPhotoSnapshotV1 = z.infer<typeof legacyPhotoSnapshotV1>;
+const avatarSubjectsV1 = z.array(photoAdminSubjectV1).min(1).max(PHOTO_AVATAR_BATCH_MAX_V1);
 export function photoBytesFromHexV1(input: unknown): Uint8Array {
   if (typeof input !== 'string' || input.length < 40 || input.length > 262144 || !/^(?:[a-f0-9]{2})+$/u.test(input))
     throw new PhotoWriteErrorV1('invalid');
@@ -34,6 +36,26 @@ export class PhotoCatalogRepositoryV1 {
         [subject.source,subject.academicYear,String(subject.source === 'portal' ? subject.accountIds[0] : subject.studentIds[0])]);
       if (!rows[0]?.uid) throw new PhotoWriteErrorV1('not-found');
       return studentUidV1.parse(rows[0].uid);
+    });
+  }
+  /** Person and avatar image of each subject, in order, in one statement: the avatar, or the
+   * portrait while there is none, exactly what the single image read chooses. */
+  async avatarFamilies(input: readonly PhotoAdminSubjectV1[]): Promise<({ uid: string; asset: PhotoAssetV1 | null } | null)[]> {
+    const subjects = avatarSubjectsV1.parse(input);
+    return this.transaction(async tx => {
+      const rows = await tx.query(`SELECT x.ord,u.uid::text AS uid,f.assets
+        FROM jsonb_to_recordset($1::text::jsonb) AS x(ord integer,source text,year integer,reference text)
+        CROSS JOIN LATERAL (SELECT student_photos.resolve_student_v1(x.source,x.year,x.reference) AS uid) u
+        LEFT JOIN student_photos.photo_family_v1 f ON f.student_uid=u.uid ORDER BY x.ord`,
+        [JSON.stringify(subjects.map((subject, ord) => ({ ord, source: subject.source, year: subject.academicYear,
+          reference: String(subject.source === 'portal' ? subject.accountIds[0] : subject.studentIds[0]) })))]);
+      if (rows.length !== subjects.length || rows.some((row, index) => Number(row.ord) !== index))
+        throw new PhotoWriteErrorV1('invalid');
+      return rows.map(row => {
+        if (row.uid == null) return null;
+        const assets = row.assets == null ? null : photoAssetsV1.parse(row.assets);
+        return { uid: studentUidV1.parse(row.uid), asset: assets ? (assets.avatar ?? assets.portrait) : null };
+      });
     });
   }
   async legacy(uid: string): Promise<LegacyPhotoSnapshotV1 | null> {

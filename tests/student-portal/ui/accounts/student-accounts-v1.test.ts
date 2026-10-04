@@ -4,10 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAccountsV1 } from '../../../../src/features/student-portal-admin/accounts/student-accounts-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
+import { clearPhotoMemoryV1 } from '../../../../src/features/student-photos/photo-memory-v1';
+import {
+  PHOTO_AVATAR_BATCH_PATH_V1,
+  PHOTO_AVATAR_BATCH_TYPE_V1,
+  encodePhotoAvatarBatchV1,
+} from '../../../../shared/student-photos/avatar-batch-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 import {
   accountsMockV1,
+  accountFixtureV1,
   accountJsonV1,
+  accountPageV1,
   ACCOUNT_META_V1,
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
@@ -182,6 +190,43 @@ describe('account list and detail', () => {
       expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(false);
       expect(mock.writes).toHaveLength(0);
     }, 40_000);
+  });
+  it('shows what the list knows at the tap and offers actions only after the record reads the account', async () => {
+    let answer = () => {};
+    const mock = accountsMockV1({
+      query: (input) =>
+        input.operation === 'accounts-read' && input.scope.kind === 'account'
+          ? new Promise<Response>((resolve) => {
+              // Meanwhile the account was blocked in another session.
+              answer = () =>
+                resolve(accountJsonV1(accountPageV1([{ ...accountFixtureV1(1), blocked: true, version: 12 }])));
+            })
+          : undefined,
+    });
+    render(createElement(StudentAccountsV1, mock.props));
+    fireEvent.click(await ready());
+    await waitFor(() => expect(document.querySelector('.pa-student-drawer')).not.toBeNull());
+    const drawer = within(document.querySelector<HTMLElement>('.pa-student-drawer')!);
+    // The record's own read has not answered: identity, state and facts come from the list.
+    expect(drawer.getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
+    expect(drawer.getByText('Sessões ativas')).toBeTruthy();
+    expect(drawer.queryByText('Carregando aluno…')).toBeNull();
+    expect(drawer.queryByText('Bloqueado')).toBeNull();
+    // Nothing can be decided on the list row.
+    expect(
+      drawer.queryByRole('button', {
+        name: /^(Bloquear acesso|Desbloquear acesso|Redefinir senha|Redefinir conta|Mudar QR)$/,
+      }),
+    ).toBeNull();
+    expect(drawer.queryByRole('tablist')).toBeNull();
+    answer();
+    expect(await drawer.findByRole('button', { name: 'Desbloquear acesso' })).toBeTruthy();
+    expect(drawer.getByText('Bloqueado')).toBeTruthy();
+    await userEvent.setup().click(drawer.getByRole('button', { name: 'Desbloquear acesso' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Confirmar ação' }));
+    await waitFor(() => expect(mock.writes).toHaveLength(1));
+    // The decision carries the version the record read, not the one the list had (9).
+    expect(mock.writes[0]).toMatchObject({ operation: 'block', blocked: false, expectedVersion: 12 });
   });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();
@@ -420,6 +465,85 @@ describe('account list and detail', () => {
     const reads = mock.queries.filter((query) => query.operation === 'accounts-read');
     expect(reads).toHaveLength(1);
     expect(reads[0]).not.toHaveProperty('nameSearch');
+  });
+  it('asks for the photos of the rows left on screen together with the list after a reload', async () => {
+    window.sessionStorage.clear();
+    clearPhotoMemoryV1();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: () => 'blob:synthetic' });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
+    const events: string[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url !== PHOTO_AVATAR_BATCH_PATH_V1) return new Response(null, { status: 404 });
+      const { subjects } = JSON.parse(String(init?.body)) as { subjects: unknown[] };
+      events.push('photos:' + subjects.length);
+      const body = encodePhotoAvatarBatchV1(subjects.map(() => new Uint8Array(64).fill(7)));
+      return new Response(body.buffer as ArrayBuffer, {
+        headers: { 'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1 },
+      });
+    });
+    const photos = () => document.querySelectorAll('img.avatar__image').length;
+    const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    /** A list whose answer waits for `release`. */
+    const pendingList = () => {
+      let answer = () => {};
+      const mock = accountsMockV1({
+        query: (input) => {
+          if (input.operation !== 'accounts-read') return undefined;
+          events.push('list');
+          return new Promise<Response>((resolve) => {
+            answer = () => resolve(accountJsonV1(accountPageV1([1, 2, 3].map((n) => accountFixtureV1(n)))));
+          });
+        },
+      });
+      return { props: mock.props, release: () => answer() };
+    };
+    try {
+      // First visit: nothing is known, so the photos are asked for when the accounts arrive.
+      const first = pendingList();
+      const view = render(createElement(StudentAccountsV1, first.props));
+      await waitFor(() => expect(events).toEqual(['list']));
+      await settle();
+      expect(events).toEqual(['list']);
+      first.release();
+      await ready();
+      await waitFor(() => expect(photos()).toBe(3));
+      expect(events).toEqual(['list', 'photos:3']);
+      // The tab keeps account identifiers only.
+      const kept = window.sessionStorage.getItem('pa-first-rows-v1')!;
+      expect(JSON.parse(kept).accountIds).toEqual([1, 2, 3].map((n) => accountFixtureV1(n).accountId));
+      expect(kept).not.toContain('SYNTHETIC');
+      // Reload: the page memory is gone, the tab still knows which rows were first.
+      view.unmount();
+      clearPhotoMemoryV1();
+      events.length = 0;
+      const second = pendingList();
+      render(createElement(StudentAccountsV1, second.props));
+      await waitFor(() => expect(events).toContain('photos:3'));
+      expect(events.filter((event) => event === 'list')).toHaveLength(1);
+      await settle();
+      second.release();
+      await ready();
+      // The rows mount with their photos and nothing is asked for again.
+      expect(photos()).toBe(3);
+      expect(events.filter((event) => event.startsWith('photos'))).toEqual(['photos:3']);
+      // Another administrator in the same tab starts without them.
+      cleanup();
+      clearPhotoMemoryV1();
+      events.length = 0;
+      const third = pendingList();
+      render(createElement(StudentAccountsV1, { ...third.props, identityKey: 'another-admin' }));
+      await waitFor(() => expect(events).toEqual(['list']));
+      await settle();
+      expect(events).toEqual(['list']);
+      third.release();
+      await ready();
+      await waitFor(() => expect(events).toEqual(['list', 'photos:3']));
+    } finally {
+      cleanup();
+      clearPhotoMemoryV1();
+      Reflect.deleteProperty(URL, 'createObjectURL');
+      Reflect.deleteProperty(URL, 'revokeObjectURL');
+    }
   });
   it('recovers an uncertain response under StrictMode with identical bytes', async () => {
     let attempt = 0;

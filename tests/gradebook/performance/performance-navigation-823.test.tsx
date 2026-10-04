@@ -46,6 +46,9 @@ beforeEach(() => {
         classId: Number(body.classId),
         period: body.period as 1 | 2 | 3 | 'annual',
       }));
+    // The detail never answers: what the drawer shows meanwhile is what the page already knew.
+    if (body.operation === 'student-detail' || body.operation === 'cell-detail')
+      return new Promise<Response>(() => undefined);
     throw new Error(`Unexpected synthetic navigation request: ${String(body.operation)}`);
   }));
   stylesheet = document.createElement('style');
@@ -92,6 +95,32 @@ it('applies compact navigation to the actual performance page before a class is 
   expectCompact(screen.getByRole('tablist', { name: 'Turmas de Desempenho' }));
   expect(perspectives.parentElement!.parentElement!.classList.contains('overflow-x-auto')).toBe(false);
   expect(requests.some((body) => body.operation === 'analytics')).toBe(false);
+});
+
+it('heads the detail drawer with the student already on screen while the detail is read', async () => {
+  mountPage();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('tab', { name: 'TURMA SINTETICA A' }));
+  await waitFor(() => expect(screen.queryByLabelText('Carregando indicadores')).toBeNull());
+  const cell = await waitFor(() => {
+    const found = document.querySelector<HTMLButtonElement>('td button');
+    expect(found).not.toBeNull();
+    return found!;
+  });
+  await user.click(cell);
+  const drawer = await screen.findByRole('dialog');
+  await waitFor(() =>
+    expect(requests.some((body) => String(body.operation).endsWith('-detail'))).toBe(true),
+  );
+  const asked = requests.find((body) => String(body.operation).endsWith('-detail'))!;
+  const known = performanceAnalyticsFixtureV6({ year: 2026, classId: 10, period: 1 });
+  const student =
+    known.state === 'ready'
+      ? known.students.find((item) => item.student.id === asked.studentId)
+      : undefined;
+  expect(student).toBeDefined();
+  expect(within(drawer).getByRole('heading').textContent).toBe(student!.student.name);
+  expect(within(drawer).getByText('Carregando detalhe…')).toBeTruthy();
 });
 
 it('keeps the real perspective bar compact through keyboard navigation and a selected-class snapshot', async () => {

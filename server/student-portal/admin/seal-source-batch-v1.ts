@@ -9,7 +9,10 @@ import {
   type StudentPortalPostgresQueryV1,
 } from '../persistence/postgres-persistence-v1';
 import { accountScopeV1, authNowV1 } from '../auth/transaction-v1';
-import { resolvePolicySnapshotRowsV1 } from '../policies/policy-service-v1';
+import {
+  createPolicyResolutionMemoV1,
+  resolvePolicySnapshotRowsV1,
+} from '../policies/policy-service-v1';
 import {
   publicationContextFromRowsV1,
   type publicationContextV1,
@@ -23,6 +26,10 @@ import type { ScopedSelfSourceReaderV2 } from '../publication/scoped-self-v2';
 import { termClosingTargetsV1 } from '../publication/term-closing-self-v1';
 
 type ContextV1 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
+// Built once: a schema created for each account costs more than the validation it performs.
+const batchIdsV1 = z.array(z.uuid()).min(1).max(200);
+const bindingsV1 = z.array(academicBindingSchemaV1);
+const profilesV1 = z.array(z.record(z.string(), z.unknown()));
 
 /** Only previously selected class IDs enter this read-only request-local snapshot. */
 export async function sealContextsBatchV1(
@@ -30,7 +37,7 @@ export async function sealContextsBatchV1(
   input: readonly string[],
   snapshotNow?: Date,
 ) {
-  const ids = z.array(z.uuid()).min(1).max(200).parse(input);
+  const ids = batchIdsV1.parse(input);
   const rows = await tx.unsafe(
     `SELECT a.id,a.academic_year,a.gradebook_student_id,a.auth_state,a.eligibility,a.blocked,
       a.version,a.version::text AS account_version,a.security_version,a.pin_version,a.closed_at,
@@ -69,6 +76,7 @@ export async function sealContextsBatchV1(
   );
   const now = snapshotNow ?? await authNowV1(tx);
   const contexts = new Map<string, ContextV1>();
+  const policies = createPolicyResolutionMemoV1();
   for (const row of rows) {
     const account = accountFromRowV1(row);
     if (
@@ -81,13 +89,13 @@ export async function sealContextsBatchV1(
     const eligibility = resolveEligibilityV1(
       account.link,
       academicVersionSchemaV1.parse(row.data_version),
-      z.array(academicBindingSchemaV1).parse(row.bindings),
+      bindingsV1.parse(row.bindings),
     );
     if (eligibility.state !== 'eligible') continue;
-    const policy = await resolvePolicySnapshotRowsV1(accountScopeV1(account.id), [row]);
+    const policy = await resolvePolicySnapshotRowsV1(accountScopeV1(account.id), [row], policies);
     const context = publicationContextFromRowsV1(
       { account, eligibility, policy, now },
-      z.array(z.record(z.string(), z.unknown())).parse(row.profiles),
+      profilesV1.parse(row.profiles),
     );
     if (context) contexts.set(account.id, context);
   }
