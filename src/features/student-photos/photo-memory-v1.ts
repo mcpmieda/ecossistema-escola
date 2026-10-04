@@ -294,6 +294,8 @@ export function primePhotoMemoryV1(
     entry.subject ??= photo.subject;
     enqueueV1(photo.url, entry, true);
   }
+  // The whole group is known here: its requests leave now, not after the screen finishes mounting.
+  pumpV1();
 }
 
 /** The in-memory image for an authenticated same-origin URL. Every mounted avatar asks for its

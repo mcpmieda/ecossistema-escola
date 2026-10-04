@@ -784,6 +784,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
         <AccountDetailV1
           accountId={selectedId}
           parentScope={scope}
+          known={current?.items.find((account) => account.accountId === selectedId)}
           reader={props.reader}
           client={props.client}
           canWrite={props.canWrite}
