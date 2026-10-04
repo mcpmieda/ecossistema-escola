@@ -68,7 +68,7 @@ describe('account list and detail', () => {
     );
     expect(mock.writes).toHaveLength(0);
   });
-  it('uses the account table selection for the QR controls and resets it with the search', async () => {
+  it('discards the QR selection when the search changes and stays empty on return', async () => {
     const mock = accountsMockV1();
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
     await ready();
@@ -80,6 +80,14 @@ describe('account list and detail', () => {
     await user.type(screen.getByRole('textbox', { name: 'Buscar aluno' }), '002');
     await screen.findByText('SYNTHETIC ACCOUNT 002');
     expect(await screen.findByText('0 selecionados')).toBeTruthy();
+    await user.clear(screen.getByRole('textbox', { name: 'Buscar aluno' }));
+    await ready();
+    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(
+      screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
+        (checkbox) => !checkbox.checked,
+      ),
+    ).toBe(true);
     expect(mock.writes).toHaveLength(0);
   });
   it('shows official names and distinct states with a complete empty-class catalog', async () => {
@@ -411,6 +419,14 @@ describe('account list and detail', () => {
     );
     // The selection made in one class never follows the operator into another.
     expect(screen.getByText('0 selecionados')).toBeTruthy();
+    view.rerender(createElement(StudentAccountsV1, classProps(753001, 'SYNTHETIC CLASS A')));
+    await ready();
+    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(
+      screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
+        (checkbox) => !checkbox.checked,
+      ),
+    ).toBe(true);
     expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toEqual([
       expect.objectContaining({ scope: { kind: 'school', academicYear: 2026 } }),
     ]);
