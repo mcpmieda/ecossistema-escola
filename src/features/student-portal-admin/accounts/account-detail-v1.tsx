@@ -61,6 +61,9 @@ export interface AccountDetailPropsV1 {
   slots?: AccountSlotsV1;
   describeScope?: (scope: PolicyScopeV1) => string;
   initialSlot?: keyof AccountSlotsV1;
+  /** The account as the list that opened the record already shows it: displayed at once, while
+   * the record's own read confirms it. Actions and tabs wait for that read. */
+  known?: AdminAccountReadV2;
 }
 const slotLabels = {
   birth: 'Nascimento',
@@ -114,6 +117,7 @@ function AccountDetailBodyV1({
   slots,
   describeScope,
   initialSlot,
+  known,
 }: AccountDetailPropsV1) {
   const ownScope = useMemo(
     () => ({ kind: 'account' as const, academicYear: 2026 as const, accountId }),
@@ -197,6 +201,15 @@ function AccountDetailBodyV1({
   }, [mutation, read.state, onAuthorizationLost]);
   const snapshot = !protectedFailure && read.state.state === 'ready' ? read.state.data : null;
   const account = snapshot?.account ?? null;
+  const waiting =
+    !protectedFailure && (read.state.state === 'idle' || read.state.state === 'loading');
+  // Until the record's own read first answers, what the list already shows is on screen. A later
+  // reload never falls back to the list: it could be older than what this record has shown.
+  const [answered, setAnswered] = useState(false);
+  if (!answered && (read.state.state === 'ready' || read.state.state === 'error'))
+    setAnswered(true);
+  const shown =
+    account ?? (waiting && !answered && known?.accountId === accountId ? known : null);
   const editable = canWrite && !!account && accountManageableV1(account) && !pending && !failed;
   function refresh() {
     if (pending || (failed && Date.now() < mutation.retryAt)) return;
@@ -275,9 +288,7 @@ function AccountDetailBodyV1({
           </div>
         )}
         {pending && <p role="status">Salvando…</p>}
-        {!protectedFailure && (read.state.state === 'idle' || read.state.state === 'loading') && (
-          <p role="status">Carregando aluno…</p>
-        )}
+        {waiting && !shown && <p role="status">Carregando aluno…</p>}
         {!protectedFailure && read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -290,11 +301,11 @@ function AccountDetailBodyV1({
             Conta não encontrada neste escopo. Nenhuma conta foi criada ou associada pelo nome.
           </p>
         )}
-        {account && context && (
+        {shown && (
           <>
             <div className="pa-account-profile">
-              <AccountIdentityV1 account={account} detail />
-              <RecordSealsV1 reader={reader} accountId={account.accountId} />
+              <AccountIdentityV1 account={shown} detail />
+              <RecordSealsV1 reader={reader} accountId={shown.accountId} />
             </div>
             <StudentPhotoPanelV1
               showAvatar={false}
@@ -302,37 +313,41 @@ function AccountDetailBodyV1({
               subject={{
                 source: 'portal',
                 academicYear: ownScope.academicYear,
-                accountIds: [account.accountId],
+                accountIds: [shown.accountId],
               }}
             />
-            <AccountStatusV1 account={account} />
+            <AccountStatusV1 account={shown} />
             <dl className="pa-account-facts">
               <div>
                 <dt>Acesso agora</dt>
-                <dd>{account.access.accessPermitted ? 'Permitido' : 'Não'}</dd>
+                <dd>{shown.access.accessPermitted ? 'Permitido' : 'Não'}</dd>
               </div>
               <div>
                 <dt>Primeiro acesso</dt>
-                <dd>{firstAccessLabelV1(account)}</dd>
+                <dd>{firstAccessLabelV1(shown)}</dd>
               </div>
               <div>
                 <dt>Último acesso</dt>
-                <dd>{lastAuthenticationLabelV1(account.lastAuthenticationAt)}</dd>
+                <dd>{lastAuthenticationLabelV1(shown.lastAuthenticationAt)}</dd>
               </div>
               <div>
                 <dt>Sessões ativas</dt>
-                <dd>{account.validSessionCount}</dd>
+                <dd>{shown.validSessionCount}</dd>
               </div>
             </dl>
             <div className="flex items-center gap-2 text-xs text-muted">
-              <span>{accountLinkLabelV1(account)}</span>
+              <span>{accountLinkLabelV1(shown)}</span>
               <Tooltip>
                 <Tooltip.Trigger>Origem do acesso</Tooltip.Trigger>
                 <Tooltip.Content>
-                  {accountAccessOriginV1(account.access.source, describeScope)}
+                  {accountAccessOriginV1(shown.access.source, describeScope)}
                 </Tooltip.Content>
               </Tooltip>
             </div>
+          </>
+        )}
+        {account && context && (
+          <>
             {!canWrite && <p>Modo somente leitura.</p>}
             {account.eligibility === 'exit' ? (
               <p>Aluno com saída da escola: ficha somente para consulta.</p>

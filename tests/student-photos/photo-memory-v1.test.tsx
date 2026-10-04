@@ -179,6 +179,8 @@ it('asks ahead for the first rows of a list so they mount with their photos', as
   const fetcher = vi.fn(async (_url: string, init?: RequestInit) => together(asked(init).map(webp)));
   vi.stubGlobal('fetch', fetcher);
   primePhotoMemoryV1([5, 6, 7].map((n) => studentAvatarPhotoV1(account(n))));
+  // The request leaves at once, without waiting for the screen to finish mounting.
+  expect(fetcher).toHaveBeenCalledTimes(1);
   await waitFor(() => expect(created).toHaveBeenCalledTimes(3));
   expect(asked(fetcher.mock.calls[0]?.[1])).toEqual([5, 6, 7]);
   const view = render(<>{[5, 6, 7].map((n) => <LinkedStudentPhotoAvatarV1 key={n} subject={subject(n)} />)}</>);

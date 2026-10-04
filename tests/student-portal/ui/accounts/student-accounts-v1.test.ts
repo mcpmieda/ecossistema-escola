@@ -183,6 +183,43 @@ describe('account list and detail', () => {
       expect(mock.writes).toHaveLength(0);
     }, 40_000);
   });
+  it('shows what the list knows at the tap and offers actions only after the record reads the account', async () => {
+    let answer = () => {};
+    const mock = accountsMockV1({
+      query: (input) =>
+        input.operation === 'accounts-read' && input.scope.kind === 'account'
+          ? new Promise<Response>((resolve) => {
+              // Meanwhile the account was blocked in another session.
+              answer = () =>
+                resolve(accountJsonV1(accountPageV1([{ ...accountFixtureV1(1), blocked: true, version: 12 }])));
+            })
+          : undefined,
+    });
+    render(createElement(StudentAccountsV1, mock.props));
+    fireEvent.click(await ready());
+    await waitFor(() => expect(document.querySelector('.pa-student-drawer')).not.toBeNull());
+    const drawer = within(document.querySelector<HTMLElement>('.pa-student-drawer')!);
+    // The record's own read has not answered: identity, state and facts come from the list.
+    expect(drawer.getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
+    expect(drawer.getByText('Sessões ativas')).toBeTruthy();
+    expect(drawer.queryByText('Carregando aluno…')).toBeNull();
+    expect(drawer.queryByText('Bloqueado')).toBeNull();
+    // Nothing can be decided on the list row.
+    expect(
+      drawer.queryByRole('button', {
+        name: /^(Bloquear acesso|Desbloquear acesso|Redefinir senha|Redefinir conta|Mudar QR)$/,
+      }),
+    ).toBeNull();
+    expect(drawer.queryByRole('tablist')).toBeNull();
+    answer();
+    expect(await drawer.findByRole('button', { name: 'Desbloquear acesso' })).toBeTruthy();
+    expect(drawer.getByText('Bloqueado')).toBeTruthy();
+    await userEvent.setup().click(drawer.getByRole('button', { name: 'Desbloquear acesso' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Confirmar ação' }));
+    await waitFor(() => expect(mock.writes).toHaveLength(1));
+    // The decision carries the version the record read, not the one the list had (9).
+    expect(mock.writes[0]).toMatchObject({ operation: 'block', blocked: false, expectedVersion: 12 });
+  });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();
     render(createElement(StudentAccountsV1, mock.props));
