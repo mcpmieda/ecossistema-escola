@@ -424,6 +424,8 @@ it('serves an actual opaque session through the new HTTP and private administrat
   });
   const env = { PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: 'https://aluno.escolaieda.com', PORTAL_ADMIN_TENANT_ID: READ_TENANT_V2,
     PORTAL_ADMIN_WRITE: { limit: async () => ({ success: true }) },
+    PORTAL_AUTH_GLOBAL: { limit: async () => ({ success: true }) },
+    PORTAL_READ_ACCOUNT: { limit: async () => ({ success: true }) },
     PORTAL_SERVING_ENABLED: 'true', PORTAL_PUBLICATION_MODE: 'scoped-v2', PORTAL_DB: { connectionString: connection('student_portal_app') },
     PASSWORD_PEPPER: JSON.stringify({ '1': Buffer.alloc(32, 7).toString('base64') }), QR_HMAC_KEYS: JSON.stringify({ '1': Buffer.alloc(32, 8).toString('base64') }) };
   const read = () => servePortalSelfV1(new Request(env.PORTAL_ORIGIN + '/api/student/me', {
