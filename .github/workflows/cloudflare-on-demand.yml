@@ -5,7 +5,9 @@ on:
     paths:
       - '.github/workflows/cloudflare-on-demand.yml'
       - 'scripts/cloudflare-operator-v1.ts'
+      - 'scripts/cloudflare-rate-limit-inventory-v1.ts'
       - 'tests/cloudflare-operator-v1.test.ts'
+      - 'tests/cloudflare-rate-limit-inventory-v1.test.ts'
       - 'scripts/operational-*.ts'
       - 'tests/operational-*.test.ts'
       - 'docs/infra/OPERATIONAL_MONITOR.md'
@@ -78,7 +80,7 @@ jobs:
       - name: Run focused operator tests
         # Run the lockfile-pinned vitest through the package script. On-demand package
         # execution would fetch an unpinned release if the local binary were missing.
-        run: npm test -- tests/cloudflare-operator-v1.test.ts tests/operational-probes-v1.test.ts tests/operational-telemetry-v1.test.ts tests/operational-monitor-v1.test.ts
+        run: npm test -- tests/cloudflare-operator-v1.test.ts tests/cloudflare-rate-limit-inventory-v1.test.ts tests/operational-probes-v1.test.ts tests/operational-telemetry-v1.test.ts tests/operational-monitor-v1.test.ts
 
   execute:
     name: Execute bounded Cloudflare read-only operation
@@ -188,6 +190,15 @@ jobs:
           --token-kind deploy
           --output "$RUNNER_TEMP/cloudflare-portal-deploy.json"
 
+      - name: Inspect existing rate limit namespaces without mutation
+        if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'portal'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          node --experimental-strip-types scripts/cloudflare-rate-limit-inventory-v1.ts
+          --output "$RUNNER_TEMP/cloudflare-portal-rate-limits.json"
+
       - name: Diagnose Portal Hyperdrive surface
         if: steps.request.outputs.run == 'true' && steps.request.outputs.operation == 'portal'
         env:
@@ -265,6 +276,7 @@ jobs:
           const root = process.env.RUNNER_TEMP;
           const deploy = JSON.parse(await readFile(`${root}/cloudflare-portal-deploy.json`, 'utf8'));
           const hyperdrive = JSON.parse(await readFile(`${root}/cloudflare-portal-hyperdrive.json`, 'utf8'));
+          const rates = JSON.parse(await readFile(`${root}/cloudflare-portal-rate-limits.json`, 'utf8'));
           const cell = (value) => value === undefined || value === null
             ? '—'
             : String(value).replace(/[|\r\n]/g, ' ').slice(0, 160);
@@ -284,6 +296,30 @@ jobs:
             '',
             `Workflow: ${process.env.RUN_URL}`,
           ];
+          lines.push(
+            '',
+            '#### Rate limits — inventário somente leitura (#1249)',
+            '',
+            `Estado: ${cell(rates.state)} · completo: ${yesNo(rates.complete)} · Workers inspecionados: ${cell(rates.scriptsInspected)} · versões ativas: ${cell(rates.activeVersionsInspected)} · instante: ${cell(rates.checkedAt)}`,
+            '',
+            'Escopo: Workers retornados por scripts.list, configurações mais recentes e todas as versões do deployment atual (inclusive 0%). Não cobre Workers for Platforms/dispatch namespaces nem reservas externas ao catálogo.',
+            'Resultado parcial/inconclusivo não autoriza publicação. A ausência de conflito observada não reserva os IDs contra mudanças posteriores.',
+            '',
+            '| Namespace alvo | Estado | Outros Workers | Bindings no Portal |',
+            '| --- | --- | --- | --- |',
+          );
+          for (const entry of rates.namespaces) {
+            lines.push(`| ${cell(entry.namespaceId)} | ${cell(entry.state)} | ${cell(entry.foreignWorkers)} | ${cell(entry.portalBindingNames.join(', '))} |`);
+          }
+          lines.push('', '| Portal / origem | Binding | Namespace | Limite / período |', '| --- | --- | --- | --- |');
+          for (const binding of rates.portal.settings) {
+            lines.push(`| settings | ${cell(binding.name)} | ${cell(binding.namespaceId)} | ${cell(binding.limit)} / ${cell(binding.period)}s |`);
+          }
+          for (const version of rates.portal.activeVersions) {
+            for (const binding of version.bindings) {
+              lines.push(`| versão ${cell(version.versionId)} (${cell(version.percentage)}%) | ${cell(binding.name)} | ${cell(binding.namespaceId)} | ${cell(binding.limit)} / ${cell(binding.period)}s |`);
+            }
+          }
           await writeFile(`${root}/cloudflare-comment.md`, `${lines.join('\n')}\n`, 'utf8');
           NODE
 
