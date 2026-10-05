@@ -95,7 +95,10 @@ export interface PortalAdminEntrypointV1 {
   query(context: TrustedAdminContextV1, request: AdminQueryV1 | AdminReadQueryV2): Promise<AdminResponseV1 | AdminReadResponseV2 | FailureV1>;
   command(context: TrustedAdminContextV1, request: AdminCommandV1): Promise<AdminResponseV1 | FailureV1>;
 }
+/** Internal service capability only; never accepted as identity from public HTTP. */
+export type AdminOperationV1 = 'read' | 'import' | 'write' | 'export' | 'live' | 'revoke';
 export interface PortalAdminServiceBindingV1 extends PortalAdminEntrypointV1 {
+  limitOperation?(context: TrustedAdminContextV1, operation: AdminOperationV1): Promise<FailureV1 | null>;
   drainLive?(context: LiveDrainContextV1): Promise<boolean>;
   fetch?(request: Request): Promise<Response>;
 }

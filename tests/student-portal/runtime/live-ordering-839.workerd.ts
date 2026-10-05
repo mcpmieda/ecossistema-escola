@@ -21,6 +21,9 @@ beforeAll(async () => {
       name: 'portal839', modules: true, scriptPath: 'node_modules/.cache/student-portal/index.js',
       compatibilityDate: config.compatibility_date, compatibilityFlags: config.compatibility_flags,
       bindings: config.env.production.vars,
+      ratelimits: { PORTAL_ADMIN_LIVE: {
+        namespace_id: '124906', simple: { limit: 60, period: 60 },
+      } },
       durableObjects: { PORTAL_LIVE: { className: 'PortalLiveUpdatesV1', useSQLite: true } },
     },
     {

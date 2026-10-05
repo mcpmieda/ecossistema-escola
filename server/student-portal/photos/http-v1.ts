@@ -1,5 +1,6 @@
 import { STUDENT_PHOTO_META_PATH_V1, STUDENT_PHOTO_CONTENT_PATH_V1,
   photoRevisionV1 } from '../../../shared/student-photos/portrait-v1';
+import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from '../composition/config-v1';
@@ -58,16 +59,22 @@ export async function servePortalPhotoV1(request: Request, env: PhotoEnvV1,
       });
       return storage.read({ driveId: PHOTO_BUCKET_V1, itemId: object.path, etag: object.sha256,
         sha256: object.sha256, byteSize: object.byteSize, width: object.width, height: object.height }, request.signal);
-    }))): Promise<Response> {
+    }, accountId => checkPortalOperationV1(env.PORTAL_PHOTO_ACCOUNT, 'photo', accountId)))): Promise<Response> {
   const validation = validatePhotoRequestV1(request, env);
   if ('error' in validation) return validation.error;
   if (env.PORTAL_SERVING_ENABLED !== 'true') return reply(503);
   // Explicitly disabled until the reviewed migration, publisher and image-use authorization exist.
   if (env.PORTAL_PHOTOS_ENABLED !== 'true') return reply(validation.target.kind === 'content' ? 404 : 204);
   try {
-    const result = await read(sessionCookieTokenV1(request), validation.target.revision);
+    const token = sessionCookieTokenV1(request);
+    if (!token) return reply(401);
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'photo-entry', 'public');
+    const result = await read(token, validation.target.revision);
     return photoReadResponseV1(result, validation.target);
-  } catch {
+  } catch (error) {
+    if (error instanceof PortalRateLimitErrorV1 && error.state === 'rate-limited') {
+      const response = reply(429); response.headers.set('Retry-After', String(error.retryAfterSeconds)); return response;
+    }
     // No driver details, request cookies, student identity, source locators or image data in logs.
     return reply(503);
   }

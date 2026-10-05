@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
 import {
+  emitPortalOperationBurstMetricV1,
+  portalOperationBurstMetricV1,
   emitPortalAuthBurstMetricV1,
   emitPortalAuthResultMetricV1,
   emitPortalDbLifecycleMetricV1,
@@ -114,4 +116,14 @@ it('accepts only a terminal auth result without reasons; next only with required
     { ...base, outcome: 'SYNTHETIC_SECRET' },
   ]) expect(portalAuthResultMetricV1.safeParse(invalid).success).toBe(false);
   expect(() => emitPortalAuthResultMetricV1({ ...base, outcome: 'issued' }, () => { throw new Error('sink'); })).not.toThrow();
+});
+
+
+it('limits operation metrics to fixed family/result/duration and ignores failing sinks', () => {
+  const metric = { event: 'student-portal-operation-burst-v1', operation: 'photo', outcome: 'limited', elapsedMs: 2 };
+  expect(portalOperationBurstMetricV1.safeParse(metric).success).toBe(true);
+  for (const field of ['accountId', 'key', 'ip', 'sql', 'token', 'cookie', 'payload'])
+    expect(portalOperationBurstMetricV1.safeParse({ ...metric, [field]: 'SYNTHETIC' }).success).toBe(false);
+  expect(portalOperationBurstMetricV1.safeParse({ ...metric, operation: 'unbounded-input' }).success).toBe(false);
+  expect(() => emitPortalOperationBurstMetricV1(metric, () => { throw new Error('sink'); })).not.toThrow();
 });

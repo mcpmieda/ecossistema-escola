@@ -79,7 +79,7 @@ export class PortalCryptoV1 implements CryptoPortV1 {
   }
 
   async verifyQr(credentialId: string, keyVersion: number, signature: string): Promise<boolean> {
-    if (!/^[A-Za-z0-9_-]{43}$/u.test(signature)) return false;
+    if (!this.qrKeys.has(keyVersion) || !/^[A-Za-z0-9_-]{43}$/u.test(signature)) return false;
     const actual = fromSignature(signature);
     if (base64url(actual) !== signature) return false;
     const expected = fromSignature(await this.signQr(credentialId, keyVersion));

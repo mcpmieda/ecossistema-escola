@@ -48,9 +48,12 @@ describe('current canonical project state', () => {
   it('tracks the latest Gradebook migration present in the current tree', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
     const latest = latestMigration('migrations/gradebook-simplified');
-    expect(latest).toBe('0013_default_privileges_hardening_v1.sql');
+    expect(latest).toBe('0014_function_execute_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
-    expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
+    expect(state).toContain('latest_gradebook_migration_status: candidate-not-applied');
+    expect(state).toContain('latest_gradebook_migration_production_version: null');
+    expect(state).toContain('latest_gradebook_applied_migration_file: 0013_default_privileges_hardening_v1.sql');
+    expect(state).toContain('latest_gradebook_applied_migration_production_version: 20260920162250');
   });
 
   it('parses the applied projection removal and preserves earlier migration evidence', async () => {

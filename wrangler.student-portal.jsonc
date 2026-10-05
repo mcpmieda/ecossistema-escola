@@ -55,7 +55,18 @@
       },
       "ratelimits": [
         { "name": "PORTAL_AUTH_GLOBAL", "namespace_id": "100715", "simple": { "limit": 3000, "period": 60 } },
-        { "name": "PORTAL_AUTH_SUBJECT", "namespace_id": "200715", "simple": { "limit": 30, "period": 60 } }
+        { "name": "PORTAL_AUTH_SUBJECT", "namespace_id": "200715", "simple": { "limit": 30, "period": 60 } },
+        { "name": "PORTAL_SESSION_ACCOUNT", "namespace_id": "3101249", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_READ_ACCOUNT", "namespace_id": "3101250", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_LIVE_ACCOUNT", "namespace_id": "3101251", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_PHOTO_ACCOUNT", "namespace_id": "3101252", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_STATUS_ACCOUNT", "namespace_id": "3101253", "simple": { "limit": 60, "period": 60 } },
+        { "name": "PORTAL_ADMIN_READ", "namespace_id": "3101254", "simple": { "limit": 600, "period": 60 } },
+        { "name": "PORTAL_ADMIN_IMPORT", "namespace_id": "3101255", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_ADMIN_WRITE", "namespace_id": "3101256", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_ADMIN_EXPORT", "namespace_id": "3101257", "simple": { "limit": 60, "period": 60 } },
+        { "name": "PORTAL_ADMIN_LIVE", "namespace_id": "3101258", "simple": { "limit": 60, "period": 60 } },
+        { "name": "PORTAL_ADMIN_REVOKE", "namespace_id": "3101259", "simple": { "limit": 120, "period": 60 } }
       ],
       "triggers": { "crons": ["* * * * *"] }
     }

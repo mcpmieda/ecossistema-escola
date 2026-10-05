@@ -1,3 +1,4 @@
+import { adminCommandOperationV1, limitAdminOperationV1 } from './admin-rate-limit-v1';
 import { portalLiveStubV1 } from '../live/live-connect-v1';
 import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { adminCommandV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
@@ -20,6 +21,8 @@ export async function portalAdminRpcV1(env: PortalCompositionEnvV1, kind: 'query
   const parsed = kind === 'query' ? adminQueryRequestV2.safeParse(input) : adminCommandV1.safeParse(input);
   if (!parsed.success) return fail('invalid-request');
   if (env.PORTAL_SERVING_ENABLED !== 'true' && !(kind === 'query' && parsed.data.operation === 'health')) return fail('unavailable');
+  const limited = await limitAdminOperationV1(env, trusted.data, kind === 'query' ? 'read' : adminCommandOperationV1(parsed.data.operation));
+  if (limited) return limited;
   try {
     if (kind === 'query' && parsed.data.operation === 'presence') {
       const result = await portalLiveStubV1(env, 'student').presence(parsed.data.scope);

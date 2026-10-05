@@ -60,7 +60,8 @@ export async function readPublishedPortraitV1(tx: StudentPortalPostgresQueryV1,
 
 /** Fresh accessEnabled/calendar/block/security-version/session checks share the data snapshot. */
 export async function readOwnPortraitV1(sql: StudentPortalPostgresSqlV1, cryptoPort: CryptoPortV1,
-  token: string, revision: string | null, storageRead?: PortraitStorageReaderV1): Promise<PortraitReadV1 | null> {
-  return new SessionServiceV1(sql, cryptoPort, undefined, true).withAuthorized(token,
+  token: string, revision: string | null, storageRead?: PortraitStorageReaderV1,
+  onVerifiedAccount?: (accountId: string) => Promise<void>): Promise<PortraitReadV1 | null> {
+  return new SessionServiceV1(sql, cryptoPort, undefined, true, onVerifiedAccount).withAuthorized(token,
     (context, tx) => readPublishedPortraitV1(tx, context.account.id, revision, storageRead));
 }

@@ -209,6 +209,81 @@ describe('shared account transaction barriers', () => {
 });
 
 describe('native PostgreSQL migrations and runtime role isolation', () => {
+  it('hardens only the four existing Gradebook function ACLs and preserves restricted backend trigger writes (#1128)', async () => {
+    const signatures = [
+      'gradebook.aluno_possui_vinculo_na_oferta(integer,integer)',
+      'gradebook.preparar_conselho_anterior()',
+      'gradebook.validar_fechamento_vinculo()',
+      'gradebook.validar_nota_vinculo()',
+    ];
+    const acl = () => admin.unsafe(`SELECT p.oid::text AS function_oid,p.oid::regprocedure::text AS signature,
+      EXISTS(SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+        WHERE a.grantee=0 AND a.privilege_type='EXECUTE') AS public_execute,
+      has_function_privilege('gradebook_app',p.oid,'EXECUTE') AS app_execute,
+      pg_get_functiondef(p.oid) AS definition,p.proowner
+      FROM pg_proc p WHERE p.oid=ANY($1::regprocedure[]) ORDER BY p.oid`, [signatures]);
+    const academicCounts = () => admin`SELECT
+      (SELECT count(*) FROM gradebook.aluno) AS students,
+      (SELECT count(*) FROM gradebook.nota) AS notes,
+      (SELECT count(*) FROM gradebook.fechamento) AS closures`;
+    const factsBefore = await academicCounts();
+    // Today's bootstrap is closed; reproduce only the observed existing-object drift.
+    expect((await acl()).map((row) => row.public_execute)).toEqual([false, false, false, false]);
+    await admin.unsafe(`GRANT EXECUTE ON FUNCTION ${signatures.join(', ')} TO PUBLIC`);
+    const before = await acl();
+    expect(before.map((row) => row.public_execute)).toEqual([true, true, true, true]);
+    await admin.unsafe(readFileSync('migrations/gradebook-simplified/0014_function_execute_hardening_v1.sql', 'utf8'));
+    expect(await acl()).toEqual(before.map((row) => ({ ...row, public_execute: false })));
+    expect(await academicCounts()).toEqual(factsBefore);
+    expect((await gradebook`SELECT current_user AS role,r.rolsuper,r.rolbypassrls,
+      EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace='gradebook'::regnamespace AND p.proowner=r.oid) AS owns_function
+      FROM pg_roles r WHERE r.rolname=current_user`)[0])
+      .toEqual({ role: 'gradebook_app', rolsuper: false, rolbypassrls: false, owns_function: false });
+    // Resolve names only as owner; roles without schema USAGE inspect bare catalog OIDs.
+    const functionOids = before.map((row) => String(row.function_oid));
+    for (const connection of [anonymous, authenticated, portal]) {
+      expect((await connection.unsafe(`SELECT bool_or(has_function_privilege(current_user,p.oid,'EXECUTE')) AS execute,
+        has_schema_privilege(current_user,'gradebook','USAGE') AS usage
+        FROM pg_proc p WHERE p.oid=ANY($1::oid[])`, [functionOids]))[0])
+        .toEqual({ execute: false, usage: false });
+      await expect(connection`SELECT gradebook.aluno_possui_vinculo_na_oferta(1,1)`)
+        .rejects.toMatchObject({ code: '42501' });
+    }
+    // The actual application connection executes helper, INSERT/UPDATE and triggers.
+    // Roll back synthetic rows so the existing replay's counts/budgets stay intact.
+    await expect(gradebook.begin(async (tx) => {
+      await tx.unsafe(`
+        INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno)
+          VALUES(991241,2026,'ACL1128','SYNTHETIC ACL CLASS',6,'TESTE');
+        INSERT INTO gradebook.professor(id,ano,nome) VALUES(991241,2026,'SYNTHETIC ACL TEACHER');
+        INSERT INTO gradebook.disciplina(id,ano,nome) VALUES(991241,2026,'SYNTHETIC ACL SUBJECT');
+        INSERT INTO gradebook.aluno(id,ano,nome) VALUES(991241,2026,'SYNTHETIC ACL STUDENT'),(991242,2026,'SYNTHETIC ACL NO LINK');
+        INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES(2026,991241,1,991241);
+        INSERT INTO gradebook.oferta(id,ano,turma_id,professor_id,disciplina_id) VALUES(991241,2026,991241,991241,991241);
+        INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo) VALUES(991241,991241,1,1,10000);
+        INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor) VALUES(991241,991241,0);
+        INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) VALUES(991241,991241,9000);
+        UPDATE gradebook.nota SET aluno_id=aluno_id,valor=5000 WHERE instrumento_id=991241;
+        UPDATE gradebook.fechamento SET aluno_id=aluno_id,am1_fonte=9500 WHERE oferta_id=991241;
+        UPDATE gradebook.aluno SET conselho_anterior=true,conselho_anterior_por='00000000-0000-4000-8000-000000000001' WHERE id=991241;
+      `);
+      expect((await tx`SELECT gradebook.aluno_possui_vinculo_na_oferta(991241,991241) AS valid,
+        gradebook.aluno_possui_vinculo_na_oferta(991242,991241) AS invalid`)[0]).toEqual({ valid: true, invalid: false });
+      expect((await tx`SELECT conselho_anterior,conselho_anterior_em IS NOT NULL AS stamped FROM gradebook.aluno WHERE id=991241`)[0])
+        .toEqual({ conselho_anterior: true, stamped: true });
+      for (const [query, message] of [
+        ['INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor) VALUES(991241,991242,1)', /nao possui vinculo/u],
+        ['INSERT INTO gradebook.fechamento(oferta_id,aluno_id) VALUES(991241,991242)', /nao possui vinculo/u],
+        ['UPDATE gradebook.aluno SET conselho_anterior=true WHERE id=991242', /conselho_anterior_por/u],
+      ] as const) {
+        await tx.unsafe('SAVEPOINT acl_negative');
+        await expect(tx.unsafe(query)).rejects.toThrow(message);
+        await tx.unsafe('ROLLBACK TO SAVEPOINT acl_negative');
+      }
+      throw new Error('synthetic-acl-1128-rollback');
+    })).rejects.toThrow('synthetic-acl-1128-rollback');
+    expect(await academicCounts()).toEqual(factsBefore);
+  });
   it('runs the synthetic deployment proof and removes its committed row', async () => {
     const connection = new URL(target);
     connection.username = 'student_portal_app';

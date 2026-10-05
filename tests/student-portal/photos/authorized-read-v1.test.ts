@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
+import { checkPortalOperationV1 } from '../../../server/student-portal/observability/operation-burst-v1';
+import { SessionServiceV1 } from '../../../server/student-portal/auth/session-service-v1';
 import { readOwnPortraitV1 } from '../../../server/student-portal/photos/read-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { installResetSchemaFixtureV1 } from '../year-reset/schema-fixture';
@@ -120,4 +122,37 @@ it.each([
 it('rejects corrupt stored bytes without returning them as an image', async () => {
   await pg.exec("UPDATE student_photos.portal_delivery_v1 SET portrait_sha256=repeat('0',64)");
   await expect(readOwnPortraitV1(sql,cryptography,tokenA,photoRevisionFixtureV1,storageRead)).rejects.toThrow('student-photo-content-invalid');
+});
+
+
+it('aggregates verified sessions of A, keeps B independent and leaves logout usable after a read block', async () => {
+  const secondTokenA = cryptography.randomToken(32);
+  await pg.query(`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+    VALUES ($1::uuid,$2::uuid,$3,0,statement_timestamp()+interval '1 hour',false)`,
+  [crypto.randomUUID(), owners[0]!.id, await cryptography.hashOpaqueToken(secondTokenA)]);
+  const calls = new Map<string, number>();
+  const limiter = { limit: vi.fn(async ({ key }: { key: string }) => {
+    calls.set(key, (calls.get(key) ?? 0) + 1); return { success: calls.get(key) === 1 };
+  }) };
+  const gate = (accountId: string) => checkPortalOperationV1(limiter, 'photo', accountId);
+  expect((await readOwnPortraitV1(sql, cryptography, tokenA, null, storageRead, gate))?.state).toBe('metadata');
+  statements = [];
+  await expect(readOwnPortraitV1(sql, cryptography, secondTokenA, null, storageRead, gate)).rejects.toMatchObject({ state: 'rate-limited' });
+  expect(statements.some(query => query.includes('JOIN student_photos.portal_delivery_v1'))).toBe(false);
+  expect((await readOwnPortraitV1(sql, cryptography, tokenB, null, storageRead, gate))?.state).toBe('metadata');
+  expect(new Set(limiter.limit.mock.calls.map(([input]) => input.key)).size).toBe(2);
+  const logoutGuard = vi.fn(async (id: string) => { expect(id).toBe(owners[0]!.id); });
+  await new SessionServiceV1(sql, cryptography).logout(tokenA, crypto.randomUUID(), logoutGuard);
+  expect(logoutGuard).toHaveBeenCalledTimes(1);
+  expect(await readOwnPortraitV1(sql, cryptography, tokenA, null, storageRead, gate)).toBeNull();
+  expect(limiter.limit).toHaveBeenCalledTimes(3);
+});
+
+it('does not leak content or revoke the session when its required limiter is unavailable', async () => {
+  const missing = (id: string) => checkPortalOperationV1(undefined, 'photo', id);
+  statements = [];
+  await expect(readOwnPortraitV1(sql, cryptography, tokenA, null, storageRead, missing)).rejects.toMatchObject({ state: 'unavailable' });
+  expect(statements.some(query => query.includes('JOIN student_photos.portal_delivery_v1'))).toBe(false);
+  await expect(new SessionServiceV1(sql, cryptography).logout(tokenA, crypto.randomUUID(), missing)).rejects.toMatchObject({ state: 'unavailable' });
+  expect((await readOwnPortraitV1(sql, cryptography, tokenA, null))?.state).toBe('metadata');
 });

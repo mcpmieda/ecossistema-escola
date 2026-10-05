@@ -92,6 +92,7 @@ it('uses the real private RPC composition, restricted role and read-only transac
       PORTAL_ORIGIN: 'https://aluno.escolaieda.com',
       PORTAL_ADMIN_TENANT_ID: READ_TENANT_V2,
       PORTAL_SERVING_ENABLED: 'true',
+      PORTAL_ADMIN_READ: { limit: async () => ({ success: true }) },
       PORTAL_DB: { connectionString: connection('student_portal_app') },
       QR_HMAC_KEYS: keys,
       PASSWORD_PEPPER: keys,

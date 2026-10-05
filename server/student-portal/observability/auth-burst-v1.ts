@@ -23,7 +23,9 @@ export function portalAuthBurstV1(
       return false;
     }
     try {
-      if (!(await global.limit({ key: 'student-portal-auth-v1' })).success) {
+      const globalResult = await global.limit({ key: 'student-portal-auth-v1' });
+      if (typeof globalResult?.success !== 'boolean') throw new Error('invalid-rate-limit-response');
+      if (!globalResult.success) {
         emit({ event: 'student-portal-auth-burst-v1', outcome: 'global-limited' });
         return false;
       }
@@ -31,7 +33,9 @@ export function portalAuthBurstV1(
         .update('student-portal-burst-v1\0')
         .update(opaqueSubject)
         .digest('hex');
-      if (!(await subject.limit({ key })).success) {
+      const subjectResult = await subject.limit({ key });
+      if (typeof subjectResult?.success !== 'boolean') throw new Error('invalid-rate-limit-response');
+      if (!subjectResult.success) {
         emit({ event: 'student-portal-auth-burst-v1', outcome: 'subject-limited' });
         return false;
       }

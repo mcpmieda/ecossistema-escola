@@ -24,7 +24,8 @@ export async function createSessionV1(store: PortalTransactionV1, context: Acces
 
 export class SessionServiceV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1,
-    clientIp?: string | null, private readonly snapshotReads = false) {
+    clientIp?: string | null, private readonly snapshotReads = false,
+    private readonly onVerifiedAccount?: (accountId: string) => Promise<void>) {
     // Read-only snapshots cannot append audit events. In particular, their SET TRANSACTION
     // must precede the audit wrapper's set_config SELECT, which would start a snapshot too early.
     if (clientIp !== undefined && !snapshotReads) this.sql = withAuditSqlV1(sql, clientIp);
@@ -118,6 +119,7 @@ export class SessionServiceV1 {
       const ttl = persistent ? context.policy.enforcedValue.risk.persistentSeconds : context.policy.enforcedValue.risk.shortSeconds;
       const tokenEnd = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000);
       if (tokenEnd <= context.now.getTime()) return null;
+      await this.onVerifiedAccount?.(context.account.id);
       if (!context.accessOpen) return { state: 'access-closed' };
       const end = Math.min(tokenEnd, accessEndV1(context.policy.enforcedValue, context.now));
       if (end <= context.now.getTime()) return null;
@@ -144,7 +146,7 @@ export class SessionServiceV1 {
     return result?.state === 'ready' ? result.value : null;
   }
 
-  async logout(token: string, requestId: string): Promise<void> {
+  async logout(token: string, requestId: string, onVerifiedAccount?: (accountId: string) => Promise<void>): Promise<void> {
     if (!opaqueV1.safeParse(token).success) return;
     const hash = await this.cryptoPort.hashOpaqueToken(token);
     await accountTransactionV1(this.sql, async (tx, store) => {
@@ -154,6 +156,7 @@ export class SessionServiceV1 {
       await store.lockAccounts([accountId]);
       const account = await store.findAccount(accountId);
       if (!account) return;
+      await onVerifiedAccount?.(account.id);
       const now = await authNowV1(tx);
       await store.revokeSessions(accountScopeV1(accountId), now.toISOString(), z.uuid().parse(rows[0]!.id));
       await authAuditV1(store, account, 'session-revoked', now, requestId);
