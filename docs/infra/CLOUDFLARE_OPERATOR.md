@@ -116,3 +116,54 @@ The additional POST requests to Workers Observability `telemetry/keys` and `tele
 ### CPU interpretation
 
 The Portal diagnostic requests Cloudflare's documented `workersInvocationsAdaptive.quantiles.cpuTimeP50/cpuTimeP99` fields. Because the adaptive dataset can return multiple buckets in the 60-minute window, the published values are the **maximum bucket p50/p99 observed**, not a recomputed percentile for all requests. They are operational evidence only and are never correlated with user identity or request payload.
+
+## Rate-limit preflight for #1249
+
+The existing manual `/cloudflare portal` diagnostic also inventories rate-limit
+bindings using only `CLOUDFLARE_DEPLOY_TOKEN`. This does not add a scheduled probe,
+credential, permission, service, or mutable Cloudflare request. The owner/main
+guards and existing sanitized issue response remain unchanged.
+
+Fixed GET-only path families, under the existing configured account:
+
+- `/workers/scripts`: the official SinglePage inventory (no caller-controlled filter);
+- `/workers/scripts/{listed-script}/settings`: latest configured bindings;
+- `/workers/scripts/{listed-script}/deployments`: current deployment at index zero;
+- `/workers/scripts/{listed-script}/versions/{active-version-id}`: bindings of every
+  version in that deployment, including 0% versions accessible by version override.
+
+Script names and version IDs come only from validated provider metadata. The probe
+never fetches Worker source, secrets endpoints, invocation logs, or arbitrary URLs.
+It discards all bindings except `ratelimit`, and does not publish the names of other
+Workers. Output is limited to counts/states, the candidate namespace range
+3101249–3101259, and Portal binding names, namespace IDs, numeric quotas, and active
+version IDs/percentages. Provider bodies, error messages and other binding values
+are never written to logs, files or comments.
+
+The probe is bounded to 100 scripts, 2 active versions per script, 2 MiB per response,
+15 seconds per request and 120 seconds overall. These are diagnostic safety budgets,
+not application capacity limits. Any missing credential, denied read, malformed
+metadata, incomplete inventory or exceeded budget yields an explicit gap with
+`complete=false`; namespace absence is never inferred from partial results.
+A complete diagnostic still requires review of every namespace, expected Portal
+tuple, and deployed version before approving release. `portal-only` means that the
+ID appears only on the Portal, not that its name/quota matches the release.
+
+Coverage is the uploaded Worker-script inventory, including normal Wrangler
+`<name>-<env>` Workers, and all versions in current deployments. It is not a universal
+account reservation registry: Workers for Platforms/dispatch namespaces and external
+reservations are outside this bounded diagnostic; no such consumer is configured in
+this repository. If another such consumer is known, stop and reconcile it before
+publication. The observation does not lock the account against concurrent changes.
+
+Preflight for #1249 expects all eleven new namespaces unused, or a previously applied
+Portal tuple identical to the approved configuration. Any foreign reference or
+multiple Portal binding names for one ID is a collision and blocks deployment.
+Postflight additionally requires all eleven approved tuples in every active Portal
+version and unchanged existing AUTH bindings. No traffic is generated to exhaust
+quotas and no student account is used.
+
+References: [Rate limiting namespaces](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/),
+[Worker scripts](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/methods/list/),
+[deployments](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/deployments/methods/list/),
+[versions](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/versions/methods/get/).
