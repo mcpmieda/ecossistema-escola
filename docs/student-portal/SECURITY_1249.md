@@ -3,8 +3,9 @@
 ## Estado e evidência
 
 Baseline: `main@3f5409bcb327961fc98eed3b9d4f2d7738a4f877`, conferida em 05/10/2026.
-Entrega candidata, sem merge, deploy, provisionamento, mudança de segredo ou aplicação
-SQL produtiva. #1128 conserva a autoridade das quatro funções/TLS; a migration candidata desta entrega é coordenada com essa dependência. #1225 e seus
+Checkpoint de 05/10/2026, 18:11 UTC: ACL 0014 aplicada e conferida; runtime da
+PR #1250 ainda aguarda gates, integração e deploy. O verificador read-only da
+PR #1251 já foi publicado. Sem novos serviços, secrets ou credenciais. #1128 conserva a autoridade das quatro funções/TLS; a migration desta entrega é coordenada com essa dependência. #1225 e seus
 resultados F1–F6/relatórios/fila permanecem intactos. Nenhum incidente de injection
 ou vazamento entre alunos foi demonstrado. Repositório não comprova deployment.
 
@@ -60,8 +61,10 @@ O limitador Cloudflare é local, permissivo e eventualmente consistente: não im
 global preciso de consumo/cobrança. Não se exige N+1 exato em produção.
 
 Configuração nova está somente no artefato revisável `wrangler.student-portal.jsonc`.
-Namespaces novos 3101249–3101259 precisam de conferência de colisão/configuração real
-antes da publicação. Não houve aplicação remota, compra de serviço ou nova credencial.
+Namespaces 3101249–3101259 foram conferidos às 18:06 UTC: todos livres no
+inventário de Workers e versões atuais. Ver a evidência ao final. A configuração
+dos novos limites ainda aguardava publicação neste checkpoint; nenhuma compra
+ou nova credencial foi necessária.
 Pages não lista binding RateLimit: ADM reutiliza exclusivamente seu `PORTAL_SERVICE`
 privado já existente. O custo extra é uma chamada RPC para quota nos caminhos HTTP
 ADM/BN, sem SQL adicional; query/command/live já no Worker usam adapter local.
@@ -122,19 +125,19 @@ inspecionados. As 9 views academic_* do Portal são owner postgres/security_barr
 sem security_invoker; não fornecem uma barreira individual adicional. Ledger Portal
 contém os 24 nomes de migrations esperados até 0024, versão 20261001201546.
 
-Confirmado drift das 4 funções #1128: owner postgres, SECURITY INVOKER, ACL com
+A fotografia anterior à aplicação confirmou drift das 4 funções #1128: owner postgres, SECURITY INVOKER, ACL com
 PUBLIC EXECUTE e EXECUTE gradebook_app. anon/authenticated/student_portal_app não
 têm USAGE gradebook: ACL excessiva não demonstra chamada pública efetiva. O bootstrap
 0001 atual já revoga PUBLIC, mas a 0013 altera somente defaults futuros; não corrige
-essas ACLs produtivas existentes. Correção candidata em 0014, com pre/postflight e
-testes próprios; não aplicada. Ver [plano de ACL](../gradebook/FUNCTION_EXECUTE_1128.md).
+essas ACLs produtivas existentes. Correção em 0014, com pre/postflight e
+testes próprios; aplicada com postflight em 05/10/2026, 18:11 UTC. Ver [plano de ACL](../gradebook/FUNCTION_EXECUTE_1128.md).
 
 Operador Cloudflare oficial de 05/10 às 14:25:21 UTC (run 37324541179) informa Worker/Pages
 presentes, deployment success e PORTAL_DB sem cache/limite de 8 conexões. Não coleta TLS,
-CA/hostname nem bindings de rate limit. TLS Hyperdrive efetivo/verify-full, exposição
-Data API e colisões/configuração dos namespaces permanecem pendentes. ssl=on e TLS1.2
-no PostgreSQL não demonstram validação de hostname no Hyperdrive. Nenhum dado de aluno
-foi consultado e nenhuma mutação ou carga produtiva foi executada.
+CA/hostname nem bindings de rate limit nessa versão anterior do diagnóstico.
+TLS Hyperdrive efetivo/verify-full e exposição Data API permanecem pendentes. ssl=on e TLS1.2
+no PostgreSQL não demonstram validação de hostname no Hyperdrive. Nenhum dado de aluno foi consultado e nenhuma carga produtiva foi executada.
+A única mudança SQL desta entrega é a ACL pontual documentada no postflight.
 
 ## Verificação e implantação
 
@@ -142,9 +145,9 @@ Resultados/SHAs ficam na descrição do PR final. Usar `npm run verify` e gates 
 oficiais no head final. Os harnesses existentes recebem os novos bindings, sem retirar
 asserts, relaxar thresholds ou aumentar concorrência acadêmica. Sem carga produtiva.
 
-Antes de deploy: aprovar configuração de segurança; verificar colisões/namespaces e
+A configuração de segurança foi explicitamente aprovada. Antes de deploy, revalidar colisões/namespaces e
 compatibilidade Pages→Worker; conferir todos bindings antes de expor handlers; publicar Worker compatível antes do Pages ADM; aplicar
-somente pelo workflow oficial quando autorizado. Nenhum merge/deploy nesta entrega. Drains live só são agendados após sucesso;
+somente pelo workflow oficial quando autorizado. O estado de publicação deve ser confirmado pelo workflow oficial do SHA integrado; este checkpoint não antecipa esse resultado. Drains live só são agendados após sucesso;
 429/503 e logout sem token plausível não provocam SQL de background.
 Rollback reverte código/config do release; não desliga origem, autenticação, RLS nem
 reabre grants públicos. Validação real posterior pertence ao responsável.
@@ -153,3 +156,23 @@ Fontes: [#1249](https://github.com/mcpmieda/ecossistema-escola/issues/1249),
 [#1128](https://github.com/mcpmieda/ecossistema-escola/issues/1128),
 [Cloudflare Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/),
 [Pages bindings](https://developers.cloudflare.com/pages/functions/bindings/).
+
+### Preflight e ACL após autorização
+
+[Diagnóstico de 05/10/2026, 18:06 UTC](https://github.com/mcpmieda/ecossistema-escola/issues/1249#issuecomment-6000251034):
+1 Worker listado, 1 versão ativa a 100%, nenhum uso dos 11 namespaces novos.
+Settings e versão ativa preservavam AUTH_GLOBAL=3000/60 e AUTH_SUBJECT=30/60.
+Escopo do inventário: scripts.list e versões do deployment atual; não cobre
+Workers for Platforms/dispatch nem reservas externas. Não é uma reserva de IDs
+contra alteração posterior. [Execução oficial](https://github.com/mcpmieda/ecossistema-escola/actions/runs/37353455004).
+
+A migration 0014 foi aplicada como `20261005151011`, com corpos, triggers,
+catálogo, RLS, schema ACL e defaults preservados. PUBLIC e papéis externos perderam
+EXECUTE nas quatro funções; backend e owner permaneceram autorizados.
+Ver [postflight completo e limites](../gradebook/POSTFLIGHT_0014.md).
+
+O Sonar aprovou o head 4def1958 da PR #1250 com 11 apontamentos de manutenção/estilo
+(complexidade, literais repetidos, ternários, catch e optional chaining), sem nova
+exploração demonstrada pela revisão. A PR #1251 corrigiu seu gate bloqueante e
+foi aprovada com uma sugestão residual de estilo. Gates finais continuam exigidos
+após incorporar a main; aprovação Sonar não significa ausência universal de bugs.

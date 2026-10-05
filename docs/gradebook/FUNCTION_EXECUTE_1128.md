@@ -2,10 +2,12 @@
 
 ## Estado e limite
 
-**CANDIDATO NÃO APLICADO.** `0014_function_execute_hardening_v1.sql` é um
-artefato revisável. Esta entrega não executa SQL remoto, não muda permissões
-produtivas e não prova aplicação em produção. Integração/deploy da aplicação não
-aplica esta migration nem substitui sua autorização própria.
+**APLICADA E POSTFLIGHT VERIFICADO em 05/10/2026, 18:11 UTC.**
+`0014_function_execute_hardening_v1.sql` foi aplicada, após autorização explícita,
+como `function_execute_hardening_v1`, versão `20261005151011` no ledger.
+Ver [evidência sanitizada](./POSTFLIGHT_0014.md). A anotação de candidato no arquivo
+SQL preserva o artefato aprovado antes da aplicação; ele não foi reescrito depois.
+Publicação da aplicação e validação funcional continuam estados independentes.
 
 Consulta produtiva **somente leitura em 05/10/2026, 14:58:46 UTC** confirmou,
 para as quatro assinaturas abaixo, owner `postgres`, `SECURITY INVOKER` e ACL
@@ -223,9 +225,9 @@ continuam exercitando o backend com as quatro funções endurecidas.
 
 Validação local em 05/10/2026: **22/22 testes passaram** (16 novos de ACL e
 6 existentes de RLS); ESLint dos dois arquivos de teste, Prettier dos arquivos
-novos de teste/documentação e `git diff --check` passaram. PostgreSQL nativo
-**não executado neste executor**, que não dispõe do cluster local: o caso está
-integrado ao gate existente e seu resultado deve ser registrado no head final.
+novos de teste/documentação e `git diff --check` passaram. PostgreSQL nativo foi posteriormente aprovado no gate oficial do head
+`4def195888cfde798d2fc8e149b12e3135207ff9`, incluindo o caso das quatro ACLs;
+ver [execução 37334409688](https://github.com/mcpmieda/ecossistema-escola/actions/runs/37334409688).
 
 Comandos direcionados:
 
