@@ -278,6 +278,44 @@ describe('bounded Cloudflare rate limit metadata inventory', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('preserves a known HTTP refusal even if response cleanup rejects', async () => {
+    for (const status of [401, 403, 404]) {
+      const body = new ReadableStream({
+        cancel() {
+          return Promise.reject(new Error('private cancellation'));
+        },
+      });
+      const response = new Response(body, { status });
+      const fetcher = vi.fn<typeof fetch>(async () => response);
+      const result = await inspect(fetcher);
+      expect(result).toMatchObject({
+        state: status === 404 ? 'not-found' : 'permission-required',
+        complete: false,
+      });
+      expect(JSON.stringify(result)).not.toContain('private cancellation');
+    }
+  });
+
+  it('distinguishes received malformed JSON from a transport failure and releases its reader', async () => {
+    const response = new Response('not-json-private', { status: 200 });
+    const fetcher = vi.fn<typeof fetch>(async () => response);
+    expect(await inspect(fetcher)).toMatchObject({ state: 'inconclusive', complete: false });
+    expect(response.body?.locked).toBe(false);
+  });
+
+  it('releases every response reader after a successful inventory', async () => {
+    const base = fixture();
+    const responses: Response[] = [];
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+      const response = await base.fetcher(url, init);
+      responses.push(response);
+      return response;
+    });
+    expect(await inspect(fetcher)).toMatchObject({ state: 'accessible', complete: true });
+    expect(responses).toHaveLength(7);
+    expect(responses.every((response) => response.body?.locked === false)).toBe(true);
+  });
+
   it('sanitizes transport failures without interpreting them as absence', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => {
       throw new Error('private secret value');
