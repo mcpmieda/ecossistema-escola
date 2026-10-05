@@ -55,6 +55,7 @@ beforeAll(async () => {
       ...(config.startsWith('wrangler.') ? ['--env', 'preview'] : []), '--dry-run', '--outdir', directory],
     { windowsHide: true, timeout: 60_000, env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
   }
+  const workerConfig = JSON.parse(readFileSync('wrangler.student-portal.jsonc', 'utf8'));
   const restricted = new URL(target); restricted.username = 'student_portal_app'; restricted.password = 'synthetic-local-trust-only';
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: 'portal', modules: true,
     script: readFileSync(join(directory, 'index.js'), 'utf8'), compatibilityDate: '2026-09-11', compatibilityFlags: ['nodejs_compat'],
@@ -63,7 +64,7 @@ beforeAll(async () => {
       PORTAL_SERVING_ENABLED: 'true', PORTAL_PUBLICATION_MODE: 'scoped-v2', PASSWORD_PEPPER: JSON.stringify({ 1: Buffer.alloc(32, 71).toString('base64') }),
       QR_HMAC_KEYS: JSON.stringify({ 1: Buffer.alloc(32, 72).toString('base64') }),
       TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' },
-    ratelimits: { PORTAL_AUTH_GLOBAL: { namespace_id: '100715', simple: { limit: 600, period: 60 } },
+    ratelimits: { ...Object.fromEntries(workerConfig.env.production.ratelimits.filter((binding: { name: string }) => !['PORTAL_AUTH_GLOBAL', 'PORTAL_AUTH_SUBJECT'].includes(binding.name)).map((binding: { name: string; namespace_id: string; simple: { limit: number; period: 60 } }) => [binding.name, { namespace_id: binding.namespace_id, simple: binding.simple }])), PORTAL_AUTH_GLOBAL: { namespace_id: '100715', simple: { limit: 600, period: 60 } },
       PORTAL_AUTH_SUBJECT: { namespace_id: '200715', simple: { limit: 30, period: 60 } } } },
   { name: 'caller', modules: true, script: readFileSync(join(directory, 'caller-worker.js'), 'utf8'),
     compatibilityDate: '2026-09-11', compatibilityFlags: ['nodejs_compat'],

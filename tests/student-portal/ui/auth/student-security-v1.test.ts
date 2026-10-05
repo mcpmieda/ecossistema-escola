@@ -524,3 +524,20 @@ describe('student security channel', () => {
     expect(client.session).toHaveBeenCalledTimes(2);
   });
 });
+
+
+it('honors session Retry-After without extending a security lease or repeating on an event', async () => {
+  const socket = new Socket();
+  const authorize = vi.fn().mockRejectedValueOnce(new PortalClientErrorV1('rate-limited', 429, 60)).mockResolvedValue(undefined);
+  const security = createStudentSecurityV1({ connect: () => socket, authorize });
+  socket.open();
+  socket.message({ contractVersion: 1, type: 'security-connected' });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(authorize).toHaveBeenCalledTimes(1);
+  socket.message({ contractVersion: 1, type: 'reauthorize' });
+  await vi.advanceTimersByTimeAsync(59_999);
+  expect(authorize).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(authorize).toHaveBeenCalledTimes(2);
+  security.dispose();
+});

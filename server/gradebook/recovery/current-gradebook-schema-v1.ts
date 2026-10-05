@@ -81,6 +81,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0011_gradebook_rls_v1.sql',
   '0012_current_state_cleanup_v1.sql',
   '0013_default_privileges_hardening_v1.sql',
+  '0014_function_execute_hardening_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 

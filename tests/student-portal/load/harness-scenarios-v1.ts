@@ -107,15 +107,26 @@ export async function runPortalHarnessScenariosV1(connectionString: string, emit
     await call('/api/student/session', undefined, cookies[1], 'revoked', 401);
     const original = cards.cards[4]!.qr;
     const invalidQr = original.slice(0, -1) + (original.endsWith('A') ? 'B' : 'A');
-    let burstRejected = false;
-    // At most 61 local requests covers a possible 60-second window boundary without sleeping.
-    for (let attempt = 0; attempt < 61; attempt++) {
-      const response = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/login', {
+    // Invalid signatures are now rejected before the proven-credential quota (#1249).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const invalid = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/login', {
         method: 'POST', headers: { origin: 'https://aluno.escolaieda.com', 'content-type': 'application/json' },
         body: JSON.stringify({ contractVersion: 1, qr: invalidQr, password: '013579', keepConnected: false }),
       });
+      await invalid.arrayBuffer();
+      expect(invalid.status).toBe(401);
+      expect(Number(invalid.headers.get('x-harness-queries'))).toBe(1);
+    }
+    let burstRejected = false;
+    // Exercise the same native local limiter using an actually signed credential, without KDF.
+    // At most 61 local requests covers a possible 60-second window boundary without sleeping.
+    for (let attempt = 0; attempt < 61; attempt++) {
+      const response = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/auth/challenge', {
+        method: 'POST', headers: { origin: 'https://aluno.escolaieda.com', 'content-type': 'application/json' },
+        body: JSON.stringify({ contractVersion: 1, qr: original }),
+      });
       await response.arrayBuffer();
-      expect([401, 429]).toContain(response.status);
+      expect([200, 429]).toContain(response.status);
       if (response.status === 429) {
         // Only the factory's role check occurred; no authentication transaction was entered.
         expect(Number(response.headers.get('x-harness-queries'))).toBe(1);

@@ -6,12 +6,14 @@ import { storedPortraitBytesV1 } from '../../../server/student-portal/photos/rea
 import { photoMetadataFixtureV1 as metadata, photoRevisionFixtureV1 as revision,
   syntheticWebpV1, syntheticPhotoHashV1 } from './fixture-v1';
 
+const cookie = '__Host-student_portal_session=' + 'a'.repeat(43);
 const origin = 'https://aluno.escolaieda.com';
 const env = { PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: origin,
   PORTAL_ADMIN_TENANT_ID: '50000000-0000-4000-8000-000000000001',
-  PORTAL_SERVING_ENABLED: 'true', PORTAL_PHOTOS_ENABLED: 'true' };
+  PORTAL_SERVING_ENABLED: 'true', PORTAL_PHOTOS_ENABLED: 'true',
+  PORTAL_AUTH_GLOBAL: { limit: vi.fn().mockResolvedValue({ success: true }) } };
 const request = (path = STUDENT_PHOTO_META_PATH_V1, init: RequestInit = {}) => new Request(origin + path,
-  { headers: { origin, 'sec-fetch-site': 'same-origin' }, ...init });
+  { headers: { origin, cookie, 'sec-fetch-site': 'same-origin' }, ...init });
 const privateResponse = (response: Response) => {
   expect(response.headers.get('cache-control')).toBe('private, no-store');
   expect(response.headers.get('vary')).toBe('Cookie');
@@ -42,7 +44,7 @@ describe('private photo route', () => {
   it('authorizes again for content and does not turn conditional headers into an unauthenticated 304', async () => {
     const read = vi.fn<OwnPortraitReaderV1>().mockResolvedValue({ state: 'content', metadata, bytes: syntheticWebpV1() });
     const response = await servePortalPhotoV1(request(portraitContentPathV1(revision), {
-      headers: { origin, 'if-none-match': '*', 'if-modified-since': new Date().toUTCString() },
+      headers: { origin, cookie, 'if-none-match': '*', 'if-modified-since': new Date().toUTCString() },
     }), env, read);
     expect(response.status).toBe(200); privateResponse(response);
     expect(response.headers.get('content-type')).toBe('image/webp');
@@ -68,7 +70,7 @@ describe('private photo route', () => {
   it('refuses foreign origin, range requests and maintenance without touching storage', async () => {
     const read = vi.fn<OwnPortraitReaderV1>();
     expect((await servePortalPhotoV1(request(undefined, { headers: { origin: 'https://other.invalid' } }), env, read)).status).toBe(403);
-    expect((await servePortalPhotoV1(request(undefined, { headers: { origin, range: 'bytes=0-10' } }), env, read)).status).toBe(400);
+    expect((await servePortalPhotoV1(request(undefined, { headers: { origin, cookie, range: 'bytes=0-10' } }), env, read)).status).toBe(400);
     expect((await servePortalPhotoV1(request(), { ...env, PORTAL_SERVING_ENABLED: 'false' }, read)).status).toBe(503);
     expect(read).not.toHaveBeenCalled();
   });

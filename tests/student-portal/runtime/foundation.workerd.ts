@@ -141,7 +141,10 @@ describe('bundled Worker foundation in actual workerd', () => {
   it('routes the bundled Pages edge only to the self entrypoint', async () => {
     const edge = await workerForTest('edge');
     expect((await edge.fetch(`${origin}/healthz`)).status).toBe(200);
-    expect((await edge.fetch(`${origin}/api/student/session`)).status).toBe(503);
+    expect((await edge.fetch(`${origin}/api/student/session`)).status).toBe(401);
+    expect((await edge.fetch(`${origin}/api/student/session`, {
+      headers: { cookie: '__Host-student_portal_session=' + 'a'.repeat(43) },
+    })).status).toBe(503);
     expect((await edge.fetch(`${origin}/api/student-portal/admin/query`)).status).toBe(404);
     expect((await edge.fetch('https://student-portal-edge.pages.dev/healthz')).status).toBe(403);
     expect(
@@ -180,14 +183,24 @@ describe('bundled Worker foundation in actual workerd', () => {
     expect(response.headers.get('set-cookie')).toBeNull();
   });
   it.each(['/api/student/me', '/api/student/session'])(
-    'keeps %s unavailable even with a supplied cookie',
+    'keeps %s unavailable with a plausible cookie when required dependencies are absent',
     async (path) => {
       const worker = await workerForTest('portal');
       const response = await worker.fetch(origin + path, {
-        headers: { cookie: 'synthetic=value' },
+        headers: { cookie: '__Host-student_portal_session=' + 'a'.repeat(43) },
       });
       expect(response.status).toBe(503);
       expect(await response.json()).toMatchObject({ contractVersion: 1, state: 'unavailable' });
+    },
+  );
+  it.each(['/api/student/me', '/api/student/session'])(
+    'rejects absent or malformed session on %s before dependencies', async path => {
+      const worker = await workerForTest('portal');
+      for (const cookie of ['', 'synthetic=value', '__Host-student_portal_session=invalid']) {
+        const response = await worker.fetch(origin + path, { headers: { cookie } });
+        expect(response.status).toBe(401);
+        expect(await response.json()).toMatchObject({ contractVersion: 1, state: 'unauthenticated' });
+      }
     },
   );
   it.each([

@@ -1,3 +1,4 @@
+import { PortalClientErrorV1 } from '../shared/transport-v1';
 import { instantV1 } from '../../../../shared/student-portal-contracts/core-v1';
 
 export interface StudentSecuritySocketV1 {
@@ -30,6 +31,7 @@ export function createStudentSecurityV1(options: {
   let checking = false,
     again = false;
   let request: AbortController | undefined;
+  let limitedUntil = 0;
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
   let noticeVersion = 0,
     lastHttpStartedAt = 0;
@@ -65,6 +67,11 @@ export function createStudentSecurityV1(options: {
   // after the OS suspended it, flaky mobile data) keeps the content and retries shortly.
   const authorize = async (repeat = false) => {
     if (disposed) return;
+    if (Date.now() < limitedUntil) {
+      clearTimeout(lease);
+      lease = setTimeout(() => void authorize(), limitedUntil - Date.now());
+      return;
+    }
     if (checking) {
       again ||= repeat;
       return;
@@ -94,11 +101,14 @@ export function createStudentSecurityV1(options: {
         }
         renew(startedAt);
       }
-    } catch {
+    } catch (error) {
       // Network uncertainty does not revoke an account or extend its authorization lease.
       if (!disposed) {
         clearTimeout(lease);
-        lease = setTimeout(() => void authorize(), 15_000);
+        const wait = error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
+          ? Math.max(15_000, Math.min(86_400, error.retryAfterSeconds ?? 60) * 1000) : 15_000;
+        if (error instanceof PortalClientErrorV1 && error.state === 'rate-limited') limitedUntil = Date.now() + wait;
+        lease = setTimeout(() => void authorize(), wait);
         if (!socket) schedule();
       }
     } finally {

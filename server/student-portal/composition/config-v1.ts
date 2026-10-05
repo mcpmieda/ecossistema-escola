@@ -16,6 +16,18 @@ export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
   TURNSTILE_SECRET_KEY?: string;
   PORTAL_AUTH_GLOBAL?: Pick<RateLimit, 'limit'>;
   PORTAL_AUTH_SUBJECT?: Pick<RateLimit, 'limit'>;
+  PORTAL_SESSION_ACCOUNT?: Pick<RateLimit, 'limit'>;
+  PORTAL_READ_ACCOUNT?: Pick<RateLimit, 'limit'>;
+  PORTAL_LIVE_ACCOUNT?: Pick<RateLimit, 'limit'>;
+  PORTAL_PHOTO_ACCOUNT?: Pick<RateLimit, 'limit'>;
+  PORTAL_STATUS_ACCOUNT?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_READ?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_IMPORT?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_WRITE?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_EXPORT?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_LIVE?: Pick<RateLimit, 'limit'>;
+  PORTAL_ADMIN_REVOKE?: Pick<RateLimit, 'limit'>;
+
 }
 
 function keyring(value: string | undefined) {

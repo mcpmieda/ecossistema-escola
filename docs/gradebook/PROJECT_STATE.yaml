@@ -1,7 +1,7 @@
 schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-10-02
+updated_at: 2026-10-05
 coordination:
   master_issue: 182
   executable_issue: null
@@ -35,11 +35,17 @@ storage:
   student_identity_table_count: 1
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
-  latest_gradebook_migration: default_privileges_hardening_v1
-  latest_gradebook_migration_file: 0013_default_privileges_hardening_v1.sql
-  latest_gradebook_migration_production_version: 20260920162250
-  latest_gradebook_migration_production_evidence: issue-1036-postflight
+  latest_gradebook_migration: function_execute_hardening_v1
+  latest_gradebook_migration_file: 0014_function_execute_hardening_v1.sql
+  latest_gradebook_migration_production_version: 20261005151011
+  latest_gradebook_migration_production_evidence: docs/gradebook/POSTFLIGHT_0014.md
   latest_gradebook_migration_status: applied-and-postflight-verified
+  latest_gradebook_applied_migration_file: 0014_function_execute_hardening_v1.sql
+  latest_gradebook_applied_migration_production_version: 20261005151011
+  latest_gradebook_applied_migration_production_evidence: docs/gradebook/POSTFLIGHT_0014.md
+  previous_gradebook_applied_migration_file: 0013_default_privileges_hardening_v1.sql
+  previous_gradebook_applied_migration_production_version: 20260920162250
+  previous_gradebook_applied_migration_production_evidence: issue-1036-postflight
   legacy_streams_versions_are_current_schema: false
 runtime:
   design_system: HeroUI React v3
@@ -87,7 +93,8 @@ student_portal_integration:
   integrated_bn_contract: 745
   integrated_academic_presentation: 747
 repository_snapshot:
-  gradebook_latest_migration_in_tree: 0013_default_privileges_hardening_v1.sql
+  gradebook_latest_migration_in_tree: 0014_function_execute_hardening_v1.sql
+  gradebook_candidate_migrations_status: none-pending
   student_portal_latest_migration_in_tree: 0024_seal_count_cache_v1.sql
   student_portal_candidate_migrations_status: none-pending
   git_presence_alone_is_production_proof: false

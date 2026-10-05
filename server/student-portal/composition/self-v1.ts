@@ -5,13 +5,14 @@ import {
   loginRequestV1,
 } from '../../../shared/student-portal-contracts/auth-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
-import { AuthServiceV1 } from '../auth/auth-service-v1';
+import { AuthServiceV1, parseQrV1 } from '../auth/auth-service-v1';
 import { deviceFamilyV1 } from '../auth/device-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { TurnstileVerifierV1 } from '../auth/turnstile-v1';
 import { servePortalAuthV1, sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalServingGateV1 } from '../maintenance/serving-gate-v1';
 import { cloudflareClientIpV1 } from '../observability/audit-context-v1';
+import { checkPortalOperationV1, PortalRateLimitErrorV1, portalRateLimitResponseV1 } from '../observability/operation-burst-v1';
 import { portalAuthBurstV1 } from '../observability/auth-burst-v1';
 import { SelfProjectionReaderV1 } from '../publication/self-projection-reader-v1';
 import { scopedPublicationEnabledV2 } from '../publication/scoped-source-v2';
@@ -70,19 +71,35 @@ export async function servePortalSelfV1(
       subject: string,
       requestId: string,
       run: (auth: AuthServiceV1) => Promise<T>,
+      hasQr = false,
     ): Promise<T | FailureV1> => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         return { contractVersion: 1, requestId, state: 'unavailable' } satisfies FailureV1;
       if (!env.PORTAL_AUTH_GLOBAL || !env.PORTAL_AUTH_SUBJECT)
         throw new Error('student-portal-rate-limit-unavailable');
-      if (!(await portalAuthBurstV1(env.PORTAL_AUTH_GLOBAL, env.PORTAL_AUTH_SUBJECT)(subject)))
+      // Anonymous input has its own budget; invalid signatures cannot spend the proven QR budget.
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
+      const keys = portalKeysV1(env);
+      let verifiedSubject = subject;
+      if (hasQr) {
+        const qr = parseQrV1(subject);
+        if (!(await keys.cryptoPort.verifyQr(qr.credentialId, qr.keyVersion, qr.signature)))
+          return { contractVersion: 1, requestId, state: 'unauthenticated' };
+        verifiedSubject = `qr:${qr.keyVersion}:${qr.credentialId}`;
+      }
+      if (!hasQr) {
+        // A challenge is opaque until its existing database preflight verifies it. Keep its
+        // budget separate from signed QRs; the durable account counter remains authoritative.
+        await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'activation', 'public');
+        await checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'activation', subject);
+      }
+      if (hasQr && !(await portalAuthBurstV1(env.PORTAL_AUTH_GLOBAL, env.PORTAL_AUTH_SUBJECT)(verifiedSubject)))
         return {
           contractVersion: 1,
           requestId,
           state: 'rate-limited',
           retryAfterSeconds: 60,
         } satisfies FailureV1;
-      const keys = portalKeysV1(env);
       if (!env.TURNSTILE_SECRET_KEY) throw new Error('student-portal-turnstile-unavailable');
       return portalDatabaseV1(env, 'auth', (sql) =>
         run(
@@ -106,11 +123,13 @@ export async function servePortalSelfV1(
     ) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         throw new Error('student-portal-maintenance');
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'session-entry', 'public');
       const keys = portalKeysV1(env);
       const verifiedAt = Date.now();
       let renewal: SecurityRenewalV1 | undefined;
       const result = await portalDatabaseV1(env, 'self', (sql) =>
-        new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).read(
+        new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
+          accountId => checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT, 'session', accountId)).read(
           token,
           requestId,
           expectedAccountId,
@@ -145,10 +164,14 @@ export async function servePortalSelfV1(
       const expectedAccount = new URL(request.url).searchParams.get('accountId');
       if (purpose !== null && purpose !== 'security')
         return portalJsonV1(portalFailureV1('invalid-request'), 400);
+      const token = sessionCookieTokenV1(request);
+      if (!token) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
       const keys = portalKeysV1(env);
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'live-entry', 'public');
       const identity = await portalDatabaseV1(env, 'live', (sql) =>
-        new SessionServiceV1(sql, keys.cryptoPort, undefined, true).withAuthorized(
-          sessionCookieTokenV1(request),
+        new SessionServiceV1(sql, keys.cryptoPort, undefined, true,
+          accountId => checkPortalOperationV1(env.PORTAL_LIVE_ACCOUNT, 'live', accountId)).withAuthorized(
+          token,
           async (context, tx, session) => {
             if (
               !context.account.link ||
@@ -187,8 +210,10 @@ export async function servePortalSelfV1(
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
         throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'logout-entry', 'public');
       return portalDatabaseV1(env, 'auth', (sql) =>
-        new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId),
+        new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId,
+          accountId => checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'logout', accountId)),
       );
     };
     if (path === '/api/student/status') {
@@ -199,11 +224,13 @@ export async function servePortalSelfV1(
       if (closed) return closed;
       const keys = portalKeysV1(env);
       const token = sessionCookieTokenV1(request);
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'status-entry', 'public');
       const status = await portalDatabaseV1(env, 'self', async (sql) => {
         const policies = new PolicyServiceV1(sql);
         const now = new Date();
         const student = token
-          ? await new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads)
+          ? await new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
+              accountId => checkPortalOperationV1(env.PORTAL_STATUS_ACCOUNT, 'status', accountId))
               .withAuthorized(token, async (context, tx) =>
                 portalNoticesForPolicyV1(
                   (await policies.readSnapshotInTransaction(tx, accountScopeV1(context.account.id)))
@@ -211,7 +238,7 @@ export async function servePortalSelfV1(
                   await authNowV1(tx),
                 ),
               )
-              .catch(() => null)
+              .catch(error => { if (error instanceof PortalRateLimitErrorV1) throw error; return null; })
           : null;
         if (student) return { scope: 'student' as const, notices: student, now };
         const school = await policies.readSnapshot({ kind: 'school', academicYear: 2026 });
@@ -237,10 +264,14 @@ export async function servePortalSelfV1(
       if (request.method !== 'GET') return portalJsonV1(portalFailureV1('invalid-request'), 400);
       const closed = portalServingGateV1(env.PORTAL_SERVING_ENABLED);
       if (closed) return closed;
+      const token = sessionCookieTokenV1(request);
+      if (!token) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
       const keys = portalKeysV1(env);
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'read-entry', 'public');
       const result = await portalDatabaseV1(env, 'self', (sql) =>
-        new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).withAuthorized(
-          sessionCookieTokenV1(request),
+        new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
+          accountId => checkPortalOperationV1(env.PORTAL_READ_ACCOUNT, 'read', accountId)).withAuthorized(
+          token,
           async (context, tx) => {
             // Scoped V2 editions are the only published source; without them Self fails closed.
             if (
@@ -268,7 +299,7 @@ export async function servePortalSelfV1(
       {
         challenge: async (input, id) => {
           const parsed = challengeRequestV1.parse(input);
-          return invoke(parsed.qr, id, (auth) => auth.challenge(parsed, id));
+          return invoke(parsed.qr, id, (auth) => auth.challenge(parsed, id), true);
         },
         activate: async (input, id) => {
           const parsed = activateRequestV1.parse(input);
@@ -276,12 +307,13 @@ export async function servePortalSelfV1(
         },
         login: async (input, id) => {
           const parsed = loginRequestV1.parse(input);
-          return invoke(parsed.qr, id, (auth) => auth.login(parsed, id));
+          return invoke(parsed.qr, id, (auth) => auth.login(parsed, id), true);
         },
       },
       { read, logout },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof PortalRateLimitErrorV1) return portalRateLimitResponseV1(error);
     return portalJsonV1(portalFailureV1('unavailable'), 503);
   }
 }

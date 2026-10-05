@@ -22,6 +22,22 @@ export const portalAuthBurstMetricV1 = z.object({
 }).strict();
 export type PortalAuthBurstMetricV1 = z.infer<typeof portalAuthBurstMetricV1>;
 
+export const portalOperationBurstMetricV1 = z.object({
+  event: z.literal('student-portal-operation-burst-v1'),
+  operation: z.enum(['auth-entry', 'session-entry', 'session', 'read-entry', 'read', 'status-entry', 'status',
+    'live-entry', 'live', 'photo-entry', 'photo', 'logout-entry', 'logout', 'activation',
+    'admin-read', 'admin-import', 'admin-write', 'admin-export', 'admin-live', 'admin-revoke']),
+  outcome: z.enum(['allowed', 'limited', 'unavailable']),
+  elapsedMs: count,
+}).strict();
+
+export function emitPortalOperationBurstMetricV1(metric: unknown,
+  sink: (value: z.infer<typeof portalOperationBurstMetricV1>) => void = console.info): void {
+  const parsed = portalOperationBurstMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry never changes access or a committed outcome. */ }
+}
+
 export const portalDbLifecycleMetricV1 = z.object({
   event: z.literal('student-portal-db-lifecycle-v1'),
   operation: portalMetricV1.shape.operation,

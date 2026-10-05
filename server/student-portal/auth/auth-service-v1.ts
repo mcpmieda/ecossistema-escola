@@ -448,6 +448,8 @@ export class AuthServiceV1 {
   }
 
   private async challengeRequest(request: z.infer<typeof challengeRequestV1>, requestId: string) {
+    const qr = await this.qrAccount(request.qr);
+    if (!qr) return denied(requestId);
     if (this.burst && !(await this.burst(request.qr)))
       return {
         contractVersion: 1 as const,
@@ -455,8 +457,6 @@ export class AuthServiceV1 {
         state: 'rate-limited' as const,
         retryAfterSeconds: 60,
       };
-    const qr = await this.qrAccount(request.qr);
-    if (!qr) return denied(requestId);
     // Remote verification finishes before acquiring any database lock.
     const riskPassed =
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
@@ -625,6 +625,8 @@ export class AuthServiceV1 {
   }
 
   private async loginRequest(request: z.infer<typeof loginRequestV1>, requestId: string) {
+    const qr = await this.qrAccount(request.qr);
+    if (!qr) return denied(requestId);
     if (this.burst && !(await this.burst(request.qr)))
       return {
         contractVersion: 1 as const,
@@ -632,8 +634,6 @@ export class AuthServiceV1 {
         state: 'rate-limited' as const,
         retryAfterSeconds: 60,
       };
-    const qr = await this.qrAccount(request.qr);
-    if (!qr) return denied(requestId);
     const riskPassed =
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
     const passwordProof = await credentialProofV1(

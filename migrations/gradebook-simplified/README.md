@@ -17,6 +17,7 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 - `0011_gradebook_rls_v1.sql`: defesa em profundidade #856; ativa RLS nas 30 tabelas privadas preservando a ACL da role backend.
 - `0012_current_state_cleanup_v1.sql`: limpeza #863 após a BN-DEC-038; apaga histórico granular de nota/instrumento, resíduos qualitativos sem definição/observação, tratamentos órfãos e importações sem referência retida; revoga INSERT/UPDATE de `gradebook_app` nos dois históricos legados.
 - `0013_default_privileges_hardening_v1.sql`: hardening BN-12/#1036; remove grants automáticos de `gradebook_app` para tabelas/sequências/funções futuras. Como o `EXECUTE` padrão de `PUBLIC` para funções é global ao owner (não subtraível por schema), a migration também revoga esse default global para funções futuras criadas pelo mesmo migration owner; cada função futura deve conceder `EXECUTE` explicitamente. Não altera ACL dos objetos existentes nem dados.
+- `0014_function_execute_hardening_v1.sql`: **APLICADA E POSTFLIGHT VERIFICADO (05/10/2026)** #1128/#1249; revoga `EXECUTE` de `PUBLIC` e, se existentes, `anon`/`authenticated` somente nas quatro funções originais. Preserva grants explícitos de `gradebook_app`, owner e demais consumidores; preflight completo e postflight efetivo (incluindo membership/`SET ROLE`) abortam a transação em caso de drift. Não muda funções, dados, RLS, schema ACL, memberships ou defaults. [Inventário, pre/postflight e recuperação sem reabrir PUBLIC](../../docs/gradebook/FUNCTION_EXECUTE_1128.md). Presença no Git não autoriza nem prova aplicação produtiva.
 - `inspect_current_schema.sql`: consulta read-only e fingerprints estruturais por categoria. O JSON de referência é `catalog_20260910.json`, coletado do catálogo, não de notas ou arquivos. MD5 é checksum de drift, não garantia criptográfica. O comparador cobre tabelas/RLS, colunas/tipos/defaults/identidade, constraints, índices, funções e triggers. Não cobre dados, sequence counters, grants, proprietários, extensions ou infraestrutura.
 - `application_role_grants.sql`: concessões para a role backend já provisionada, sem criar senha/login/superuser. Aplicar separadamente somente no ambiente autorizado e pelo proprietário de objetos previsto; default privileges valem para esse proprietário. Revisar grants/defaults herdados ao reconstruir em Supabase, em vez de presumir que a role anon/authenticated está bloqueada.
 
@@ -28,8 +29,9 @@ Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline trans
 
 A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
 
-As extensões correntes `0003` a `0013` são aplicadas em ordem, somente sobre
-um schema já conferido contra a baseline. `0002` não integra essa sequência porque sua
+As extensões correntes `0003` a `0014` são aplicadas em ordem, somente sobre
+um schema já conferido contra a baseline. A aplicação autorizada de `0014` está
+registrada no [postflight](../../docs/gradebook/POSTFLIGHT_0014.md). `0002` não integra essa sequência porque sua
 relação já existe em `0001`. Para `0003`, o preflight deve confirmar
 as oito tabelas-alvo ausentes e preservar uma cópia lógica recuperável das 20
 tabelas e sequências anteriores. O arquivo usa uma única transação e falha

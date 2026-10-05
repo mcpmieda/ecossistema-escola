@@ -74,9 +74,14 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
     retryAfterSeconds: 30,
   });
   expect(fetch).toHaveBeenCalledTimes(4);
+  await expect(client.session()).rejects.toMatchObject({ state: 'rate-limited' });
+  expect(fetch).toHaveBeenCalledTimes(4);
   fetch.mockResolvedValueOnce(new Response('<html>sign in</html>', { status: 401 }));
-  await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response', status: 401 });
-  expect(unauthorized).toHaveBeenCalledTimes(2);
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_001);
+  try {
+    await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response', status: 401 });
+    expect(unauthorized).toHaveBeenCalledTimes(2);
+  } finally { clock.mockRestore(); }
 });
 
 it('preserves command bytes, CAS and idempotency when resuming partial batches', async () => {
@@ -362,4 +367,16 @@ it('aborts before networking and rejects missing no-store on success', async () 
   await expect(client.session(controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
   expect(fetch).not.toHaveBeenCalled();
   await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response' });
+});
+
+
+it('keeps session cooldown across reconnection IDs without applying it to another account', async () => {
+  const fetch = vi.fn<PortalFetchV1>(async () => json({ contractVersion: 1, requestId: id,
+    state: 'rate-limited', retryAfterSeconds: 60 }, 429, { 'Retry-After': '60' }));
+  const client = createPortalSelfClientV1({ fetch });
+  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
+  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  await expect(client.session(undefined, crypto.randomUUID(), crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
+  expect(fetch).toHaveBeenCalledTimes(2);
 });

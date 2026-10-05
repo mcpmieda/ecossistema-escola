@@ -1,3 +1,4 @@
+import { PortalRateLimitErrorV1, portalRateLimitResponseV1 } from '../../observability/operation-burst-v1';
 import { ZodError } from 'zod';
 import { ACCESS_CLOSED_ACCEPT_HEADER_V1, AUTH_BODY_BYTES_V1, SESSION_COOKIE_V1, logoutRequestV1, logoutResponseV1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import { ERROR_HTTP_V1, type FailureV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -5,13 +6,21 @@ import { portalJsonV1, portalRequestOriginAllowedV1 } from '../../runtime/http-v
 import type { AuthServiceV1 } from '../../auth/auth-service-v1';
 import type { SessionServiceV1 } from '../../auth/session-service-v1';
 
+// Keep parsing bounded even when unrelated cookies are supplied. Valid token format is unchanged.
+export const SESSION_COOKIE_HEADER_BYTES_V1 = 8192;
+export const SESSION_COOKIE_PAIRS_V1 = 64;
 const COOKIE = `${SESSION_COOKIE_V1.name}=`;
 const FLAGS = '; Path=/; Secure; HttpOnly; SameSite=Strict';
 const routes = new Map([['/api/student/auth/challenge', 'challenge'], ['/api/student/auth/activate', 'activate'],
   ['/api/student/auth/login', 'login'], ['/api/student/auth/logout', 'logout'], ['/api/student/session', 'session']] as const);
 
 export function sessionCookieTokenV1(request: Request): string {
-  const values = (request.headers.get('cookie') ?? '').split(';').map((part) => part.trim()).filter((part) => part.startsWith(COOKIE));
+  const header = request.headers.get('cookie') ?? '';
+  if (header.length > SESSION_COOKIE_HEADER_BYTES_V1
+    || new TextEncoder().encode(header).byteLength > SESSION_COOKIE_HEADER_BYTES_V1) return '';
+  const pairs = header.split(';');
+  if (pairs.length > SESSION_COOKIE_PAIRS_V1) return '';
+  const values = pairs.map((part) => part.trim()).filter((part) => part.startsWith(COOKIE));
   if (values.length !== 1) return '';
   const token = values[0]!.slice(COOKIE.length);
   return /^[A-Za-z0-9_-]{43}$/u.test(token) ? token : '';
@@ -59,7 +68,9 @@ export async function servePortalAuthV1(request: Request, environment: string, o
       if (search.getAll('accountId').length > 1) return fail('invalid-request');
       const expected = search.get('accountId');
       if (expected !== null && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(expected)) return fail('invalid-request');
-      const result = await sessions.read(sessionCookieTokenV1(request), requestId, expected ?? undefined, acceptAccessClosed);
+      const token = sessionCookieTokenV1(request);
+      if (!token) return fail('unauthenticated');
+      const result = await sessions.read(token, requestId, expected ?? undefined, acceptAccessClosed);
       if (result?.state === 'access-closed') return acceptAccessClosed ? portalJsonV1(result, 403) : fail('unauthenticated');
       return result ? portalJsonV1(result, 200) : fail('unauthenticated');
     }
@@ -67,7 +78,9 @@ export async function servePortalAuthV1(request: Request, environment: string, o
     const input = await readBody(request);
     if (route === 'logout') {
       logoutRequestV1.parse(input);
-      await sessions.logout(sessionCookieTokenV1(request), requestId);
+      const token = sessionCookieTokenV1(request);
+      // No plausible token means there is nothing to revoke; keep logout idempotent and clear it.
+      if (token) await sessions.logout(token, requestId);
       const response = portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
       response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
       return response;
@@ -86,6 +99,7 @@ export async function servePortalAuthV1(request: Request, environment: string, o
     }
     return portalJsonV1(result, 200);
   } catch (error) {
+    if (error instanceof PortalRateLimitErrorV1) return portalRateLimitResponseV1(error, requestId);
     if (error instanceof ZodError || (error instanceof Error && error.message === 'invalid-request')) return fail('invalid-request');
     if (error instanceof Error && error.message === 'body-too-large') return fail('body-too-large');
     return fail('unavailable'); // Never serialize provider errors, SQL, inputs or credentials.

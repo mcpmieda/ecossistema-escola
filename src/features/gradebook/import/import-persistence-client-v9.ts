@@ -65,6 +65,14 @@ export async function persistGradebookCanonicalImportV9(
       outcome = 'not-authorized';
       return { response: { transportVersion: 9, state: 'not-authorized' }, serverMs: null };
     }
+    if (response.status === 429) {
+      const raw = response.headers.get('Retry-After');
+      const seconds = raw !== null && /^\d+$/u.test(raw) ? Number(raw) : 60;
+      const wait = Number.isFinite(seconds) ? Math.max(1, Math.min(86400, seconds)) : 60;
+      outcome = 'unavailable';
+      // A refused request is not committed. The existing queue stops; never repeat this POST here.
+      throw new Error(`Muitas solicitações. Aguarde ${wait} segundos antes de tentar novamente.`);
+    }
     let value: unknown;
     try {
       value = await response.json();

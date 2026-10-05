@@ -48,14 +48,29 @@ describe('current canonical project state', () => {
   it('tracks the latest Gradebook migration present in the current tree', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
     const latest = latestMigration('migrations/gradebook-simplified');
-    expect(latest).toBe('0013_default_privileges_hardening_v1.sql');
+    expect(latest).toBe('0014_function_execute_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
     expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
+    expect(state).toContain('latest_gradebook_migration_production_version: 20261005151011');
+    expect(state).toContain(
+      'latest_gradebook_applied_migration_file: 0014_function_execute_hardening_v1.sql',
+    );
+    expect(state).toContain(
+      'latest_gradebook_applied_migration_production_version: 20261005151011',
+    );
+    expect(state).toContain(
+      'previous_gradebook_applied_migration_production_version: 20260920162250',
+    );
+    const evidence = source('docs/gradebook/POSTFLIGHT_0014.md');
+    expect(evidence).toContain('20261005151011');
+    expect(evidence).toContain('28490011a920f36aad3543d928af6999733c99e2d65532b53b3f27283712d19d');
   });
 
   it('parses the applied projection removal and preserves earlier migration evidence', async () => {
     const gradebookState = await readYamlDocument(join(root, 'docs/gradebook/PROJECT_STATE.yaml'));
-    const portalState = await readYamlDocument(join(root, 'docs/student-portal/PROJECT_STATE.yaml'));
+    const portalState = await readYamlDocument(
+      join(root, 'docs/student-portal/PROJECT_STATE.yaml'),
+    );
     const latest = latestMigration('migrations/student-portal');
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
     expect(gradebookState).toMatchObject({
@@ -78,7 +93,8 @@ describe('current canonical project state', () => {
       student_portal_schema_production_evidence: 'docs/student-portal/POSTFLIGHT_0024.md',
       student_portal_schema_table_count: 28,
       seal_count_cache_0024: {
-        issue: 1221, pull_request: 1222,
+        issue: 1221,
+        pull_request: 1222,
         production_migration_applied: true,
         production_migration_version: 20261001201546,
         evidence: 'docs/student-portal/POSTFLIGHT_0024.md',
@@ -130,9 +146,14 @@ describe('current canonical project state', () => {
     try {
       writeFileSync(file, 'invalid: [\n');
       await expect(readYamlDocument(file)).rejects.toThrow();
-      writeFileSync(file, `unrelated:\n  shared_student_identity_1114:\n    issue: 1114\n    pull_request: 1115\n    canonical_key: studentUid\n    migration: 0018_shared_student_identity_v1.sql\n    status: applied-and-postflight-verified\n    production_migration_applied: true\n    production_migration_version: 20260922212633\n    evidence: docs/student-identity/POSTFLIGHT_1114.md\n`);
+      writeFileSync(
+        file,
+        `unrelated:\n  shared_student_identity_1114:\n    issue: 1114\n    pull_request: 1115\n    canonical_key: studentUid\n    migration: 0018_shared_student_identity_v1.sql\n    status: applied-and-postflight-verified\n    production_migration_applied: true\n    production_migration_version: 20260922212633\n    evidence: docs/student-identity/POSTFLIGHT_1114.md\n`,
+      );
       expect(identityStateSchema.safeParse(await readYamlDocument(file)).success).toBe(false);
-    } finally { rmSync(directory, { recursive: true, force: true }); }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('keeps historical checkpoint 668 explicitly non-authoritative and retains its pending pilot', async () => {
@@ -141,16 +162,23 @@ describe('current canonical project state', () => {
       repository_snapshot: { historical_checkpoint_668_is_runtime_authority: false },
       historical_checkpoint_668: {
         history: { obsolete_execution_queues: [185, 192, 593] },
-        final_phases: expect.arrayContaining([expect.objectContaining({
-          phase: 'FINAL-3',
-          status: 'relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending',
-        })]),
+        final_phases: expect.arrayContaining([
+          expect.objectContaining({
+            phase: 'FINAL-3',
+            status:
+              'relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending',
+          }),
+        ]),
       },
     });
   });
 
   it('points current entry documents to the consolidated maintenance queue', () => {
-    for (const path of ['docs/gradebook/README.md', 'docs/gradebook/COMECE_AQUI.md', 'docs/gradebook/ISSUE_MAP.md']) {
+    for (const path of [
+      'docs/gradebook/README.md',
+      'docs/gradebook/COMECE_AQUI.md',
+      'docs/gradebook/ISSUE_MAP.md',
+    ]) {
       const document = source(path);
       expect(document).toContain('#970');
       expect(document).not.toContain('A fila ativa é [Portal do Aluno Parte2 #742]');

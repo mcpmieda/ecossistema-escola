@@ -1,3 +1,4 @@
+import { PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { failureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { withPortalSqlV1 } from '../runtime/database-v1';
@@ -34,6 +35,9 @@ export async function portalDatabaseV1<T>(env: PortalCompositionEnvV1, operation
     const failure = failureV1.safeParse(result);
     outcome = failure.success ? failure.data.state === 'unavailable' ? 'unavailable' : 'denied' : result === null ? 'denied' : 'ok';
     return result;
+  } catch (error) {
+    if (error instanceof PortalRateLimitErrorV1 && error.state === 'rate-limited') outcome = 'denied';
+    throw error;
   } finally {
     const metric = measured?.snapshot(operation, outcome) ?? { event: 'student-portal-operation-v1' as const,
       operation, outcome, elapsedMs: 0, queries: 0, rows: 0, lockTimeouts: 0, statementTimeouts: 0 };

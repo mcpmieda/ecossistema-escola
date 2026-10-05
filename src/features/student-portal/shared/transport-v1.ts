@@ -70,7 +70,11 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     )
       throw new PortalClientErrorV1('invalid-request');
     signal?.throwIfAborted();
-    const remaining = (cooldowns.get(path) ?? 0) - Date.now();
+    const now = Date.now();
+    for (const [key, until] of cooldowns) if (until <= now) cooldowns.delete(key);
+    // A new live connection ID must not bypass the same account's session cooldown.
+    const cooldownKey = path.startsWith('/api/student/session?') ? path.split('&connectionId=')[0]!.toLowerCase() : path;
+    const remaining = (cooldowns.get(cooldownKey) ?? 0) - now;
     if (options.respectRetryAfter && remaining > 0)
       throw new PortalClientErrorV1('rate-limited', 429, Math.ceil(remaining / 1000));
     let response: Response;
@@ -113,7 +117,7 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     if (failure.success && response.status === ERROR_HTTP_V1[failure.data.state]) {
       if (options.respectRetryAfter && failure.data.state === 'rate-limited')
         cooldowns.set(
-          path,
+          cooldownKey,
           Date.now() + Math.max(delay ?? 1, failure.data.retryAfterSeconds ?? 1) * 1000,
         );
       throw new PortalClientErrorV1(

@@ -48,6 +48,7 @@ function scriptedHarness(login5Ms: number | ((index: number) => number) = 1601,
       if (input.operation === 'settings-set') body = { ...base, state: 'committed', operationId: qrPrintIdV1(98), version: 1 };
       if (input.operation === 'qr-batch') body = { ...base, state: 'qr', cards, version: 1 };
     } else if (path === '/api/student/auth/challenge') {
+      if (!('pin' in input)) { status = 429; headers.set('x-harness-queries', '1'); }
       body = { ...base, state: 'password-creation', challenge: 'PRIVATE_CHALLENGE_'.repeat(3), expiresAt: authenticated.expiresAt };
     } else if (path === '/api/student/auth/activate') {
       body = { ...authenticated, persistent: true };
@@ -55,7 +56,7 @@ function scriptedHarness(login5Ms: number | ((index: number) => number) = 1601,
     } else if (path === '/api/student/me') { body = { state: 'no-publication' }; ms = metrics.selfMs ?? ms; }
     else if (path === '/api/student/auth/login') {
       if (new Headers(init.headers).get('origin') === 'https://evil.invalid') status = 403;
-      else if (!cards.some(card => card.qr === input.qr)) { status = 429; headers.set('x-harness-queries', '1'); }
+      else if (!cards.some(card => card.qr === input.qr)) { status = 401; headers.set('x-harness-queries', '1'); }
       else {
         loginCount++;
         if (loginCount > 12 && loginCount <= 32) ms = typeof login5Ms === 'number' ? login5Ms : login5Ms(loginCount - 12);
@@ -107,7 +108,7 @@ it('keeps the original workload, nearest-rank percentiles and exact performance 
   ]);
   expect(report.find(item => item.kind === 'login-5')).toMatchObject({ p50: 1500, p95: 1500, p99: 1500 });
   const calls = harness.dispatchFetch.mock.calls;
-  expect(calls).toHaveLength(94); // 92 measured calls, one CSRF rejection, one allowed early burst rejection.
+  expect(calls).toHaveLength(97); // 92 measured calls, one CSRF, three invalid QRs, one signed-QR burst rejection.
   const inputs = calls.map(([, init]) => init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {});
   expect(inputs.filter(input => input.operation === 'birth-batch')).toHaveLength(5);
   expect(inputs.filter(input => 'challenge' in input)).toHaveLength(5);

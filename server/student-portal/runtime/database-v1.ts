@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import type { PersistencePortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import {
   createStudentPortalPostgresPersistenceV1,
@@ -80,9 +81,11 @@ export async function withPortalSqlV1<T>(
     sql = opened.sql;
     applicationStarted = Date.now();
     return await operation(sql);
-  } catch {
-    // Driver errors may include connection details or SQL values. Never export them.
-    throw new Error('student-portal-database-unavailable');
+  } catch (error) {
+    // Only this bounded domain error is safe to cross the SQL lifecycle boundary.
+    if (error instanceof PortalRateLimitErrorV1) throw error;
+    // Deliberately discard provider errors, including their causes: they may contain
+    // connection details or SQL values. Raise the generic error after cleanup below.
   } finally {
     if (opened && applicationStarted > 0) {
       try {
@@ -97,6 +100,7 @@ export async function withPortalSqlV1<T>(
     }
     await closePortalSqlClientV1(sql);
   }
+  throw new Error('student-portal-database-unavailable');
 }
 
 /** Existing persistence port delegates to the same connection/role/timeout lifecycle. */

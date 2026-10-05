@@ -73,7 +73,7 @@ export async function createIntegrationHarnessV1(databaseUrl: string) {
             PASSWORD_PEPPER: JSON.stringify({ 1: Buffer.alloc(32, 71).toString('base64') }),
             QR_HMAC_KEYS: JSON.stringify({ 1: Buffer.alloc(32, 72).toString('base64') }),
           },
-          ratelimits: {
+          ratelimits: { ...Object.fromEntries(config.env.production.ratelimits.filter((binding: { name: string }) => !['PORTAL_AUTH_GLOBAL', 'PORTAL_AUTH_SUBJECT'].includes(binding.name)).map((binding: { name: string; namespace_id: string; simple: { limit: number; period: 60 } }) => [binding.name, { namespace_id: binding.namespace_id, simple: binding.simple }])),
             PORTAL_AUTH_GLOBAL: { namespace_id: '100757', simple: { limit: 600, period: 60 } },
             PORTAL_AUTH_SUBJECT: { namespace_id: '200757', simple: { limit: 30, period: 60 } },
           },
