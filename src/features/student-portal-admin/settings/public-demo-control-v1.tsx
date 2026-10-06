@@ -3,6 +3,7 @@ import { Button } from '@heroui/react';
 import './public-demo-control-v1.css';
 import {
   PUBLIC_DEMO_ADMIN_PATH_V1,
+  PUBLIC_DEMO_URL_V1,
   publicDemoStateSchemaV1,
   type PublicDemoStateV1,
 } from '../../../../shared/public-demo-control-v1';
@@ -79,6 +80,11 @@ export function PublicDemoControlV1({ canWrite }: { canWrite: boolean }) {
         {state?.enabled ? 'Desativar demonstração' : 'Ativar demonstração'}
       </Button>
       <p role="status">{message}</p>
+      {state?.enabled && (
+        <a href={PUBLIC_DEMO_URL_V1} target="_blank" rel="noreferrer noopener">
+          Abrir demonstração
+        </a>
+      )}
       <p>Desativar bloqueia novos acessos. Conteúdo já baixado não pode ser recolhido.</p>
     </section>
   );

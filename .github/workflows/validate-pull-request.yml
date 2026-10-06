@@ -102,9 +102,13 @@ jobs:
           cp -a dist production-inputs/dist
           cp -a node_modules/.cache/student-photo-codec-v1 production-inputs/node_modules/.cache/student-photo-codec-v1
           cp -a node_modules/.cache/student-portal-edge production-inputs/node_modules/.cache/student-portal-edge
+          cp -a node_modules/.cache/public-portal-demo production-inputs/node_modules/.cache/public-portal-demo
+          cp -a node_modules/.cache/public-demo-worker production-inputs/node_modules/.cache/public-demo-worker
           node --experimental-strip-types scripts/ci/provenance-v1.ts write validate-pull-request production-inputs/validate-provenance.json
           test -f production-inputs/dist/index.html
           test -f production-inputs/node_modules/.cache/student-portal-edge/_worker.js
+          test -f production-inputs/node_modules/.cache/public-portal-demo/index.html
+          test -f production-inputs/node_modules/.cache/public-demo-worker/index.js
 
       - name: Upload exact validated production inputs
         if: github.event_name == 'pull_request'

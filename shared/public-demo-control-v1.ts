@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const PUBLIC_DEMO_ADMIN_PATH_V1 = '/api/platform/public-demo';
+export const PUBLIC_DEMO_URL_V1 = 'https://portal-aluno-demo-publica.adminn-40c.workers.dev/';
 export const publicDemoStateSchemaV1 = z
   .object({ enabled: z.boolean(), revision: z.number().int().nonnegative() })
   .strict();

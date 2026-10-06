@@ -2,7 +2,7 @@
   "name": "portal-aluno-demo-publica",
   "main": "workers/public-portal-demo/index.ts",
   "compatibility_date": "2026-09-11",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "assets": {
     "directory": "node_modules/.cache/public-portal-demo",
@@ -13,7 +13,10 @@
   },
   "durable_objects": { "bindings": [{ "name": "DEMO_STATE", "class_name": "DemoState" }] },
   "migrations": [{ "tag": "public-demo-v1", "new_sqlite_classes": ["DemoState"] }],
-  "vars": { "DEMO_ADMIN_TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188" },
+  "vars": {
+    "DEMO_ADMIN_TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
+    "DEMO_DEPLOYMENT_OWNER": "mcpmieda/ecossistema-escola:public-demo-v1"
+  },
   "observability": { "enabled": false },
   "limits": { "cpu_ms": 10 },
 }

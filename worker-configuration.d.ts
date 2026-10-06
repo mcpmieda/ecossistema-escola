@@ -15,6 +15,7 @@ interface __BaseEnv_Env {
 	OFFICIAL_ORIGIN: "https://admin.escolaieda.com";
 	GRADEBOOK_STORAGE_PROVIDER: "postgres";
 	PORTAL_SERVICE: Service /* entrypoint PortalAdminEntrypoint from student-portal-production */;
+	PUBLIC_DEMO_CONTROL: Service /* entrypoint DemoControl from portal-aluno-demo-publica */;
 }
 declare namespace Cloudflare {
 	interface Env extends __BaseEnv_Env {}

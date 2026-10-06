@@ -20,19 +20,44 @@ it('does not optimistically activate and disables the button until confirmation'
     );
   vi.stubGlobal('fetch', fetcher);
   render(<PublicDemoControlV1 canWrite />);
+  expect(screen.queryByRole('link', { name: 'Abrir demonstração' })).toBeNull();
   const button = await screen.findByRole('button', { name: 'Ativar demonstração' });
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
   fireEvent.click(button);
   expect(button.hasAttribute('disabled')).toBe(true);
   expect(screen.getByText('Estado confirmado: Desativada')).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'Abrir demonstração' })).toBeNull();
   await act(async () => resolve(reply({ ok: true, state: { enabled: true, revision: 1 } })));
   expect(await screen.findByText('Estado confirmado: Ativada')).toBeTruthy();
+  const link = screen.getByRole('link', { name: 'Abrir demonstração' });
+  expect(link.getAttribute('href')).toBe(
+    'https://portal-aluno-demo-publica.adminn-40c.workers.dev/',
+  );
+  expect(link.getAttribute('rel')).toBe('noreferrer noopener');
+  expect(link.getAttribute('target')).toBe('_blank');
 });
-it('read-only UI cannot write', async () => {
+it('does not expose a clickable link when state is unavailable', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply({}, 503)));
+  render(<PublicDemoControlV1 canWrite />);
+  await screen.findByText('Demonstração pública indisponível.');
+  expect(screen.queryByRole('link', { name: 'Abrir demonstração' })).toBeNull();
+});
+it('removes the link after confirmed disabling', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValueOnce(reply({ enabled: true, revision: 1 })),
+    vi
+      .fn()
+      .mockResolvedValueOnce(reply({ enabled: true, revision: 1 }))
+      .mockResolvedValueOnce(reply({ ok: true, state: { enabled: false, revision: 2 } })),
   );
+  render(<PublicDemoControlV1 canWrite />);
+  await screen.findByRole('link', { name: 'Abrir demonstração' });
+  fireEvent.click(screen.getByRole('button', { name: 'Desativar demonstração' }));
+  await screen.findByText('Estado confirmado: Desativada');
+  expect(screen.queryByRole('link', { name: 'Abrir demonstração' })).toBeNull();
+});
+it('read-only UI cannot write', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply({ enabled: true, revision: 1 })));
   const mounted = render(<PublicDemoControlV1 canWrite />);
   await screen.findByText('Estado confirmado: Ativada');
   expect(

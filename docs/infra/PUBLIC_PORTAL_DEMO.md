@@ -24,8 +24,8 @@ retencão ou consultas de estatísticas na aplicação.
 Default desabilitado; erro de estado ou binding ausente falha fechado.
 assets.run_worker_first: true garante gate antes de HTML, assets, aliases, HEAD
 e caminhos desconhecidos. Todas as respostas no-store, sem Set-Cookie; nenhum
-cache de autorização ou Cache API. Previews e workers.dev estão false na
-configuração candidata, até a etapa de publicação aprovada.
+cache de autorização ou Cache API. URLs de preview ficam desabilitadas.
+O hostname workers.dev dedicado só serve conteúdo quando o ADM confirma ativação.
 
 O ADM verifica autenticação, capability e Origin. O entrypoint privado valida
 tenant, idade da autoridade e capability; CAS evita alterações concorrentes
@@ -58,5 +58,14 @@ controle privado/auth/CAS e desligamento efetivo. Não cria registros de acesso.
 Antes de publicar: revisão no head final e CI/verify; revalidar nome disponível;
 criar Worker/DO inicialmente desligado; configurar somente ADM→DemoControl e
 publicar o ADM pelo workflow oficial; validar recusas e bloqueio real de HTML/assets;
-ativar e entregar link após disponibilidade do controle. O vínculo ainda não foi
-aplicado, nenhum recurso de nuvem foi criado e não houve publicação nesta fase.
+ativar e entregar link após disponibilidade do controle.
+
+O workflow oficial deploy-cloudflare-pages restaura o bundle e os assets exatos do
+PR aprovado, após conferir SHA e árvore dos dois gates. Publica a demo dedicada com
+--no-bundle antes do ADM; não recompila nem usa o dist do ADM para a demo.
+Um preflight GET verifica o inventário e recusa sobrescrever um Worker sem o marcador
+DEMO_DEPLOYMENT_OWNER esperado ou com bindings fora do escopo. O marcador identifica
+a implantação, não é credencial nem registro de visitante. Falha de leitura aborta.
+A configuração do ADM valida explicitamente os dois entrypoints privados, preservando
+PORTAL_SERVICE e adicionando apenas PUBLIC_DEMO_CONTROL → DemoControl.
+Nenhum passo do workflow ativa a demo ou reinicializa o estado escolhido pelo ADM.
