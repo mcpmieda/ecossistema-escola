@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
 import { PortalSignedInNoticesV1 } from '../features/student-portal/shell/portal-notices-v1';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
@@ -897,32 +897,8 @@ function AdminSimulatorPanelV1({
   );
 }
 
-/*
- * Optional real photo for local design checks: src/student-portal/assets/local-test/portrait.*
- * is git-ignored on the owner's machine (.git/info/exclude) and never committed. Without it the
- * invented demo portrait is used.
- */
-const LOCAL_TEST_PORTRAIT_V1 = '/assets/local-test/portrait.jpg';
-function useLocalTestPortraitV1() {
-  const [src, setSrc] = useState<string | undefined>();
-  useEffect(() => {
-    let active = true;
-    void fetch(LOCAL_TEST_PORTRAIT_V1, { method: 'HEAD' })
-      .then((response) => {
-        if (active && response.ok && response.headers.get('content-type')?.startsWith('image/'))
-          setSrc(LOCAL_TEST_PORTRAIT_V1);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-  return src;
-}
-
 /** Portal with invented data and the admin simulator: the local preview and the ADM demo page. */
 export function PortalDemoAppV1() {
-  const localPortrait = useLocalTestPortraitV1();
   const [admin, setAdmin] = useState<AdminSimulationV1>({
     accessEnabled: true,
     showPartials: true,
@@ -975,7 +951,7 @@ export function PortalDemoAppV1() {
           )
         }
         onLogout={() => undefined}
-        portraitSrc={admin.hasPortrait ? (localPortrait ?? previewPortrait) : undefined}
+        portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
       />
     </>
   );

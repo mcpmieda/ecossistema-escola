@@ -9,6 +9,9 @@
     },
     {
       "path": "./tsconfig.student-portal.json"
+    },
+    {
+      "path": "./tsconfig.public-demo.json"
     }
   ],
   "compilerOptions": {

@@ -28,6 +28,10 @@
     "binding": "PORTAL_SERVICE",
     "service": "student-portal-production",
     "entrypoint": "PortalAdminEntrypoint"
+  }, {
+    "binding": "PUBLIC_DEMO_CONTROL",
+    "service": "portal-aluno-demo-publica",
+    "entrypoint": "DemoControl"
   }],
   "hyperdrive": [
     {

@@ -2,6 +2,7 @@ import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../server/g
 import type { RuntimeEnv } from '../server/env';
 import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
+import { handlePublicDemoRequestV1 } from '../server/platform/public-demo-http-v1';
 import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
 import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
 import type { PortalAdminServiceBindingV1 } from '../shared/student-portal-contracts/ports-v1';
@@ -202,6 +203,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
 
   const healthResponse = await handleSystemHealthRequestV1(request, env);
   if (healthResponse) return healthResponse;
+  const demoResponse = await handlePublicDemoRequestV1(request, env);
+  if (demoResponse) return demoResponse;
 
   if (url.pathname.startsWith('/api/student-portal/admin/')) {
     const binding = env.PORTAL_SERVICE as PortalAdminServiceBindingV1 | undefined;

@@ -20,6 +20,7 @@ export type RuntimeEnv = Omit<
   | 'OFFICIAL_ORIGIN'
   | 'PROD_DB'
   | 'PORTAL_SERVICE'
+  | 'PUBLIC_DEMO_CONTROL'
   | 'RUNTIME_ENVIRONMENT'
 > &
   RuntimeSecrets & {
@@ -31,6 +32,7 @@ export type RuntimeEnv = Omit<
     GRADEBOOK_DATABASE?: unknown;
     PROD_DB?: unknown;
     PORTAL_SERVICE?: unknown;
+    PUBLIC_DEMO_CONTROL?: unknown;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -60,6 +62,7 @@ const envSchema = z
     GRADEBOOK_DATABASE: z.unknown().optional(),
     PROD_DB: z.unknown().optional(),
     PORTAL_SERVICE: z.unknown().optional(),
+    PUBLIC_DEMO_CONTROL: z.unknown().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;
