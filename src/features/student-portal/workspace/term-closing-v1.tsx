@@ -9,6 +9,7 @@ import {
   type TermClosingV1,
 } from '../../../../shared/student-portal-contracts/term-closing-v1';
 import './term-closing-v1.css';
+import { usePortalPreferenceKeyV1 } from '../shell/preference-scope-v1';
 
 /*
  * Fechamento do trimestre (#1132). The server sends codes only; wording comes from the shared,
@@ -16,9 +17,9 @@ import './term-closing-v1.css';
  */
 const SEEN_KEY_V1 = 'studentPortalTermClosingSeenV1';
 
-function readSeenV1(): Set<string> {
+function readSeenV1(storageKey: string): Set<string> {
   try {
-    const raw = globalThis.localStorage?.getItem(SEEN_KEY_V1);
+    const raw = globalThis.localStorage?.getItem(storageKey);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
   } catch {
@@ -28,17 +29,18 @@ function readSeenV1(): Set<string> {
 
 /** "Novo" until first opened on this browser (D13, R8). No server state or personal data. */
 export function useTermClosingNewV1(key: string): boolean {
-  const [isNew] = useState(() => !readSeenV1().has(key));
+  const storageKey = usePortalPreferenceKeyV1(SEEN_KEY_V1);
+  const [isNew] = useState(() => !readSeenV1(storageKey).has(key));
   useEffect(() => {
     try {
-      const seen = readSeenV1();
+      const seen = readSeenV1(storageKey);
       if (seen.has(key)) return;
       seen.add(key);
-      globalThis.localStorage?.setItem(SEEN_KEY_V1, JSON.stringify([...seen].slice(-200)));
+      globalThis.localStorage?.setItem(storageKey, JSON.stringify([...seen].slice(-200)));
     } catch {
       /* Private mode or blocked storage: the badge may simply show again. */
     }
-  }, [key]);
+  }, [key, storageKey]);
   return isNew;
 }
 

@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/student-portal-contracts/notices-v1';
 import { createPortalTransportV1, type PortalTransportOptionsV1 } from '../shared/transport-v1';
 import './portal-notices-v1.css';
+import { usePortalPreferenceKeyV1 } from './preference-scope-v1';
 
 export function createPortalStatusClientV1(options: PortalTransportOptionsV1 = {}) {
   const send = createPortalTransportV1(options);
@@ -213,7 +214,8 @@ export function PortalSignedInNoticesV1({
   hasGrades: boolean;
 }) {
   const ended = notices.disclosureEnded;
-  const key = ended ? storageKeyV1(ended) : null;
+  const scopedKey = usePortalPreferenceKeyV1(ended ? storageKeyV1(ended) : '');
+  const key = ended ? scopedKey : null;
   const [dismissed, setDismissed] = useState(() => (key ? dismissedV1(key) : true));
   useEffect(() => setDismissed(key ? dismissedV1(key) : true), [key]);
   return (

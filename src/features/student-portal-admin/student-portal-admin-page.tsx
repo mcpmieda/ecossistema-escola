@@ -1,4 +1,5 @@
 import { PanelScopeContextV1 } from './shared/panel-scope-v1';
+import { PublicDemoControlV1 } from './settings/public-demo-control-v1';
 import { AccountClosingPreviewV1 } from './accounts/account-closing-preview-v1';
 import { PortalScopeTabsV1 } from './settings/policy-scope-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
@@ -427,13 +428,16 @@ function PortalWorkspace({
         break;
       case 'settings':
         content = (
-          <StudentSettingsV1
-            client={common.client}
-            scope={SCHOOL}
-            scopeLabel="Toda a escola · 2026"
-            canWrite={common.canWrite}
-            area="general"
-          />
+          <>
+            <PublicDemoControlV1 canWrite={common.canWrite} />
+            <StudentSettingsV1
+              client={common.client}
+              scope={SCHOOL}
+              scopeLabel="Toda a escola · 2026"
+              canWrite={common.canWrite}
+              area="general"
+            />
+          </>
         );
         break;
       default:
