@@ -69,3 +69,7 @@ a implantação, não é credencial nem registro de visitante. Falha de leitura 
 A configuração do ADM valida explicitamente os dois entrypoints privados, preservando
 PORTAL_SERVICE e adicionando apenas PUBLIC_DEMO_CONTROL → DemoControl.
 Nenhum passo do workflow ativa a demo ou reinicializa o estado escolhido pelo ADM.
+
+A publicacao da demo precede Portal e ADM no mesmo workflow oficial. Portanto,
+falha no preflight ou deploy da demo interrompe tambem essas etapas posteriores,
+inclusive em futuras publicacoes. O dry-run nao comprova permissoes de deploy.
