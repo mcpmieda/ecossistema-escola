@@ -595,26 +595,35 @@ describe('monotonic production workflow references', () => {
       `<!-- deployment-reference:${JSON.stringify(referenceForV1(recentRun))} -->`,
     );
   });
-  it('does not treat an unreadable or corrupted watermark as first-run bootstrap', async () => {
-    for (const options of [
-      {
-        body: `${statusForV1(undefined, ['production-workflow'])}\n<!-- deployment-reference:SECRET -->`,
-      },
-      { commentStatus: 403 },
-    ]) {
-      const api = monitorApiV1(options);
-      const next = await referenceReportV1(api);
-      expect(next.signals.github[0]).toMatchObject({
-        state: 'inconclusive',
-        referenceState: 'baseline-unavailable',
-      });
-      expect(next.gaps).toContain('production-workflow');
-      expect(JSON.stringify(next)).not.toContain('SECRET');
-      if (!options.commentStatus) {
-        expect(await publishReferenceReportV1(api, next)).toBe('unchanged');
-        expect(api.body()).toContain('<!-- deployment-reference:invalid -->');
-      }
-    }
+  it('does not treat an unreadable watermark as first-run bootstrap', async () => {
+    const api = monitorApiV1({ commentStatus: 403 });
+    const next = await referenceReportV1(api);
+    expect(next.signals.github[0]).toMatchObject({
+      state: 'inconclusive',
+      referenceState: 'baseline-unavailable',
+    });
+    expect(next.gaps).toContain('production-workflow');
+  });
+  it('keeps a corrupted watermark as a gap until a run matching main replaces it', async () => {
+    const corrupted = `${statusForV1(undefined, ['production-workflow'])}\n<!-- deployment-reference:SECRET -->`;
+    const stale = monitorApiV1({ body: corrupted, runs: [historicalRun] });
+    const gap = await referenceReportV1(stale);
+    expect(gap.signals.github[0]).toMatchObject({
+      state: 'inconclusive',
+      referenceState: 'head-mismatch',
+    });
+    expect(gap.alerts).not.toContain('production-workflow');
+    expect(JSON.stringify(gap)).not.toContain('SECRET');
+    expect(await publishReferenceReportV1(stale, gap)).toBe('unchanged');
+    expect(stale.body()).toContain('<!-- deployment-reference:invalid -->');
+    const healed = monitorApiV1({ body: stale.body() });
+    const next = await referenceReportV1(healed);
+    expect(next.signals.github[0]).toMatchObject({ referenceState: 'verified' });
+    await publishReferenceReportV1(healed, next);
+    expect(healed.body()).toContain(
+      `<!-- deployment-reference:${JSON.stringify(referenceForV1(recentRun))} -->`,
+    );
+    expect(healed.body()).not.toContain('deployment-reference:invalid');
   });
   it('rejects earlier attempts and permits a newer successful attempt to prove recovery', async () => {
     const attempted = { ...recentRun, run_attempt: 2 };

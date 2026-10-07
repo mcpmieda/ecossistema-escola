@@ -62,9 +62,8 @@ export async function publishMonitorV1(input: {
   // Recheck immediately before publication: stale collectors cannot overwrite the watermark.
   if (
     candidate &&
-    (baseline.state === 'invalid' ||
-      (baseline.reference &&
-        compareDeploymentReferencesV1(candidate, baseline.reference) !== 'current'))
+    baseline.reference &&
+    compareDeploymentReferencesV1(candidate, baseline.reference) !== 'current'
   )
     throw new Error('Deployment reference changed during collection');
   const reference = candidate ?? baseline.reference;

@@ -252,15 +252,15 @@ async function productionWorkflowEvidenceV1(
     )
   )
     reason = 'inconsistent';
-  else if (baseline.state === 'invalid' || baseline.state === 'unavailable')
-    reason = 'baseline-unavailable';
+  else if (baseline.state === 'unavailable') reason = 'baseline-unavailable';
   else if (
     baseline.reference &&
     compareDeploymentReferencesV1(reference, baseline.reference) !== 'current'
   )
     reason = compareDeploymentReferencesV1(reference, baseline.reference);
   // The trusted checkout is a snapshot of main, not proof of the active deployed version.
-  // This also anchors bootstrap before the existing bot comment has a watermark.
+  // This also anchors bootstrap before the existing bot comment has a watermark, and lets a
+  // corrupted watermark be replaced instead of staying invalid until someone edits the comment.
   else if (!collectorSha || reference.headSha !== collectorSha) reason = 'head-mismatch';
   if (reason)
     return {
