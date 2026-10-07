@@ -2,10 +2,16 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import type { MonitorReportV1 } from './operational-monitor-v1.ts';
-import { renderMonitorV1 } from './operational-monitor-v1.ts';
+import { renderGithubEvidenceV1, renderMonitorV1 } from './operational-monitor-v1.ts';
 
-const base = 'https://api.github.com/repos/mcpmieda/ecossistema-escola';
-const marker = '<!-- operational-monitor-v1 -->';
+import {
+  compareDeploymentReferencesV1,
+  deploymentReferenceV1,
+  findMonitorStatusV1,
+  githubApiV1,
+  monitorMarkerV1,
+  readDeploymentReferenceV1,
+} from './operational-monitor-state-v1.ts';
 export const alertFingerprintV1 = (alerts: string[]) =>
   createHash('sha256')
     .update([...new Set(alerts)].sort((a, b) => a.localeCompare(b)).join('\n'))
@@ -33,47 +39,6 @@ export function unresolvedAlertsV1(previousAlerts: string[], report: MonitorRepo
   });
 }
 
-function githubApiV1(token: string, fetcher: typeof fetch) {
-  return async (path: string, method = 'GET', body?: unknown): Promise<unknown> => {
-    const response = await fetcher(base + path, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      redirect: 'error',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error('GitHub report unavailable');
-    }
-    return response.json();
-  };
-}
-
-async function findStatusV1(api: ReturnType<typeof githubApiV1>) {
-  let existing: { id: number; body: string } | undefined;
-  for (let page = 1; page <= 10; page++) {
-    const result = await api(`/issues/1211/comments?per_page=100&page=${page}`);
-    if (!Array.isArray(result)) throw new Error('Invalid comments');
-    for (const item of result) {
-      if (
-        item.user?.login === 'github-actions[bot]' &&
-        Number.isSafeInteger(item.id) &&
-        typeof item.body === 'string' &&
-        item.body.startsWith(marker)
-      )
-        existing = { id: item.id, body: item.body };
-    }
-    if (result.length < 100) break;
-    if (page === 10) throw new Error('Comment lookup exceeded bound');
-  }
-  return existing;
-}
-
 const code = (id: string) => '`' + id + '`';
 const bullet = (id: string) => '- ' + code(id);
 
@@ -86,13 +51,27 @@ export async function publishMonitorV1(input: {
 }) {
   if (!/^\d+$/u.test(input.runId) || !input.token) throw new Error('Missing publisher context');
   const api = githubApiV1(input.token, input.fetcher ?? fetch);
-  const issue = (await api('/issues/1211')) as {
-    user?: { login?: string };
-    pull_request?: unknown;
-  };
-  if (issue.user?.login !== 'mcpmieda' || issue.pull_request)
-    throw new Error('Unexpected monitor issue');
-  const existing = await findStatusV1(api);
+  const existing = await findMonitorStatusV1(api);
+  const baseline = readDeploymentReferenceV1(existing?.body);
+  const github = Array.isArray(input.report.signals.github) ? input.report.signals.github : [];
+  const deploy = github.find(
+    (row: Record<string, unknown>) => row.workflow === 'deploy-cloudflare-pages.yml',
+  );
+  const candidate =
+    deploy?.referenceState === 'verified' ? deploymentReferenceV1(deploy) : undefined;
+  // Recheck immediately before publication: stale collectors cannot overwrite the watermark.
+  if (
+    candidate &&
+    baseline.reference &&
+    compareDeploymentReferencesV1(candidate, baseline.reference) !== 'current'
+  )
+    throw new Error('Deployment reference changed during collection');
+  const reference = candidate ?? baseline.reference;
+  const referenceMarker = reference
+    ? `<!-- deployment-reference:${JSON.stringify(reference)} -->\n`
+    : baseline.state === 'invalid'
+      ? '<!-- deployment-reference:invalid -->\n'
+      : '';
   const previous = existing?.body.match(/<!-- alerts:([a-f0-9]{64}) -->/u)?.[1];
   const encodedAlerts = existing?.body.match(/<!-- alert-keys:([a-z:,-]*) -->/u)?.[1] ?? '';
   const unresolved = unresolvedAlertsV1(encodedAlerts.split(',').filter(Boolean), input.report);
@@ -109,7 +88,7 @@ export async function publishMonitorV1(input: {
   const uncertainty = unresolved.length
     ? `\n**Alertas anteriores ainda sem recuperação comprovada:** ${unresolved.map(code).join(', ')}. A fonte ficou sem evidência suficiente; isso não é recuperação.\n`
     : '';
-  const body = `${marker}\n<!-- alerts:${alertFingerprintV1(effectiveAlerts)} -->\n<!-- alert-keys:${effectiveAlerts.join(',')} -->\n<!-- window-end:${input.report.window.end} -->\n${uncertainty}\n${input.markdown}\n${gap}\n[Última execução e relatórios para download](${runUrl})\n`;
+  const body = `${monitorMarkerV1}\n${referenceMarker}<!-- alerts:${alertFingerprintV1(effectiveAlerts)} -->\n<!-- alert-keys:${effectiveAlerts.join(',')} -->\n<!-- window-end:${input.report.window.end} -->\n${uncertainty}\n${input.markdown}\n${gap}\n[Última execução e relatórios para download](${runUrl})\n`;
   await api(
     existing ? `/issues/comments/${existing.id}` : '/issues/1211/comments',
     existing ? 'PATCH' : 'POST',
@@ -117,7 +96,7 @@ export async function publishMonitorV1(input: {
   );
   if (kind === 'incident' || kind === 'recovery') {
     await api('/issues/1211/comments', 'POST', {
-      body: `### Monitoramento automático — ${kind === 'incident' ? 'mudança nos alertas' : 'recuperação dos alertas anteriores'}\n\n${input.report.checkedAt}\n\n${kind === 'incident' ? effectiveAlerts.map(bullet).join('\n') : 'As fontes dos alertas anteriores responderam sem os sinais de erro nesta verificação. As demais limitações de cobertura continuam registradas no relatório.'}\n${uncertainty}\n[Ver evidências e limitações](${runUrl})`,
+      body: `### Monitoramento automático — ${kind === 'incident' ? 'mudança nos alertas' : 'recuperação dos alertas anteriores'}\n\n${input.report.checkedAt}\n\n${kind === 'incident' ? effectiveAlerts.map(bullet).join('\n') : 'As fontes dos alertas anteriores responderam sem os sinais de erro nesta verificação. As demais limitações de cobertura continuam registradas no relatório.'}\n${uncertainty}\n${renderGithubEvidenceV1(input.report.signals).join('\n')}\n[Ver evidências e limitações](${runUrl})`,
     });
   }
   return kind;
