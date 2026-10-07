@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   LOGICAL_BACKUP_SEQUENCE_NAMES_V2,

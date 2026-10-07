@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { deletePortalProof } from '../../../workers/student-portal/proof-cleanup.ts';
 

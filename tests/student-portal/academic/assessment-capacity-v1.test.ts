@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { academicSubjectSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-student-reader-v1';
 import { subjectV1 } from '../../../shared/student-portal-contracts/self-v1';

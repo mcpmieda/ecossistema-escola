@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createRelationalImportDiagnosticsReadV2 } from '../../../server/gradebook/persistence/postgres/relational-import-diagnostics-read-v2';
 import type { GradebookPostgresReadPortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';

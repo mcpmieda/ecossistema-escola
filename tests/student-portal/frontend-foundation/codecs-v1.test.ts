@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';

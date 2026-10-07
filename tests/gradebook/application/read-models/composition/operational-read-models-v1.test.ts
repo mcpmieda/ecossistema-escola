@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 
 import { createGradebookOperationalReadModelsV1 } from '../../../../../server/gradebook/application/read-models/composition/operational-read-models-v1';

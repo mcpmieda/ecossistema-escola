@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { AcademicYearId, ClassGroupId } from '../../../shared/gradebook-contracts/entities';
 import { CLASS_PERFORMANCE_CONTRACT_VERSION_V1, PERFORMANCE_COLUMN_ORDER_V1, PERFORMANCE_ROW_ORDER_V1,

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import {

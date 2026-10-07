@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createHash } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
 import { PhotoStorageV1 } from '../../server/student-photos/storage-v1';

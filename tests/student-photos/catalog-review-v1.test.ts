@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../server/env';
 import { PhotoCatalogRepositoryV1 } from '../../server/student-photos/catalog-repository-v1';

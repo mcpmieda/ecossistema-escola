@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { AuthenticationError } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';

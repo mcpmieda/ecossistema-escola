@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import {

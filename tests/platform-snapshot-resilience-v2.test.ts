@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { platformSnapshotSchemaV2, platformRouteUnavailableV2, platformRouteNeedsMicrosoftV2, PLATFORM_SOURCE_SECTIONS_V2 } from '../shared/platform-snapshot-v2';

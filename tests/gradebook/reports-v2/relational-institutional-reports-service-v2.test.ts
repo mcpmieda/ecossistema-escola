@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createRelationalInstitutionalReportsServiceV2 } from '../../../server/gradebook/application/reports/relational-institutional-reports-v2';
 

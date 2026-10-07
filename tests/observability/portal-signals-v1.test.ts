@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { PortalSignalBufferV1 } from '../../server/student-portal/observability/signal-buffer-v1';
 import { emptyPortalSignalsV1, isPortalSignalsPageV1, portalSignalInputV1, portalSignalPointV1, SIGNAL_INTERVAL_MS_V1 } from '../../shared/portal-signals-v1';

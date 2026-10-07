@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { graphCredentials, TechnicalCredentialError } from '../server/auth/technical-identity';
 import { testEnv } from './fixtures';

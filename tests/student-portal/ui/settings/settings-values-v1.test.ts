@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { EMPTY_CALENDAR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import {

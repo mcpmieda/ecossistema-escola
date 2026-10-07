@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { inspectCloudflareRateLimitsV1 } from '../scripts/cloudflare-rate-limit-inventory-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import { handlePublicDemoRequestV1 } from '../../server/platform/public-demo-http-v1';
 import { requireAuth, AuthenticationError } from '../../server/auth/session';

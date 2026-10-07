@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { isSystemHealthSnapshotV1, isPortalMonitorSampleV1, isPortalMaintenanceSampleV1, isHealthInstantV1,

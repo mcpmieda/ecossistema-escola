@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';

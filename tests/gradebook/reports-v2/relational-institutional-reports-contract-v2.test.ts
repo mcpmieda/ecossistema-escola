@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   RELATIONAL_INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V2,
