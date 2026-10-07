@@ -10,6 +10,15 @@ import {
   collectOperationalHourlyTelemetryV1,
 } from './operational-telemetry-v1.ts';
 
+import {
+  compareDeploymentReferencesV1,
+  deploymentReferenceV1,
+  findMonitorStatusV1,
+  githubApiV1,
+  readDeploymentReferenceV1,
+} from './operational-monitor-state-v1.ts';
+import type { DeploymentReferenceV1 } from './operational-monitor-state-v1.ts';
+
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): ObjectValue =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as ObjectValue) : {};
@@ -85,6 +94,9 @@ function githubRunSummaryV1(workflow: string, run: ObjectValue) {
     state: run.id ? 'accessible' : 'inconclusive',
     runId: Number.isSafeInteger(run.id) ? run.id : undefined,
     headSha: sha(run.head_sha),
+    createdAt: timestamp(run.created_at),
+    runNumber: count(run.run_number),
+    runAttempt: count(run.run_attempt),
     updatedAt: timestamp(run.updated_at),
     status: ['completed', 'in_progress', 'queued', 'waiting', 'pending', 'requested'].find(
       (value) => value === run.status,
@@ -102,69 +114,190 @@ function githubRunSummaryV1(workflow: string, run: ObjectValue) {
   };
 }
 
+const productionStepsV1 = [
+  'Set up job',
+  'Checkout',
+  'Set up Node.js',
+  'Verify production head and locate exact PR gates',
+  'Download exact validated production inputs',
+  'Download exact PostgreSQL gate provenance',
+  'Prove both PR gates tested the production tree',
+  'Install production deployment dependencies',
+  'Restore exact validated Pages outputs',
+  'Verify source-built codec matches the deployed tree',
+  'Configure private production bindings',
+  'Recheck production head before publishing',
+  'Verify dedicated Hyperdrive cache and pool budgets',
+  'Refuse overwriting an unrelated public demo Worker',
+  'Deploy exact validated isolated demo before the admin consumer',
+  'Deploy compatible Portal backend before consumers',
+  'Deploy Portal HTTPS self entrypoint',
+  'Deploy Cloudflare Pages',
+  'Post Set up Node.js',
+  'Post Checkout',
+  'Complete job',
+];
+const failedConclusionsV1 = ['failure', 'timed_out', 'action_required'];
+
 async function productionJobEvidenceV1(token: string, run: ObjectValue, fetcher: typeof fetch) {
   const metadata = githubRunSummaryV1('deploy-cloudflare-pages.yml', run);
   const incomplete = {
     ...metadata,
     scope: 'production-job',
+    referenceState: 'verified',
     state: 'inconclusive',
     status: undefined,
     conclusion: undefined,
   };
-  if (typeof run.id !== 'number' || !Number.isSafeInteger(run.id) || run.id <= 0) return incomplete;
-  const response = await fetcher(
-    `https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
-    {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!response.ok) {
-    await response.body?.cancel();
-    const state =
-      response.status === 401 || response.status === 403 ? 'permission-required' : 'unavailable';
-    return { ...incomplete, state };
+  try {
+    const response = await fetcher(
+      `https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
+      {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!response.ok) {
+      await response.body?.cancel();
+      const state =
+        response.status === 401 || response.status === 403 ? 'permission-required' : 'unavailable';
+      return { ...incomplete, state };
+    }
+    const data = object(await response.json());
+    const jobs = list(data.jobs)
+      .map(object)
+      .filter((job) => job.name === 'Deploy production');
+    if (
+      jobs.length !== 1 ||
+      !Number.isSafeInteger(data.total_count) ||
+      data.total_count !== list(data.jobs).length ||
+      Number(data.total_count) > 100 ||
+      response.headers.get('link')?.includes('rel="next"')
+    )
+      return incomplete;
+    const job = jobs[0]!;
+    if (
+      job.run_id !== run.id ||
+      job.run_attempt !== run.run_attempt ||
+      job.head_sha !== run.head_sha
+    )
+      return incomplete;
+    return {
+      ...githubRunSummaryV1('deploy-cloudflare-pages.yml', {
+        ...run,
+        updated_at: job.completed_at ?? job.started_at ?? run.updated_at,
+        status: job.status,
+        conclusion: job.conclusion,
+      }),
+      scope: 'production-job',
+      referenceState: 'verified',
+      jobStartedAt: timestamp(job.started_at),
+      jobCompletedAt: timestamp(job.completed_at),
+      failedSteps: list(job.steps)
+        .map(object)
+        .filter((step) => failedConclusionsV1.includes(scalar(step.conclusion)))
+        .map((step) => ({
+          number: count(step.number),
+          name: productionStepsV1.find((name) => name === step.name),
+        })),
+    };
+  } catch {
+    return { ...incomplete, state: 'unavailable' };
   }
-  const data = object(await response.json());
-  const jobs = list(data.jobs)
-    .map(object)
-    .filter((job) => job.name === 'Deploy production');
-  if (jobs.length !== 1) return incomplete;
-  const job = jobs[0]!;
-  return {
-    ...githubRunSummaryV1('deploy-cloudflare-pages.yml', {
-      id: run.id,
-      head_sha: run.head_sha,
-      updated_at: job.completed_at ?? job.started_at ?? run.updated_at,
-      status: job.status,
-      conclusion: job.conclusion,
-    }),
-    scope: 'production-job',
-  };
 }
 
-async function githubWorkflowEvidenceV1(
-  workflow: string,
+type DeploymentBaselineV1 = {
+  state: 'available' | 'missing' | 'invalid' | 'unavailable';
+  reference?: DeploymentReferenceV1;
+};
+
+async function productionWorkflowEvidenceV1(
+  data: ObjectValue,
   token: string,
-  run: ObjectValue,
+  baseline: DeploymentBaselineV1,
+  collectorSha: string | undefined,
   fetcher: typeof fetch,
 ) {
-  return workflow === 'deploy-cloudflare-pages.yml'
-    ? productionJobEvidenceV1(token, run, fetcher)
-    : githubRunSummaryV1(workflow, run);
+  const runs = list(data.workflow_runs).map(object);
+  const references = runs.map((run) =>
+    deploymentReferenceV1(githubRunSummaryV1('deploy-cloudflare-pages.yml', run)),
+  );
+  const ordered = runs
+    .map((run, index) => ({ run, reference: references[index] }))
+    .sort(
+      (left, right) =>
+        (right.reference?.runNumber ?? 0) - (left.reference?.runNumber ?? 0) ||
+        (right.reference?.runAttempt ?? 0) - (left.reference?.runAttempt ?? 0),
+    );
+  const selected = ordered[0];
+  const reference = selected?.reference;
+  let reason: string | undefined;
+  if (
+    !reference ||
+    runs.some(
+      (run, index) =>
+        !references[index] ||
+        run.head_branch !== 'main' ||
+        run.event !== 'push' ||
+        run.path !== '.github/workflows/deploy-cloudflare-pages.yml' ||
+        object(run.repository).id !== 1345061518 ||
+        object(run.head_repository).id !== 1345061518,
+    )
+  )
+    reason = 'invalid-metadata';
+  else if (
+    references.some(
+      (other) => other && compareDeploymentReferencesV1(reference, other) !== 'current',
+    )
+  )
+    reason = 'inconsistent';
+  else if (baseline.state === 'invalid' || baseline.state === 'unavailable')
+    reason = 'baseline-unavailable';
+  else if (
+    baseline.reference &&
+    compareDeploymentReferencesV1(reference, baseline.reference) !== 'current'
+  )
+    reason = compareDeploymentReferencesV1(reference, baseline.reference);
+  // The trusted checkout is a snapshot of main, not proof of the active deployed version.
+  // This also anchors bootstrap before the existing bot comment has a watermark.
+  else if (!collectorSha || reference.headSha !== collectorSha) reason = 'head-mismatch';
+  if (reason)
+    return {
+      workflow: 'deploy-cloudflare-pages.yml',
+      scope: 'production-job',
+      ...reference,
+      state: 'inconclusive',
+      referenceState: reason,
+      previousReference: baseline.reference,
+    };
+  return productionJobEvidenceV1(token, selected!.run, fetcher);
 }
 
-export async function githubEvidenceV1(token: string, fetcher = fetch) {
+export async function githubEvidenceV1(
+  token: string,
+  fetcher = fetch,
+  context: { collectorSha?: string } = {},
+) {
   const reports: ObjectValue[] = [];
+  let baseline: DeploymentBaselineV1 = { state: 'unavailable' };
+  if (token) {
+    try {
+      const status = await findMonitorStatusV1(githubApiV1(token, fetcher));
+      baseline = readDeploymentReferenceV1(status?.body);
+    } catch {
+      /* A missing baseline is a gap; independent sources can still be collected. */
+    }
+  }
   for (const workflow of ['deploy-cloudflare-pages.yml', 'entra-operations-audit.yml']) {
     if (!token) {
       reports.push({ workflow, state: 'credential-missing' });
       continue;
     }
     try {
+      const isDeploy = workflow === 'deploy-cloudflare-pages.yml';
       const response = await fetcher(
-        `https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/workflows/${workflow}/runs?branch=main&event=${workflow.startsWith('deploy') ? 'push' : 'schedule'}&per_page=1`,
+        `https://api.github.com/repos/mcpmieda/ecossistema-escola/actions/workflows/${workflow}/runs?branch=main&event=${isDeploy ? 'push' : 'schedule'}&per_page=${isDeploy ? 20 : 1}`,
         {
           headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
           redirect: 'error',
@@ -182,9 +315,18 @@ export async function githubEvidenceV1(token: string, fetcher = fetch) {
         });
         continue;
       }
-      const data = object(await response.json()),
-        run = object(list(data.workflow_runs)[0]);
-      reports.push(await githubWorkflowEvidenceV1(workflow, token, run, fetcher));
+      const data = object(await response.json());
+      reports.push(
+        isDeploy
+          ? await productionWorkflowEvidenceV1(
+              data,
+              token,
+              baseline,
+              sha(context.collectorSha),
+              fetcher,
+            )
+          : githubRunSummaryV1(workflow, object(list(data.workflow_runs)[0])),
+      );
     } catch {
       reports.push({ workflow, state: 'unavailable' });
     }
@@ -282,8 +424,10 @@ function classifyGithubV1(
     const row = object(raw),
       isDeploy = row.workflow === 'deploy-cloudflare-pages.yml';
     const id = isDeploy ? 'production-workflow' : 'entra-audit';
+    if (isDeploy && row.referenceState && row.referenceState !== 'verified')
+      gaps.push('production-workflow-reference');
     if (row.state !== 'accessible') gaps.push(id);
-    else if (['failure', 'timed_out', 'action_required'].includes(scalar(row.conclusion)))
+    else if (row.status === 'completed' && failedConclusionsV1.includes(scalar(row.conclusion)))
       alerts.push(id);
     if (row.status !== 'completed' || row.conclusion !== 'success') gaps.push(id);
     if (
@@ -320,7 +464,10 @@ const explanations: Record<string, string> = {
   'worker-errors': 'Cloudflare registrou erros do Worker na janela de 60 minutos.',
   'hyperdrive-config': 'A configuração lida diverge do esperado: cache desabilitado e limite 8.',
   'sonar-quality-gate': 'O Quality Gate público do Sonar está reprovado.',
-  'production-workflow': 'O job de publicação mais recente terminou com falha.',
+  'production-workflow':
+    'O job de produção da execução verificada falhou; confira a data e a etapa abaixo. Isso não comprova queda do site.',
+  'production-workflow-reference':
+    'A referência de publicação é inconsistente ou não pôde ser confirmada contra a main e a última referência confiável. Não comprova nova falha nem recuperação.',
   'entra-audit': 'A auditoria existente do Entra terminou com falha.',
   'database-no-workflow-credential':
     'Banco: consultas profundas e contagens de contas/sessões não estão conectadas; não há credencial de diagnóstico de banco neste workflow.',
@@ -424,6 +571,44 @@ function gapLineV1(id: string) {
   return `- ${text}`;
 }
 
+function runLinkV1(row: ObjectValue) {
+  return typeof row.runId === 'number' && Number.isSafeInteger(row.runId) && row.runId > 0
+    ? `[run ${row.runId}](https://github.com/mcpmieda/ecossistema-escola/actions/runs/${row.runId})`
+    : 'run não informado';
+}
+
+export function renderGithubEvidenceV1(signals: Record<string, unknown>) {
+  const lines: string[] = [];
+  for (const raw of list(signals.github)) {
+    const row = object(raw);
+    const production = row.workflow === 'deploy-cloudflare-pages.yml';
+    if (!production && row.workflow !== 'entra-operations-audit.yml') continue;
+    lines.push(
+      `- ${production ? 'Job Deploy production' : 'Auditoria Entra'}: ${label(row.state)} · ${scalar(row.status)} / ${scalar(row.conclusion)} · ${runLinkV1(row)} · criação: ${timestamp(row.createdAt) ?? 'não informada'} · tentativa: ${scalar(row.runAttempt)}.`,
+    );
+    if (production) {
+      if (timestamp(row.jobCompletedAt))
+        lines.push(`  - Job concluído em ${timestamp(row.jobCompletedAt)}.`);
+      const steps = list(row.failedSteps).map(object);
+      if (failedConclusionsV1.includes(scalar(row.conclusion)))
+        lines.push(
+          `  - Etapa(s) com falha: ${steps.length ? steps.map((step) => productionStepsV1.find((name) => name === step.name) ?? `etapa ${scalar(count(step.number))} (nome não permitido)`).join('; ') : 'não identificada nas evidências disponíveis'}.`,
+        );
+      if (row.referenceState && row.referenceState !== 'verified') {
+        lines.push(
+          '  - Referência não confirmada; resultado não usado para declarar falha ou recuperação.',
+        );
+        const previous = deploymentReferenceV1(row.previousReference);
+        if (previous)
+          lines.push(
+            `  - Última referência confiável: ${runLinkV1(previous)} · criação: ${previous.createdAt} · tentativa: ${previous.runAttempt}.`,
+          );
+      }
+    }
+  }
+  return lines.length ? ['', '## Evidências do GitHub', '', ...lines] : [];
+}
+
 export function renderMonitorV1(report: MonitorReportV1, compact = false) {
   const data = report.signals;
   const deploy = object(data.deployment),
@@ -467,6 +652,7 @@ export function renderMonitorV1(report: MonitorReportV1, compact = false) {
     '## O que não foi possível comprovar',
     '',
     ...report.gaps.map(gapLineV1),
+    ...renderGithubEvidenceV1(data),
     ...(compact ? [] : detailedTelemetry(data)),
     '',
     '## Como ler e onde encontrar os detalhes',
@@ -569,7 +755,13 @@ async function main() {
         await collectOperationalHourlyTelemetryV1({ ...common, ...window }),
       );
   } else if (op === 'github')
-    await save(root, op, await githubEvidenceV1(process.env.GH_TOKEN ?? ''));
+    await save(
+      root,
+      op,
+      await githubEvidenceV1(process.env.GH_TOKEN ?? '', fetch, {
+        collectorSha: process.env.MONITOR_SHA,
+      }),
+    );
   else if (op === 'report') await saveReportV1(root, now, window);
   else throw new Error('Unsupported monitor operation');
 }

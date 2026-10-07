@@ -16,6 +16,30 @@ import {
 } from '../scripts/operational-monitor-publish-v1';
 
 const now = new Date('2026-09-29T03:07:00Z');
+const deploymentRun = {
+  id: 10,
+  run_number: 10,
+  run_attempt: 1,
+  head_sha: 'a'.repeat(40),
+  created_at: now.toISOString(),
+  head_branch: 'main',
+  event: 'push',
+  path: '.github/workflows/deploy-cloudflare-pages.yml',
+  repository: { id: 1345061518 },
+  head_repository: { id: 1345061518 },
+};
+const deploymentJob = { run_id: 10, run_attempt: 1, head_sha: deploymentRun.head_sha };
+function monitorFetcherV1(fetcher: typeof fetch, body = '<!-- operational-monitor-v1 -->') {
+  return (async (url, init) => {
+    if (String(url).endsWith('/issues/1211'))
+      return new Response(JSON.stringify({ user: { login: 'mcpmieda' } }));
+    if (String(url).includes('/issues/1211/comments'))
+      return new Response(
+        JSON.stringify([{ id: 2, user: { login: 'github-actions[bot]' }, body }]),
+      );
+    return fetcher(url, init);
+  }) as typeof fetch;
+}
 const report: MonitorReportV1 = {
   contractVersion: 1,
   checkedAt: now.toISOString(),
@@ -118,9 +142,11 @@ describe('operational monitor evidence', () => {
           );
           return new Response(
             JSON.stringify({
+              total_count: 2,
               jobs: [
                 {
                   name: 'Deploy production',
+                  ...deploymentJob,
                   status,
                   conclusion,
                   completed_at: now.toISOString(),
@@ -135,6 +161,7 @@ describe('operational monitor evidence', () => {
           JSON.stringify({
             workflow_runs: [
               {
+                ...deploymentRun,
                 id: 10,
                 head_sha: 'a'.repeat(40),
                 updated_at: now.toISOString(),
@@ -145,7 +172,9 @@ describe('operational monitor evidence', () => {
           }),
         );
       });
-      const github = await githubEvidenceV1('private-token', fetcher);
+      const github = await githubEvidenceV1('private-token', monitorFetcherV1(fetcher), {
+        collectorSha: deploymentRun.head_sha,
+      });
       expect(github[0]).toMatchObject({ scope: 'production-job', status });
       const classification = classifyMonitorV1({ github }, now);
       expect(classification.alerts.includes('production-workflow')).toBe(alert);
@@ -162,11 +191,15 @@ describe('operational monitor evidence', () => {
           ? new Response(JSON.stringify({ jobs: [], error: 'SECRET' }), { status })
           : new Response(
               JSON.stringify({
-                workflow_runs: [{ id: 10, status: 'completed', conclusion: 'success' }],
+                workflow_runs: [
+                  { ...deploymentRun, id: 10, status: 'completed', conclusion: 'success' },
+                ],
               }),
             ),
       );
-      const github = await githubEvidenceV1('private-token', fetcher);
+      const github = await githubEvidenceV1('private-token', monitorFetcherV1(fetcher), {
+        collectorSha: deploymentRun.head_sha,
+      });
       expect(github[0]?.state).toBe(status === 200 ? 'inconclusive' : 'permission-required');
       const classification = classifyMonitorV1({ github }, now);
       expect(classification.gaps).toContain('production-workflow');
@@ -202,6 +235,7 @@ describe('operational monitor evidence', () => {
           JSON.stringify({
             workflow_runs: [
               {
+                ...deploymentRun,
                 id: 10,
                 head_sha: 'a'.repeat(40),
                 updated_at: now.toISOString(),
@@ -214,7 +248,9 @@ describe('operational monitor evidence', () => {
         ),
       ),
     );
-    const output = await githubEvidenceV1('private-token', fetcher);
+    const output = await githubEvidenceV1('private-token', monitorFetcherV1(fetcher), {
+      collectorSha: deploymentRun.head_sha,
+    });
     expect(JSON.stringify(output)).not.toMatch(/SECRET|private-token/u);
     expect(output[0]?.headSha).toBe('a'.repeat(40));
   });
@@ -306,5 +342,330 @@ describe('status and incident publication', () => {
     const publish = yaml.split('- name: Atualizar painel')[1]?.split('- name: Sinalizar')[0];
     expect(publish).not.toContain('CLOUDFLARE');
     expect(yaml).not.toContain('actions: write');
+  });
+});
+
+const recentRun = {
+  ...deploymentRun,
+  id: 37401708433,
+  run_number: 800,
+  created_at: '2026-10-06T01:56:40Z',
+  updated_at: '2026-10-06T01:58:00Z',
+  status: 'completed',
+  conclusion: 'success',
+};
+const historicalRun = {
+  ...recentRun,
+  id: 35957973514,
+  run_number: 600,
+  created_at: '2026-09-24T02:00:00Z',
+  updated_at: '2026-10-07T05:49:00Z',
+  head_sha: 'b'.repeat(40),
+  conclusion: 'failure',
+};
+function referenceForV1(run: typeof recentRun) {
+  return {
+    runId: run.id,
+    runNumber: run.run_number,
+    runAttempt: run.run_attempt,
+    createdAt: new Date(run.created_at).toISOString(),
+    headSha: run.head_sha,
+  };
+}
+function statusForV1(run?: typeof recentRun, alerts: string[] = []) {
+  return `<!-- operational-monitor-v1 -->\n${run ? `<!-- deployment-reference:${JSON.stringify(referenceForV1(run))} -->\n` : ''}<!-- alerts:${alertFingerprintV1(alerts)} -->\n<!-- alert-keys:${alerts.join(',')} -->`;
+}
+function monitorApiV1(
+  options: {
+    runs?: Record<string, unknown>[];
+    body?: string;
+    commentStatus?: number;
+    job?: Record<string, unknown>;
+    steps?: Record<string, unknown>[];
+    jobCount?: number | null;
+    jobLink?: string;
+  } = {},
+) {
+  let body = options.body ?? statusForV1();
+  const writes: Array<{ method: string; body: string }> = [];
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+    const path = String(url);
+    expect(init?.redirect).toBe('error');
+    if ((init?.method ?? 'GET') !== 'GET') {
+      const payload = JSON.parse(String(init?.body)) as { body: string };
+      writes.push({ method: init!.method!, body: payload.body });
+      if (init?.method === 'PATCH') body = payload.body;
+      return new Response('{}');
+    }
+    if (path.endsWith('/issues/1211'))
+      return new Response(JSON.stringify({ user: { login: 'mcpmieda' } }));
+    if (path.includes('/issues/1211/comments'))
+      return new Response(
+        JSON.stringify([{ id: 2, user: { login: 'github-actions[bot]' }, body }]),
+        {
+          status: options.commentStatus ?? 200,
+        },
+      );
+    if (path.includes('/jobs?')) {
+      const run = (options.runs ?? [recentRun]).find((row) => path.includes(`/runs/${row.id}/`))!;
+      return new Response(
+        JSON.stringify({
+          total_count: options.jobCount === null ? undefined : (options.jobCount ?? 1),
+          jobs: [
+            {
+              name: 'Deploy production',
+              run_id: run.id,
+              run_attempt: run.run_attempt,
+              head_sha: run.head_sha,
+              status: run.status,
+              conclusion: run.conclusion,
+              completed_at: run.updated_at,
+              steps: options.steps ?? [],
+              ...options.job,
+            },
+          ],
+        }),
+        { headers: options.jobLink ? { link: options.jobLink } : {} },
+      );
+    }
+    if (path.includes('deploy-cloudflare-pages.yml')) {
+      expect(path).toContain('branch=main&event=push&per_page=20');
+      return new Response(JSON.stringify({ workflow_runs: options.runs ?? [recentRun] }));
+    }
+    if (path.includes('entra-operations-audit.yml'))
+      return new Response(
+        JSON.stringify({ workflow_runs: [{ ...recentRun, conclusion: 'success' }] }),
+      );
+    throw new Error('Unexpected test endpoint');
+  });
+  return { fetcher, writes, body: () => body };
+}
+async function referenceReportV1(
+  api: ReturnType<typeof monitorApiV1>,
+  collectorSha = recentRun.head_sha,
+) {
+  const github = await githubEvidenceV1('private-token', api.fetcher, { collectorSha });
+  return {
+    ...report,
+    collectorSha,
+    signals: { github },
+    ...classifyMonitorV1({ github }, new Date('2026-10-07T05:49:00Z')),
+  };
+}
+async function publishReferenceReportV1(
+  api: ReturnType<typeof monitorApiV1>,
+  next: MonitorReportV1,
+) {
+  return publishMonitorV1({
+    token: 'test',
+    report: next,
+    markdown: renderMonitorV1(next, true),
+    runId: '123',
+    fetcher: api.fetcher,
+  });
+}
+
+describe('monotonic production workflow references', () => {
+  it('persists a recent success then rejects the historical failure without a false incident', async () => {
+    const first = monitorApiV1();
+    const success = await referenceReportV1(first);
+    expect(success.alerts).not.toContain('production-workflow');
+    expect(await publishReferenceReportV1(first, success)).toBe('unchanged');
+    expect(first.body()).toContain(
+      `<!-- deployment-reference:${JSON.stringify(referenceForV1(recentRun))} -->`,
+    );
+    const next = monitorApiV1({ body: first.body(), runs: [historicalRun] });
+    const stale = await referenceReportV1(next);
+    expect(stale.signals.github[0]).toMatchObject({
+      state: 'inconclusive',
+      referenceState: 'regressed',
+    });
+    expect(stale.alerts).not.toContain('production-workflow');
+    expect(stale.gaps).toContain('production-workflow-reference');
+    expect(next.fetcher.mock.calls.some(([url]) => String(url).includes('/jobs?'))).toBe(false);
+    expect(await publishReferenceReportV1(next, stale)).toBe('unchanged');
+    expect(next.writes).toHaveLength(1);
+    expect(next.body()).toContain(
+      `<!-- deployment-reference:${JSON.stringify(referenceForV1(recentRun))} -->`,
+    );
+    const markdown = renderMonitorV1(stale);
+    expect(markdown).toContain('run 35957973514');
+    expect(markdown).toContain('2026-09-24T02:00:00.000Z');
+    expect(markdown).toContain('Última referência confiável: [run 37401708433]');
+    expect(markdown).toContain('não pôde ser confirmada');
+    expect(markdown).not.toContain('terminou com falha');
+  });
+  it('does not recover a newer failure from historical success', async () => {
+    const api = monitorApiV1({
+      body: statusForV1({ ...recentRun, conclusion: 'failure' }, ['production-workflow']),
+      runs: [{ ...historicalRun, conclusion: 'success' }],
+    });
+    const stale = await referenceReportV1(api);
+    expect(await publishReferenceReportV1(api, stale)).toBe('unchanged');
+    expect(api.writes).toHaveLength(1);
+    expect(api.body()).toContain('Alertas anteriores ainda sem recuperação comprovada');
+    expect(api.body()).toContain('<!-- alert-keys:production-workflow -->');
+  });
+  it('reports a genuine new failure with its exact run, date and allowed failed step', async () => {
+    const failed = {
+      ...recentRun,
+      id: recentRun.id + 1,
+      run_number: 801,
+      head_sha: 'c'.repeat(40),
+      created_at: '2026-10-07T06:00:00Z',
+      updated_at: '2026-10-07T06:01:00Z',
+      conclusion: 'failure',
+    };
+    const api = monitorApiV1({
+      body: statusForV1(recentRun),
+      runs: [failed],
+      steps: [
+        {
+          number: 7,
+          name: 'Prove both PR gates tested the production tree',
+          conclusion: 'failure',
+        },
+        { number: 18, name: 'Deploy Cloudflare Pages', conclusion: 'skipped' },
+        { number: 19, name: 'SECRET', conclusion: 'failure' },
+      ],
+    });
+    const next = await referenceReportV1(api, failed.head_sha);
+    expect(next.alerts).toContain('production-workflow');
+    expect(await publishReferenceReportV1(api, next)).toBe('incident');
+    expect(api.writes).toHaveLength(2);
+    for (const write of api.writes) {
+      expect(write.body).toContain(`run ${failed.id}`);
+      expect(write.body).toContain('2026-10-07T06:01:00.000Z');
+      expect(write.body).toContain('Prove both PR gates tested the production tree');
+      expect(write.body).not.toContain('SECRET');
+    }
+    expect(JSON.stringify(next)).not.toMatch(/SECRET|private-token/u);
+  });
+  it('orders a shuffled page by immutable creation identity, not updated_at or array position', async () => {
+    const api = monitorApiV1({ runs: [historicalRun, recentRun] });
+    const next = await referenceReportV1(api);
+    expect(next.signals.github[0]).toMatchObject({
+      runId: recentRun.id,
+      referenceState: 'verified',
+      conclusion: 'success',
+    });
+    expect(next.alerts).not.toContain('production-workflow');
+  });
+  it.each([
+    { patch: { run_number: 801 }, reason: 'inconsistent' },
+    { patch: { run_number: 700, created_at: '2026-10-07T06:00:00Z' }, reason: 'inconsistent' },
+    { patch: { head_branch: 'other' }, reason: 'invalid-metadata' },
+    { patch: { event: 'pull_request' }, reason: 'invalid-metadata' },
+    { patch: { path: 'other.yml' }, reason: 'invalid-metadata' },
+    { patch: { repository: { id: 1 } }, reason: 'invalid-metadata' },
+    { patch: { head_repository: { id: 1 } }, reason: 'invalid-metadata' },
+    { patch: { created_at: 'SECRET' }, reason: 'invalid-metadata' },
+    { patch: { run_attempt: 0 }, reason: 'invalid-metadata' },
+  ])('rejects invalid or conflicting run identity: $patch', async ({ patch, reason }) => {
+    const api = monitorApiV1({
+      body: statusForV1(recentRun),
+      runs: [{ ...historicalRun, ...patch }],
+    });
+    const next = await referenceReportV1(api);
+    expect(next.signals.github[0]).toMatchObject({ state: 'inconclusive', referenceState: reason });
+    expect(next.alerts).not.toContain('production-workflow');
+    expect(next.gaps).toContain('production-workflow');
+    expect(JSON.stringify(next)).not.toContain('SECRET');
+  });
+  it('cannot bootstrap against an old head or without a checkout SHA', async () => {
+    for (const collectorSha of [recentRun.head_sha, '']) {
+      const api = monitorApiV1({ runs: [historicalRun] });
+      const next = await referenceReportV1(api, collectorSha);
+      expect(next.signals.github[0]).toMatchObject({
+        state: 'inconclusive',
+        referenceState: 'head-mismatch',
+      });
+      expect(next.alerts).not.toContain('production-workflow');
+      await publishReferenceReportV1(api, next);
+      expect(api.body()).not.toContain('<!-- deployment-reference:');
+    }
+  });
+  it('preserves the watermark and incident when main has advanced but its run is absent', async () => {
+    const api = monitorApiV1({ body: statusForV1(recentRun, ['production-workflow']) });
+    const next = await referenceReportV1(api, 'c'.repeat(40));
+    expect(next.gaps).toContain('production-workflow');
+    expect(await publishReferenceReportV1(api, next)).toBe('unchanged');
+    expect(api.body()).toContain('<!-- alert-keys:production-workflow -->');
+    expect(api.body()).toContain(
+      `<!-- deployment-reference:${JSON.stringify(referenceForV1(recentRun))} -->`,
+    );
+  });
+  it('does not treat an unreadable or corrupted watermark as first-run bootstrap', async () => {
+    for (const options of [
+      {
+        body: `${statusForV1(undefined, ['production-workflow'])}\n<!-- deployment-reference:SECRET -->`,
+      },
+      { commentStatus: 403 },
+    ]) {
+      const api = monitorApiV1(options);
+      const next = await referenceReportV1(api);
+      expect(next.signals.github[0]).toMatchObject({
+        state: 'inconclusive',
+        referenceState: 'baseline-unavailable',
+      });
+      expect(next.gaps).toContain('production-workflow');
+      expect(JSON.stringify(next)).not.toContain('SECRET');
+      if (!options.commentStatus) {
+        expect(await publishReferenceReportV1(api, next)).toBe('unchanged');
+        expect(api.body()).toContain('<!-- deployment-reference:invalid -->');
+      }
+    }
+  });
+  it('rejects earlier attempts and permits a newer successful attempt to prove recovery', async () => {
+    const attempted = { ...recentRun, run_attempt: 2 };
+    const old = monitorApiV1({ body: statusForV1(attempted, ['production-workflow']) });
+    const next = await referenceReportV1(old);
+    expect(next.signals.github[0]).toMatchObject({ referenceState: 'regressed' });
+    expect(await publishReferenceReportV1(old, next)).toBe('unchanged');
+    const retry = monitorApiV1({
+      body: statusForV1(recentRun, ['production-workflow']),
+      runs: [attempted],
+    });
+    const recovery = await referenceReportV1(retry);
+    expect(await publishReferenceReportV1(retry, recovery)).toBe('recovery');
+  });
+  it.each([{ run_id: 1 }, { run_attempt: 2 }, { head_sha: 'c'.repeat(40) }])(
+    'does not use jobs from a different run, attempt or head: $0',
+    async (job) => {
+      const api = monitorApiV1({ body: statusForV1(recentRun, ['production-workflow']), job });
+      const next = await referenceReportV1(api);
+      expect(next.signals.github[0]).toMatchObject({ state: 'inconclusive' });
+      expect(next.alerts).not.toContain('production-workflow');
+      expect(await publishReferenceReportV1(api, next)).toBe('unchanged');
+    },
+  );
+  it('refuses a collector whose verified reference became obsolete before publication', async () => {
+    const first = monitorApiV1({ runs: [historicalRun] });
+    const next = await referenceReportV1(first, historicalRun.head_sha);
+    const changed = monitorApiV1({ body: statusForV1(recentRun) });
+    await expect(publishReferenceReportV1(changed, next)).rejects.toThrow(
+      'Deployment reference changed',
+    );
+    expect(changed.writes).toHaveLength(0);
+  });
+});
+
+describe('incomplete production job responses', () => {
+  it.each([
+    { jobCount: null },
+    { jobCount: 2 },
+    { jobCount: 1.5 },
+    { jobLink: '<https://api.github.com/next>; rel="next"' },
+  ])('keeps truncated or malformed job evidence inconclusive: $0', async (options) => {
+    const api = monitorApiV1({ ...options, body: statusForV1(recentRun, ['production-workflow']) });
+    const next = await referenceReportV1(api);
+    expect(next.gaps).toContain('production-workflow');
+    expect(await publishReferenceReportV1(api, next)).toBe('unchanged');
+  });
+  it('does not alert on a contradictory in-progress failure', async () => {
+    const api = monitorApiV1({ job: { status: 'in_progress', conclusion: 'failure' } });
+    const next = await referenceReportV1(api);
+    expect(next.alerts).not.toContain('production-workflow');
+    expect(next.gaps).toContain('production-workflow');
   });
 });
