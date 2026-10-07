@@ -327,14 +327,13 @@ describe('bounded Cloudflare rate limit metadata inventory', () => {
 
   it('keeps the extension in the existing owner-authorized manual Portal diagnostic', () => {
     const workflow = readFileSync('.github/workflows/cloudflare-on-demand.yml', 'utf8');
-    const execute = workflow.split('\n  execute:')[1]!.split('\n  monitor:')[0]!;
-    const monitor = workflow.split('\n  monitor:')[1]!;
+    const execute = workflow.split('\n  execute:')[1]!;
     expect(execute).toContain('github.actor_id == github.repository_owner_id');
     expect(execute).toContain('ref: refs/heads/main');
     expect(execute).toContain("steps.request.outputs.operation == 'portal'");
     expect(execute).toContain('scripts/cloudflare-rate-limit-inventory-v1.ts');
     expect(execute).toContain('secrets.CLOUDFLARE_DEPLOY_TOKEN');
-    expect(monitor).not.toContain('cloudflare-rate-limit-inventory');
+    expect(workflow).not.toContain('schedule:');
     expect(workflow).not.toContain('pull_request_target');
   });
 });

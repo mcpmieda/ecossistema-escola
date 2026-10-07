@@ -99,12 +99,6 @@ The operator performs no mutable Cloudflare request.
 
 A future write operator is not implied by this read-only design. Mutations, wider permissions or additional credentials require a separate reviewed delivery and the applicable authorization.
 
-## Automatic monitoring
-
-The same workflow also runs every 15 minutes, after successful official production deployments, and daily. See [OPERATIONAL_MONITOR.md](./OPERATIONAL_MONITOR.md) for the Portuguese user guide, current coverage, limitations, safe extension rules and 14/90-day artifact retention. The `monitor` job maintains a current status comment in #1211; manual operations `monitor` and `daily` are also available to the owner on main, without an issue input. Existing `/cloudflare` and `/cloudflare portal` commands remain unchanged.
-
-The additional POST requests to Workers Observability `telemetry/keys` and `telemetry/query` are read-only queries; query requests use `dry: true` and return calculations only. They do not create saved queries or modify Workers. Permission failures remain explicit gaps. Raw events, provider errors and arbitrary dimensions are never published.
-
 ### Implementation files
 
 - Workflow: `.github/workflows/cloudflare-on-demand.yml`
