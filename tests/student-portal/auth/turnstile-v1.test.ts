@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { TURNSTILE_ACTION_V1, TurnstileVerifierV1 } from '../../../server/student-portal/auth/turnstile-v1';
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest';
 import { collectPublicProviderHealthV1, createPublicProviderCacheV1 } from '../../server/platform/system-health-providers-v1';
 import { isPublicProviderHealthV1 } from '../../shared/public-provider-health-v1';

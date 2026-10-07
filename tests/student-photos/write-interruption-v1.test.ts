@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { PhotoWriteCoordinatorV1, type PhotoWritePortsV1 } from '../../server/student-photos/write-coordinator-v1';
 import { photoWriteReceiptV1, type PhotoWriteReceiptV1, type PhotoWriteContextV1,

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
 import { createGradebookRelationalImportServiceV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';

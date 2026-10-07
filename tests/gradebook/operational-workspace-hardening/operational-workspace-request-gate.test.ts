@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { createOperationalWorkspaceRequestGate } from '../../../src/features/gradebook/operational-workspace/operational-workspace-request-gate';
 

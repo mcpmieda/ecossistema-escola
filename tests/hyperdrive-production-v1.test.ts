@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { configureProductionHyperdriveV1, hyperdrivePatchV1 } from '../scripts/hyperdrive-production-v1';
 

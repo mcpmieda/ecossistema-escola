@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import QRCode from 'qrcode';
 import { SYNTHETIC_QR_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';

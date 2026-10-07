@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { isPortalHistoryV1, isPortalHistoryPointV1, isHistoryRequestV1, portalHistoryPointStateV1,
   portalHistoryChangeV1, HEALTH_HISTORY_RETENTION_MS_V1 } from '../../shared/system-health-history-v1';

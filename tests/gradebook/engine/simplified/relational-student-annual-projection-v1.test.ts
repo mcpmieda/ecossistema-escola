@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { GradebookPostgresReadPortV1 } from '../../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import {

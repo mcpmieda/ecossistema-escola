@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { graphReadUrlV1 } from '../../scripts/entra/graph-read-url-v1';
 import { buildMaintenancePlan } from '../../scripts/entra/maintenance-plan';

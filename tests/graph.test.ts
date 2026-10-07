@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { getGraphToken, GraphError, graphBatch, graphRequest } from '../server/graph/client';
 import { testEnv } from './fixtures';

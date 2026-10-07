@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { isQualitativeColumnOrdinalV1, meaningfulQualitativeDescriptionV1 } from '../../../shared/gradebook-contracts/source/qualitative-slot-evidence-v1';
 import { compareSourceSubjectPresentationV1, SOURCE_SUBJECT_PRESENTATION_V1, sourceSubjectAbbreviationV1, sourceSubjectPresentationOrderV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import {
   AUDIT_WORKSPACE_CONTRACT_VERSION_V1,

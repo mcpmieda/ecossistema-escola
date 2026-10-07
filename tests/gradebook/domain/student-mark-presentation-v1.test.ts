@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { resolveStudentMarkPresentationV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 import type { AcademicPresentationInputV1 } from '../../../shared/gradebook-contracts/student-portal/academic-presentation-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { emptyPortalSignalsV1, isPortalSignalsPageV1, portalSignalBatchV1, portalSignalPointV1, signalCheckpointV1 } from '../../shared/portal-signals-v1';
 import { PortalSignalBufferV1 } from '../../server/student-portal/observability/signal-buffer-v1';

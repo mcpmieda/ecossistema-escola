@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';

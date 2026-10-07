@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { GradebookNotesImportRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { filterHistoricalClassFactsV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';

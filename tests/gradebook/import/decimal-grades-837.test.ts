@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { decimalGradeBatch837 } from './decimal-grades-837-fixture';
 import { createGradebookCanonicalImportRequestV9, canonicalMilliV9 } from '../../../src/features/gradebook/import/canonical-import-v9';

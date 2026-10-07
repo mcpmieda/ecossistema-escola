@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { graphAllPages, graphContentRequest, GraphError, graphRequest } from '../server/graph/client';
 import { graphRetryAfterMsV1 } from '../server/graph/request-policy-v1';

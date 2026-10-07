@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { TextDecoder as NodeTextDecoder } from 'node:util';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createPortraitClientV1 } from '../../../src/features/student-portal/photos/portrait-client-v1';

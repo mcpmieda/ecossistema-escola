@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest';
 import { StudentWebpCodecV1, type WebpPhotoQualityV1, type WebpPhotoVariantV1 } from '../../../server/student-photos/webp-codec-v1';
 

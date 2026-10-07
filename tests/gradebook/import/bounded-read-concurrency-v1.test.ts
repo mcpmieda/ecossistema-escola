@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   IMPORT_PLANNER_READ_CONCURRENCY_V1,

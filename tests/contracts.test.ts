@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { featureFlag } from '../server/modules/feature-flags';
 import {

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { studentIdentityRequestV1 } from '../../shared/student-identity/student-identity-v1';
 import { resolveStudentIdentitiesV1 } from '../../server/student-identity/resolve-student-identity-v1';

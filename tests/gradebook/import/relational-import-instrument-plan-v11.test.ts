@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { buildRelationalImportInstrumentPlanV11 } from '../../../server/gradebook/application/import/import-relational-instrument-plan-v11';
 import { materializeRelationalImportInstrumentPlanV11 } from '../../../server/gradebook/persistence/postgres/relational-import-instrument-batch-v11';

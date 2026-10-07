@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLatestPortalRequestV1, type PortalLoadStateV1 } from '../../src/features/student-portal/shared/latest-request-v1';
 import { PortalClientErrorV1 } from '../../src/features/student-portal/shared/transport-v1';
