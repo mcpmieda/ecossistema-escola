@@ -271,18 +271,3 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-
-  monitor-after-deploy:
-    name: Conferir publicação com monitoramento somente leitura
-    needs: deploy
-    permissions:
-      contents: read
-      actions: read
-      issues: write
-    uses: ./.github/workflows/cloudflare-on-demand.yml
-    with:
-      operation: monitor
-      post_deploy: true
-    secrets:
-      CLOUDFLARE_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
-      CLOUDFLARE_HYPERDRIVE_TOKEN: ${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN }}

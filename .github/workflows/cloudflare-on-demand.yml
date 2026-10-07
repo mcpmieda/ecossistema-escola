@@ -8,29 +8,10 @@ on:
       - 'scripts/cloudflare-rate-limit-inventory-v1.ts'
       - 'tests/cloudflare-operator-v1.test.ts'
       - 'tests/cloudflare-rate-limit-inventory-v1.test.ts'
-      - 'scripts/operational-*.ts'
-      - 'tests/operational-*.test.ts'
-      - 'docs/infra/OPERATIONAL_MONITOR.md'
       - 'docs/infra/CLOUDFLARE_OPERATOR.md'
       - 'docs/infra/AUTOMATION_CREDENTIAL_INVENTORY.md'
   issue_comment:
     types: [created]
-  schedule:
-    - cron: '7,22,37,52 * * * *'
-    - cron: '7 3 * * *'
-  workflow_call:
-    inputs:
-      operation:
-        type: string
-        default: monitor
-      post_deploy:
-        type: boolean
-        default: false
-    secrets:
-      CLOUDFLARE_DEPLOY_TOKEN:
-        required: false
-      CLOUDFLARE_HYPERDRIVE_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       issue_number:
@@ -45,13 +26,11 @@ on:
         options:
           - capabilities
           - portal
-          - monitor
-          - daily
 
 permissions: {}
 
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || inputs.post_deploy || (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id) || (github.event_name == 'issue_comment' && github.actor_id == github.repository_owner_id && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
+  group: ${{ ((github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id) || (github.event_name == 'issue_comment' && github.actor_id == github.repository_owner_id && (github.event.comment.body == '/cloudflare' || github.event.comment.body == '/cloudflare portal'))) && 'cloudflare-readonly-operator' || format('cloudflare-passive-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -80,8 +59,7 @@ jobs:
       - name: Run focused operator tests
         # Run the lockfile-pinned vitest through the package script. On-demand package
         # execution would fetch an unpinned release if the local binary were missing.
-        run: npm test -- tests/cloudflare-operator-v1.test.ts tests/cloudflare-rate-limit-inventory-v1.test.ts tests/operational-probes-v1.test.ts tests/operational-telemetry-v1.test.ts tests/operational-monitor-v1.test.ts
-
+        run: npm test -- tests/cloudflare-operator-v1.test.ts tests/cloudflare-rate-limit-inventory-v1.test.ts
   execute:
     name: Execute bounded Cloudflare read-only operation
     if: >-
@@ -338,121 +316,3 @@ jobs:
         run: >-
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body
           "O operador Cloudflare falhou fechado. Nenhuma operação mutável foi executada e nenhuma credencial foi alterada. Workflow run ${GITHUB_RUN_ID}."
-
-  monitor:
-    name: Monitoramento automático — saúde, evidências e lacunas
-    if: >-
-      github.repository_id == '1345061518' &&
-      (github.event_name == 'schedule' ||
-       (inputs.post_deploy && github.ref == 'refs/heads/main') ||
-       (github.event_name == 'workflow_dispatch' && github.actor_id == github.repository_owner_id && github.ref == 'refs/heads/main' && (inputs.operation == 'monitor' || inputs.operation == 'daily')))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
-    permissions:
-      contents: read
-      actions: read
-      issues: write
-    env:
-      MONITOR_DAILY: ${{ github.event.schedule == '7 3 * * *' || inputs.operation == 'daily' }}
-      DEPLOY_SHA: ${{ inputs.post_deploy && github.sha || '' }}
-    steps:
-      - name: Checkout confiável da main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: mcpmieda/ecossistema-escola
-          ref: refs/heads/main
-          persist-credentials: false
-
-      - name: Preparar Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 22
-
-      - name: Fixar horário e versão do coletor
-        shell: bash
-        run: |
-          echo "MONITOR_DIR=$RUNNER_TEMP/monitor" >> "$GITHUB_ENV"
-          echo "MONITOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-          echo "MONITOR_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-
-      - name: Conferir sites públicos e qualidade
-        continue-on-error: true
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts public
-
-      - name: Consultar publicação e métricas do Portal
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts deployment
-
-      - name: Consultar telemetria agregada do uso real
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts telemetry
-
-      - name: Conferir Hyperdrive sem alterar configuração
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts hyperdrive
-
-      - name: Ler publicação oficial e auditoria Entra existente
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts github
-
-      - name: Gerar resumo legível e relatório técnico
-        if: always()
-        run: node --experimental-strip-types scripts/operational-monitor-v1.ts report
-
-      - name: Guardar relatório periódico por 14 dias
-        if: always() && env.MONITOR_DAILY != 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: monitor-detalhado-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/monitor/report.json
-            ${{ runner.temp }}/monitor/report.md
-          retention-days: 14
-          if-no-files-found: error
-
-      - name: Guardar consolidado diário por 90 dias
-        if: always() && env.MONITOR_DAILY == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: monitor-diario-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/monitor/report.json
-            ${{ runner.temp }}/monitor/report.md
-          retention-days: 90
-          if-no-files-found: error
-
-      - name: Atualizar painel e registrar mudanças de alertas
-        if: env.MONITOR_DAILY != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node --experimental-strip-types scripts/operational-monitor-publish-v1.ts
-
-      - name: Sinalizar problemas observados
-        if: always()
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFile } from 'node:fs/promises';
-          try {
-            const report = JSON.parse(await readFile(`${process.env.MONITOR_DIR}/report.json`, 'utf8'));
-            if (report.alerts.length) {
-              console.error('Foram encontrados alertas. Consulte o resumo desta execução.');
-              process.exitCode = 1;
-            }
-          } catch {
-            console.error('Relatório indisponível. A execução não comprova saúde do sistema.');
-            process.exitCode = 1;
-          }
-          NODE
