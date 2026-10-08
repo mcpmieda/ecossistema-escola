@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import type { PerformanceAnalyticsV6 } from '../../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import { isParticipationLabelV1, type PerformanceLearningV1 } from '../../../../../shared/gradebook-contracts/performance/performance-learning-v1';
 import { performanceCellV2, type PerformanceProjectionV2, type PerformanceFactV2 } from '../../results/relational-performance-facts-v2';
@@ -66,7 +67,10 @@ export function buildPerformanceLearningV1(
         if (term > 1) {
           const currentResult = performanceCellV2(projection, term, 'regular');
           const previousResult = performanceCellV2(projection, (term - 1) as Term, 'regular');
-          if (currentResult.state === 'complete' && previousResult.state === 'complete') {
+          if (
+            performanceResultCountsV2(currentResult.state) &&
+            performanceResultCountsV2(previousResult.state)
+          ) {
             recurrenceAssessed = true;
             if (currentResult.level === 'below' && previousResult.level === 'below') consecutiveTerms.push(term);
           }

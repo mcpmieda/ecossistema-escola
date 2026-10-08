@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   analysisMatrixRequestV2,
   performanceAnalysisRequestSchemaV3,
@@ -62,11 +63,8 @@ function dimension(
   const hasParallelGain = quantitative && outcomes.some(
     (value) => value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
   );
-  const state = resolved.every(Boolean)
-    ? 'complete'
-    : resolved.some(Boolean) || hasParallelGain
-      ? 'partial'
-      : 'not-recorded';
+  // BN-DEC-042: a blank instrument was not done; the dimension always has its value.
+  const state = resolved.every(Boolean) ? 'complete' : 'partial';
   const maxima = quantitative
     ? outcomes.map((value) => value!.quantitativeMaximumMilli)
     : factsByTerm.flat().map((fact) => fact.maximumMilli);
@@ -75,16 +73,11 @@ function dimension(
     state,
     recordedMilli: null,
     maximumMilli: maximumMilli === 0 ? null : maximumMilli,
-    valueMilli:
-      state === 'not-recorded'
-        ? null
-        : sum(
-            outcomes.map((value) =>
-              quantitative
-                ? value!.quantitativeConsideredMilli
-                : value!.qualitativeOperationalMilli,
-            ),
-          ),
+    valueMilli: sum(
+      outcomes.map((value) =>
+        quantitative ? value!.quantitativeConsideredMilli : value!.qualitativeOperationalMilli,
+      ),
+    ),
   };
 }
 function assessment(projection: PerformanceProjectionV2, column: Column): RawReading {
@@ -118,8 +111,7 @@ function reading(
   // Resultado may already expose a numeric term total while its instrument coverage is partial.
   // Classify that visible total proportionally for the dashboard, without changing the source state
   // or converting a missing value into zero. Composition lenses still require complete coverage.
-  const classificationReady =
-    raw.state === 'complete' || (classifyPartialResult && raw.state === 'partial');
+  const classificationReady = performanceResultCountsV2(raw.state);
   const percent =
     classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null
       ? (raw.valueMilli / raw.maximumMilli) * 100

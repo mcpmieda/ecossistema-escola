@@ -129,11 +129,10 @@ export function performanceCellV2(
           value!.coverage.resolvedSlots.length > 0 ||
           value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
       );
-      state = outcomes.every((value) => value!.coverage.complete)
+      // BN-DEC-042: every result counts. "partial" only marks that some instrument is blank.
+      state = outcomes.every((value) => value!.coverage.missingSlots.length === 0)
         ? 'complete'
-        : anyRecorded
-          ? 'partial'
-          : 'not-recorded';
+        : 'partial';
       if (state === 'complete' || state === 'partial')
         valueMilli = period === 'annual' ? recovery!.originalTotalMilli : term!.roundedMilli;
     }

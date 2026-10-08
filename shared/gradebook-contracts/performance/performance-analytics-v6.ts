@@ -70,7 +70,10 @@ export const performanceAnalyticsSummarySchemaV6 = z
   .strict()
   .superRefine((value, ctx) => {
     if (
-      value.complete + value.partial + value.missing + value.unavailable !== value.readings ||
+      // BN-DEC-042: "complete" counts every reading with a result; "partial" is the part of
+      // them that has a blank instrument.
+      value.complete + value.missing + value.unavailable !== value.readings ||
+      value.partial > value.complete ||
       value.above + value.below !== value.complete ||
       value.result.n !== value.complete ||
       value.studentsAtOrAbove + value.studentsBelow + value.studentsPending !== value.students ||

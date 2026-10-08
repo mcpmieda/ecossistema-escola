@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4,
   performanceTermComparisonMatchesV4, termComparisonAnalysisRequestV3,
@@ -68,14 +69,14 @@ export function buildPerformanceTermComparisonV4(matrix: PerformanceMatrixV2,
 
 function unavailable(current: AnalysisReadingV3, reference: AnalysisReadingV3): PerformanceTermComparisonValueV4 {
   const reason = current.bucket === 'excluded' ? 'current-excluded' : reference.bucket === 'excluded' ? 'reference-excluded' :
-    current.state !== 'complete' ? 'current-incomplete' : reference.state !== 'complete' ? 'reference-incomplete' :
+    !performanceResultCountsV2(current.state) ? 'current-incomplete' : !performanceResultCountsV2(reference.state) ? 'reference-incomplete' :
     current.maximumMilli === null || current.maximumMilli <= 0 ? 'current-no-positive-maximum' : 'reference-no-positive-maximum';
   return { key: current.key, state: 'unavailable', currentPercent: current.percent, referencePercent: reference.percent,
     deltaPercentagePoints: null, relation: null, reason };
 }
 
 function compare(current: AnalysisReadingV3, reference: AnalysisReadingV3): PerformanceTermComparisonValueV4 {
-  if (current.bucket === 'excluded' || reference.bucket === 'excluded' || current.state !== 'complete' || reference.state !== 'complete' ||
+  if (current.bucket === 'excluded' || reference.bucket === 'excluded' || !performanceResultCountsV2(current.state) || !performanceResultCountsV2(reference.state) ||
       current.valueMilli === null || reference.valueMilli === null || current.maximumMilli === null || reference.maximumMilli === null ||
       current.maximumMilli <= 0 || reference.maximumMilli <= 0 || current.percent === null || reference.percent === null) return unavailable(current, reference);
   const left = BigInt(current.valueMilli) * BigInt(reference.maximumMilli);

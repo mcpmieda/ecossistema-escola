@@ -73,7 +73,7 @@ describe('simplified academic engine v1', () => {
     );
   });
 
-  it('does not turn a missing configured grade into an official zero', () => {
+  it('counts a blank configured grade as not done and keeps it listed as missing', () => {
     const outcome = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 6_000 },
       { slot: 2, maximumMilli: 6_750, valueMilli: 6_000 },
@@ -82,7 +82,7 @@ describe('simplified academic engine v1', () => {
     ]);
 
     expect(outcome.rawMilli).toBe(20_000);
-    expect(outcome.coverage.complete).toBe(false);
+    expect(outcome.coverage.complete).toBe(true);
     expect(outcome.coverage.missingSlots).toContain(12);
   });
 
@@ -95,7 +95,7 @@ describe('simplified academic engine v1', () => {
     expect(incomplete.parallelApplicable).toBe(true);
     expect(incomplete.coverage.reasons).not.toContain('parallel-applicability-unresolved');
     expect(incomplete.coverage.missingSlots).toContain(2);
-    expect(incomplete.coverage.complete).toBe(false);
+    expect(incomplete.coverage.complete).toBe(true);
 
     const applicableWithoutZ = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 2_000 },

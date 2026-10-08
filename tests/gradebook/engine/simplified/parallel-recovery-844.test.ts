@@ -41,7 +41,7 @@ describe('parallel recovery, corrected by BN-DEC-035', () => {
       expect(result.quantitativeOriginalMilli).toBe((av1 ?? 0) + (av2 ?? 0));
       expect(result.quantitativeConsideredMilli).toBe(7000);
       expect(result.rawMilli).toBe(19000);
-      expect(result.coverage.complete).toBe(false);
+      expect(result.coverage.complete).toBe(true);
       expect(result.coverage.reasons).not.toContain('parallel-applicability-unresolved');
       expect(instruments).toEqual(before);
     }
@@ -120,7 +120,7 @@ describe('parallel recovery, corrected by BN-DEC-035', () => {
     const result = calculate(3, null, null, 7000, null);
     expect(result.parallelApplicable).toBe(true);
     expect(result.rawMilli).toBe(7000);
-    expect(result.coverage.complete).toBe(false);
+    expect(result.coverage.complete).toBe(true);
     expect(result.coverage.resolvedSlots).toEqual([3]);
     const empty = calculate(3, null, null, null, null);
     expect(empty.parallelApplicable).toBe(true);

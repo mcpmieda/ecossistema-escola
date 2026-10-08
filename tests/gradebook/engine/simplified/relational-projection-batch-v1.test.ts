@@ -94,9 +94,9 @@ describe('relational projection batch through the PostgreSQL adapter', () => {
     expect(result[0]!.terms[0].sourceComparison).toBe('match');
     expect(result[0]!.recovery.classification).toBe('failed-no-show');
     expect(result[0]!.recovery.recoveryTerms[1].source).toBe('NC');
-    expect(result[1]!.terms[0].outcome.coverage.complete).toBe(false);
+    expect(result[1]!.terms[0].outcome.coverage.complete).toBe(true);
     expect(result[1]!.terms[0].sourceAmMilli).toBe(20000);
-    expect(result[1]!.terms[0].sourceComparison).toBe('unavailable');
+    expect(result[1]!.terms[0].sourceComparison).toBe('mismatch');
     expect(result[1]!.sourceUComparison).toBe('unavailable');
   });
 

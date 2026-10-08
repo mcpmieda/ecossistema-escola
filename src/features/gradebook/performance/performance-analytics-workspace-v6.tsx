@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useEffect, useRef, useState } from 'react';
 import { PerformanceTeacherExportV6 } from './performance-teacher-export-v6';
 import { PerformanceLearningOverviewV1 } from './performance-learning-overview-v1';
@@ -169,9 +170,9 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
           {tab === 'components' && component ? <><AnalyticsInstrumentsV6 component={component} onNotes={onNotes} /><AnalyticsStudentsTableV6 title="Alunos neste componente" items={value.students.map((item) => {
             const cell = item.cells.find((entry) => entry.offerId === component.offer.id)!;
             return { id: item.student.id, number: item.student.number, name: item.student.name,
-              meanPercent: cell.result.state === 'complete' ? cell.percent : null,
-              below: cell.result.state === 'complete' && cell.result.level === 'below' ? 1 : 0,
-              complete: cell.result.state === 'complete' ? 1 : 0,
+              meanPercent: performanceResultCountsV2(cell.result.state) ? cell.percent : null,
+              below: performanceResultCountsV2(cell.result.state) && cell.result.level === 'below' ? 1 : 0,
+              complete: performanceResultCountsV2(cell.result.state) ? 1 : 0,
               partial: cell.result.state === 'partial' ? 1 : 0, deltaPP: cell.deltaPP };
           })} onSelect={(id) => onCell(id, component.offer.id)} /></> : null}
           {tab === 'teachers' && teacher ? <><AnalyticsPanelV6 title="Componentes nesta turma">{componentBars}</AnalyticsPanelV6><AnalyticsStudentsTableV6 title="Acompanhamento do professor" items={analyticsStudentItemsV6(value, teacher.id)} onSelect={openStudent} /></> : null}

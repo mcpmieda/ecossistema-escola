@@ -58,7 +58,7 @@ describe('relational batch boundary and source parity', () => {
     expect(queries).toHaveLength(1);
     expect(results.map(({ ofertaId, alunoId }) => ({ ofertaId, alunoId }))).toEqual(requests);
     expect(queries[0]).not.toMatch(/\b(INSERT|UPDATE|DELETE|TRUNCATE)\b/iu);
-    expect(results[999]!.terms[0].outcome.coverage.complete).toBe(false);
+    expect(results[999]!.terms[0].outcome.coverage.complete).toBe(true);
   });
 
   it('rejects 1,001 pairs before issuing any SQL', async () => {

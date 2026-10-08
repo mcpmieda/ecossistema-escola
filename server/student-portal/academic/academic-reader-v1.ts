@@ -111,7 +111,7 @@ function officialEditionTermV1(term: ReturnType<typeof resolveSimplifiedTermV1>)
       requiredSlots: term.coverage.requiredSlots.filter((slot) => slot !== 3),
       resolvedSlots: term.coverage.resolvedSlots.filter((slot) => slot !== 3),
       missingSlots,
-      complete: missingSlots.length === 0,
+      complete: term.coverage.complete,
       reasons: term.coverage.reasons.filter((reason) => reason !== 'missing-slot:3'),
     },
   };
