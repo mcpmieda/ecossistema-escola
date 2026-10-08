@@ -1832,9 +1832,15 @@ button.performance-kpi__button:hover {
   background: color-mix(in oklab, var(--foreground) 8%, transparent);
   font-weight: 650;
 }
+/* The side menu replaces the area tabs; the year selector and its warning stay. */
 .platform-shell--v2 .pa-area-tabs,
-.platform-shell--v2 .gradebook-area-nav {
+.platform-shell--v2 .gradebook-area-tabs {
   display: none;
+}
+.platform-shell--v2 .gradebook-area-nav {
+  min-height: 0;
+  justify-content: flex-end;
+  border-bottom: 0;
 }
 @media (max-width: 900px) {
   .shell-brand__name {
