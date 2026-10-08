@@ -71,6 +71,26 @@ const ROUTES = [
   ['institutional-reports-routes-v1', 'handleInstitutionalReportsRequestV1'],
 ] as const;
 
+/** An empty platform (no SharePoint here) seen with every capability. It does not wait for the
+ * database: the shell asks for it first and gives up after a few seconds. */
+async function platformSnapshot(server: ViteDevServer) {
+  const [platform, contract] = await Promise.all([
+    server.ssrLoadModule('/server/platform/snapshot.ts'),
+    server.ssrLoadModule('/shared/platform-contract.ts'),
+  ]);
+  return (platform.buildPlatformSnapshot as (source: unknown, capabilities: unknown) => unknown)(
+    {
+      lists: [],
+      moduleItems: [],
+      configurationItems: [],
+      auditItems: [],
+      migrationItems: [],
+      correlationId: 'preview-local',
+    },
+    contract.PLATFORM_CAPABILITIES,
+  );
+}
+
 async function createBackend(server: ViteDevServer) {
   const { PGlite } = await import('@electric-sql/pglite');
   const load = (file: string) => server.ssrLoadModule(file) as Promise<Record<string, unknown>>;
@@ -168,29 +188,9 @@ async function createBackend(server: ViteDevServer) {
     )(observer.wrap(database), observer);
     return reply(await service.execute(payload));
   };
-  // An empty platform (no SharePoint here) seen with every capability.
-  const [platform, contract] = await Promise.all([
-    load('/server/platform/snapshot.ts'),
-    load('/shared/platform-contract.ts'),
-  ]);
-  const platformSnapshot = (
-    platform.buildPlatformSnapshot as (source: unknown, capabilities: unknown) => unknown
-  )(
-    {
-      lists: [],
-      moduleItems: [],
-      configurationItems: [],
-      auditItems: [],
-      migrationItems: [],
-      correlationId: 'preview-local',
-    },
-    contract.PLATFORM_CAPABILITIES,
-  );
   return {
     skipped,
     async handle(pathname: string, search: string, method: string, body: Buffer) {
-      if (pathname === '/api/platform/bootstrap' || pathname === '/api/platform/snapshot-v2')
-        return Response.json(platformSnapshot, { headers: { 'Cache-Control': 'no-store' } });
       if (pathname === '/api/gradebook/import-persistence' && method === 'POST')
         return persistImport(body);
       const cookie = await seal(
@@ -254,6 +254,14 @@ export function admPreviewGradebookV1(): Plugin {
         };
         void (async () => {
           try {
+            if (!url.pathname.startsWith('/api/gradebook/')) {
+              response.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-store',
+              });
+              response.end(JSON.stringify(await platformSnapshot(server)));
+              return;
+            }
             backend ??= createBackend(server).then((ready) => {
               if (ready.skipped.length)
                 server.config.logger.info(
