@@ -343,7 +343,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
       percent(summary.result.mean),
     );
     expect(kpi('Aproveitamento')?.textContent).toContain(
-      summary.result.n + '/' + summary.readings + ' leituras completas',
+      summary.result.n + '/' + summary.readings + ' resultados considerados',
     );
     expect(kpi('Mediana')?.textContent).toContain(percent(summary.result.median));
     expect(kpi('Alunos abaixo')?.textContent).toContain(
@@ -364,10 +364,10 @@ it.each(['classes', 'components', 'teachers'] as const)(
     expect(valueAfter('REC aplicável')).toBe(String(summary.recovery.applicable));
     expect(valueAfter('REC lançada')).toBe(String(summary.recovery.recorded));
     expect(valueAfter('REC pendente')).toBe(String(summary.recovery.pending));
-    expect(valueAfter('Completos')).toBe(String(summary.complete));
+    expect(valueAfter('Resultados considerados')).toBe(String(summary.complete));
     // The marker of blank instruments is counted from the cells of the scope on screen.
     const offers = tab === 'components' ? [component.offer.id] : tab === 'teachers' ? teacher.offerIds : null;
-    expect(valueAfter('Parciais')).toBe(String(value.students.reduce((sum, item) => sum +
+    expect(valueAfter('Desses, com instrumento em branco')).toBe(String(value.students.reduce((sum, item) => sum +
       item.cells.filter((cell) => (offers === null || offers.includes(cell.offerId)) &&
         cell.result.state === 'partial').length, 0)));
     expect(valueAfter('Sem nota')).toBe(String(summary.missing));
@@ -388,7 +388,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
           }),
         ).toBeTruthy();
       expect(
-        screen.getByText(summary.composition.n + ' pares completos'),
+        screen.getByText(summary.composition.n + ' pares de resultados'),
       ).toBeTruthy();
     }
 
@@ -409,7 +409,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
           item.summary.complete +
             '/' +
             item.summary.readings +
-            ' completos · ' +
+            ' resultados · ' +
             item.summary.below +
             ' abaixo',
         );
@@ -443,7 +443,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
           item.summary.complete +
             '/' +
             item.summary.readings +
-            ' completos · ' +
+            ' resultados · ' +
             item.summary.below +
             ' abaixo',
         );
@@ -493,7 +493,7 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
       ', qualitativo ' +
       percent(value.summary.composition.qualitativeShare),
   );
-  expect(screen.getByText(value.summary.composition.n + ' pares completos')).toBeTruthy();
+  expect(screen.getByText(value.summary.composition.n + ' pares de resultados')).toBeTruthy();
 
   expect(valueAfter('REC aplicável')).toBe(String(value.summary.recovery.applicable));
   expect(valueAfter('REC lançada')).toBe(String(value.summary.recovery.recorded));
@@ -514,8 +514,8 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
     ),
   ).toBeTruthy();
 
-  expect(valueAfter('Completos')).toBe(String(value.summary.complete));
-  expect(valueAfter('Parciais')).toBe(String(value.students.reduce((sum, item) => sum +
+  expect(valueAfter('Resultados considerados')).toBe(String(value.summary.complete));
+  expect(valueAfter('Desses, com instrumento em branco')).toBe(String(value.students.reduce((sum, item) => sum +
     item.cells.filter((cell) => cell.result.state === 'partial').length, 0)));
   expect(valueAfter('Sem nota')).toBe(String(value.summary.missing));
   expect(valueAfter('Indisponíveis')).toBe(String(value.summary.unavailable));

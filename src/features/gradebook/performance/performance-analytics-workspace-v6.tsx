@@ -145,7 +145,7 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   const componentBars = <AnalyticsBarsV6 items={components.map((item) => ({
     id: item.offer.id, label: item.offer.subject.label, value: item.summary.result.mean,
     below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
-    secondary: `${item.summary.complete}/${item.summary.readings} completos · ${item.summary.below} abaixo`,
+    secondary: `${item.summary.complete}/${item.summary.readings} resultados · ${item.summary.below} abaixo`,
   }))} onSelect={openComponent} />;
   if ((tab === 'students' && !student) || (tab === 'components' && !component) || (tab === 'teachers' && !teacher))
     return <Alert><Alert.Content><Alert.Title>Nenhum registro neste recorte.</Alert.Title></Alert.Content></Alert>;
@@ -182,7 +182,7 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
           {tab === 'teachers' && teacher ? <><AnalyticsPanelV6 title="Componentes nesta turma">{componentBars}</AnalyticsPanelV6><AnalyticsStudentsTableV6 title="Acompanhamento do professor" items={analyticsStudentItemsV6(value, teacher.id)} onSelect={openStudent} /></> : null}
         </>}
         <div className="grid gap-4 xl:grid-cols-2"><AnalyticsRecoveryV6 summary={selectedSummary} /><AnalyticsCoverageV6 summary={selectedSummary} partial={scopePartial} /></div>
-        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Limite: {percent(value.minimumPercent)}</span><span>{value.summary.students}/{value.classStudents} alunos considerados</span><span>Estatísticas: leituras completas</span><span className="ml-auto">Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}</span></footer>
+        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Limite: {percent(value.minimumPercent)}</span><span>{value.summary.students}/{value.classStudents} alunos considerados</span><span>Estatísticas incluem resultados com instrumento em branco</span><span className="ml-auto">Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}</span></footer>
       </>
     )}
   </div>;

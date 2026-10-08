@@ -132,7 +132,7 @@ export async function buildPerformanceTeacherPdfV6(
   y -= 70;
   heading('Síntese');
   table(
-    ['Mediana', 'Quantitativo', 'Qualitativo', 'Variação', 'Completos'],
+    ['Mediana', 'Quantitativo', 'Qualitativo', 'Variação', 'Resultados'],
     [103, 103, 103, 113, 93],
     [
       [
@@ -146,7 +146,7 @@ export async function buildPerformanceTeacherPdfV6(
   );
   heading('Trimestres');
   table(
-    ['Período', 'Aproveitamento', 'Mediana', 'Leituras completas'],
+    ['Período', 'Aproveitamento', 'Mediana', 'Resultados'],
     [100, 140, 140, 135],
     summary.timeline.map((item) => [
       `T${item.term}`,
@@ -158,7 +158,7 @@ export async function buildPerformanceTeacherPdfV6(
   heading('Componentes nesta turma');
   const components = value.components.filter((item) => teacher.offerIds.includes(item.offer.id));
   table(
-    ['Componente', 'Aproveitamento', 'Abaixo', 'Completos'],
+    ['Componente', 'Aproveitamento', 'Abaixo', 'Resultados'],
     [260, 110, 65, 80],
     components.map((item) => [
       item.offer.subject.label,
@@ -173,7 +173,7 @@ export async function buildPerformanceTeacherPdfV6(
     ? teacher.students
     : teacher.students.filter((item) => item.below > 0 || item.partial > 0);
   table(
-    ['Aluno', 'Aproveitamento', 'Abaixo', 'Completos', 'Variação'],
+    ['Aluno', 'Aproveitamento', 'Abaixo', 'Resultados', 'Variação'],
     [225, 95, 50, 60, 85],
     selected.map((item) => [
       students.get(item.studentId)!.student.name,
@@ -242,7 +242,7 @@ export async function buildPerformanceTeacherPdfV6(
       muted,
     );
     text(
-      'Estatísticas: leituras completas. * Parcial. — Sem valor comparável. Não substitui resultado oficial.',
+      'Estatísticas incluem resultados com instrumentos em branco. * Instrumento em branco. — Sem valor comparável. Não substitui resultado oficial.',
       40,
       25,
       7,

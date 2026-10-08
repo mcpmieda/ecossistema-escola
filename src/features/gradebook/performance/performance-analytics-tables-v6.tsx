@@ -118,7 +118,7 @@ export function AnalyticsStudentsTableV6({
               <Table.Column id="below" allowsSorting>
                 Abaixo
               </Table.Column>
-              <Table.Column id="complete">Completos</Table.Column>
+              <Table.Column id="complete">Resultados</Table.Column>
               <Table.Column id="delta" allowsSorting>
                 Variação
               </Table.Column>

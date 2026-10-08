@@ -135,7 +135,7 @@ export function PerformanceStudentLearningV1({
           label="Evolução trimestral"
           value={delta(student.summary.movement.meanDeltaPP)}
           caption={reference ? `Em relação ao ${reference}º trimestre` : 'Disponível a partir do 2º trimestre'}
-          hint="Compara os mesmos componentes deste aluno nos dois trimestres, quando existe resultado completo nos dois períodos."
+          hint="Compara os mesmos componentes deste aluno nos dois trimestres. Instrumento em branco conta como não feito."
           icon={TrendingUp}
         />
         <Metric
