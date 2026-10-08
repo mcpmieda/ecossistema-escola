@@ -26,6 +26,7 @@ import type {
   PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { LIVE_HEAVY_READ_INTERVAL_V1 } from '../../../shared/live-data/live-refresh-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { createOperationalWorkspaceRequestGate } from '../operational-workspace/operational-workspace-request-gate';
 import { requestRelationalPerformanceV2 } from './relational-performance-client-v2';
@@ -296,6 +297,8 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
   }
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'],
+    // The whole class is read at once: the heavy cadence, as in the other perspectives.
+    intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
     enabled: year !== null && (dashboardEnabled || detailOpen),
     active: isActive,
     canRefresh: () =>

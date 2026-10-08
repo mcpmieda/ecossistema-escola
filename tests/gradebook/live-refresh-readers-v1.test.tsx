@@ -130,9 +130,10 @@ it('reports failed performance reads to the clock instead of retrying every inva
   await invalidate();
   await advance(1_000);
   expect(dashboard).toHaveBeenCalledTimes(1);
-  await advance(28_750);
+  // Desempenho reads on the heavy cadence (120 s), and its failure cooldown follows it.
+  await advance(118_750);
   expect(dashboard).toHaveBeenCalledTimes(2);
-  await advance(30_000);
+  await advance(120_000);
   expect(dashboard).toHaveBeenCalledTimes(2);
 });
 
