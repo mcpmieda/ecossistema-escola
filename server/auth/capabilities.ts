@@ -4,7 +4,6 @@ import { AuthorizationError, type Role } from './roles';
 export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]> = {
   ADMINISTRADOR: [
     'platform.snapshot.read',
-    'platform.overview.read',
     'platform.health.read',
     'platform.modules.read',
     'platform.audit.read',

@@ -466,7 +466,8 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
 }
 
 export function RelationalBulletinPageV2() {
-  const year = useGradebookYear()?.year ?? null;
+  const sharedYear = useGradebookYear();
+  const year = sharedYear?.year ?? null;
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [students, setStudents] = useState<Students | null>(null);
   const [classId, setClassId] = useState<number | null>(null);
@@ -814,6 +815,14 @@ export function RelationalBulletinPageV2() {
     () => students?.students.filter((student) => selectedIds.includes(student.id)) ?? [],
     [students, selectedIds],
   );
+  // Right after the page opens or reloads the year is still being read: loading, not missing.
+  if (year === null && sharedYear?.loading)
+    return (
+      <div className="flex items-center gap-2 p-5 text-sm text-muted" aria-busy="true">
+        <Spinner size="sm" />
+        Carregando…
+      </div>
+    );
   if (year === null)
     return (
       <Alert status="warning">

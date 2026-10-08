@@ -20,7 +20,7 @@ it('honors a partial response retry deadline while leaving unrelated sections us
     const state = states.at(-1)!;
     expect(state).toMatchObject({ status: 'ready', auxiliary: 'partial' });
     if (state.status !== 'ready') throw new Error('Expected native bootstrap');
-    expect(platformRouteUnavailableV2('auditoria', state.snapshot)).toBe(true);
+    expect(platformRouteUnavailableV2('operacao', state.snapshot, 'audit')).toBe(true);
     expect(platformRouteUnavailableV2('configuracoes', state.snapshot)).toBe(false);
     clock = 89999; await controller.refresh(); expect(auxiliaryReads).toBe(1);
     clock = 90000; await controller.refresh(); expect(auxiliaryReads).toBe(2);

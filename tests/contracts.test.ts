@@ -14,7 +14,7 @@ describe('extension contracts', () => {
     expect(parsed).toMatchObject({
       contractVersion: 1,
       key: 'plataforma-base',
-      requiredCapabilities: ['platform.overview.read'],
+      requiredCapabilities: ['platform.snapshot.read'],
     });
   });
 
@@ -35,7 +35,7 @@ describe('extension contracts', () => {
     expect(() =>
       moduleContract.parse({
         ...platformBaseModule,
-        requiredCapabilities: ['platform.overview.read', 'platform.overview.read'],
+        requiredCapabilities: ['platform.snapshot.read', 'platform.snapshot.read'],
       }),
     ).toThrow();
   });

@@ -28,13 +28,13 @@ function expectResolvedModule(
 
 describe('module registry integration resolution', () => {
   it('marks a matching registered contract as ready and available when its capability is granted', () => {
-    const module = expectResolvedModule([platformBaseRegistryItem], ['platform.overview.read']);
+    const module = expectResolvedModule([platformBaseRegistryItem], ['platform.snapshot.read']);
 
     expect(module).toMatchObject({
       key: 'plataforma-base',
       status: 'installed',
       contractVersion: 1,
-      requiredCapabilities: ['platform.overview.read'],
+      requiredCapabilities: ['platform.snapshot.read'],
       integrationState: 'ready',
       integrationIssues: [],
       available: true,
@@ -65,7 +65,7 @@ describe('module registry integration resolution', () => {
           },
         },
       ],
-      ['platform.modules.read', 'platform.overview.read'],
+      ['platform.modules.read', 'platform.snapshot.read'],
     );
     const serialized = JSON.stringify(module);
 
@@ -88,7 +88,7 @@ describe('module registry integration resolution', () => {
           fields: { ...platformBaseRegistryItem.fields, Versao: '2.0.0' },
         },
       ],
-      ['platform.overview.read'],
+      ['platform.snapshot.read'],
     );
 
     expect(module.integrationState).toBe('contract-mismatch');
@@ -108,7 +108,7 @@ describe('module registry integration resolution', () => {
           fields: { ...platformBaseRegistryItem.fields, Status: status },
         },
       ],
-      ['platform.overview.read'],
+      ['platform.snapshot.read'],
     );
 
     expect(module.integrationState).toBe(expected);

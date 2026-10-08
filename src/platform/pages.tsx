@@ -14,10 +14,6 @@ import {
 } from '@heroui/react';
 import {
   Activity,
-  BookOpenText,
-  Boxes,
-  CheckCircle2,
-  CircleGauge,
   Clock3,
   Database,
   Settings2,
@@ -45,133 +41,7 @@ if (typeof window !== 'undefined') {
   if (opened === 'painel-do-aluno') StudentPortalAdminPage.preload();
   if (opened === 'operacao') SystemHealthPage.preload();
 }
-import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
-
-function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
-  const activeConfigurations = snapshot.configurations.filter(
-    (configuration) => configuration.active,
-  ).length;
-  const availableModules = snapshot.coreModules.filter((module) => module.state === 'ready').length;
-  const availableSystems = snapshot.registeredModules.filter(
-    (module) =>
-      module.available && module.baseRoute.startsWith('/') && !module.baseRoute.startsWith('//'),
-  );
-
-  return (
-    <>
-      <PageHeader
-        eyebrow="Visão geral"
-        title="Operação da plataforma"
-        description="Resumo do núcleo administrativo e das áreas já conectadas à fundação institucional."
-      />
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
-        <Surface
-          variant="default"
-          className="platform-card-surface min-h-80 rounded-[2rem] p-6 sm:p-7"
-        >
-          <div className="flex min-h-[19rem] flex-col">
-            <div className="flex items-center gap-2 text-muted">
-              <CircleGauge className="size-4" />
-              <span className="text-xs font-semibold uppercase tracking-[0.14em]">Fundação</span>
-            </div>
-            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
-              {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
-            </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              O estado considera as estruturas necessárias ao Centro. Informações de
-              disponibilidade, monitoramento e recuperação ficam na área de Operação.
-            </p>
-            <div className="mt-auto grid gap-2 pt-7 sm:grid-cols-3">
-              {[
-                'Sessão autenticada',
-                'Acesso administrativo',
-                snapshot.foundation.expectedPlatformListsPresent
-                  ? 'Estrutura completa'
-                  : 'Estrutura requer atenção',
-              ].map((item) => (
-                <Surface
-                  key={item}
-                  variant="secondary"
-                  className="stagger-item flex items-center gap-2 rounded-2xl px-3 py-2.5 text-xs"
-                >
-                  <CheckCircle2 className="size-3.5 text-success" />
-                  {item}
-                </Surface>
-              ))}
-            </div>
-          </div>
-        </Surface>
-
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-          <Card variant="default" className="stagger-item">
-            <Card.Header className="flex-row items-start justify-between">
-              <div>
-                <Card.Description>Dados institucionais</Card.Description>
-                <Card.Title className="mt-1 text-2xl">
-                  {snapshot.foundation.sharePointListCount}
-                </Card.Title>
-              </div>
-              <Database className="size-4 text-muted" />
-            </Card.Header>
-            <Card.Content className="text-xs text-muted">estruturas disponíveis</Card.Content>
-          </Card>
-          <Card variant="default" className="stagger-item">
-            <Card.Header className="flex-row items-start justify-between">
-              <div>
-                <Card.Description>Áreas disponíveis</Card.Description>
-                <Card.Title className="mt-1 text-2xl">{availableModules}</Card.Title>
-              </div>
-              <Boxes className="size-4 text-muted" />
-            </Card.Header>
-            <Card.Content className="text-xs text-muted">prontas para uso</Card.Content>
-          </Card>
-          <Card variant="default" className="stagger-item">
-            <Card.Header className="flex-row items-start justify-between">
-              <div>
-                <Card.Description>Configurações</Card.Description>
-                <Card.Title className="mt-1 text-2xl">{activeConfigurations}</Card.Title>
-              </div>
-              <Settings2 className="size-4 text-muted" />
-            </Card.Header>
-            <Card.Content className="text-xs text-muted">ativas</Card.Content>
-          </Card>
-        </div>
-      </div>
-
-      <Card variant="default" className="mt-5 overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Áreas do Centro</Card.Title>
-          <Card.Description>Acesse o núcleo e acompanhe o estado de cada área.</Card.Description>
-        </Card.Header>
-        <Card.Content className="p-2">
-          <ModuleList modules={snapshot.coreModules} />
-        </Card.Content>
-      </Card>
-
-      {availableSystems.length > 0 && (
-        <Card variant="default" className="mt-5 overflow-hidden">
-          <Card.Header className="border-b border-border/60">
-            <Card.Title>Sistemas disponíveis</Card.Title>
-            <Card.Description>Acesse os sistemas integrados ao Centro.</Card.Description>
-          </Card.Header>
-          <Card.Content className="flex flex-wrap gap-3 p-4">
-            {availableSystems.map((module) => (
-              <Button
-                key={module.id}
-                variant="primary"
-                onPress={() => window.location.assign(module.baseRoute)}
-              >
-                <BookOpenText className="size-4" />
-                Abrir {module.name}
-              </Button>
-            ))}
-          </Card.Content>
-        </Card>
-      )}
-    </>
-  );
-}
+import { EmptyState, formatDate, PageHeader, shortCorrelation } from './presentation';
 
 function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   return (
@@ -547,9 +417,12 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
 
 export function PageContent({
   route,
+  section,
   snapshot,
 }: {
   route: PlatformRoute;
+  /** The section of the open service; Auditoria is a section of Saúde do Sistema. */
+  section?: string;
   snapshot: PlatformSnapshotContract;
 }) {
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
@@ -557,15 +430,12 @@ export function PageContent({
     case 'painel-do-aluno':
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
+      if (section === 'audit') return <AuditPage snapshot={snapshot} />;
       return <Suspense fallback={<output className="block">Carregando Saúde do Sistema…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
-    case 'auditoria':
-      return <AuditPage snapshot={snapshot} />;
     case 'configuracoes':
       return <SettingsPage snapshot={snapshot} />;
-    case 'banco-de-notas':
-      return <NotesPage />;
     default:
-      return <OverviewPage snapshot={snapshot} />;
+      return <NotesPage />;
   }
 }
 

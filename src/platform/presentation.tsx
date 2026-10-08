@@ -1,7 +1,5 @@
-import { Chip, Description, Label, ListBox, Surface } from '@heroui/react';
+import { Chip, Surface } from '@heroui/react';
 import { Boxes, type LucideIcon } from 'lucide-react';
-import type { CoreModuleContract } from '../../shared/platform-contract';
-import { platformHref, routeIcons } from './routes';
 
 export { BrandMark } from '../lib/brand-mark';
 
@@ -50,52 +48,6 @@ export function PageHeader({
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </Surface>
-  );
-}
-
-export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) {
-  const available = state === 'ready';
-
-  return (
-    <Chip color={available ? 'success' : 'default'} variant="soft" size="sm">
-      {available ? 'Disponível' : 'Planejado'}
-    </Chip>
-  );
-}
-
-export function ModuleList({ modules }: { modules: CoreModuleContract[] }) {
-  return (
-    <ListBox aria-label="Áreas do Centro" selectionMode="none" className="module-list">
-      {modules.map((module) => {
-        const Icon = routeIcons[module.route];
-        return (
-          <ListBox.Item
-            id={module.id}
-            key={module.id}
-            href={platformHref(module.route)}
-            textValue={module.name}
-            className="module-list__item"
-          >
-            <Surface
-              variant="secondary"
-              className="grid size-10 shrink-0 place-items-center rounded-2xl"
-            >
-              <Icon className="size-4 text-muted" />
-            </Surface>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Label className="text-sm font-semibold">{module.name}</Label>
-                <ModuleStatus state={module.state} />
-              </div>
-              <Description className="mt-1 line-clamp-2">{module.description}</Description>
-            </div>
-            <span aria-hidden="true" className="module-list__chevron">
-              →
-            </span>
-          </ListBox.Item>
-        );
-      })}
-    </ListBox>
   );
 }
 

@@ -27,6 +27,7 @@ import type {
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
 import { ChartColumn } from 'lucide-react';
 import { GradebookYearContextBanner } from '../../../platform/gradebook-year-provider';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 
 /** The perspective and what was picked inside it, kept for the tab across a reload. */
@@ -216,15 +217,23 @@ export function RelationalPerformancePageV2({
     qualitative: 'Qualitativo',
     assessments: 'Avaliações',
   };
+  const sharedYear = useGradebookYear();
   useEffect(() => {
     const next = state.classes?.nextOffset;
     if (next != null && !state.busy.classes && !state.failure) void state.loadClasses(next);
   }, [state.classes, state.busy.classes, state.failure]);
   if (state.year === null)
-    return (
-      <p className="rounded-xl border border-separator p-5">
-        A sessão do Banco de Notas está indisponível. Entre novamente para consultar Desempenho.
-      </p>
+    // The year is still being read right after the page opens or reloads: that is loading, not
+    // a lost session. When it cannot be read, the year selector says why and offers to retry.
+    return sharedYear?.loading ? (
+      <div className="grid gap-3" aria-busy="true" aria-label="Carregando Desempenho">
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+    ) : (
+      <div className="rounded-xl border border-separator p-5">
+        <GradebookYearContextBanner />
+      </div>
     );
   const detail = state.detail;
   // Everything but the situations shown: changing those keeps the panels, and what was typed
@@ -544,7 +553,8 @@ export function RelationalPerformancePageV2({
                       <LinkedStudentPhotoAvatarV1
                         decorative
                         size="lg"
-                        className="size-16 shrink-0"
+                        className="pa-student-avatar size-16 shrink-0"
+                        fallbackTone={openingId % 6}
                         subject={{
                           source: 'gradebook',
                           academicYear: state.year,

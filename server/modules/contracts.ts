@@ -40,7 +40,7 @@ export const platformBaseModule: ModuleContract = moduleContract.parse({
   version: '1.0.0',
   status: 'installed',
   order: 0,
-  requiredCapabilities: ['platform.overview.read'],
+  requiredCapabilities: ['platform.snapshot.read'],
   healthEndpoint: '/api/health',
 });
 

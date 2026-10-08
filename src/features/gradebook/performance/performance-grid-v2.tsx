@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Button, Chip, Table } from '@heroui/react';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import '../../student-portal-admin/shared/student-avatar-v1.css';
 import type { PerformanceRowV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 
 export interface PerformanceGridColumnV2 {
@@ -290,7 +291,8 @@ export function PerformanceGridV2({
                               <LinkedStudentPhotoAvatarV1
                                 decorative
                                 size="sm"
-                                className="size-5 shrink-0"
+                                className="pa-student-avatar size-5 shrink-0"
+                                fallbackTone={row.student.id % 6}
                                 subject={{
                                   source: 'gradebook',
                                   academicYear,

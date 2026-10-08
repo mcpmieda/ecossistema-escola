@@ -61,10 +61,10 @@ it('limits a partial outage to pages that actually need the unavailable source',
   render(<App />);
   expect(await screen.findByRole('textbox', { name: 'workspace-banco-de-notas' })).toBeTruthy();
   await act(async () => {
-    window.location.hash = '#/auditoria'; window.dispatchEvent(new Event('hashchange')); await flush();
+    window.location.hash = '#/operacao?area=audit'; window.dispatchEvent(new Event('hashchange')); await flush();
   });
   expect(await screen.findByText('Informações desta área temporariamente indisponíveis')).toBeTruthy();
-  expect(screen.queryByRole('textbox', { name: 'workspace-auditoria' })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'workspace-operacao' })).toBeNull();
   await act(async () => {
     window.location.hash = '#/configuracoes'; window.dispatchEvent(new Event('hashchange')); await flush();
   });

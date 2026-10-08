@@ -10,11 +10,9 @@ const rule = (selector: string) =>
 
 describe('Banco de Notas desktop workspace spacing', () => {
   it('uses the available workspace width without changing the other platform pages', () => {
-    // Since the shell of 07/10/2026 a service (an area with sections) takes the whole width
-    // beside its side column; every other area keeps the centred 1480px page.
-    expect(app).toContain("sections.length ? 'shell-main shell-main--service' : 'shell-main'");
-    expect(rule('.shell-main')).toContain('max-width: 1480px;');
-    expect(rule('.shell-main')).toContain('margin-inline: auto;');
+    // Since the side-only composition of 08/10/2026 every area sits beside the side column and
+    // takes the whole width that is left.
+    expect(app).toContain('<main className="shell-main shell-main--service">');
     expect(rule('.shell-main--service')).toContain('max-width: none;');
   });
 });

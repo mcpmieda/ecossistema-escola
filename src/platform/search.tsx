@@ -33,7 +33,7 @@ function SearchResults({
             ? Boxes
             : item.iconKind === 'configuration'
               ? Settings2
-              : routeIcons[item.route ?? 'visao-geral'];
+              : routeIcons[item.route ?? 'banco-de-notas'];
         return (
           <li key={item.id}>
             <Button

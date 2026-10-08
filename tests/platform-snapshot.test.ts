@@ -102,7 +102,7 @@ describe('platform snapshot parsing', () => {
       name: 'Plataforma Base',
       status: 'installed',
       contractVersion: 1,
-      requiredCapabilities: ['platform.overview.read'],
+      requiredCapabilities: ['platform.snapshot.read'],
       integrationState: 'ready',
       integrationIssues: [],
       available: true,
@@ -190,11 +190,11 @@ describe('platform snapshot parsing', () => {
         correlationId: 'snapshot-limited',
         generatedAt: '2026-08-24T20:00:00Z',
       },
-      ['platform.snapshot.read', 'platform.overview.read'],
+      ['platform.snapshot.read'],
     );
     const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.coreModules.map((module) => module.route)).toEqual(['visao-geral']);
+    expect(snapshot.coreModules.map((module) => module.route)).toEqual([]);
     expect(snapshot.operational).toBeNull();
     expect(snapshot.registeredModules).toEqual([]);
     expect(snapshot.configurations).toEqual([]);
