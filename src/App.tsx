@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Avatar, Breadcrumbs, Button, Chip, Description, Drawer, Dropdown,
-  Label, Separator, Spinner, Surface, useOverlayState,
+  Alert, Avatar, Button, Chip, Description, Dropdown,
+  Label, Separator, Spinner, Surface,
 } from '@heroui/react';
-import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, ShieldCheck } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
-import { SidebarContent } from './platform/navigation';
+import { ServiceSidebarV2, TopNavigationV2, serviceSectionFromHashV2, serviceSectionsV2 } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
@@ -35,6 +35,15 @@ function usePlatformRoute(): PlatformRoute {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   return route;
+}
+function useLocationHash(): string {
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  return hash;
 }
 function MicrosoftMark() {
   return <span className="grid size-4 grid-cols-2 gap-px" aria-hidden="true">
@@ -121,7 +130,6 @@ function RestrictedExperience({ name }: { name?: string }) {
 function AdminShell({ identity }: { identity: Identity }) {
   const route = usePlatformRoute();
   const { loadState, reload } = usePlatformDataV2();
-  const mobileNavigationState = useOverlayState();
   const logoutFormRef = useRef<HTMLFormElement>(null);
   const firstName = useMemo(() => identity.name?.trim().split(/\s+/u)[0] || 'Administrador', [identity.name]);
   const snapshot = useMemo(() => loadState.status === 'ready' ? {
@@ -134,25 +142,17 @@ function AdminShell({ identity }: { identity: Identity }) {
     (loadState.auxiliary === 'ready' || loadState.auxiliary === 'partial')
     && !platformRouteUnavailableV2(route, loadState.snapshot)
   ));
+  const hash = useLocationHash();
+  const sections = serviceSectionsV2(route);
   return (
-    <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="sticky top-0 z-20 hidden h-svh border-r border-border/60 lg:block">
-        <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
-      </aside>
-      <div className="min-w-0">
-        <Surface variant="default" className="platform-topbar sticky top-0 z-30 rounded-none">
-          <div className="flex min-h-[72px] flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:h-[72px] lg:px-8 lg:py-0">
-            <Drawer state={mobileNavigationState}>
-              <Button variant="outline" size="md" isIconOnly className="lg:hidden" aria-label="Abrir navegação"><Menu /></Button>
-              <Drawer.Backdrop variant="blur"><Drawer.Content placement="left" className="max-w-[320px]">
-                <Drawer.Dialog aria-label="Navegação do Centro" className="h-full rounded-none p-0">
-                  <Drawer.CloseTrigger /><Drawer.Body className="p-0">
-                    <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} onNavigate={mobileNavigationState.close} />
-                  </Drawer.Body>
-                </Drawer.Dialog>
-              </Drawer.Content></Drawer.Backdrop>
-            </Drawer>
-            <Breadcrumbs className="min-w-0 flex-1 overflow-hidden"><Breadcrumbs.Item href="#/visao-geral">Centro</Breadcrumbs.Item><Breadcrumbs.Item>{routeLabels[route]}</Breadcrumbs.Item></Breadcrumbs>
+    <div className="platform-shell platform-shell--v2 min-h-svh">
+      <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
+        <a href="#/visao-geral" className="shell-brand text-foreground no-underline" aria-label="Ir para a visão geral do Centro de Administração">
+          <BrandMark compact />
+          <span className="shell-brand__name">Centro de Administração</span>
+        </a>
+        <TopNavigationV2 route={route} modules={modules} loading={loadState.status === 'loading'} />
+        <div className="shell-tools">
             <PlatformSearch snapshot={snapshot} />
             <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
             <Dropdown>
@@ -172,9 +172,13 @@ function AdminShell({ identity }: { identity: Identity }) {
                 <Dropdown.Item id="logout" textValue="Sair" variant="danger"><div className="profile-menu-item-content"><LogOut className="size-4 shrink-0" /><div className="profile-menu-copy"><Label>Sair</Label><Description>Encerrar a sessão institucional</Description></div></div></Dropdown.Item>
               </Dropdown.Menu></Dropdown.Popover>
             </Dropdown>
-          </div>
-        </Surface>
-        <main className={route === 'banco-de-notas' ? 'w-full px-4 py-4 sm:px-5 lg:px-5' : 'mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8'}>
+        </div>
+      </Surface>
+      <div className={sections.length ? 'shell-body shell-body--service' : 'shell-body'}>
+        {sections.length > 0 && <aside className="shell-aside">
+          <ServiceSidebarV2 route={route} section={serviceSectionFromHashV2(route, hash)} serviceName={routeLabels[route]} />
+        </aside>}
+        <main className={sections.length ? 'shell-main shell-main--service' : 'shell-main'}>
           <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">
@@ -200,6 +204,7 @@ function AdminShell({ identity }: { identity: Identity }) {
     </div>
   );
 }
+
 export function App() {
   const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
   const authFailure = authFailureFromUrl();

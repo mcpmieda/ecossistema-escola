@@ -58,10 +58,10 @@ export type PlatformSnapshotV2 = PlatformSnapshotContract & {
 };
 
 const dependencies: Record<PlatformRoute, readonly PlatformSourceSectionV2[]> = {
-  'banco-de-notas': [], 'painel-do-aluno': [], publicacoes: [], paginas: [],
+  'banco-de-notas': [], 'painel-do-aluno': [],
   'visao-geral': ['lists', 'modules', 'configurations'],
   operacao: [],
-  sistemas: ['lists', 'modules'], auditoria: ['lists', 'audit'],
+  auditoria: ['lists', 'audit'],
   configuracoes: ['lists', 'configurations', 'migrations'],
 };
 export const platformRouteNeedsMicrosoftV2 = (route: PlatformRoute): boolean => dependencies[route].length > 0;

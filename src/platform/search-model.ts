@@ -56,12 +56,12 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     label: module.name,
     description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
     category: 'Sistema' as const,
-    href: platformHref('sistemas'),
+    href: platformHref('operacao'),
     searchText: normalizeSearch(
       `${module.name} ${module.key} ${module.version} ${module.status} ${module.integrationState} ${module.requiredCapabilities.join(' ')}`,
     ),
     iconKind: 'system' as const,
-    route: 'sistemas' as const,
+    route: 'operacao' as const,
   }));
 
   const configurations = snapshot.configurations.map((configuration) => ({

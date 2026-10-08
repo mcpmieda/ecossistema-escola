@@ -20,13 +20,10 @@ import {
   CircleGauge,
   Clock3,
   Database,
-  FileText,
   Settings2,
-  ShieldCheck,
 } from 'lucide-react';
 import {
   normalizePlatformRoute,
-  type ModuleIntegrationState,
   type PlatformRoute,
   type PlatformSnapshotContract,
 } from '../../shared/platform-contract';
@@ -49,46 +46,6 @@ if (typeof window !== 'undefined') {
   if (opened === 'operacao') SystemHealthPage.preload();
 }
 import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
-
-function integrationStateLabel(state: ModuleIntegrationState): string {
-  switch (state) {
-    case 'ready':
-      return 'Pronto';
-    case 'registry-only':
-      return 'Cadastrado';
-    case 'contract-mismatch':
-      return 'Requer atualização';
-    case 'disabled':
-      return 'Desabilitado';
-    case 'deprecated':
-      return 'Descontinuado';
-    default:
-      return 'Cadastro inválido';
-  }
-}
-
-function registryStatusLabel(
-  status: PlatformSnapshotContract['registeredModules'][number]['status'],
-): string {
-  switch (status) {
-    case 'installed':
-      return 'Instalado';
-    case 'disabled':
-      return 'Desabilitado';
-    case 'deprecated':
-      return 'Descontinuado';
-    default:
-      return 'Não identificado';
-  }
-}
-
-function integrationChip(state: ModuleIntegrationState) {
-  if (state === 'ready') return { color: 'success' as const, variant: 'soft' as const };
-  if (state === 'contract-mismatch' || state === 'invalid-registry') {
-    return { color: 'danger' as const, variant: 'soft' as const };
-  }
-  return { color: 'default' as const, variant: 'soft' as const };
-}
 
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   const activeConfigurations = snapshot.configurations.filter(
@@ -212,117 +169,6 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           </Card.Content>
         </Card>
       )}
-    </>
-  );
-}
-
-function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
-  return (
-    <>
-      <PageHeader
-        eyebrow="Catálogo"
-        title="Sistemas e módulos"
-        description="Acompanhe os sistemas cadastrados e a situação de integração de cada um com o Centro."
-      />
-
-      <Card variant="default" className="overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Módulos do núcleo</Card.Title>
-          <Card.Description>
-            {snapshot.coreModules.length} áreas cadastradas no Centro.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="p-2">
-          <ModuleList modules={snapshot.coreModules} />
-        </Card.Content>
-      </Card>
-
-      <Card variant="default" className="mt-5 overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Registro e integração</Card.Title>
-          <Card.Description>
-            A situação indica se o sistema está cadastrado, compatível e disponível para uso no
-            Centro.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="p-0">
-          {snapshot.registeredModules.length === 0 ? (
-            <EmptyState
-              title="Nenhum sistema independente registrado"
-              description="O catálogo está preparado para receber novos sistemas sem duplicar autenticação, sessão ou infraestrutura compartilhada."
-            />
-          ) : (
-            <Table variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Registro e integração dos sistemas">
-                  <Table.Header>
-                    <Table.Column id="system">Sistema</Table.Column>
-                    <Table.Column id="version">Versão</Table.Column>
-                    <Table.Column id="registry">Registro</Table.Column>
-                    <Table.Column id="integration">Integração</Table.Column>
-                    <Table.Column id="capabilities">Permissões</Table.Column>
-                    <Table.Column id="access">Acesso</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {snapshot.registeredModules.map((module) => {
-                      const stateChip = integrationChip(module.integrationState);
-                      return (
-                        <Table.Row id={module.id} key={module.id}>
-                          <Table.Cell>
-                            <div className="font-medium">{module.name}</div>
-                          </Table.Cell>
-                          <Table.Cell className="whitespace-nowrap">
-                            {module.version || '—'}
-                          </Table.Cell>
-                          <Table.Cell>
-                            <Chip variant="soft" size="sm">
-                              {registryStatusLabel(module.status)}
-                            </Chip>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <div className="flex flex-col items-start gap-1.5">
-                              <Chip color={stateChip.color} variant={stateChip.variant} size="sm">
-                                {integrationStateLabel(module.integrationState)}
-                              </Chip>
-                              {module.integrationIssues.length > 0 && (
-                                <span className="text-xs text-muted">
-                                  Requer revisão da integração
-                                </span>
-                              )}
-                            </div>
-                          </Table.Cell>
-                          <Table.Cell className="min-w-56">
-                            {module.requiredCapabilities.length > 0 ? (
-                              <Chip color="success" variant="soft" size="sm">
-                                Configuradas
-                              </Chip>
-                            ) : (
-                              <span className="text-xs text-muted">Não definidas</span>
-                            )}
-                          </Table.Cell>
-                          <Table.Cell className="whitespace-nowrap">
-                            {module.available && module.baseRoute.startsWith('/') ? (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onPress={() => window.location.assign(module.baseRoute)}
-                              >
-                                Abrir
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-muted">Indisponível</span>
-                            )}
-                          </Table.Cell>
-                        </Table.Row>
-                      );
-                    })}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          )}
-        </Card.Content>
-      </Card>
     </>
   );
 }
@@ -699,56 +545,6 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   );
 }
 
-function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
-  const copy =
-    route === 'publicacoes'
-      ? {
-          title: 'Publicações',
-          description:
-            'A gestão de publicações será disponibilizada em uma próxima etapa, com revisão, programação e histórico.',
-          icon: BookOpenText,
-        }
-      : {
-          title: 'Páginas',
-          description:
-            'A edição de páginas será disponibilizada em uma próxima etapa, com controle de alterações e versões.',
-          icon: FileText,
-        };
-  const Icon = copy.icon;
-
-  return (
-    <>
-      <PageHeader
-        eyebrow="Próxima fase"
-        title={copy.title}
-        description="Esta área está reservada para uma próxima etapa e ainda não está disponível para uso."
-      />
-      <Surface
-        variant="default"
-        className="platform-card-surface flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
-      >
-        <div className="platform-icon">
-          <Icon className="size-5 text-accent" />
-        </div>
-        <Chip color="accent" variant="soft" size="sm" className="mt-6">
-          Planejado
-        </Chip>
-        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em]">
-          {copy.title} será incorporado ao núcleo
-        </h3>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-muted">{copy.description}</p>
-        <Surface
-          variant="secondary"
-          className="mt-7 flex items-center gap-2 rounded-2xl px-4 py-3 text-xs text-muted"
-        >
-          <ShieldCheck className="size-3.5 text-accent" />
-          Recurso ainda não disponível para edição.
-        </Surface>
-      </Surface>
-    </>
-  );
-}
-
 export function PageContent({
   route,
   snapshot,
@@ -762,15 +558,10 @@ export function PageContent({
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
       return <Suspense fallback={<output className="block">Carregando Saúde do Sistema…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
-    case 'sistemas':
-      return <SystemsPage snapshot={snapshot} />;
     case 'auditoria':
       return <AuditPage snapshot={snapshot} />;
     case 'configuracoes':
       return <SettingsPage snapshot={snapshot} />;
-    case 'publicacoes':
-    case 'paginas':
-      return <PlannedPage route={route} />;
     case 'banco-de-notas':
       return <NotesPage />;
     default:

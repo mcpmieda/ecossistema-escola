@@ -31,8 +31,8 @@ function mount(mock = customizationsUiFixture827(), area = 'policies') {
 async function grid() {
   // The grid element can precede its asynchronous row collection. Wait for the
   // actual accessible row actions as well, not merely the empty table shell.
-  const toggle = await screen.findByRole('button', { name: 'Personalizações de turmas e alunos' });
-  if (toggle.getAttribute('aria-expanded') !== 'true') await userEvent.click(toggle);
+  const tab = await screen.findByRole('tab', { name: 'Políticas personalizadas' });
+  if (tab.getAttribute('aria-selected') !== 'true') await userEvent.click(tab);
   const card = document.querySelector('.pa-custom-settings');
   if (!(card instanceof HTMLElement)) throw new Error('Missing customization card');
   const table = await within(card).findByRole('grid', { name: 'Políticas personalizadas' });

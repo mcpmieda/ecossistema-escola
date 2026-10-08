@@ -1,36 +1,115 @@
-import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
+import { Skeleton } from '@heroui/react';
+import type { MouseEvent } from 'react';
+import {
+  ChartColumn,
+  Circle,
+  ClipboardList,
+  FileText,
+  Gavel,
+  LayoutDashboard,
+  Library,
+  MonitorSmartphone,
+  Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
+  Upload,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
-import { withNotesModule } from './notes-module';
-import { BrandMark } from './presentation';
-import { SCHOOL_NAME_V1 } from '../shared/brand/school-mark-v1';
+import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
+import { defaultNotesSectionId, notesSections, withNotesModule } from './notes-module';
+import {
+  portalSectionFromHash,
+  studentPortalHref,
+  studentPortalSections,
+} from './student-portal-module';
 import { platformHref, routeIcons } from './routes';
 
-function Navigation({
+/*
+ * Shell layout of 07/10/2026 (owner request): the areas of the Centro sit in one subtle row at
+ * the top, and the side column lists the sections of the service that is open.
+ */
+type ServiceSectionV2 = { id: string; label: string; href: string; icon: LucideIcon };
+const PORTAL_SECTION_ICONS_V2: Record<string, LucideIcon> = {
+  overview: LayoutDashboard,
+  accounts: Users,
+  policies: SlidersHorizontal,
+  sessions: MonitorSmartphone,
+  audit: ShieldCheck,
+  settings: Settings2,
+};
+const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
+  [defaultNotesSectionId]: Upload,
+  operational: Library,
+  audit: ShieldCheck,
+  performance: ChartColumn,
+  bulletins: FileText,
+  reports: ClipboardList,
+  council: Gavel,
+  settings: Settings2,
+};
+export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
+  if (route === 'painel-do-aluno')
+    return studentPortalSections
+      .filter((section) => section.id !== 'credentials')
+      .map((section) => ({
+        id: section.id,
+        label: section.label,
+        href: studentPortalHref(section.id),
+        icon: PORTAL_SECTION_ICONS_V2[section.id] ?? Circle,
+      }));
+  if (route === 'banco-de-notas')
+    return notesSections.map((section) => ({
+      id: section.id,
+      label: section.label,
+      href: section.href,
+      icon: NOTES_SECTION_ICONS_V2[section.id] ?? Circle,
+    }));
+  return [];
+}
+/** The section in the address; each service falls back to its own first section. */
+export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): string {
+  if (route === 'painel-do-aluno') {
+    const section = portalSectionFromHash(hash);
+    return section === 'credentials' ? 'accounts' : section;
+  }
+  const requested = new URLSearchParams(hash.split('?')[1] ?? '').get('area');
+  return notesSections.some((section) => section.id === requested)
+    ? (requested as string)
+    : defaultNotesSectionId;
+}
+/** Services first, then the platform areas (owner order of 07/10/2026). */
+const TOP_ORDER_V2: readonly PlatformRoute[] = [
+  'banco-de-notas',
+  'painel-do-aluno',
+  'visao-geral',
+  'operacao',
+  'auditoria',
+  'configuracoes',
+];
+const topOrderV2 = (modules: CoreModuleContract[]) =>
+  [...modules].sort(
+    (left, right) => TOP_ORDER_V2.indexOf(left.route) - TOP_ORDER_V2.indexOf(right.route),
+  );
+const guardDraft = (event: MouseEvent<HTMLAnchorElement>) => {
+  if (!allowDraftNavigationV1()) event.preventDefault();
+};
+
+export function TopNavigationV2({
   route,
   modules,
   loading,
-  onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
   loading: boolean;
-  onNavigate?: () => void;
 }) {
-  if (loading) {
-    return (
-      <div className="grid gap-2 px-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <Skeleton className="h-12 w-full rounded-2xl" key={index} />
-        ))}
-      </div>
-    );
-  }
-
+  if (loading) return <Skeleton className="h-8 w-full max-w-xl rounded-full" />;
   return (
-    <nav aria-label="Navegação principal" className="platform-nav px-3">
-      <ul className="grid gap-[0.3rem]">
-        {withNotesModule(modules).map((module) => {
-          const Icon = routeIcons[module.route];
+    <nav aria-label="Navegação principal" className="shell-topnav">
+      <ul>
+        {topOrderV2(withNotesModule(modules)).map((module) => {
           const isSelected = route === module.route;
           return (
             <li key={module.id}>
@@ -38,21 +117,10 @@ function Navigation({
                 href={platformHref(module.route)}
                 aria-current={isSelected ? 'page' : undefined}
                 data-selected={isSelected ? 'true' : undefined}
-                className="platform-nav__item flex w-full items-center no-underline"
-                onClick={onNavigate}
+                className="shell-topnav__item no-underline"
+                onClick={guardDraft}
               >
-                <Surface
-                  variant={isSelected ? 'tertiary' : 'transparent'}
-                  className="platform-nav__icon grid size-9 shrink-0 place-items-center rounded-xl"
-                >
-                  <Icon className="size-4" />
-                </Surface>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{module.name}</span>
-                {module.state === 'planned' ? (
-                  <Chip variant="soft" size="sm" className="platform-nav__planned">
-                    Em breve
-                  </Chip>
-                ) : null}
+                {module.name}
               </a>
             </li>
           );
@@ -62,47 +130,43 @@ function Navigation({
   );
 }
 
-export function SidebarContent({
+export function ServiceSidebarV2({
   route,
-  modules,
-  loading,
-  onNavigate,
+  section,
+  serviceName,
 }: {
   route: PlatformRoute;
-  modules: CoreModuleContract[];
-  loading: boolean;
-  onNavigate?: () => void;
+  section: string;
+  serviceName: string;
 }) {
+  const Icon = routeIcons[route];
   return (
-    <Surface
-      variant="default"
-      className="sidebar-surface flex h-dvh min-h-dvh w-[min(88vw,320px)] flex-col rounded-none border-0 text-foreground lg:h-full lg:min-h-0 lg:w-auto"
-    >
-      <a
-        href={platformHref('visao-geral')}
-        className="flex h-[72px] min-h-[72px] items-center gap-3 px-5 text-foreground no-underline"
-        aria-label="Ir para a visão geral do Centro de Administração"
-        onClick={onNavigate}
-      >
-        <BrandMark compact />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-[-0.025em]">
-            Centro de Administração
-          </p>
-          <p className="mt-0.5 truncate text-xs text-muted">{SCHOOL_NAME_V1}</p>
-        </div>
-      </a>
-
-      <Separator />
-
-      <ScrollShadow className="flex-1 py-5">
-        <div className="mb-3 px-6">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted">
-            Plataforma
-          </p>
-        </div>
-        <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
-      </ScrollShadow>
-    </Surface>
+    <nav aria-label={`Seções de ${serviceName}`} className="shell-sidenav">
+      <p className="shell-sidenav__service">
+        <span className="shell-sidenav__service-icon">
+          <Icon className="size-4" />
+        </span>
+        <span className="truncate">{serviceName}</span>
+      </p>
+      <ul>
+        {serviceSectionsV2(route).map((item) => {
+          const isSelected = item.id === section;
+          return (
+            <li key={item.id}>
+              <a
+                href={item.href}
+                aria-current={isSelected ? 'page' : undefined}
+                data-selected={isSelected ? 'true' : undefined}
+                className="shell-sidenav__item no-underline"
+                onClick={guardDraft}
+              >
+                <item.icon className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">{item.label}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

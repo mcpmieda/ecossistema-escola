@@ -8,21 +8,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Button,
-  Card,
-  Checkbox,
-  Tooltip,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  Table,
-  TextField,
-} from '@heroui/react';
-import { Star } from 'lucide-react';
+import { Button, Card, Checkbox, Tooltip, SearchField, Table } from '@heroui/react';
+import { ArrowDownAZ, Clock, Star } from 'lucide-react';
 import {
   sealLabelV1,
   useSealCountsV1,
@@ -92,7 +82,11 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
   return (
     <AccountsBodyV1
       key={
-        props.identityKey + ':' + settingsScopeKeyV1(readScopeV1(props.scope)) + ':' + props.canWrite
+        props.identityKey +
+        ':' +
+        settingsScopeKeyV1(readScopeV1(props.scope)) +
+        ':' +
+        props.canWrite
       }
       {...props}
     />
@@ -100,15 +94,16 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
 }
 /** Classificação da lista (owner request 29/09/2026). */
 type AccountOrderV1 = 'name' | 'seals' | 'last-access';
-const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string }[] = [
-  { id: 'name', label: 'Nome (A–Z)' },
-  { id: 'seals', label: 'Selos brilhantes' },
-  { id: 'last-access', label: 'Último acesso' },
+const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string; icon: ReactNode }[] = [
+  { id: 'name', label: 'Nome (A–Z)', icon: <ArrowDownAZ size={13} aria-hidden /> },
+  { id: 'seals', label: 'Selos brilhantes', icon: <Star size={13} aria-hidden /> },
+  { id: 'last-access', label: 'Último acesso', icon: <Clock size={13} aria-hidden /> },
 ];
 function AccountsBodyV1(props: StudentAccountsPropsV1) {
   const sealCache = useSealCountsCacheV1(props.reader);
   const [name, setName] = useState('');
   const [order, setOrder] = useState<AccountOrderV1>('name');
+  const orderKeys = useMemo(() => new Set<string>([order]), [order]);
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
@@ -145,9 +140,6 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
   );
   return (
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
-      <header>
-        <h2>Alunos</h2>
-      </header>
       <Card
         className={`pa-account-controls-card${classSelected ? ' pa-account-controls-card--class' : ''}`}
       >
@@ -162,58 +154,53 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
                 }}
               />
             )}
-            <TextField
-              className="pa-account-search min-w-48 max-w-72"
+            <SearchField
+              className="pa-account-search min-w-48"
+              aria-label="Buscar aluno"
               value={name}
               onChange={(value) => {
                 if (allowDraftNavigationV1()) setName(value);
               }}
             >
-              <Label>Buscar aluno</Label>
-              <Input maxLength={200} />
-            </TextField>
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input maxLength={200} placeholder="Buscar aluno" />
+                <SearchField.ClearButton aria-label="Limpar busca" />
+              </SearchField.Group>
+            </SearchField>
             <AccountFilterTagsV1
-              label="Situação"
-              selected={states}
+              single
+              label="Classificar por"
+              selected={orderKeys}
               onChange={(value) => {
-                if (allowDraftNavigationV1()) setStates(value);
-              }}
-              options={ACCOUNT_STATE_OPTIONS_V1}
-            />
-            <Select
-              className="pa-account-order min-w-48 max-w-64"
-              selectedKey={order}
-              onSelectionChange={(key) => {
-                const next = ACCOUNT_ORDERS_V1.find((item) => item.id === key);
+                const next = ACCOUNT_ORDERS_V1.find((item) => value.has(item.id));
                 if (next) setOrder(next.id);
               }}
-            >
-              <Label>Classificar por</Label>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {ACCOUNT_ORDERS_V1.map((item) => (
-                    <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
-                      {item.label}
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-            <AccountFilterTagsV1
-              label="Bloqueio"
-              selected={blocks}
-              onChange={(value) => {
-                if (allowDraftNavigationV1()) setBlocks(value);
-              }}
-              options={ACCOUNT_BLOCK_OPTIONS_V1}
+              options={ACCOUNT_ORDERS_V1}
             />
+            <div className="pa-account-filter-row" role="group" aria-label="Filtros">
+              <span className="pa-account-rail" aria-hidden>
+                Filtros
+              </span>
+              <AccountFilterTagsV1
+                label="Situação"
+                selected={states}
+                onChange={(value) => {
+                  if (allowDraftNavigationV1()) setStates(value);
+                }}
+                options={ACCOUNT_STATE_OPTIONS_V1}
+              />
+              <AccountFilterTagsV1
+                label="Bloqueio"
+                selected={blocks}
+                onChange={(value) => {
+                  if (allowDraftNavigationV1()) setBlocks(value);
+                }}
+                options={ACCOUNT_BLOCK_OPTIONS_V1}
+              />
+            </div>
           </div>
-          <div ref={setQrMount} className="pa-account-qr-mount" />
+          {classSelected && <div ref={setQrMount} className="pa-account-qr-mount" />}
           {classSelected && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
         </Card.Content>
       </Card>
@@ -274,7 +261,12 @@ function useStableRowsV1() {
   const saved = useRef(
     new Map<
       string,
-      { account: AdminAccountReadV2; content: string; seals: AccountRowV1['seals']; row: AccountRowV1 }
+      {
+        account: AdminAccountReadV2;
+        content: string;
+        seals: AccountRowV1['seals'];
+        row: AccountRowV1;
+      }
     >(),
   );
   return useCallback((account: AdminAccountReadV2, seals: AccountRowV1['seals']) => {
@@ -298,7 +290,10 @@ const AvatarBackfillPanelV1 = lazy(() =>
 );
 /** Accents and case do not separate what the operator types from the official name. */
 const foldNameV1 = (value: string) =>
-  value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase('pt-BR');
 /** The accounts a view shows, before ordering: one rule for the list and for what it asks ahead. */
 function narrowAccountsV1<T extends AdminAccountReadV2>(
   items: readonly T[],
@@ -354,9 +349,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
   const [selection, setSelection] = useState({ owner: '', keys: NO_SELECTION_V1 });
-  const [photoMaintenance] = useState(
-    () => readPanelHashParamV1('manutencao') === 'miniaturas',
-  );
+  const [photoMaintenance] = useState(() => readPanelHashParamV1('manutencao') === 'miniaturas');
   const maintenance = photoMaintenance && props.canWrite && props.query.scope.kind === 'school';
   const selectedTrigger = useRef<HTMLElement | null>(null);
   const listControl = useRef<HTMLDivElement>(null);
@@ -473,7 +466,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   );
   const seals = useSealCountsV1(
     props.reader,
-    props.order === 'seals' && current && sealAccountIds.length ? { accountIds: sealAccountIds } : null,
+    props.order === 'seals' && current && sealAccountIds.length
+      ? { accountIds: sealAccountIds }
+      : null,
     { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
   const sealCounts = seals.state === 'ready' ? seals.counts : null;
@@ -576,7 +571,6 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
                 client={props.client}
                 accounts={orderedItems}
                 selected={selectedQr}
-                onSelectAll={(select) => setSelectedQr(select ? eligibleQr : new Set())}
                 academicYear={qrClass.academicYear}
                 classId={qrClass.classId}
                 scopeVersion={current.scopeVersion}

@@ -38,7 +38,7 @@ describe('HeroUI final hardening contract', () => {
     expect(app).toContain('<Dropdown.Item id="logout"');
     expect(app).toContain('Não foi possível concluir sua entrada.');
     expect(app).toContain('Entrar novamente');
-    expect(app).toContain('<Breadcrumbs');
+    expect(app).toContain('<TopNavigationV2');
   });
 
   it('removes Ambient Constellation and all active ambient presentation hooks', () => {
@@ -66,8 +66,9 @@ describe('HeroUI final hardening contract', () => {
     expect(styles).toContain('--platform-page-background: #f4f4f5;');
     expect(styles).toContain('background: #f4f4f5;');
     expect(navigation).not.toMatch(/>\s*v1\s*</u);
-    expect(navigation).toContain('h-[72px] min-h-[72px]');
-    expect(source('src/App.tsx')).toContain('lg:h-[72px]');
+    // One compact top row since the shell of 07/10/2026.
+    expect(styles).toContain('--shell-top: 3.25rem;');
+    expect(source('src/App.tsx')).toContain('shell-topbar');
   });
 
   it('uses HeroUI table scroll containers for every structured table', () => {

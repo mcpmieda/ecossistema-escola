@@ -55,7 +55,7 @@ it('opens an area whose bundle arrived while idle without any loading state', as
   });
   const watch = loadingStates();
   await userEvent.setup().click(screen.getByRole('tab', { name: 'Sessões' }));
-  expect(await screen.findByRole('heading', { name: 'Sessões' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Sessões ativas' })).toBeTruthy();
   watch.stop();
   expect(watch.seen).toEqual([]);
 });
@@ -64,5 +64,5 @@ it('still loads an area on demand where the browser offers no idle time', async 
   window.history.replaceState(null, '', '/#/painel-do-aluno');
   render(page());
   await userEvent.setup().click(await screen.findByRole('tab', { name: 'Sessões' }));
-  expect(await screen.findByRole('heading', { name: 'Sessões' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Sessões ativas' })).toBeTruthy();
 });

@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { liveServerMessageV1 } from '../../../shared/student-portal-contracts/live-v1';
 import { notifyLiveChangeV1, registerLiveConnectionV1 } from './live-refresh-v1';
 import { secureJitterV1 } from './secure-jitter-v1';
@@ -181,14 +181,4 @@ export function useRemoteLiveV1(options: {
     };
   }, [options.enabled, options.path, options.identityKey]);
   return state;
-}
-
-export function RemoteLiveNoticeV1({ state }: { state: RemoteLiveStateV1 }) {
-  return state === 'reconnecting' || state === 'unsupported'
-    ? createElement(
-        'p',
-        { role: 'status', className: 'text-xs text-muted' },
-        'Avisos entre dispositivos indisponíveis; a recuperação periódica continua ativa.',
-      )
-    : null;
 }

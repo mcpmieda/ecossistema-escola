@@ -153,11 +153,10 @@ function AuditBodyV1(props: OperationsPropsV1) {
   }, [from, until, event, result, detailReader]);
   const data = read.state.state === 'ready' ? read.state.data : null;
   return (
-    <Card className="pa-operations-card">
+    <Card className="pa-operations-card pa-rise">
       <Card.Header>
         <div className="pa-operations-header">
           <div>
-            <h2>Auditoria</h2>
             <p className="text-xs text-muted">{props.scopeLabel}</p>
           </div>
           <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />

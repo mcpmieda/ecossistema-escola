@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, ProgressBar, Surface } from '@heroui/react';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import {
   useImportBatch,
   type ImportFlowProgressV9,
+  isMasterRelationResult,
   type ImportPersistenceStateV9,
 } from './use-import-batch';
 import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
@@ -280,8 +281,32 @@ export function TimingDiagnostics({
   );
 }
 
+/** The three server refusals a Relação resolves: missing year, class or student number. */
+const waitsForRelationV1 = (state: ImportPersistenceStateV9 | undefined) =>
+  state?.state === 'completed' &&
+  state.response.state === 'blocked' &&
+  state.response.reason.includes('Relação');
+
+const savedV1 = (state: ImportPersistenceStateV9 | undefined) =>
+  state?.state === 'completed' &&
+  (state.response.state === 'applied' || state.response.state === 'no-changes');
+/** What each button shows: resting, sent in this tab, or the next thing the import needs. */
+type ImportStepToneV1 = 'idle' | 'done' | 'call';
+const STEP_CLASS_V1: Record<ImportStepToneV1, string> = {
+  idle: '',
+  done: 'import-step--done',
+  call: 'import-step--call',
+};
+
 export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [asked, setAsked] = useState<'relation' | 'marks'>('marks');
+  // Sent in this tab. A batch decides only for the kind of file it carried.
+  const [sent, setSent] = useState({ relation: false, marks: false });
+  // Grade workbooks the server refused for want of the Relação stay in this tab; the next
+  // selection carries them along, and a batch always sends its Relação first.
+  const batchFiles = useRef<readonly File[]>([]);
+  const [waiting, setWaiting] = useState<readonly File[]>([]);
   const {
     authorizationRequired,
     diagnosticAuditFailures,
@@ -303,6 +328,45 @@ export function NotesImportPanel() {
     totals,
   } = useImportBatch();
 
+  useEffect(() => {
+    if (loading) return;
+    const blocked = new Set(
+      results
+        .filter((result) => waitsForRelationV1(persistence[result.id]))
+        .map((result) => result.manifest.fileName),
+    );
+    setWaiting(batchFiles.current.filter((file) => blocked.has(file.name)));
+    if (results.length === 0) return;
+    const relations = results.filter(isMasterRelationResult);
+    const marks = results.filter((result) => !isMasterRelationResult(result));
+    const allSaved = (group: typeof results) =>
+      group.every((result) => savedV1(persistence[result.id]));
+    setSent((current) => ({
+      relation: relations.length ? allSaved(relations) : current.relation,
+      marks: marks.length ? allSaved(marks) : current.marks,
+    }));
+  }, [loading, results, persistence]);
+  // The Relação is asked for while workbooks wait on it; the workbooks once it is in.
+  const relationTone: ImportStepToneV1 = sent.relation
+    ? 'done'
+    : waiting.length > 0
+      ? 'call'
+      : 'idle';
+  const marksTone: ImportStepToneV1 = sent.marks
+    ? 'done'
+    : sent.relation && waiting.length === 0
+      ? 'call'
+      : 'idle';
+  const pick = (kind: 'relation' | 'marks') => {
+    setAsked(kind);
+    inputRef.current?.click();
+  };
+  const importSelected = (selected: readonly File[]) => {
+    const chosen = new Set(selected.map((file) => file.name));
+    batchFiles.current = [...selected, ...waiting.filter((file) => !chosen.has(file.name))];
+    return handleFiles(batchFiles.current);
+  };
+
   const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
   const selectedDiagnostics = selectedResult
     ? actionableGradebookImportDiagnosticsV1(sourceDiagnostics[selectedResult.id] ?? [])
@@ -319,7 +383,7 @@ export function NotesImportPanel() {
         onChange={(event) => {
           const input = event.currentTarget;
           if (input.files?.length) {
-            void handleFiles(input.files).finally(() => {
+            void importSelected(Array.from(input.files)).finally(() => {
               input.value = '';
             });
           }
@@ -332,23 +396,61 @@ export function NotesImportPanel() {
             <FileSpreadsheet className="size-5 text-accent" />
             <h3 className="text-lg font-semibold">Importar planilhas</h3>
           </div>
-          <p className="mt-2 text-sm text-muted">
-            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é lido
-            localmente. Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.
-            Nas atividades e avaliações, vazio significa “Não fez” e 0 significa “Tirou zero”. A
-            nota 0,1 é um número comum e entra nos cálculos.
-          </p>
         </div>
-        <Button
-          variant="primary"
-          isPending={loading}
-          isDisabled={loading}
-          onPress={() => inputRef.current?.click()}
-        >
-          <Upload className="size-4" />
-          {loading ? 'Processando importação' : 'Selecionar planilhas'}
-        </Button>
+        {/* Both buttons run the same import; the Relação usually lives in another folder. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button
+            variant={relationTone === 'call' ? 'primary' : 'secondary'}
+            className={STEP_CLASS_V1[relationTone]}
+            isPending={loading && asked === 'relation'}
+            isDisabled={loading}
+            onPress={() => pick('relation')}
+          >
+            {relationTone === 'done' ? <Check className="size-4" /> : <Users className="size-4" />}
+            {relationTone === 'done' ? 'Relação enviada' : 'Selecionar Relação'}
+          </Button>
+          <Button
+            variant={marksTone === 'call' ? 'primary' : 'secondary'}
+            className={STEP_CLASS_V1[marksTone]}
+            isPending={loading && asked === 'marks'}
+            isDisabled={loading}
+            onPress={() => pick('marks')}
+          >
+            {marksTone === 'done' ? <Check className="size-4" /> : <Upload className="size-4" />}
+            {marksTone === 'done' ? 'Planilhas enviadas' : 'Selecionar planilhas'}
+          </Button>
+        </div>
       </div>
+
+      {waiting.length > 0 && !loading && (
+        <Alert status="warning" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              {waiting.length === 1
+                ? '1 planilha aguardando a Relação'
+                : `${waiting.length} planilhas aguardando a Relação`}
+            </Alert.Title>
+            <Alert.Description>{waiting.map((file) => file.name).join(' · ')}</Alert.Description>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" onPress={() => pick('relation')}>
+                <Users className="size-4" />
+                Selecionar Relação
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => {
+                  batchFiles.current = [];
+                  setWaiting([]);
+                }}
+              >
+                Descartar
+              </Button>
+            </div>
+          </Alert.Content>
+        </Alert>
+      )}
 
       {progress && (
         <Surface variant="secondary" className="mt-5 rounded-2xl p-4">

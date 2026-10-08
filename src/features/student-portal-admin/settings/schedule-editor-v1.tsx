@@ -101,7 +101,7 @@ export function ScheduleEditorV1({
   error: string | null;
   empty: string;
   notice?: ReactNode;
-  /** Save / personalize / default buttons, after "Adicionar agendamento". */
+  /** Save / personalize / default buttons, after "Novo agendamento". */
   actions?: ReactNode;
 }>) {
   const redundant = redundantRowsV1(rows);
@@ -186,7 +186,7 @@ export function ScheduleEditorV1({
             }}
           >
             <Plus size={16} aria-hidden="true" />
-            Adicionar agendamento
+            Novo agendamento
           </Button>
           {actions}
         </div>
