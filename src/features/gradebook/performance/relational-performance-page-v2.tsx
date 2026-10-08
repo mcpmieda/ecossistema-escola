@@ -1,17 +1,7 @@
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
 import { StableReadStatusV1 } from '../../../shared/live-data/stable-read-status-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Chip,
-  Drawer,
-  Label,
-  ListBox,
-  Select,
-  Skeleton,
-  Tabs,
-} from '@heroui/react';
+import { Alert, Button, Chip, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
 import {
   PERFORMANCE_PERSPECTIVES_V6,
@@ -22,6 +12,7 @@ import {
 import { PerformanceStudentDetailV2 } from './performance-student-detail-v2';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import { PerformanceResultMatrixV2 } from './performance-result-matrix-v2';
+import { PerformanceGridYearV2 } from './performance-grid-v2';
 import { PerformanceAnalysisPanelV3 } from './performance-analysis-panel-v3';
 import { PerformanceTermComparisonPanelV4 } from './performance-term-comparison-panel-v4';
 import {
@@ -35,6 +26,35 @@ import type {
   PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
+import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+
+/** The perspective and what was picked inside it, kept for the tab across a reload. */
+const VIEW_KEY_V2 = 'gradebook-performance-view';
+type StoredViewV2 = {
+  perspective: PerformancePerspectiveV6;
+  selection: PerformanceSelectionV6;
+  year: number | null;
+};
+const idOrNull = (value: unknown) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+function readStoredViewV2(): StoredViewV2 | null {
+  return readSessionViewV1(VIEW_KEY_V2, (value) => {
+    if (value === null || typeof value !== 'object') return null;
+    const stored = value as Record<string, unknown>;
+    const perspective = PERFORMANCE_PERSPECTIVES_V6.find((item) => item.id === stored.perspective);
+    if (!perspective) return null;
+    const selection = (stored.selection ?? {}) as Record<string, unknown>;
+    return {
+      perspective: perspective.id,
+      selection: {
+        studentId: idOrNull(selection.studentId),
+        offerId: idOrNull(selection.offerId),
+        teacherId: idOrNull(selection.teacherId),
+      },
+      year: idOrNull(stored.year),
+    };
+  });
+}
 
 const failures: Record<PerformanceFailureV2, string> = {
   'not-authorized': 'Sua sessão não possui autorização. Entre novamente com uma conta autorizada.',
@@ -130,13 +150,23 @@ function PerformanceSelect({
 export function RelationalPerformancePageV2({
   isActive = true,
 }: { readonly isActive?: boolean } = {}) {
-  const [perspective, setPerspective] = useState<PerformancePerspectiveV6>('overview');
-  const [selection, setSelection] = useState<PerformanceSelectionV6>({
-    studentId: null,
-    offerId: null,
-    teacherId: null,
-  });
+  const [storedView] = useState(readStoredViewV2);
+  const [perspective, setPerspective] = useState<PerformancePerspectiveV6>(
+    storedView?.perspective ?? 'overview',
+  );
+  const [selection, setSelection] = useState<PerformanceSelectionV6>(
+    storedView?.selection ?? { studentId: null, offerId: null, teacherId: null },
+  );
   const state = useRelationalPerformanceV2(perspective === 'notes', isActive);
+  const viewYear = state.year;
+  useEffect(() => {
+    // What was picked belongs to its year: another year starts clean.
+    if (viewYear !== null && storedView && storedView.year !== viewYear)
+      setSelection({ studentId: null, offerId: null, teacherId: null });
+  }, [viewYear, storedView]);
+  useEffect(() => {
+    writeSessionViewV1(VIEW_KEY_V2, { perspective, selection, year: viewYear });
+  }, [perspective, selection, viewYear]);
   const analytics = usePerformanceAnalyticsV6(
     state.filters.classId,
     state.filters.period,
@@ -159,12 +189,16 @@ export function RelationalPerformancePageV2({
   }, []);
   // The student whose detail was asked for: the name already on screen heads the drawer at once.
   const [openingId, setOpeningId] = useState<number | null>(null);
-  const open = (studentId: number, offerId?: number) => {
-    lastFocus.current = document.activeElement as HTMLElement;
+  // A mark clicked inside the student detail opens its breakdown on that trimester.
+  const [focusTerm, setFocusTerm] = useState<1 | 2 | 3 | null>(null);
+  const open = (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
+    if (!state.detailOpen) lastFocus.current = document.activeElement as HTMLElement;
     setOpeningId(studentId);
+    setFocusTerm(term ?? null);
     void state.open(studentId, offerId);
   };
   const close = () => {
+    setFocusTerm(null);
     state.closeDetail();
     lastFocus.current?.focus();
   };
@@ -185,6 +219,9 @@ export function RelationalPerformancePageV2({
       </p>
     );
   const detail = state.detail;
+  // Everything but the situations shown: changing those keeps the panels, and what was typed
+  // or picked inside them, in place while the same reading is refreshed.
+  const scopeKey = JSON.stringify({ ...state.filters, statuses: null });
   const openingName =
     openingId === null
       ? undefined
@@ -200,7 +237,10 @@ export function RelationalPerformancePageV2({
   ];
   if (state.filters.period === 3) comparisonItems.push({ id: '2', label: '2º trimestre' });
   return (
-    <section aria-label="Desempenho relacional" className="performance-workspace grid min-w-0 grid-cols-1 gap-4">
+    <section
+      aria-label="Desempenho relacional"
+      className="performance-workspace grid min-w-0 grid-cols-1 gap-4"
+    >
       <header className="flex min-h-12 flex-wrap items-center gap-2">
         <div>
           <h2 className="text-xl font-semibold tracking-[-0.03em]">Desempenho</h2>
@@ -255,7 +295,7 @@ export function RelationalPerformancePageV2({
           </Tabs.ListContainer>
           <Tabs.Panel id="notes" className="grid min-w-0 gap-4">
             {state.filters.classId !== null ? (
-              <>
+              <PerformanceGridYearV2.Provider value={state.year}>
                 <div className="grid grid-cols-2 gap-3 sm:max-w-lg">
                   {' '}
                   <PerformanceSelect
@@ -357,17 +397,18 @@ export function RelationalPerformancePageV2({
                           ) : null}
                           {state.comparison ? (
                             <PerformanceTermComparisonPanelV4
-                              key={`comparison:${JSON.stringify(state.filters)}`}
+                              key={`comparison:${scopeKey}`}
                               value={state.comparison}
                               open={open}
                             />
                           ) : null}
                           {state.analysis && state.dashboard ? (
                             <PerformanceAnalysisPanelV3
-                              key={JSON.stringify(state.filters)}
+                              key={scopeKey}
                               value={state.analysis}
                               dashboard={state.dashboard}
                               open={open}
+                              statuses={state.filters.statuses}
                               focusOffer={(offerId) =>
                                 void state.select({ lens: 'assessments', offerId })
                               }
@@ -393,7 +434,7 @@ export function RelationalPerformancePageV2({
                     </Tabs.Panel>
                   ))}
                 </Tabs>
-              </>
+              </PerformanceGridYearV2.Provider>
             ) : (
               <p className="py-16 text-center text-sm text-muted">Escolha uma turma.</p>
             )}
@@ -468,11 +509,11 @@ export function RelationalPerformancePageV2({
       >
         <Drawer.Content placement="right">
           <Drawer.Dialog className="w-full max-w-full sm:w-[min(52rem,90vw)]">
-            <Drawer.CloseTrigger aria-label="Fechar detalhe" />
+            <Drawer.CloseTrigger aria-label="Fechar detalhe" className="performance-detail-close" />
             {detail ? (
               <PerformanceStudentDetailV2
                 detail={detail}
-                focusPeriod={state.filters.period}
+                focusPeriod={focusTerm ?? state.filters.period}
                 openComponent={open}
                 openCenter={(id) => {
                   close();

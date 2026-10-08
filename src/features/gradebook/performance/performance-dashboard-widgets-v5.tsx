@@ -137,6 +137,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
   const pending = stats.pending / denominator * 100;
   const pendingLabel = analysis.lens === 'result' ? 'Sem nota numérica para classificar' : 'Ainda sem classificação';
   const students = new Map(analysis.matrix.rows.map((row) => [row.student.id, row.student]));
+  const withRed = new Set(analysis.matrix.rows.filter((row) => row.cells.some((cell) => cell.level === 'below')).map((row) => row.student.id));
   const totalLabel = analysis.matrix.period === 'annual' ? 'Total anual' : `Total do T${analysis.matrix.period}`;
   const choose = (group: 'allAtOrAbove' | 'withBelow' | 'pending') => {
     const active = selection?.kind === 'group' && selection.group === group;
@@ -170,7 +171,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
         const student = students.get(entry.studentId);
         if (student === undefined) return null;
         return <li key={entry.studentId}><button type="button" onClick={() => open(entry.studentId)} aria-label={`${index + 1}º lugar, ${student.name}, ${totalLabel}: ${gradeText(entry.totalMilli)}${entry.partial ? ', somatório parcial' : ''}`}>
-          <span className="performance-ranking__position">{index + 1}</span><span className="truncate">{student.name}</span><strong className="tabular-nums">{gradeText(entry.totalMilli)}{entry.partial ? '*' : ''}</strong>
+          <span className="performance-ranking__position">{index + 1}</span><span className={withRed.has(entry.studentId) ? 'truncate text-danger' : 'truncate'}>{student.name}</span><strong className="tabular-nums">{gradeText(entry.totalMilli)}{entry.partial ? '*' : ''}</strong>
         </button></li>;
       })}</ol> : <p>Nenhum estudante tem valor numérico em todos os componentes deste recorte.</p>}
       <footer>{totalLabel} · soma dos componentes com valor numérico{value.overview.ranking.some((entry) => entry.partial) ? ' · * soma com componente parcial' : ''}</footer>

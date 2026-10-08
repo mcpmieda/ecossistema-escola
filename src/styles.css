@@ -957,31 +957,74 @@ button.performance-kpi__button:hover {
   vertical-align: middle;
 }
 
-.performance-matrix-header {
+/* The column under the pointer, in the same tone the row gets. */
+@media (hover: hover) {
+  .performance-grid .table__row .table__cell[data-col-hover] {
+    background-color: color-mix(in oklab, var(--surface) 40%, transparent);
+  }
+}
+
+/* Components where the student under the pointer is below the minimum. */
+.performance-grid__head[data-below],
+.performance-grid__head[data-below] button,
+.performance-grid-pin__track > span[data-below] {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+/* The header again, under the top bar, once the table's own has scrolled away. */
+.performance-grid-pin {
+  position: fixed;
+  z-index: 15;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-top: 0;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: color-mix(in oklab, var(--default) 88%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgb(0 0 0 / 0.55);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+  pointer-events: none;
+  animation: performance-grid-pin-in 160ms ease-out;
+}
+
+.performance-grid-pin__track {
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
 }
 
-.performance-status-filter {
-  min-width: 0;
-  flex: 1 1 42rem;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.performance-status-filter .tag-group__list {
-  justify-content: flex-end;
-}
-
-.performance-status-filter .tag {
-  border: 1px solid transparent;
+.performance-grid-pin__track > span {
+  flex: none;
+  overflow: hidden;
+  padding: 0.375rem 0.5rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.performance-status-filter .tag[data-selected='true'] {
-  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
+.performance-grid-pin__track > .performance-grid-pin__value {
+  font-weight: 600;
+  text-align: center;
+}
+
+@keyframes performance-grid-pin-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .performance-grid-pin {
+    animation: none;
+  }
+}
+
+.performance-matrix-header {
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .performance-lens-tabs > .tabs__list-container,
@@ -1897,4 +1940,84 @@ button.performance-kpi__button:hover {
 }
 .platform-shell--v2 .platform-page-header__content > p {
   margin-top: 0.15rem;
+}
+
+/* Filter tags shared by the Painel do Aluno and the Banco de notas: label on the left, tags
+   wrapping beside it. */
+.filter-tags-v1 {
+  min-width: 0;
+}
+.filter-tags-v1 .tag-group__list {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.filter-tags-v1 .tag {
+  gap: 0.3rem;
+}
+.filter-tags-v1--inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+}
+.filter-tags-v1--inline > .label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.performance-matrix-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.1rem;
+}
+.performance-matrix-filters .search-field {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 20rem;
+  margin-left: auto;
+}
+
+/* Student detail: an easier close target, and on a phone the term table fits the screen
+   width instead of scrolling sideways. */
+.performance-detail-close.close-button {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.performance-detail-close.close-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.performance-detail-table__short {
+  display: none;
+}
+@media (max-width: 640px) {
+  .performance-detail-table table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+  .performance-detail-table th,
+  .performance-detail-table td {
+    padding-inline: 0.3rem;
+  }
+  .performance-detail-table th:first-child,
+  .performance-detail-table td:first-child {
+    width: 40%;
+  }
+  .performance-detail-table th:not(:first-child),
+  .performance-detail-table td:not(:first-child) {
+    text-align: center;
+  }
+  .performance-detail-table td:first-child .button {
+    padding-inline: 0.25rem;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+  .performance-detail-table__long {
+    display: none;
+  }
+  .performance-detail-table__short {
+    display: inline;
+  }
 }

@@ -31,6 +31,7 @@ import {
 import type { PerformanceAnalysisV3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import type { PerformanceTermComparisonV4 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import {
+  RELATIONAL_INSTITUTIONAL_REPORT_FAMILIES_V2,
   RELATIONAL_INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V2,
   type RelationalInstitutionalDiagnosticV2,
   type RelationalInstitutionalReportFamilyV2,
@@ -39,6 +40,7 @@ import {
 } from '../../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
 import type { RelationalBulletinHistoryItemV2 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { runRelationalBulletinPdfActionV2 } from '../bulletins/pdf/bulletin-pdf-actions-v2';
@@ -262,6 +264,19 @@ function AuditReport({ items }: { readonly items: readonly RelationalInstitution
   );
 }
 
+/** Family, class and reading kept for the tab across a reload. */
+const VIEW_KEY_V2 = 'gradebook-reports-view';
+function readStoredViewV2() {
+  const stored = readSessionRecordV1(VIEW_KEY_V2);
+  if (!stored) return null;
+  const family = RELATIONAL_INSTITUTIONAL_REPORT_FAMILIES_V2.find((item) => item === stored.family);
+  const period = ([1, 2, 3, 'annual'] as const).find((item) => item === stored.period);
+  const lens = (['result', 'quantitative', 'qualitative'] as const).find((item) => item === stored.lens);
+  const referenceTerm = ([1, 2, 3] as const).find((item) => item === stored.referenceTerm) ?? null;
+  if (!family || !period || !lens) return null;
+  return { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId), family, period, lens, referenceTerm };
+}
+
 function toLoadState(cause: unknown): LoadState {
   if (cause instanceof RelationalInstitutionalReportsClientErrorV2) {
     return cause.code === 'invalid-request' ? 'unavailable' : cause.code;
@@ -273,11 +288,12 @@ export function RelationalInstitutionalReportsPageV2({ isActive = true }: { read
   const year = useGradebookYear()?.year ?? null;
   const [catalogState, setCatalogState] = useState<LoadState>('loading');
   const [classes, setClasses] = useState<readonly ClassItem[]>([]);
-  const [family, setFamily] = useState<RelationalInstitutionalReportFamilyV2>('class-results');
+  const [storedView] = useState(readStoredViewV2);
+  const [family, setFamily] = useState<RelationalInstitutionalReportFamilyV2>(storedView?.family ?? 'class-results');
   const [classId, setClassId] = useState<number | null>(null);
-  const [period, setPeriod] = useState<Period>(1);
-  const [lens, setLens] = useState<Lens>('result');
-  const [referenceTerm, setReferenceTerm] = useState<1 | 2 | 3 | null>(null);
+  const [period, setPeriod] = useState<Period>(storedView?.period ?? 1);
+  const [lens, setLens] = useState<Lens>(storedView?.lens ?? 'result');
+  const [referenceTerm, setReferenceTerm] = useState<1 | 2 | 3 | null>(storedView?.referenceTerm ?? null);
   const [severity, setSeverity] = useState<string>('all');
   const [diagnosticCode, setDiagnosticCode] = useState<string>('all');
   const [auditOffset, setAuditOffset] = useState(0);
@@ -308,13 +324,19 @@ export function RelationalInstitutionalReportsPageV2({ isActive = true }: { read
     }, controller.signal).then((response) => {
       if (response.state !== 'ready' || response.operation !== 'catalog') { setClasses([]); setCatalogState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable'); return; }
       setClasses(response.classes);
-      setClassId(response.classes[0]?.id ?? null);
+      const storedClass = storedView?.year === year ? storedView.classId : null;
+      setClassId(response.classes.some((item) => item.id === storedClass) ? storedClass : (response.classes[0]?.id ?? null));
       setCatalogState(response.classes.length === 0 ? 'empty' : 'ready');
     }).catch((cause: unknown) => {
       if (!(cause instanceof DOMException && cause.name === 'AbortError')) setCatalogState(toLoadState(cause));
     });
     return () => controller.abort();
   }, [year]);
+
+  useEffect(() => {
+    // Written once the classes are in, so the class being restored is not overwritten first.
+    if (year !== null && catalogState === 'ready') writeSessionViewV1(VIEW_KEY_V2, { year, family, classId, period, lens, referenceTerm });
+  }, [year, catalogState, family, classId, period, lens, referenceTerm]);
 
   useEffect(() => {
     if (family === 'class-results') setLens('result');

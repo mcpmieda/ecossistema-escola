@@ -6,11 +6,23 @@ import type {
   WorkspaceCountsV2, WorkspaceFailureStateV2, WorkspaceKindV2, WorkspaceLinkV2,
   WorkspaceOfferV2, WorkspaceSearchItemV2, WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
+import { WORKSPACE_KINDS_V2 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
+import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { requestOperationalWorkspaceV2 } from './operational-workspace-client-v2';
 import { createOperationalWorkspaceRequestGate } from './operational-workspace-request-gate';
 
 type Concern = 'context'|'search'|'detail';
+/** The kind filter and the opened record, kept for the tab across a reload; never the typed search. */
+const VIEW_KEY_V2 = 'gradebook-workspace-view';
+function readStoredViewV2() {
+  const stored = readSessionRecordV1(VIEW_KEY_V2);
+  if (!stored) return null;
+  const kind: WorkspaceKindV2|'all'|undefined = stored.kind === 'all' ? 'all' : WORKSPACE_KINDS_V2.find((item) => item === stored.kind);
+  const targetKind = WORKSPACE_KINDS_V2.find((item) => item === stored.targetKind);
+  const targetId = storedIdV1(stored.targetId);
+  return { year: storedIdV1(stored.year), kind: kind ?? 'all', target: targetKind && targetId !== null ? { kind: targetKind, id: targetId } : null };
+}
 const IDLE = {context:false,search:false,detail:false};
 const PAGE_SIZE = 100;
 function unique<T>(values: readonly T[], key: (value:T)=>string|number): T[] {
@@ -29,7 +41,12 @@ export function useRelationalWorkspaceV2() {
   const targetStudentId = sharedYear?.targetStudentId ?? null;
   const [gates] = useState(() => ({context:createOperationalWorkspaceRequestGate(),search:createOperationalWorkspaceRequestGate(),detail:createOperationalWorkspaceRequestGate()}));
   const [context,setContext] = useState<{year:WorkspaceYearV2;counts:WorkspaceCountsV2}|null>(null);
-  const [kind,setKindValue] = useState<WorkspaceKindV2|'all'>('all');
+  const [storedView] = useState(readStoredViewV2);
+  const [kind,setKindValue] = useState<WorkspaceKindV2|'all'>(storedView?.kind ?? 'all');
+  const restoreTarget = useRef(targetStudentId === null ? storedView : null);
+  const remember = (nextKind: WorkspaceKindV2|'all', entity: {kind:WorkspaceKindV2;id:number}|null) => {
+    if (year !== null) writeSessionViewV1(VIEW_KEY_V2, {year,kind:nextKind,targetKind:entity?.kind ?? null,targetId:entity?.id ?? null});
+  };
   const [query,setQueryValue] = useState('');
   const [items,setItems] = useState<readonly WorkspaceSearchItemV2[]>([]);
   const [nextOffset,setNextOffset] = useState<number|null>(null);
@@ -93,8 +110,8 @@ export function useRelationalWorkspaceV2() {
     } catch { if (ticket.isCurrent()) { setFailure('unavailable'); return false; } }
     finally { if (ticket.isCurrent()) setBusy((current) => ({...current,[concern]:false})); ticket.complete(); }
   }
-  function setQuery(value:string) {clearSearch();setQueryValue(value);setFailure(null);}
-  function setKind(value:WorkspaceKindV2|'all') {clearSearch();setKindValue(value);setFailure(null);}
+  function setQuery(value:string) {clearSearch();setQueryValue(value);setFailure(null);remember(kind,null);}
+  function setKind(value:WorkspaceKindV2|'all') {clearSearch();setKindValue(value);setFailure(null);remember(value,null);}
   async function search(offset=0, quiet=false) {
     if(year === null || context?.year.year!==year) return;
     if(offset===0 && !quiet) {epoch.current++;target.current=null;loadedPages.current=1;gates.detail.invalidate();setDetail(null);setItems([]);setNextOffset(null);setSearched(false);setBusy((current)=>({...current,detail:false}));}
@@ -107,7 +124,7 @@ export function useRelationalWorkspaceV2() {
   }
   async function open(entity:WorkspaceLinkV2, offset=0, quiet=false) {
     if(year === null || context?.year.year!==year) return;
-    if(offset===0 && !quiet) { epoch.current++; target.current = entity; setDetail(null); }
+    if(offset===0 && !quiet) { epoch.current++; target.current = entity; setDetail(null); remember(kind,entity); }
     return run({contractVersion:2,operation:'center',year,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
       if(response.operation!=='center') return;
       setDetail((current)=>offset===0||current===null?response.center:{
@@ -117,6 +134,15 @@ export function useRelationalWorkspaceV2() {
       });
     });
   }
+  const openLatest = useRef(open);
+  useEffect(() => { openLatest.current = open; });
+  useEffect(() => {
+    // The restored record opens after the restored list has been read, which would clear it.
+    const stored = restoreTarget.current;
+    if (!stored || year === null || context?.year.year !== year || (kind !== 'all' && !searched)) return;
+    restoreTarget.current = null;
+    if (stored.year === year && stored.target) void openLatest.current({ ...stored.target, label: '' });
+  }, [year, context?.year.year, kind, searched]);
   const searchLatest = useRef(search);
   useEffect(() => { searchLatest.current = search; });
   useEffect(() => {

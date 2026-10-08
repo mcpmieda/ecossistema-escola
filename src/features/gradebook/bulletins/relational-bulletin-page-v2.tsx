@@ -32,6 +32,7 @@ import {
   type RelationalBulletinSnapshotV2,
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import {
@@ -56,6 +57,18 @@ type Artifact =
   | { readonly mode: 'preview'; readonly model: RelationalBulletinModelV2 }
   | { readonly mode: 'emission' | 'reprint'; readonly snapshot: RelationalBulletinSnapshotV2 };
 type Busy = 'catalog' | 'students' | 'artifact' | 'batch' | 'history' | null;
+/** Class, period and detail kept for the tab across a reload. */
+const VIEW_KEY_V2 = 'gradebook-bulletins-view';
+function readStoredViewV2() {
+  const stored = readSessionRecordV1(VIEW_KEY_V2);
+  if (!stored) return null;
+  const term = ([1, 2, 3] as const).find((item) => item === stored.term);
+  const period: RelationalBulletinPeriodV2 | null =
+    stored.term === 'annual' ? { kind: 'annual' } : term ? { kind: 'term', term } : null;
+  const detail = (['summary', 'detailed'] as const).find((item) => item === stored.detail);
+  if (!period || !detail) return null;
+  return { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId), period, detail };
+}
 type PdfState = RelationalBulletinPdfActionV2 | null;
 
 const FAILURE: Record<RelationalBulletinFailureV2, string> = {
@@ -457,8 +470,12 @@ export function RelationalBulletinPageV2() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [students, setStudents] = useState<Students | null>(null);
   const [classId, setClassId] = useState<number | null>(null);
-  const [period, setPeriod] = useState<RelationalBulletinPeriodV2>({ kind: 'term', term: 1 });
-  const [detail, setDetail] = useState<RelationalBulletinDetailV2>('summary');
+  const [storedView] = useState(readStoredViewV2);
+  const restoreClass = useRef(storedView?.classId ?? null);
+  const [period, setPeriod] = useState<RelationalBulletinPeriodV2>(
+    storedView?.period ?? { kind: 'term', term: 1 },
+  );
+  const [detail, setDetail] = useState<RelationalBulletinDetailV2>(storedView?.detail ?? 'summary');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [previewStudentId, setPreviewStudentId] = useState<number | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
@@ -554,6 +571,23 @@ export function RelationalBulletinPageV2() {
       setBusy(null);
     }
   };
+  useEffect(() => {
+    const target = restoreClass.current;
+    if (!catalog || target === null) return;
+    restoreClass.current = null;
+    if (storedView?.year === year && catalog.classes.some((item) => item.id === target))
+      void loadStudents(target);
+    // Runs once, when the catalog of the restored year arrives.
+  }, [catalog]);
+  useEffect(() => {
+    if (year !== null && catalog && restoreClass.current === null)
+      writeSessionViewV1(VIEW_KEY_V2, {
+        year,
+        classId,
+        term: period.kind === 'annual' ? 'annual' : period.term,
+        detail,
+      });
+  }, [year, catalog, classId, period, detail]);
   const selection = (studentId: number) => ({
     year: year!,
     classId: classId!,

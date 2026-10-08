@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
-import { Label, Tag, TagGroup } from '@heroui/react';
+import type { ComponentProps } from 'react';
 import { CircleCheck, KeyRound, LockKeyhole, LockKeyholeOpen, UserRoundPlus } from 'lucide-react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
+import { FilterTagsV1 } from '../../../shared/ui/filter-tags-v1';
 
 export type AccountStateFilterV1 = AdminAccountReadV2['state'];
 export type AccountBlockFilterV1 = 'blocked' | 'unblocked';
@@ -29,45 +29,9 @@ export function matchesAccountFiltersV1(
     (!blocks.size || blocks.has(account.blocked ? 'blocked' : 'unblocked'))
   );
 }
-export function AccountFilterTagsV1({
-  label,
-  selected,
-  options,
-  onChange,
-  single = false,
-}: {
-  label: string;
-  selected: Set<string>;
-  options: readonly { id: string; label: string; icon: ReactNode }[];
-  onChange: (keys: Set<string>) => void;
-  /** Exactly one option stays chosen, as an ordering needs. */
-  single?: boolean;
-}) {
-  return (
-    <TagGroup
-      selectionMode={single ? 'single' : 'multiple'}
-      disallowEmptySelection={single}
-      selectedKeys={selected}
-      size="sm"
-      className="pa-account-filter-tags"
-      onSelectionChange={(keys) => {
-        const allowed = new Set(options.map((item) => item.id));
-        onChange(
-          new Set(
-            keys === 'all' ? allowed : [...keys].map(String).filter((key) => allowed.has(key)),
-          ),
-        );
-      }}
-    >
-      <Label>{label}</Label>
-      <TagGroup.List>
-        {options.map((item) => (
-          <Tag key={item.id} id={item.id} textValue={item.label}>
-            {item.icon}
-            <span>{item.label}</span>
-          </Tag>
-        ))}
-      </TagGroup.List>
-    </TagGroup>
-  );
+/** The shared filter tags, with the class the Painel styles hang on. */
+export function AccountFilterTagsV1(
+  props: Omit<ComponentProps<typeof FilterTagsV1>, 'className' | 'inline'>,
+) {
+  return <FilterTagsV1 {...props} className="pa-account-filter-tags" />;
 }
