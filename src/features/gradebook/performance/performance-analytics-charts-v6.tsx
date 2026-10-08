@@ -164,7 +164,7 @@ export function AnalyticsTimelineV6({
               {delta(summary.movement.meanDeltaPP)} · T{summary.movement.reference}
             </Chip>
           ) : null}
-          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral"><AnalyticsHintBodyV6 what="A nota média da turma em cada trimestre, de 0 a 100." steps={['Em cada trimestre, cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas daquele trimestre.']} note="O número no canto compara só quem tem nota nos dois trimestres. Por isso pode ser diferente de subtrair um ponto do outro." /></AnalyticsHintV6> : null}
+          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral"><AnalyticsHintBodyV6 what="A nota média da turma em cada trimestre, de 0 a 100." steps={['Em cada trimestre, cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas daquele trimestre.']} note="O número no canto é a média das diferenças aluno por aluno; pode ser um pouco diferente de subtrair um ponto do outro." /></AnalyticsHintV6> : null}
         </div>
       }
       footer={

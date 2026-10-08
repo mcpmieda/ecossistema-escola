@@ -60,9 +60,6 @@ function dimension(
   const resolved = factsByTerm.flatMap((facts, index) =>
     facts.map((fact) => outcomes[index]!.coverage.resolvedSlots.includes(fact.slot)),
   );
-  const hasParallelGain = quantitative && outcomes.some(
-    (value) => value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
-  );
   // BN-DEC-042: a blank instrument was not done; the dimension always has its value.
   const state = resolved.every(Boolean) ? 'complete' : 'partial';
   const maxima = quantitative
@@ -106,11 +103,8 @@ function reading(
   key: string,
   eligible: boolean,
   minimum: number,
-  classifyPartialResult: boolean,
 ): AnalysisReadingV3 {
-  // Resultado may already expose a numeric term total while its instrument coverage is partial.
-  // Classify that visible total proportionally for the dashboard, without changing the source state
-  // or converting a missing value into zero. Composition lenses still require complete coverage.
+  // BN-DEC-042: complete and partial readings are both classified, in every lens.
   const classificationReady = performanceResultCountsV2(raw.state);
   const percent =
     classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null
@@ -205,7 +199,6 @@ export function buildPerformanceAnalysisV3(
           row.student.indicatorEligible &&
             (matrix.mode === 'regular' || performanceRecoveryCellIsRelevantV2(cell)),
           matrix.context.minimumApprovalMilli,
-          request.lens === 'result',
         );
       }),
     };

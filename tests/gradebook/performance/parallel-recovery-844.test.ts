@@ -110,7 +110,7 @@ it('shows an eligible parallel-only result and reads an empty period as not done
   expect(response.rows.every((row) => !('rawMilli' in row.cells[0]!))).toBe(true);
   const invalid = structuredClone(response);
   // A raw sum is only valid beside a numeric result.
-  invalid.rows[2]!.cells[0] = { ...invalid.rows[2]!.cells[0]!, state: 'unavailable', valueMilli: null, level: null, rawMilli: 0 };
+  invalid.rows[2]!.cells[0] = { ...invalid.rows[2]!.cells[0]!, state: 'unavailable', valueMilli: null, level: 'not-classified', rawMilli: 0 };
   expect(performanceResponseSchemaV2.safeParse(invalid).success).toBe(false);
 });
 

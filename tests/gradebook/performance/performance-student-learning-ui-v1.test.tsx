@@ -177,7 +177,7 @@ it('resets student-local state when period or student scope changes', async () =
   expect(entityTrigger(/Aluno exemplo 02/, 'Aluno')).toBeTruthy();
 });
 
-it('shows missing and non-comparable student evidence without inventing zero or variation', () => {
+it('reads a student with nothing recorded as not done, with results to highlight', () => {
   const model = props();
   render(
     <PerformanceAnalyticsWorkspaceV6
@@ -187,9 +187,8 @@ it('shows missing and non-comparable student evidence without inventing zero or 
   );
 
   const learning = screen.getByTestId('performance-student-learning-v1');
-  expect(within(learning).getByText('Ainda não há resultados suficientes para destacar.')).toBeTruthy();
-  expect(within(learning).getByText('Ainda não há notas suficientes para avaliar recorrência.')).toBeTruthy();
+  expect(within(learning).queryByText('Ainda não há resultados suficientes para destacar.')).toBeNull();
+  expect(within(learning).queryByText('Ainda não há notas suficientes para avaliar recorrência.')).toBeNull();
   expect(within(learning).queryByText(/Maior avanço|Maior queda/)).toBeNull();
-  expect(within(learning).getAllByText('—').length).toBeGreaterThan(0);
-  expect(within(learning).getAllByText('Sem notas suficientes neste recorte.')).toHaveLength(2);
+  expect(within(learning).queryByText('Sem notas suficientes neste recorte.')).toBeNull();
 });

@@ -124,11 +124,6 @@ export function performanceCellV2(
   if (mode === 'regular') {
     const outcomes = period === 'annual' ? projection.terms : [term];
     if (outcomes.every((value) => value !== null)) {
-      const anyRecorded = outcomes.some(
-        (value) =>
-          value!.coverage.resolvedSlots.length > 0 ||
-          value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
-      );
       // BN-DEC-042: every result counts. "partial" only marks that some instrument is blank.
       state = outcomes.every((value) => value!.coverage.missingSlots.length === 0)
         ? 'complete'

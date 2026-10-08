@@ -276,3 +276,21 @@ Conselho V3 e importacao V9/V10/V11 permanecem. Sem DDL/DML remoto, schema,
 ACL/RLS, infraestrutura ou mudanca academica. Aceite exige testes direcionados
 e de mutacao, revisao independente, CI/gates do head final, merge commit e
 deploy oficial. Detalhes em [retirada #1079](LEGACY_RUNTIME_RETIREMENT_1079.md).
+
+## BN-DEC-042 — Instrumento em branco é "não fez"; todo resultado é final
+
+**Data:** 2026-10-08. **Origem:** determinação explícita do responsável na conversa de 08/10/2026, com alcance "sistema inteiro". Substitui, no motor simplificado, a regra de cobertura que tornava incompleto o trimestre com instrumento exigido em branco, e a exclusão dos resultados parciais dos indicadores. Substitui também a decisão 12 da especificação do fechamento no Portal apenas quanto à exigência de cobertura completa do cálculo.
+
+Um instrumento exigido sem nota lançada é lido como atividade ou avaliação que o aluno não fez. O resultado do trimestre é a soma do que foi lançado e é final como está; `coverage.complete` passa a ser sempre verdadeiro. `missingSlots` e `reasons` continuam listando o que ficou em branco e são a origem do marcador "Parcial" e do `*` nas telas e no PDF.
+
+Consequências aceitas pelo responsável:
+
+- Desempenho: resultados parciais entram em médias, trajetória, comparação entre trimestres, dimensões, participação e atenção recorrente. Um período sem lançamento algum vale zero, e o painel se corrige à medida que as notas entram.
+- Resultado anual e recuperação: são calculados o ano todo; aluno com trimestre em branco entra na população de recuperação.
+- Boletins: a nota calculada do trimestre é sempre emitida; o motivo `incomplete-calculation` deixa de existir. Demais bloqueios (AM oficial ausente, ano em andamento, recuperação pendente) permanecem.
+- Portal do Aluno: a edição aprovada usa a mesma cobertura; a autoridade final continua exigindo concordância com AM/U da fonte.
+- Conselho: a elegibilidade segue o resultado anual calculado.
+
+Não muda: zero digitado continua zero; AM/U importadas não são sobrescritas; snapshots e boletins já emitidos não são reinterpretados; as leituras por instrumento (lente Avaliações e atividades para revisar) continuam considerando apenas notas lançadas.
+
+Contrato: `performance-analytics-v6` passa a contar em `complete` todo resultado e em `partial` a parte deles com instrumento em branco; `performance-analysis-v3` deixa de proibir percentual em leitura parcial fora da lente Resultado. Nenhum campo de transporte foi acrescentado ou removido.

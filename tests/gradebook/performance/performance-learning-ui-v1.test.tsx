@@ -114,11 +114,10 @@ it('clears the previous filter and search when the selected period changes', asy
   expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
   expect(screen.getByRole('heading', { name: 'Atenção recorrente' })).toBeTruthy();
 });
-it('shows insufficient evidence instead of a zero performance or recurrence for an empty period', async () => {
+it('reads an empty period as not done: zero performance and the students under attention', async () => {
   render(<PerformanceAnalyticsWorkspaceV6 {...props()} value={learningFixtureV1({ period: 3 }).value} />);
-  expect(screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent).toBe('—');
-  expect(screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent).toBe('—');
-  expect(screen.getByText('Ainda não há notas suficientes para avaliar a recorrência.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent).toBe('0%');
+  expect(screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent).not.toBe('—');
   await userEvent.setup().click(screen.getByRole('button', { name: /Ver participação por aluno/ }));
   expect(within(screen.getByRole('grid', { name: 'Participação por aluno' })).queryAllByRole('button', { name: /Ver notas de/ })).toHaveLength(0);
 });
