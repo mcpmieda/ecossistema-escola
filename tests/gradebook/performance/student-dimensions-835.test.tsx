@@ -35,13 +35,14 @@ function panel(value: PerformanceAnalyticsV6, studentId = 1) {
   expect(element).toBeTruthy();
   return within(element as HTMLElement);
 }
-it('uses original assessments and identical complete components for both bars and the gap', () => {
+it('uses original assessments and the same components, blanks included, for both bars and the gap', () => {
   const { value, matrix, projections } = comparisonFixture();
   const dimensions = value.learning!.students[0]!.dimensions!;
-  expect(dimensions.components).toBe(1);
-  expect(dimensions.quantitativePercent).toBeCloseTo(40);
-  expect(dimensions.qualitativePercent).toBeCloseTo(80);
-  expect(dimensions.gapPP).toBeCloseTo(40);
+  // BN-DEC-042: a blank instrument was not done, so the three components are compared.
+  // Quantitative: 40%, 20% and one assessment of two at 30% (15%).
+  expect(dimensions.components).toBe(3);
+  expect(dimensions.quantitativePercent).toBeCloseTo(25);
+  expect(dimensions.qualitativePercent).toBeCloseTo(78.18, 1);
   expect(dimensions.gapPP).toBe(dimensions.qualitativePercent! - dimensions.quantitativePercent!);
   expect(value.learning!.dimensions.quantitativePercent).toBe(dimensions.quantitativePercent);
   expect(value.learning!.dimensions.qualitativePercent).toBe(dimensions.qualitativePercent);
@@ -51,8 +52,8 @@ it('uses original assessments and identical complete components for both bars an
     parallelApplicable: true, parallelMilli: 10800, quantitativeConsideredMilli: 10800, rawMilli: 24000,
   });
   // The old summary still has independent groups and the considered quantitative result.
-  expect(value.students[0]!.summary.quantitative.n).toBe(2);
-  expect(value.students[0]!.summary.qualitative.n).toBe(2);
+  expect(value.students[0]!.summary.quantitative.n).toBe(3);
+  expect(value.students[0]!.summary.qualitative.n).toBe(3);
   expect(value.students[0]!.summary.quantitative.mean).not.toBeCloseTo(dimensions.quantitativePercent!);
   const oldClient = buildPerformanceAnalyticsV6(matrix, projections, true, false);
   expect(value.students).toEqual(oldClient.students);
@@ -65,17 +66,17 @@ it('uses original assessments and identical complete components for both bars an
 it('keeps dimensional comparison on original marks when an eligible PARA improves the result', () => {
   const { value, matrix, projections } = comparisonFixture(false, 0.7);
   const dimensions = value.learning!.students[0]!.dimensions!;
-  expect(dimensions.components).toBe(1);
-  expect(dimensions.quantitativePercent).toBeCloseTo(40);
-  expect(dimensions.qualitativePercent).toBeCloseTo(70);
-  expect(dimensions.gapPP).toBeCloseTo(30);
+  expect(dimensions.components).toBe(3);
+  expect(dimensions.quantitativePercent).toBeCloseTo(25);
+  expect(dimensions.qualitativePercent).toBeGreaterThan(70);
+  expect(dimensions.gapPP).toBe(dimensions.qualitativePercent! - dimensions.quantitativePercent!);
   expect(value.learning!.students[0]!.parallelImprovements).toBe(1);
   // P replaces Q in the result; the diagnostic bars retain only the original two AV.
   expect(projections.get(matrix.rows[0]!.student.id)![0]!.terms[1]).toMatchObject({
     parallelApplicable: true, quantitativeOriginalMilli: 5400,
     quantitativeConsideredMilli: 10800, rawMilli: 22350, roundedMilli: 22500,
   });
-  expect(value.students[0]!.summary.quantitative.mean).toBeCloseTo(50);
+  expect(value.students[0]!.summary.quantitative.mean).toBeCloseTo(38.33, 1);
   expect(value.students[0]!.summary.quantitative.mean).not.toBeCloseTo(dimensions.quantitativePercent!);
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
 });
@@ -83,25 +84,22 @@ it('renders the canonical numbers instead of the adjusted summary without reques
   const { value } = comparisonFixture();
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
   const block = panel(value);
-  expect(Number(block.getByRole('meter', { name: 'Quantitativo' }).getAttribute('aria-valuenow'))).toBeCloseTo(40);
-  expect(Number(block.getByRole('meter', { name: 'Qualitativo' }).getAttribute('aria-valuenow'))).toBeCloseTo(80);
-  expect(block.getByText(delta(40))).toBeTruthy();
+  const dimensions = value.learning!.students[0]!.dimensions!;
+  expect(Number(block.getByRole('meter', { name: 'Quantitativo' }).getAttribute('aria-valuenow'))).toBeCloseTo(dimensions.quantitativePercent!);
+  expect(Number(block.getByRole('meter', { name: 'Qualitativo' }).getAttribute('aria-valuenow'))).toBeCloseTo(dimensions.qualitativePercent!);
+  expect(block.getByText(delta(dimensions.gapPP))).toBeTruthy();
   expect(block.getByText('Duas avaliações · antes da paralela')).toBeTruthy();
-  expect(block.getByText('Componentes comparados: 1.')).toBeTruthy();
+  expect(block.getByText('Componentes comparados: 3.')).toBeTruthy();
   // The student's photo is the only request; no academic data is asked for again.
   expect(fetch.mock.calls.filter(([url]) => !String(url).startsWith('/api/student-photos/admin/'))).toEqual([]);
 });
-it('does not compare disjoint complete groups or manufacture a zero when there is no common component', () => {
+it('compares every component once blanks read as not done, with no disjoint groups left', () => {
   const { value } = comparisonFixture(true);
-  expect(value.students[0]!.summary.quantitative.n).toBeGreaterThan(0);
-  expect(value.students[0]!.summary.qualitative.n).toBeGreaterThan(0);
-  expect(value.learning!.students[0]!.dimensions).toEqual({
-    quantitativePercent: null, qualitativePercent: null, gapPP: null, components: 0,
-  });
+  const dimensions = value.learning!.students[0]!.dimensions!;
+  expect(dimensions.components).toBe(3);
+  expect(dimensions.gapPP).toBe(dimensions.qualitativePercent! - dimensions.quantitativePercent!);
   const block = panel(value);
-  expect(block.queryAllByRole('meter')).toHaveLength(0);
-  expect(block.getAllByText('—')).toHaveLength(2);
-  expect(block.getByText('Ainda sem base comum suficiente para comparar.')).toBeTruthy();
+  expect(block.queryAllByRole('meter')).toHaveLength(2);
 });
 it('never falls back to incompatible legacy summaries when the extension is absent', () => {
   const { matrix, projections } = comparisonFixture();

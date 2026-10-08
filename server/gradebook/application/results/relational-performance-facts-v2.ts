@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   resolveSimplifiedTermV1,
   resolveSimplifiedComponentRecoveryV1,
@@ -124,16 +125,10 @@ export function performanceCellV2(
   if (mode === 'regular') {
     const outcomes = period === 'annual' ? projection.terms : [term];
     if (outcomes.every((value) => value !== null)) {
-      const anyRecorded = outcomes.some(
-        (value) =>
-          value!.coverage.resolvedSlots.length > 0 ||
-          value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
-      );
-      state = outcomes.every((value) => value!.coverage.complete)
+      // BN-DEC-042: every result counts. "partial" only marks that some instrument is blank.
+      state = outcomes.every((value) => value!.coverage.missingSlots.length === 0)
         ? 'complete'
-        : anyRecorded
-          ? 'partial'
-          : 'not-recorded';
+        : 'partial';
       if (state === 'complete' || state === 'partial')
         valueMilli = period === 'annual' ? recovery!.originalTotalMilli : term!.roundedMilli;
     }
@@ -188,7 +183,7 @@ export function performanceCellV2(
             ? 'at-or-above'
             : 'below',
     sourceComparison:
-      state !== 'complete' || base.sourceReferenceMilli === null || valueMilli === null
+      !performanceResultCountsV2(state) || base.sourceReferenceMilli === null || valueMilli === null
         ? 'unavailable'
         : valueMilli === base.sourceReferenceMilli
           ? 'match'

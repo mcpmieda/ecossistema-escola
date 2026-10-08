@@ -270,7 +270,9 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     rawMilli: raw,
     roundedMilli: roundSimplifiedGradeMilliV1(raw),
     coverage: {
-      complete: missingSlots.length === 0,
+      // BN-DEC-042: a blank instrument is one the student did not do, so every term result is
+      // final as it stands. The missing slots stay listed: they are what marks it "Parcial".
+      complete: true,
       requiredSlots,
       resolvedSlots,
       missingSlots,

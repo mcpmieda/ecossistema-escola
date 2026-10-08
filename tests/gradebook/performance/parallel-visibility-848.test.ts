@@ -13,7 +13,7 @@ describe('applicable parallel coverage with BN-DEC-035 numeric exception', () =>
       const fixture = parallelFixture848({ term, observed });
       const outcome = fixture.projection.terms[term - 1]!;
       expect(outcome.parallelApplicable).toBe(true);
-      expect(outcome.coverage).toMatchObject({ complete: false,
+      expect(outcome.coverage).toMatchObject({ complete: true,
         requiredSlots: [1, 2, 3, 11], resolvedSlots: [1, 2, 11], missingSlots: [3], reasons: ['missing-slot:3'] });
       expect(outcome.rawMilli).toBe(14000);
       expect(fixture.cell).toMatchObject({ state: 'partial', valueMilli: 14000 });
@@ -64,12 +64,27 @@ describe('applicable parallel coverage with BN-DEC-035 numeric exception', () =>
     expect(exempt.cell.state).toBe('partial');
   });
 
-  it('keeps a parallel-only zero visible and an entirely empty period without a numeric result', () => {
+  it('keeps a parallel-only zero visible and reads an entirely empty period as not done', () => {
     const zero = parallelFixture848({ av1: null, av2: null, qualitative: null, parallel: 0 });
     expect(zero.projection.terms[1]!.coverage.resolvedSlots).toEqual([3]);
     expect(zero.cell).toMatchObject({ state: 'partial', valueMilli: 0 });
     const empty = parallelFixture848({ av1: null, av2: null, qualitative: null });
-    expect(empty.cell).toMatchObject({ state: 'not-recorded', valueMilli: null });
+    expect(empty.cell).toMatchObject({ state: 'partial', valueMilli: 0 });
+  });
+
+  it('compares a result with a blank instrument with the imported AM, like the projection does', () => {
+    const { projection } = parallelFixture848();
+    const withAm = (am: number | null) => ({
+      ...projection,
+      closing: { ...projection.closing, am: projection.closing.am.map((value, index) => (index === 1 ? am : value)) },
+    }) as unknown as typeof projection;
+    expect(performanceCellV2(withAm(9000), 2, 'regular')).toMatchObject({
+      state: 'partial', valueMilli: 14000, sourceReferenceMilli: 9000, sourceComparison: 'mismatch' });
+    expect(performanceCellV2(withAm(14000), 2, 'regular')).toMatchObject({
+      state: 'partial', sourceComparison: 'match' });
+    // No imported AM: nothing to compare with.
+    expect(performanceCellV2(withAm(null), 2, 'regular')).toMatchObject({
+      state: 'partial', sourceReferenceMilli: null, sourceComparison: 'unavailable' });
   });
 
   it('does not fabricate an unconfigured instrument and propagates coverage to the annual result', () => {
@@ -86,12 +101,12 @@ describe('applicable parallel coverage with BN-DEC-035 numeric exception', () =>
     expect(performanceAnalyticsResponseSchemaV6.safeParse(analytics).success).toBe(true);
     const complete = parallel !== null;
     expect(analytics.students[0]!.cells[0]!.result.state).toBe(complete ? 'complete' : 'partial');
-    expect(analytics.students[0]!.cells[0]!.quantitative.complete).toBe(complete);
+    expect(analytics.students[0]!.cells[0]!.quantitative.complete).toBe(true);
     expect(analytics.students[0]!.cells[0]!.qualitative.complete).toBe(true);
     expect(analytics.summary.coverage).toMatchObject({ expected: 4, recorded: complete ? 4 : 3,
       missing: complete ? 0 : 1, zeros: parallel === 0 ? 1 : 0 });
-    expect(analytics.summary.partial).toBe(complete ? 0 : 1);
-    expect(analytics.summary.movement.n).toBe(complete ? 1 : 0);
+    expect(analytics.summary.partial).toBe(0);
+    expect(analytics.summary.movement.n).toBe(1);
     expect(analytics.teachers[0]!.students[0]!.partial).toBe(complete ? 0 : 1);
     expect(analytics.components[0]!.instruments.find((item) => item.slot === 3)?.coverage)
       .toMatchObject({ expected: 1, recorded: complete ? 1 : 0, missing: complete ? 0 : 1 });

@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useEffect, useRef, useState } from 'react';
 import { PerformanceTeacherExportV6 } from './performance-teacher-export-v6';
 import { PerformanceLearningOverviewV1 } from './performance-learning-overview-v1';
@@ -136,11 +137,15 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   </div>;
   const selectedSummary = tab === 'components' && component ? component.summary : tab === 'teachers' && teacher ? teacher.summary : value.summary;
   const components = tab === 'teachers' && teacher ? value.components.filter((item) => teacher.offerIds.includes(item.offer.id)) : value.components;
+  // Results with a blank instrument in the scope on screen, read from the cells.
+  const scopeOffers = tab === 'components' && component ? [component.offer.id] : tab === 'teachers' && teacher ? teacher.offerIds : null;
+  const scopePartial = value.students.reduce((sum, item) => sum + item.cells.filter((cell) =>
+    (scopeOffers === null || scopeOffers.includes(cell.offerId)) && cell.result.state === 'partial').length, 0);
   const allStudents = analyticsStudentItemsV6(value);
   const componentBars = <AnalyticsBarsV6 items={components.map((item) => ({
     id: item.offer.id, label: item.offer.subject.label, value: item.summary.result.mean,
     below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
-    secondary: `${item.summary.complete}/${item.summary.readings} completos · ${item.summary.below} abaixo`,
+    secondary: `${item.summary.complete}/${item.summary.readings} resultados · ${item.summary.below} abaixo`,
   }))} onSelect={openComponent} />;
   if ((tab === 'students' && !student) || (tab === 'components' && !component) || (tab === 'teachers' && !teacher))
     return <Alert><Alert.Content><Alert.Title>Nenhum registro neste recorte.</Alert.Title></Alert.Content></Alert>;
@@ -169,15 +174,15 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
           {tab === 'components' && component ? <><AnalyticsInstrumentsV6 component={component} onNotes={onNotes} /><AnalyticsStudentsTableV6 title="Alunos neste componente" items={value.students.map((item) => {
             const cell = item.cells.find((entry) => entry.offerId === component.offer.id)!;
             return { id: item.student.id, number: item.student.number, name: item.student.name,
-              meanPercent: cell.result.state === 'complete' ? cell.percent : null,
-              below: cell.result.state === 'complete' && cell.result.level === 'below' ? 1 : 0,
-              complete: cell.result.state === 'complete' ? 1 : 0,
+              meanPercent: performanceResultCountsV2(cell.result.state) ? cell.percent : null,
+              below: performanceResultCountsV2(cell.result.state) && cell.result.level === 'below' ? 1 : 0,
+              complete: performanceResultCountsV2(cell.result.state) ? 1 : 0,
               partial: cell.result.state === 'partial' ? 1 : 0, deltaPP: cell.deltaPP };
           })} onSelect={(id) => onCell(id, component.offer.id)} /></> : null}
           {tab === 'teachers' && teacher ? <><AnalyticsPanelV6 title="Componentes nesta turma">{componentBars}</AnalyticsPanelV6><AnalyticsStudentsTableV6 title="Acompanhamento do professor" items={analyticsStudentItemsV6(value, teacher.id)} onSelect={openStudent} /></> : null}
         </>}
-        <div className="grid gap-4 xl:grid-cols-2"><AnalyticsRecoveryV6 summary={selectedSummary} /><AnalyticsCoverageV6 summary={selectedSummary} /></div>
-        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Limite: {percent(value.minimumPercent)}</span><span>{value.summary.students}/{value.classStudents} alunos considerados</span><span>Estatísticas: leituras completas</span><span className="ml-auto">Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}</span></footer>
+        <div className="grid gap-4 xl:grid-cols-2"><AnalyticsRecoveryV6 summary={selectedSummary} /><AnalyticsCoverageV6 summary={selectedSummary} partial={scopePartial} /></div>
+        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Limite: {percent(value.minimumPercent)}</span><span>{value.summary.students}/{value.classStudents} alunos considerados</span><span>Estatísticas incluem resultados com instrumento em branco</span><span className="ml-auto">Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}</span></footer>
       </>
     )}
   </div>;

@@ -48,6 +48,9 @@ const mean = (values: readonly number[]) =>
 const ratio = (value: number | null, maximum: number | null) =>
   value !== null && maximum !== null && maximum > 0 ? (value / maximum) * 100 : null;
 
+/** BN-DEC-042: complete and partial results both count in the indicators. */
+const counts = (state: string) => state === 'complete' || state === 'partial';
+
 function stats(values: readonly number[]): PerformanceAnalyticsStatsV6 {
   const sorted = [...values].sort((a, b) => a - b);
   if (!sorted.length)
@@ -130,17 +133,16 @@ function oracleDimension(
     outcomes.some(
       (outcome) => outcome!.quantitativeConsideredMilli > outcome!.quantitativeOriginalMilli,
     );
+  // BN-DEC-042: a blank instrument was not done, so a dimension always has its value.
   const complete = resolved.every(Boolean);
-  const recorded = resolved.some(Boolean) || hasGain;
+  void hasGain;
   const maxima = quantitative
     ? outcomes.map((outcome) => outcome!.quantitativeMaximumMilli)
     : factsByTerm.flat().map((fact) => fact.maximumMilli);
   const maximumMilli = maxima.some((value) => value === null)
     ? null
     : (maxima as number[]).reduce((sum, value) => sum + value, 0) || null;
-  const valueMilli = !recorded
-    ? null
-    : outcomes.reduce(
+  const valueMilli = outcomes.reduce(
         (sum, outcome) =>
           sum +
           (quantitative
@@ -151,9 +153,9 @@ function oracleDimension(
   return {
     valueMilli,
     maximumMilli,
-    percent: complete ? ratio(valueMilli, maximumMilli) : null,
-    complete,
-    state: complete ? 'complete' : recorded ? 'partial' : 'not-recorded',
+    percent: ratio(valueMilli, maximumMilli),
+    complete: true,
+    state: complete ? 'complete' : 'partial',
   };
 }
 
@@ -186,7 +188,7 @@ function oraclePairs(
         matrix.period === 2 || matrix.period === 3
           ? performanceCellV2(projection, (matrix.period - 1) as 1 | 2, 'regular')
           : null;
-      const comparable = result.state === 'complete' && reference?.state === 'complete';
+      const comparable = counts(result.state) && reference !== null && counts(reference.state);
       const comparison = comparable
         ? BigInt(result.valueMilli!) * BigInt(reference!.maximumMilli) -
           BigInt(reference!.valueMilli!) * BigInt(result.maximumMilli)
@@ -199,7 +201,7 @@ function oraclePairs(
         qualitative: oracleDimension(projection, matrix.period, false),
         timeline: TERMS.map((term) => {
           const cell = performanceCellV2(projection, term, 'regular');
-          return cell.state === 'complete' ? ratio(cell.valueMilli, cell.maximumMilli) : null;
+          return counts(cell.state) ? ratio(cell.valueMilli, cell.maximumMilli) : null;
         }),
         direction:
           comparison === null ? null : comparison > 0n ? 1 : comparison < 0n ? -1 : 0,
@@ -218,7 +220,7 @@ function oracleSummary(
   studentIds: readonly number[],
 ): PerformanceAnalyticsSummaryV6 {
   const selectedTerms = matrix.period === 'annual' ? TERMS : [matrix.period];
-  const complete = pairs.filter((pair) => pair.result.state === 'complete');
+  const complete = pairs.filter((pair) => counts(pair.result.state));
   const below = complete.filter((pair) => pair.result.level === 'below');
   const byStudent = new Map(
     studentIds.map((id) => [id, pairs.filter((pair) => pair.studentId === id)]),
@@ -229,7 +231,7 @@ function oracleSummary(
       items.length > 0 &&
       items.every(
         (pair) =>
-          pair.result.state === 'complete' && pair.result.level === 'at-or-above',
+          counts(pair.result.state) && pair.result.level === 'at-or-above',
       ),
   ).length;
   const facts = pairs.flatMap((pair) =>
@@ -314,7 +316,7 @@ function oracleSummary(
     students: studentIds.length,
     readings: pairs.length,
     complete: complete.length,
-    partial: pairs.filter((pair) => pair.result.state === 'partial').length,
+    partial: 0,
     missing: pairs.filter((pair) => pair.result.state === 'not-recorded').length,
     unavailable: pairs.filter((pair) => pair.result.state === 'unavailable').length,
     above: complete.length - below.length,
@@ -527,7 +529,10 @@ function rawParticipation(
       fact.maximumMilli !== null &&
       fact.maximumMilli > 0,
   );
-  const maximum = valid.reduce((sum, fact) => sum + fact.maximumMilli!, 0);
+  // BN-DEC-042: blank scaled instruments keep their maximum and add no points.
+  const maximum = facts
+    .filter((fact) => fact.maximumMilli !== null && fact.maximumMilli > 0)
+    .reduce((sum, fact) => sum + fact.maximumMilli!, 0);
   const points = valid.reduce((sum, fact) => sum + fact.valueMilli!, 0);
   return {
     percent: maximum > 0 ? (points / maximum) * 100 : null,
@@ -566,13 +571,9 @@ function proveLearningStudentFromFacts(
     expected += current.expected;
     unscaled += current.unscaled;
     if (current.percent !== null) currentParticipation.push(current.percent);
-    if (reference !== null && current.complete) {
+    if (reference !== null && current.percent !== null) {
       const previous = rawParticipation(projection, [reference]);
-      if (
-        previous.complete &&
-        previous.percent !== null &&
-        current.percent !== null
-      )
+      if (previous.percent !== null)
         participationChanges.push(current.percent - previous.percent);
     }
 
@@ -606,8 +607,8 @@ function proveLearningStudentFromFacts(
           'regular',
         );
         if (
-          currentResult.state === 'complete' &&
-          previousResult.state === 'complete'
+          counts(currentResult.state) &&
+          counts(previousResult.state)
         ) {
           recurrenceAssessed = true;
           if (
@@ -758,7 +759,11 @@ function proofAllV6Scopes(
         [student.studentId],
       );
       expect(student.complete).toBe(expected.complete);
-      expect(student.partial).toBe(expected.partial);
+      expect(student.partial).toBe(
+        own.filter(
+          (pair) => pair.studentId === student.studentId && pair.result.state === 'partial',
+        ).length,
+      );
       expect(student.below).toBe(expected.below);
       expectMetric(student.meanPercent, expected.result.mean);
       expectMetric(student.deltaPP, expected.movement.meanDeltaPP);
@@ -1034,8 +1039,7 @@ function oracleAnalysis(
         }
 
         const classificationReady =
-          raw.state === 'complete' ||
-          (request.lens === 'result' && raw.state === 'partial');
+          counts(raw.state);
         const readingPercent =
           classificationReady &&
           raw.valueMilli !== null &&
@@ -1262,9 +1266,9 @@ function oracleComparison(
       ? 'current-excluded'
       : reference.bucket === 'excluded'
         ? 'reference-excluded'
-        : current.state !== 'complete'
+        : !counts(current.state)
           ? 'current-incomplete'
-          : reference.state !== 'complete'
+          : !counts(reference.state)
             ? 'reference-incomplete'
             : current.maximumMilli === null || current.maximumMilli <= 0
               ? 'current-no-positive-maximum'
@@ -1272,8 +1276,8 @@ function oracleComparison(
   if (
     current.bucket === 'excluded' ||
     reference.bucket === 'excluded' ||
-    current.state !== 'complete' ||
-    reference.state !== 'complete' ||
+    !counts(current.state) ||
+    !counts(reference.state) ||
     current.valueMilli === null ||
     reference.valueMilli === null ||
     current.maximumMilli === null ||
@@ -1416,7 +1420,10 @@ describe('performance count proof #852', () => {
       },
     });
     proofAllV6Scopes(value, matrix, projections);
-    expect(value.summary.partial).toBeGreaterThan(0);
+    expect(value.summary.partial).toBe(0);
+    expect(
+      value.students.some((item) => item.cells.some((cell) => cell.result.state === 'partial')),
+    ).toBe(true);
     expect(value.summary.parallel.applied).toBeGreaterThan(0);
     expect(value.summary.coverage.zeros).toBeGreaterThan(0);
     expect(value.components.some((component) =>

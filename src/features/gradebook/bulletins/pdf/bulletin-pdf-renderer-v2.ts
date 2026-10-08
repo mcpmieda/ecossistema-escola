@@ -160,7 +160,7 @@ export function buildRelationalBulletinPdfLinesV2(
       text(
         lines,
         'meta',
-        `Cobertura: ${term.coverage.complete ? 'COMPLETA' : 'INCOMPLETA'} · slots resolvidos ${term.coverage.resolvedSlots.length}/${term.coverage.requiredSlots.length}`,
+        `Cobertura: ${term.coverage.missingSlots.length === 0 ? 'COMPLETA' : 'PARCIAL'} · slots resolvidos ${term.coverage.resolvedSlots.length}/${term.coverage.requiredSlots.length}`,
         20,
       );
       if (model.detail === 'detailed') {

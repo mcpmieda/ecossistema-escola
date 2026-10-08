@@ -49,7 +49,7 @@ it('shows all participation students and their existing granular-detail entry po
   const model = props(); render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
   await userEvent.setup().click(screen.getByRole('button', { name: /Ver participação por aluno/ }));
   const table = screen.getByRole('grid', { name: 'Participação por aluno' });
-  expect(within(table).getAllByRole('button', { name: /Ver notas de/ })).toHaveLength(3);
+  expect(within(table).getAllByRole('button', { name: /Ver notas de/ })).toHaveLength(4);
   await userEvent.setup().click(within(table).getByRole('button', { name: 'Ver notas de Aluno exemplo 01' }));
   expect(model.onCell).toHaveBeenCalledWith(1, undefined);
 });
@@ -114,13 +114,12 @@ it('clears the previous filter and search when the selected period changes', asy
   expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
   expect(screen.getByRole('heading', { name: 'Atenção recorrente' })).toBeTruthy();
 });
-it('shows insufficient evidence instead of a zero performance or recurrence for an empty period', async () => {
+it('reads an empty period as not done: zero performance and the students under attention', async () => {
   render(<PerformanceAnalyticsWorkspaceV6 {...props()} value={learningFixtureV1({ period: 3 }).value} />);
-  expect(screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent).toBe('—');
-  expect(screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent).toBe('—');
-  expect(screen.getByText('Ainda não há notas suficientes para avaliar a recorrência.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent).toBe('0%');
+  expect(screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent).not.toBe('—');
   await userEvent.setup().click(screen.getByRole('button', { name: /Ver participação por aluno/ }));
-  expect(within(screen.getByRole('grid', { name: 'Participação por aluno' })).queryAllByRole('button', { name: /Ver notas de/ })).toHaveLength(0);
+  expect(within(screen.getByRole('grid', { name: 'Participação por aluno' })).queryAllByRole('button', { name: /Ver notas de/ })).toHaveLength(4);
 });
 it('keeps responsive width guards and removes entrance motion when reduced motion is requested', () => {
   const css = readFileSync('src/features/gradebook/performance/performance-learning-v1.css', 'utf8');

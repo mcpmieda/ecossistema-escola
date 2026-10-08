@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { Accordion, Button, Card, Chip, Meter } from '@heroui/react';
 import { ArrowDown, ArrowRight, ArrowUp, BookOpen, MessageCircle, TrendingUp, TriangleAlert } from 'lucide-react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
@@ -102,7 +103,7 @@ export function PerformanceStudentLearningV1({
   const dimensions = evidence?.dimensions;
   const offers = new Map(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const complete = student.cells.filter(
-    (cell) => cell.result.state === 'complete' && cell.percent !== null,
+    (cell) => performanceResultCountsV2(cell.result.state) && cell.percent !== null,
   );
   const compared = complete.filter((cell) => cell.deltaPP !== null);
   const best = [...complete].sort((a, b) => (b.percent ?? -Infinity) - (a.percent ?? -Infinity))[0];
@@ -134,7 +135,7 @@ export function PerformanceStudentLearningV1({
           label="Evolução trimestral"
           value={delta(student.summary.movement.meanDeltaPP)}
           caption={reference ? `Em relação ao ${reference}º trimestre` : 'Disponível a partir do 2º trimestre'}
-          hint="Compara os mesmos componentes deste aluno nos dois trimestres, quando existe resultado completo nos dois períodos."
+          hint="Compara os mesmos componentes deste aluno nos dois trimestres. Instrumento em branco conta como não feito."
           icon={TrendingUp}
         />
         <Metric
@@ -262,7 +263,7 @@ export function PerformanceStudentLearningV1({
           </Accordion.Heading>
           <Accordion.Panel>
             <Accordion.Body>
-              <AnalyticsCoverageV6 summary={student.summary} />
+              <AnalyticsCoverageV6 summary={student.summary} partial={student.cells.filter((cell) => cell.result.state === 'partial').length} />
             </Accordion.Body>
           </Accordion.Panel>
         </Accordion.Item>

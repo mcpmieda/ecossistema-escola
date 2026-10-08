@@ -86,22 +86,22 @@ export function AnalyticsKpisV6({
     {
       label: 'Aproveitamento',
       value: percent(summary.result.mean),
-      sub: `${summary.result.n}/${summary.readings} leituras completas`,
-      hint: 'Média dos percentuais completos. Não inclui notas parciais nem ausência de nota.',
+      sub: `${summary.result.n}/${summary.readings} resultados considerados`,
+      hint: 'Média dos percentuais dos resultados. Instrumento em branco conta como não feito.',
     },
     {
       label: 'Mediana',
       value: percent(summary.result.median),
       sub: `Dispersão ${summary.result.deviation === null ? '—' : `${number(summary.result.deviation)} p.p.`}`,
-      hint: 'Valor central dos percentuais completos. Dispersão: desvio-padrão populacional.',
+      hint: 'Valor central dos percentuais dos resultados. Dispersão: desvio-padrão populacional.',
     },
     {
       label: individual ? 'Componentes abaixo' : 'Alunos abaixo',
       value: String(individual ? summary.below : summary.studentsBelow),
       sub: individual
-        ? `${summary.complete}/${summary.readings} completos`
+        ? `${summary.complete}/${summary.readings} resultados`
         : `${summary.students} alunos considerados`,
-      hint: 'Ao menos um resultado completo abaixo do limite. Parciais aparecem separadamente.',
+      hint: 'Ao menos um resultado abaixo do limite.',
     },
     {
       label: 'Notas lançadas',
@@ -164,13 +164,13 @@ export function AnalyticsTimelineV6({
               {delta(summary.movement.meanDeltaPP)} · T{summary.movement.reference}
             </Chip>
           ) : null}
-          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral"><AnalyticsHintBodyV6 what="A nota média da turma em cada trimestre, de 0 a 100." steps={['Em cada trimestre, cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas daquele trimestre.']} note="O número no canto compara só quem tem nota nos dois trimestres. Por isso pode ser diferente de subtrair um ponto do outro." /></AnalyticsHintV6> : null}
+          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral"><AnalyticsHintBodyV6 what="A nota média da turma em cada trimestre, de 0 a 100." steps={['Em cada trimestre, cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas daquele trimestre.']} note="O número no canto é a média das diferenças aluno por aluno; pode ser um pouco diferente de subtrair um ponto do outro." /></AnalyticsHintV6> : null}
         </div>
       }
       footer={
         schoolLanguage ? <span>Notas dos componentes em cada trimestre. Clique no período para consultar.</span> : <>
           <span>{summary.movement.n} pares comparáveis</span>
-          <span className="ml-auto">Leituras completas</span>
+          <span className="ml-auto">Resultados considerados</span>
         </>
       }
     >
@@ -218,7 +218,7 @@ export function AnalyticsTimelineV6({
 export function AnalyticsDistributionV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
   const maximum = Math.max(1, ...summary.distribution.map((bin) => bin.count));
   return (
-    <AnalyticsPanelV6 title="Distribuição" footer={<><span>{summary.result.n} leituras completas</span><span className="ml-auto">Mín. {percent(summary.result.min)} · Máx. {percent(summary.result.max)}</span></>}>
+    <AnalyticsPanelV6 title="Distribuição" footer={<><span>{summary.result.n} resultados considerados</span><span className="ml-auto">Mín. {percent(summary.result.min)} · Máx. {percent(summary.result.max)}</span></>}>
       <figure aria-label="Distribuição por faixa de aproveitamento">
         <svg viewBox="0 0 570 225" className="h-52 w-full" aria-hidden="true">
           {[0, 0.5, 1].map((fraction) => <line key={fraction} x1="10" x2="560" y1={184 - fraction * 140} y2={184 - fraction * 140} stroke="var(--separator)" strokeDasharray="3 5" />)}
@@ -240,7 +240,7 @@ export function AnalyticsCompositionV6({ summary }: { summary: PerformanceAnalyt
   const share = summary.composition.quantitativeShare;
   const circumference = 2 * Math.PI * 60;
   return (
-    <AnalyticsPanelV6 title="Quantitativo × qualitativo" footer={<><span>Diferença pareada</span><strong className="ml-auto text-foreground tabular-nums">{delta(summary.dimensionGap.meanPP)}</strong><AnalyticsHintV6 label="Sobre a diferença entre dimensões">Qualitativo menos quantitativo, nos mesmos {summary.dimensionGap.n} pares completos.</AnalyticsHintV6></>}>
+    <AnalyticsPanelV6 title="Quantitativo × qualitativo" footer={<><span>Diferença pareada</span><strong className="ml-auto text-foreground tabular-nums">{delta(summary.dimensionGap.meanPP)}</strong><AnalyticsHintV6 label="Sobre a diferença entre dimensões">Qualitativo menos quantitativo, nos mesmos {summary.dimensionGap.n} pares de resultados.</AnalyticsHintV6></>}>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3">
         <svg viewBox="0 0 160 180" className="mx-auto h-44 w-full max-w-48" role="img" aria-label={`Participação nos pontos: quantitativo ${percent(share)}, qualitativo ${percent(summary.composition.qualitativeShare)}`}>
           <circle cx="80" cy="80" r="60" fill="none" stroke="var(--separator)" strokeWidth="15" />
@@ -250,7 +250,7 @@ export function AnalyticsCompositionV6({ summary }: { summary: PerformanceAnalyt
           </> : null}
           <text x="80" y="79" textAnchor="middle" fill="var(--foreground)" fontSize="23" fontWeight="600">{percent(share)}</text>
           <text x="80" y="99" textAnchor="middle" fill="var(--muted)" fontSize="10">dos pontos · quant.</text>
-          <text x="80" y="168" textAnchor="middle" fill="var(--muted)" fontSize="11">{summary.composition.n} pares completos</text>
+          <text x="80" y="168" textAnchor="middle" fill="var(--muted)" fontSize="11">{summary.composition.n} pares de resultados</text>
         </svg>
         <div className="grid gap-6"><div><span className="text-xs text-muted">Quantitativo</span><strong className="block text-2xl font-semibold tabular-nums">{percent(summary.quantitative.mean)}</strong><span className="text-xs text-muted">n = {summary.quantitative.n}</span></div><div><span className="text-xs text-muted">Qualitativo</span><strong className="block text-2xl font-semibold tabular-nums">{percent(summary.qualitative.mean)}</strong><span className="text-xs text-muted">n = {summary.qualitative.n}</span></div></div>
       </div>
@@ -273,9 +273,16 @@ export function AnalyticsRecoveryV6({ summary }: { summary: PerformanceAnalytics
   ];
   return <AnalyticsPanelV6 title="Recuperação" action={<AnalyticsHintV6 label="Sobre recuperação">Contagem por aluno, componente e trimestre. Aplicabilidade e substituição vêm do motor existente.</AnalyticsHintV6>} footer={<><span>Paralela aplicada: {summary.parallel.applied}/{summary.parallel.applicable}</span><span className="ml-auto">Aplicabilidade indefinida: {recovery.unknown}</span></>}><dl className="grid grid-cols-3 gap-x-3 gap-y-5">{items.map(([label, value]) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{value}</dd></div>)}</dl></AnalyticsPanelV6>;
 }
-export function AnalyticsCoverageV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
+export function AnalyticsCoverageV6({
+  summary,
+  partial,
+}: {
+  summary: PerformanceAnalyticsSummaryV6;
+  /** Results with a blank instrument, counted from the cells of this scope. */
+  partial: number;
+}) {
   return <AnalyticsPanelV6 title="Qualidade da leitura" footer={<><span>Referências da fonte: {summary.source.recorded}</span><span className="ml-auto">Divergências: {summary.source.different}/{summary.source.comparable}</span></>}><Meter value={summary.coverage.percent ?? 0} aria-label="Cobertura dos instrumentos" color="accent"><Label>Notas lançadas</Label><Meter.Output>{percent(summary.coverage.percent)}</Meter.Output><Meter.Track><Meter.Fill /></Meter.Track></Meter><dl className="mt-5 grid grid-cols-3 gap-3">{[
-    ['Completos', summary.complete], ['Parciais', summary.partial], ['Sem nota', summary.missing],
+    ['Resultados considerados', summary.complete], ['Desses, com instrumento em branco', partial], ['Sem nota', summary.missing],
     ['Indisponíveis', summary.unavailable], ['Zeros registrados', summary.coverage.zeros], ['Lançamentos ausentes', summary.coverage.missing],
   ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}</dl></AnalyticsPanelV6>;
 }

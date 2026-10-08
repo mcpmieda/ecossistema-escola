@@ -84,8 +84,8 @@ it('returns the exact central sum on opt-in and retains rounded/source values se
     regular: { valueMilli: 19000, rawMilli: 19000, state: 'partial', sourceReferenceMilli: 29000 },
   });
   expect(response.terms[1].instruments.find((item) => item.slot === 2)).toMatchObject({ valueMilli: null, notDone: true });
-  expect(response.terms[0].regular.valueMilli).toBeNull();
-  expect(response.terms[0].regular).not.toHaveProperty('rawMilli');
+  // An empty term reads as not done: zero, marked partial.
+  expect(response.terms[0].regular).toMatchObject({ valueMilli: 0, state: 'partial' });
   expect(queries).toHaveLength(6);
   expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
   expect((await pg.query('SELECT am2_fonte FROM gradebook.fechamento')).rows).toEqual([{ am2_fonte: 29000 }]);
@@ -99,17 +99,18 @@ it('keeps the exact pre-extension response shape without opt-in', async () => {
   expect(performanceRequestSchemaV2.safeParse({ ...detail, includeRawSum: false }).success).toBe(false);
 });
 
-it('shows an eligible parallel-only result but does not fabricate a result for an empty period', async () => {
+it('shows an eligible parallel-only result and reads an empty period as not done', async () => {
   const response = await createRelationalPerformanceV2(database).execute({
     ...scope, transportVersion: 2, operation: 'matrix', statuses: [null],
   });
   if (response.state !== 'ready' || response.operation !== 'matrix') throw new Error('expected matrix');
   expect(response.rows[0]?.cells[0]).toMatchObject({ valueMilli: 19000, state: 'partial' });
   expect(response.rows[1]?.cells[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
-  expect(response.rows[2]?.cells[0]).toMatchObject({ valueMilli: null, state: 'not-recorded' });
+  expect(response.rows[2]?.cells[0]).toMatchObject({ valueMilli: 0, state: 'partial' });
   expect(response.rows.every((row) => !('rawMilli' in row.cells[0]!))).toBe(true);
   const invalid = structuredClone(response);
-  invalid.rows[2]!.cells[0] = { ...invalid.rows[2]!.cells[0]!, rawMilli: 0 };
+  // A raw sum is only valid beside a numeric result.
+  invalid.rows[2]!.cells[0] = { ...invalid.rows[2]!.cells[0]!, state: 'unavailable', valueMilli: null, level: 'not-classified', rawMilli: 0 };
   expect(performanceResponseSchemaV2.safeParse(invalid).success).toBe(false);
 });
 
@@ -121,6 +122,6 @@ it('propagates the same quantitative gain through the existing composition lens'
   if (response.state !== 'ready') throw new Error('expected analysis');
   expect(response.rows[0]?.values[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
   expect(response.rows[1]?.values[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
-  expect(response.rows[2]?.values[0]).toMatchObject({ valueMilli: null, state: 'not-recorded' });
+  expect(response.rows[2]?.values[0]).toMatchObject({ valueMilli: 0, state: 'partial' });
   expect(queries).toHaveLength(6);
 });

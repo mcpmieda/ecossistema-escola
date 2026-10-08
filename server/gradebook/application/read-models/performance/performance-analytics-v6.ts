@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   performanceAnalyticsRequestSchemaV6,
   performanceAnalyticsResponseSchemaV6,
@@ -73,8 +74,8 @@ function dimensions(reading: AnalysisReadingV3): Cell['quantitative'] {
   return {
     valueMilli: reading.valueMilli,
     maximumMilli: reading.maximumMilli,
-    percent: reading.state === 'complete' ? reading.percent : null,
-    complete: reading.state === 'complete',
+    percent: performanceResultCountsV2(reading.state) ? reading.percent : null,
+    complete: performanceResultCountsV2(reading.state),
   };
 }
 function recoveryState(
@@ -100,9 +101,10 @@ function summarize(
   studentIds: readonly number[],
 ): PerformanceAnalyticsSummaryV6 {
   const selectedTerms = period === 'annual' ? TERMS : [period];
-  const results = pairs.filter((pair) => pair.cell.result.state === 'complete');
+  const results = pairs.filter((pair) => performanceResultCountsV2(pair.cell.result.state));
   const below = pairs.filter(
-    (pair) => pair.cell.result.state === 'complete' && pair.cell.result.level === 'below',
+    (pair) =>
+      performanceResultCountsV2(pair.cell.result.state) && pair.cell.result.level === 'below',
   );
   const byStudent = new Map(studentIds.map((id) => [id, [] as Pair[]]));
   for (const pair of pairs) byStudent.get(pair.studentId)?.push(pair);
@@ -111,7 +113,9 @@ function summarize(
     (items) =>
       items.length &&
       items.every(
-        (pair) => pair.cell.result.state === 'complete' && pair.cell.result.level === 'at-or-above',
+        (pair) =>
+          performanceResultCountsV2(pair.cell.result.state) &&
+          pair.cell.result.level === 'at-or-above',
       ),
   ).length;
   const facts = pairs.flatMap((pair) =>
@@ -192,7 +196,10 @@ function summarize(
     students: studentIds.length,
     readings: pairs.length,
     complete: results.length,
-    partial: pairs.filter((pair) => pair.cell.result.state === 'partial').length,
+    // BN-DEC-042: every result is counted in "complete". The sum of the four counters stays
+    // equal to the readings, which is what clients opened before this rule validate; the
+    // blank-instrument marker is read from each cell's state.
+    partial: 0,
     missing: pairs.filter((pair) => pair.cell.result.state === 'not-recorded').length,
     unavailable: pairs.filter((pair) => pair.cell.result.state === 'unavailable').length,
     above: results.length - below.length,
@@ -342,13 +349,18 @@ export function buildPerformanceAnalyticsV6(
       if (!projection) throw new Error('analytics-missing-projection');
       const timeline = TERMS.map((term) => {
         const cell = performanceCellV2(projection, term, 'regular');
-        return cell.state === 'complete' ? ratio(cell.valueMilli, cell.maximumMilli) : null;
+        return performanceResultCountsV2(cell.state)
+          ? ratio(cell.valueMilli, cell.maximumMilli)
+          : null;
       });
       const reference =
         period === 2 || period === 3
           ? performanceCellV2(projection, (period - 1) as 1 | 2, 'regular')
           : null;
-      const comparable = result.state === 'complete' && reference?.state === 'complete';
+      const comparable =
+        performanceResultCountsV2(result.state) &&
+        reference !== null &&
+        performanceResultCountsV2(reference.state);
       const comparison = comparable
         ? BigInt(result.valueMilli!) * BigInt(reference!.maximumMilli) -
           BigInt(reference!.valueMilli!) * BigInt(result.maximumMilli)
@@ -446,17 +458,15 @@ export function buildPerformanceAnalyticsV6(
         offerIds,
         summary: summarize(own, period, studentIds),
         students: studentIds.map((studentId) => {
-          const summary = summarize(
-            teacherStudents.get(teacher.id)!.get(studentId) ?? [],
-            period,
-            [studentId],
-          );
+          const own = teacherStudents.get(teacher.id)!.get(studentId) ?? [];
+          const summary = summarize(own, period, [studentId]);
           return {
             studentId,
             meanPercent: summary.result.mean,
             below: summary.below,
             complete: summary.complete,
-            partial: summary.partial,
+            // The marker of blank instruments, read from the cells (BN-DEC-042).
+            partial: own.filter((pair) => pair.cell.result.state === 'partial').length,
             deltaPP: summary.movement.meanDeltaPP,
           };
         }),

@@ -70,7 +70,7 @@ it('includes positive decimal scores in analytics without counting them as recor
   expect(value.summary.quantitative.mean).toBeCloseTo(200 / 13500 * 100);
   expect(value.learning!.participation.percent).toBeGreaterThan(0);
 });
-it('retains positive decimals while excluding pending eligible PARA from complete statistics', () => {
+it('retains positive decimals and counts a result with a pending eligible PARA as partial', () => {
   const { value, matrix } = learningFixtureV1({ studentCount: 1, componentCount: 1, override(fact) {
     return { valueMilli: fact.slot === 3 ? null : 100 };
   } });
@@ -78,7 +78,7 @@ it('retains positive decimals while excluding pending eligible PARA from complet
   expect(value.summary.coverage.missing).toBe(1);
   expect(matrix.rows[0]!.cells[0]!.state).toBe('partial');
   expect(value.students[0]!.cells[0]!.quantitative.valueMilli).toBe(200);
-  expect(value.summary.quantitative.mean).toBeNull();
+  expect(value.summary.quantitative.mean).toBeCloseTo(1.4815, 3);
   expect(value.learning!.participation.percent).toBeGreaterThan(0);
 });
 it('applies the ordinary precision and maximum diagnostics to 0.1 as to any grade', () => {

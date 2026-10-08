@@ -132,13 +132,6 @@ const ready = z
     )
       fail();
     if (
-      value.lens !== 'result' &&
-      value.rows.some((row) =>
-        row.values.some((item) => item.state === 'partial' && item.percent !== null),
-      )
-    )
-      fail();
-    if (
       value.columns.some((item) => !value.matrix.offers.some((offer) => offer.id === item.offerId))
     )
       fail();
