@@ -1715,6 +1715,25 @@ button.performance-kpi__button:hover {
   width: 22rem;
   max-width: calc(100vw - 2rem);
 }
+/* On phones the open search is its own row under the top bar, never over the menu. */
+.shell-topbar .platform-search-mobile-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  width: auto;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: var(--surface);
+  box-shadow: 0 14px 28px -22px color-mix(in oklab, var(--foreground) 45%, transparent);
+}
+.shell-topbar .platform-search-mobile-panel > .flex > :first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.shell-topbar .platform-search-mobile-panel > .flex > .button {
+  flex: none;
+}
 @media (max-width: 1500px) {
   .shell-topbar {
     gap: 0.25rem 0.6rem;
