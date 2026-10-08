@@ -225,7 +225,7 @@ function elapsedMs(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
-function isMasterRelationResult(result: BatchSuccess): boolean {
+export function isMasterRelationResult(result: BatchSuccess): boolean {
   return Boolean((result.summary as SummaryWithRelationV9).masterRelationV9);
 }
 

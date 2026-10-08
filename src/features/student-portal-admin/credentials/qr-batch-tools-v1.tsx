@@ -30,7 +30,8 @@ export function QrBatchToolsV1({
   client: PortalAdminClientV1;
   accounts: AdminAccountReadV2[];
   selected: Set<string>;
-  onSelectAll: (selected: boolean) => void;
+  /** Omitted where the list itself selects (the header checkbox of the accounts table). */
+  onSelectAll?: (selected: boolean) => void;
   academicYear: number;
   classId: number;
   scopeVersion: number;
@@ -146,8 +147,12 @@ export function QrBatchToolsV1({
   }, [state]);
   const working = state.state === 'requesting' || state.state === 'rendering';
   const unresolved = state.state === 'error';
+  // Where the list selects, nothing ticked means the whole list, as in the bulk operations. A
+  // list still loading more rows is not whole, so it keeps asking for an explicit selection.
+  const wholeList = !onSelectAll && selected.size === 0 && !hasMore;
   const chosen = accounts.filter(
-    (account) => selected.has(account.accountId) && accountCredentialPreparableV1(account),
+    (account) =>
+      (wholeList || selected.has(account.accountId)) && accountCredentialPreparableV1(account),
   );
   const requestMode = layout === 'card' ? 'qr-name-class' : mode;
   const selectionKey = JSON.stringify([
@@ -269,23 +274,29 @@ export function QrBatchToolsV1({
         </>
       ) : null}
       <div className="pa-credentials-actions">
-        <Button
-          size="sm"
-          variant="secondary"
-          isDisabled={!canWrite || working || unresolved}
-          onPress={() => onSelectAll(true)}
-        >
-          {hasMore ? 'Selecionar exibidos' : 'Selecionar lista'}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          isDisabled={!selected.size || working || unresolved}
-          onPress={() => onSelectAll(false)}
-        >
-          Limpar
-        </Button>
-        <span role="status">{chosen.length} selecionados</span>
+        {onSelectAll ? (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={!canWrite || working || unresolved}
+              onPress={() => onSelectAll(true)}
+            >
+              {hasMore ? 'Selecionar exibidos' : 'Selecionar lista'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={!selected.size || working || unresolved}
+              onPress={() => onSelectAll(false)}
+            >
+              Limpar
+            </Button>
+          </>
+        ) : null}
+        <span role="status">
+          {wholeList ? `Lista inteira · ${chosen.length}` : `${chosen.length} selecionados`}
+        </span>
         <Button
           size="sm"
           isDisabled={

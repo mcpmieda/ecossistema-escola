@@ -235,7 +235,7 @@ export function GradeShowV1({
         actions={
           <Button
             size="sm"
-            variant="secondary"
+            variant="primary"
             isDisabled={disabled || !dirty}
             aria-label={`Salvar agendamentos ${gradeOfV1(gradeKey)}`}
             onPress={save}

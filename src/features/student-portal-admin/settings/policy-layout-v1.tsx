@@ -1,6 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Tabs } from '@heroui/react';
-import { CalendarDays, DoorOpen, GraduationCap, NotebookPen, ShieldCheck } from 'lucide-react';
+import {
+  CalendarDays,
+  DoorOpen,
+  GraduationCap,
+  NotebookPen,
+  ShieldCheck,
+  UserCog,
+} from 'lucide-react';
 import type { SettingsFieldV1 } from './settings-values-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 
@@ -53,15 +60,19 @@ export function PolicyLayoutV1({
   grades,
   disabled,
   shift = false,
+  customizations,
 }: {
   field: (name: SettingsFieldV1) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
   grades?: ReactNode;
   disabled: boolean;
   shift?: boolean;
+  /** Class and student overrides of this scope: a tab of its own, mounted on first visit. */
+  customizations?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
+  const [customizationsVisited, setCustomizationsVisited] = useState(false);
   return (
     <Tabs
       className="pa-policy-tabs"
@@ -69,6 +80,7 @@ export function PolicyLayoutV1({
       onSelectionChange={(key) => {
         setSelected(String(key));
         if (key === 'grades') setPublicationVisited(true);
+        if (key === 'customizations') setCustomizationsVisited(true);
       }}
     >
       <Tabs.ListContainer className="pa-policy-navigation">
@@ -80,6 +92,13 @@ export function PolicyLayoutV1({
               <Tabs.Indicator />
             </Tabs.Tab>
           ))}
+          {customizations ? (
+            <Tabs.Tab id="customizations" isDisabled={disabled}>
+              <UserCog size={16} aria-hidden />
+              Políticas personalizadas
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ) : null}
         </Tabs.List>
       </Tabs.ListContainer>
       {categories.map((category) => (
@@ -102,6 +121,15 @@ export function PolicyLayoutV1({
           ) : null}
         </Tabs.Panel>
       ))}
+      {customizations ? (
+        <Tabs.Panel id="customizations" shouldForceMount className="pa-policy-panel">
+          {customizationsVisited ? (
+            <LiveRefreshScopeV1 active={selected === 'customizations'}>
+              {customizations}
+            </LiveRefreshScopeV1>
+          ) : null}
+        </Tabs.Panel>
+      ) : null}
     </Tabs>
   );
 }

@@ -37,7 +37,7 @@ describe('section-aware Microsoft snapshot', () => {
     expect(platformSnapshotSchemaV2.safeParse(snapshot).success).toBe(true);
     expect(platformRouteUnavailableV2('auditoria', snapshot)).toBe(true);
     expect(platformRouteUnavailableV2('configuracoes', snapshot)).toBe(false);
-    expect(platformRouteUnavailableV2('sistemas', snapshot)).toBe(false);
+    expect(platformRouteUnavailableV2('visao-geral', snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('banco-de-notas', snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('painel-do-aluno', snapshot)).toBe(false);
     expect(source.token).toHaveBeenCalledOnce();
@@ -56,7 +56,7 @@ describe('section-aware Microsoft snapshot', () => {
     const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
     expect(snapshot.unavailableSections).toEqual([...PLATFORM_SOURCE_SECTIONS_V2]);
     expect(snapshot.retryAfterSeconds).toBe(30);
-    expect(platformRouteUnavailableV2('sistemas', snapshot)).toBe(true);
+    expect(platformRouteUnavailableV2('visao-geral', snapshot)).toBe(true);
     expect(snapshot.coreModules.length).toBeGreaterThan(0);
     expect(JSON.stringify(snapshot)).not.toContain('synthetic-sensitive');
     expect(source.pages).not.toHaveBeenCalled();
@@ -109,8 +109,8 @@ describe('section-aware Microsoft snapshot', () => {
     const snapshot = buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
     expect(platformSnapshotSchemaV2.safeParse({ ...snapshot, configurations: [{}] }).success).toBe(false);
     expect(platformSnapshotSchemaV2.safeParse({ ...snapshot, unavailableSections: ['untrusted'] }).success).toBe(false);
-    expect(platformRouteNeedsMicrosoftV2('publicacoes')).toBe(false);
-    expect(platformRouteNeedsMicrosoftV2('paginas')).toBe(false);
+    expect(platformRouteNeedsMicrosoftV2('banco-de-notas')).toBe(false);
+    expect(platformRouteNeedsMicrosoftV2('painel-do-aluno')).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('auditoria')).toBe(true);
     expect(platformRouteNeedsMicrosoftV2('operacao')).toBe(false);
     expect(platformRouteUnavailableV2('operacao', { ...snapshot, unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2] })).toBe(false);

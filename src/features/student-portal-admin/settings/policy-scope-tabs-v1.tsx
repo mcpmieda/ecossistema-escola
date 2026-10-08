@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
-import { Tabs } from '@heroui/react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
+import { Button, Tabs } from '@heroui/react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   SHIFT_LABELS_V1,
   type PolicyScopeV1,
@@ -51,6 +59,11 @@ export function PolicyScopeTabsV1({ reader, selectedShift, onShiftChange, ...pro
     onShiftChange(null);
   }, [read.state, selectedShift, onShiftChange]);
   const selected = selectedShift ?? (props.selectedId === null ? 'all' : String(props.selectedId));
+  // A rule for the whole school must not be set on one class by accident: classes and shifts
+  // stay out of the way until asked for, and a narrower scope in use always shows.
+  const [asked, setAsked] = useState(false);
+  const narrowed = selected !== 'all';
+  const open = asked || narrowed;
   return (
     <Tabs
       className="school-class-tabs"
@@ -69,7 +82,7 @@ export function PolicyScopeTabsV1({ reader, selectedShift, onShiftChange, ...pro
             Toda a escola
             <Tabs.Indicator />
           </Tabs.Tab>
-          {shifts.map((item) => (
+          {(open ? shifts : []).map((item) => (
             <Tabs.Tab key={item.shift} id={item.shift}>
               Turno {SHIFT_LABELS_V1[item.shift]}
               {' · '}
@@ -77,13 +90,25 @@ export function PolicyScopeTabsV1({ reader, selectedShift, onShiftChange, ...pro
               <Tabs.Indicator />
             </Tabs.Tab>
           ))}
-          {props.items.map((item) => (
+          {(open ? props.items : []).map((item) => (
             <Tabs.Tab key={item.id} id={String(item.id)}>
               {item.label}
               <Tabs.Indicator />
             </Tabs.Tab>
           ))}
         </Tabs.List>
+        {narrowed ? null : (
+          <Button
+            size="sm"
+            variant="tertiary"
+            className="pa-scope-toggle"
+            aria-expanded={open}
+            onPress={() => setAsked(!open)}
+          >
+            {open ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
+            {open ? 'Ocultar turmas e turnos' : 'Configurar política para turma ou turno'}
+          </Button>
+        )}
       </Tabs.ListContainer>
       <Tabs.Panel id={selected} className="school-class-content">
         {read.state.state === 'error' ? (

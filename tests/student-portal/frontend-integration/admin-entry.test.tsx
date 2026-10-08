@@ -277,10 +277,10 @@ it('shares the last class tab across panel areas and resets it for another ident
   ).toBe('true');
   await user.click(screen.getByRole('tab', { name: 'Sessões' }));
   await screen.findByRole('grid', { name: 'Sessões ativas' });
+  // Sessions are read for the whole school; the class chosen elsewhere is kept for the return.
   expect(mock.queries.filter((q) => q.operation === 'sessions-read').at(-1)?.scope).toEqual({
-    kind: 'class',
+    kind: 'school',
     academicYear: 2026,
-    classId: 756001,
   });
   await user.click(screen.getByRole('tab', { name: 'Alunos' }));
   expect(

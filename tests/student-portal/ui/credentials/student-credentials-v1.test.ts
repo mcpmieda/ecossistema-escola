@@ -69,7 +69,8 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     };
     render(createElement(StudentCredentialsV1, mock.props));
     expect(((await first()) as HTMLInputElement).disabled).toBe(true);
-    expect(pdf().hasAttribute('disabled')).toBe(true);
+    // With nothing ticked the PDF covers the list, which never includes the unconfirmed account.
+    expect(screen.getByText('Lista inteira · 2')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
   it('generates and downloads in one explicit action, using accounts CAS rather than birth CAS', async () => {
@@ -131,14 +132,16 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
     },
   );
-  it('can select and deselect via the compact toolbar without issuing anything', async () => {
+  it('selects and deselects through the header checkbox without issuing anything', async () => {
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
     await first();
-    fireEvent.click(screen.getByRole('button', { name: 'Selecionar lista' }));
+    expect(screen.queryByRole('button', { name: 'Selecionar lista' })).toBeNull();
+    const all = screen.getByRole('checkbox', { name: 'Selecionar alunos disponíveis' });
+    fireEvent.click(all);
     expect(screen.getByText('3 selecionados')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }));
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    fireEvent.click(all);
+    expect(screen.getByText('Lista inteira · 3')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
   it('loads remaining paired pages and refuses a PDF with more than 100 students', async () => {
@@ -146,12 +149,12 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
     await first();
-    expect(screen.getByRole('button', { name: 'Selecionar exibidos' })).toBeTruthy();
+    // A list still loading is not whole: it keeps asking for an explicit selection.
+    expect(screen.getByText('0 selecionados')).toBeTruthy();
     await waitFor(() => expect(observer.isObserving()).toBe(true));
     await act(async () => observer.intersect());
     await screen.findByText('SYNTHETIC PRINT 105');
-    fireEvent.click(screen.getByRole('button', { name: 'Selecionar lista' }));
-    expect(screen.getByText('105 selecionados')).toBeTruthy();
+    expect(await screen.findByText('Lista inteira · 105')).toBeTruthy();
     expect(pdf().hasAttribute('disabled')).toBe(true);
     expect(mock.writes).toHaveLength(0);
   }, 30_000);

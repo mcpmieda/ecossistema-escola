@@ -57,7 +57,7 @@ describe('account list and detail', () => {
     await userEvent.setup().click(await screen.findByRole('tab', { name: 'SYNTHETIC CLASS A' }));
     expect(await screen.findByRole('heading', { name: 'Operações em massa' })).toBeTruthy();
     const controls = document.querySelector('.pa-account-controls-card');
-    expect(controls?.contains(screen.getByRole('textbox', { name: 'Buscar aluno' }))).toBe(true);
+    expect(controls?.contains(screen.getByRole('searchbox', { name: 'Buscar aluno' }))).toBe(true);
     expect(controls?.contains(screen.getByRole('region', { name: 'QR code' }))).toBe(true);
     expect(controls?.contains(screen.getByRole('heading', { name: 'Operações em massa' }))).toBe(
       true,
@@ -77,12 +77,12 @@ describe('account list and detail', () => {
     const user = userEvent.setup();
     await user.click(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })[0]!);
     expect(screen.getByText('1 selecionados')).toBeTruthy();
-    await user.type(screen.getByRole('textbox', { name: 'Buscar aluno' }), '002');
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar aluno' }), '002');
     await screen.findByText('SYNTHETIC ACCOUNT 002');
-    expect(await screen.findByText('0 selecionados')).toBeTruthy();
-    await user.clear(screen.getByRole('textbox', { name: 'Buscar aluno' }));
+    expect(await screen.findByText(/^Lista inteira · \d+$/)).toBeTruthy();
+    await user.clear(screen.getByRole('searchbox', { name: 'Buscar aluno' }));
     await ready();
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(screen.getByText(/^Lista inteira · \d+$/)).toBeTruthy();
     expect(
       screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
         (checkbox) => !checkbox.checked,
@@ -418,10 +418,10 @@ describe('account list and detail', () => {
       expect(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })).toHaveLength(1),
     );
     // The selection made in one class never follows the operator into another.
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(screen.getByText(/^Lista inteira · \d+$/)).toBeTruthy();
     view.rerender(createElement(StudentAccountsV1, classProps(753001, 'SYNTHETIC CLASS A')));
     await ready();
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
+    expect(screen.getByText(/^Lista inteira · \d+$/)).toBeTruthy();
     expect(
       screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
         (checkbox) => !checkbox.checked,
@@ -445,7 +445,7 @@ describe('account list and detail', () => {
         name: 'Primeiro acesso',
       }),
     );
-    expect(await screen.findByText('0 selecionados')).toBeTruthy();
+    expect(await screen.findByText(/^Lista inteira · \d+$/)).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
   it('searches the collection already read, ignoring accents and case, without a new request', async () => {

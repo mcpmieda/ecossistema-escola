@@ -34,15 +34,19 @@ export function AccountFilterTagsV1({
   selected,
   options,
   onChange,
+  single = false,
 }: {
   label: string;
   selected: Set<string>;
   options: readonly { id: string; label: string; icon: ReactNode }[];
   onChange: (keys: Set<string>) => void;
+  /** Exactly one option stays chosen, as an ordering needs. */
+  single?: boolean;
 }) {
   return (
     <TagGroup
-      selectionMode="multiple"
+      selectionMode={single ? 'single' : 'multiple'}
+      disallowEmptySelection={single}
       selectedKeys={selected}
       size="sm"
       className="pa-account-filter-tags"

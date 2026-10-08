@@ -1,11 +1,8 @@
 export const PLATFORM_ROUTES = [
   'visao-geral',
   'operacao',
-  'publicacoes',
-  'paginas',
   'banco-de-notas',
   'painel-do-aluno',
-  'sistemas',
   'auditoria',
   'configuracoes',
 ] as const;
@@ -14,8 +11,6 @@ export const PLATFORM_CAPABILITIES = [
   'platform.snapshot.read',
   'platform.overview.read',
   'platform.health.read',
-  'publications.read',
-  'pages.read',
   'platform.modules.read',
   'platform.audit.read',
   'platform.settings.read',

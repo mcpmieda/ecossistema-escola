@@ -5,15 +5,7 @@ import { PortalScopeTabsV1 } from './settings/policy-scope-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
 import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -45,11 +37,7 @@ import {
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
-import {
-  preloadedSectionV1,
-  usePreloadedSectionsV1,
-} from '../../shared/ui/preloaded-section-v1';
-import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
+import { preloadedSectionV1, usePreloadedSectionsV1 } from '../../shared/ui/preloaded-section-v1';
 import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 import {
   claimPanelHashV1,
@@ -206,7 +194,7 @@ function PortalWorkspace({
 }) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
   usePreloadedSectionsV1(PANEL_SECTIONS_V1);
-  const liveState = useAdministrativeLiveV1({
+  useAdministrativeLiveV1({
     identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
@@ -401,7 +389,8 @@ function PortalWorkspace({
         content = <StudentBirthYearsV1 {...common} />;
         break;
       case 'sessions':
-        content = <StudentSessionsV1 {...common} />;
+        // Sessions are read for the whole school only (owner decision 07/10/2026).
+        content = <StudentSessionsV1 {...common} scope={SCHOOL} scopeLabel="Toda a escola" />;
         break;
       case 'audit':
         content = <AuditWorkspaceV1 {...common} />;
@@ -467,7 +456,6 @@ function PortalWorkspace({
             >
               Visão do aluno (demo)
             </Button>
-            <RemoteLiveNoticeV1 state={liveState} />
           </header>
           <Tabs
             selectedKey={section === 'credentials' ? 'accounts' : section}
@@ -484,7 +472,7 @@ function PortalWorkspace({
               } else window.location.hash = studentPortalHref(next.id);
             }}
           >
-            <Tabs.ListContainer className="max-w-full overflow-x-auto">
+            <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
               <Tabs.List aria-label="Áreas do Painel do Aluno">
                 {studentPortalSections
                   .filter((item) => item.id !== 'credentials')
@@ -500,66 +488,81 @@ function PortalWorkspace({
               id={section === 'credentials' ? 'accounts' : section}
               className="pa-admin-content"
             >
-              <PortalScopeTabsV1
-                policies={section === 'policies' || section === 'publication'}
-                reader={clients.reader}
-                selectedShift={selectedShift}
-                onShiftChange={(shift) => {
-                  if (!allowDraftNavigationV1()) return;
-                  writePanelHashParamsV1({ aluno: null });
-                  setSelectedShift(shift);
-                  setSelectedClass(null);
-                  setSectionScope(null);
-                  setTarget(null);
-                  setCustomizationTarget(null);
-                  setOpenedAccount(null);
-                  qr.clear();
-                }}
-                items={classItems}
-                selectedId={selectedClass?.id ?? null}
-                allLabel="Todas as turmas"
-                onChange={(id) => {
-                  if (!allowDraftNavigationV1()) return;
-                  // A record open in the previous class must not reopen in the next list.
-                  writePanelHashParamsV1({ aluno: null });
-                  setSelectedShift(null);
-                  setSelectedClass(classItems.find((item) => item.id === id) ?? null);
-                  setSectionScope(null);
-                  setTarget(null);
-                  setCustomizationTarget(null);
-                  setOpenedAccount(null);
-                  qr.clear();
-                }}
-              >
-                {classRead.state.state === 'error' ? (
-                  <AccountsErrorV1
-                    error={classRead.state.error}
-                    canReload={classRead.canReload}
-                    onReload={classRead.reload}
-                  />
-                ) : null}
-                {!common.canWrite && (
-                  <p role="status" className="text-xs text-muted">
-                    Somente leitura
-                  </p>
-                )}
-                {sectionScope && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => {
-                      if (allowDraftNavigationV1()) setSectionScope(null);
-                    }}
-                  >
-                    {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
-                  </Button>
-                )}
-                <Suspense fallback={sectionFallback}>
-                  <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
-                    <div key={section}>{content}</div>
-                  </LiveRefreshScopeV1>
-                </Suspense>
-              </PortalScopeTabsV1>
+              {section === 'sessions' || section === 'settings' ? (
+                <>
+                  {!common.canWrite && (
+                    <p role="status" className="text-xs text-muted">
+                      Somente leitura
+                    </p>
+                  )}
+                  <Suspense fallback={sectionFallback}>
+                    <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
+                      <div key={section}>{content}</div>
+                    </LiveRefreshScopeV1>
+                  </Suspense>
+                </>
+              ) : (
+                <PortalScopeTabsV1
+                  policies={section === 'policies' || section === 'publication'}
+                  reader={clients.reader}
+                  selectedShift={selectedShift}
+                  onShiftChange={(shift) => {
+                    if (!allowDraftNavigationV1()) return;
+                    writePanelHashParamsV1({ aluno: null });
+                    setSelectedShift(shift);
+                    setSelectedClass(null);
+                    setSectionScope(null);
+                    setTarget(null);
+                    setCustomizationTarget(null);
+                    setOpenedAccount(null);
+                    qr.clear();
+                  }}
+                  items={classItems}
+                  selectedId={selectedClass?.id ?? null}
+                  allLabel="Todas as turmas"
+                  onChange={(id) => {
+                    if (!allowDraftNavigationV1()) return;
+                    // A record open in the previous class must not reopen in the next list.
+                    writePanelHashParamsV1({ aluno: null });
+                    setSelectedShift(null);
+                    setSelectedClass(classItems.find((item) => item.id === id) ?? null);
+                    setSectionScope(null);
+                    setTarget(null);
+                    setCustomizationTarget(null);
+                    setOpenedAccount(null);
+                    qr.clear();
+                  }}
+                >
+                  {classRead.state.state === 'error' ? (
+                    <AccountsErrorV1
+                      error={classRead.state.error}
+                      canReload={classRead.canReload}
+                      onReload={classRead.reload}
+                    />
+                  ) : null}
+                  {!common.canWrite && (
+                    <p role="status" className="text-xs text-muted">
+                      Somente leitura
+                    </p>
+                  )}
+                  {sectionScope && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => {
+                        if (allowDraftNavigationV1()) setSectionScope(null);
+                      }}
+                    >
+                      {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
+                    </Button>
+                  )}
+                  <Suspense fallback={sectionFallback}>
+                    <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
+                      <div key={section}>{content}</div>
+                    </LiveRefreshScopeV1>
+                  </Suspense>
+                </PortalScopeTabsV1>
+              )}
             </Tabs.Panel>
           </Tabs>
           {customizationTarget ? (

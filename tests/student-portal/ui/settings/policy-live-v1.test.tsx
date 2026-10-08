@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
 
-it('loads customizations only on first expansion and pauses them while collapsed', async () => {
+it('loads customizations only on the first visit to their tab and pauses them on another tab', async () => {
   const mock = accountsMockV1();
   const settings = settingsFixtureV1();
   const client = createPortalAdminClientV1({
@@ -46,12 +46,12 @@ it('loads customizations only on first expansion and pauses them while collapsed
   await advance(0);
   await advance(62_000);
   expect(customizationRead).not.toHaveBeenCalled();
-  const trigger = screen.getByRole('button', { name: 'Personalizações de turmas e alunos' });
+  const trigger = screen.getByRole('tab', { name: 'Políticas personalizadas' });
   fireEvent.click(trigger);
   expect(customizationRead).toHaveBeenCalledTimes(1);
   await advance(31_100);
   expect(customizationRead).toHaveBeenCalledTimes(2);
-  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole('tab', { name: 'Acesso' }));
   act(() => notifyLiveChangeV1('portal', { broadcast: false }));
   await advance(62_000);
   expect(customizationRead).toHaveBeenCalledTimes(2);

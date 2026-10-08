@@ -5,88 +5,14 @@
   min-width: 0;
 }
 .pa-account-controls-card,
-.pa-account-qr-mount,
 .pa-account-bulk-mount {
   min-width: 0;
 }
 .pa-account-controls-card {
   padding: 0.5rem;
 }
-.pa-accounts .pa-account-controls.card__content {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  align-items: start;
-  gap: 0.4rem 0.9rem;
-  padding: 0.25rem;
-}
-.pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.98fr) minmax(0, 1fr);
-}
-.pa-account-controls-card--class .pa-account-filters {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem 0.55rem;
-}
-.pa-account-controls-card--class .pa-account-search {
-  grid-column: 1 / -1;
-}
-.pa-account-qr-mount {
-  border-left: 1px solid var(--border);
-  padding-left: 0.85rem;
-}
-.pa-account-qr-panel {
-  display: grid;
-  align-content: start;
-  gap: 0.35rem;
-}
-.pa-account-bulk-mount:not(:empty) {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--border);
-  padding-top: 0.4rem;
-}
-.pa-account-controls-card--class .pa-account-bulk-mount:not(:empty) {
-  grid-column: auto;
-  border-top: 0;
-  border-left: 1px solid var(--border);
-  padding-top: 0;
-  padding-left: 0.85rem;
-}
 .pa-account-bulk-mount:empty {
   display: none;
-}
-.pa-account-bulk-section {
-  display: grid;
-  gap: 0.45rem;
-  min-width: 0;
-}
-.pa-account-bulk-section h3 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-.pa-account-bulk-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  min-width: 0;
-}
-.pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-}
-.pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
-  width: auto;
-}
-.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem;
-}
-.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > div {
-  grid-column: 1 / -1;
-  grid-row: 2;
-}
-.pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
-  grid-column: 2;
-  grid-row: 1;
 }
 .pa-account-qr-panel .pa-qr-batch-tools {
   border: 0;
@@ -132,20 +58,6 @@
   color: var(--muted);
   font-size: 0.8rem;
 }
-.pa-account-qr-panel .pa-credentials-actions button:nth-of-type(3) {
-  margin-left: auto;
-}
-.pa-accounts header h2 {
-  font-size: 1.15rem;
-  font-weight: 650;
-}
-.pa-account-filters {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 0.55rem;
-  min-width: 0;
-}
 .pa-account-class-filter {
   display: grid;
   gap: 0.6rem;
@@ -153,6 +65,14 @@
 .pa-account-filters input {
   min-width: 0;
   width: 100%;
+}
+/* The clear button shares the row with the input, so the input takes what is left. */
+.pa-account-search .search-field__group {
+  width: 100%;
+}
+.pa-account-filters .pa-account-search input {
+  flex: 1 1 0;
+  width: auto;
 }
 .pa-account-identity {
   display: flex;
@@ -289,81 +209,6 @@
 .pa-account-dialog [data-slot='alert-dialog-footer'] {
   flex-wrap: wrap;
 }
-@media (max-width: 1100px) {
-  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  }
-  .pa-account-controls-card--class .pa-account-filters {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
-  }
-  .pa-account-controls-card--class .pa-account-search {
-    grid-column: auto;
-  }
-  .pa-account-controls-card--class .pa-account-bulk-mount:not(:empty) {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--border);
-    border-left: 0;
-    padding-top: 0.4rem;
-    padding-left: 0;
-  }
-  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > div,
-  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content > button {
-    grid-column: auto;
-    grid-row: auto;
-  }
-}
-@media (max-width: 900px) {
-  .pa-accounts .pa-account-controls.card__content {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .pa-account-controls-card--class .pa-account-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .pa-account-controls-card--class .pa-account-search {
-    grid-column: 1 / -1;
-  }
-  .pa-account-qr-mount {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    padding-left: 0;
-    padding-top: 0.6rem;
-  }
-  .pa-account-controls-card--class .pa-account-qr-mount {
-    border-top: 0;
-    border-left: 1px solid var(--border);
-    padding-top: 0;
-    padding-left: 0.85rem;
-  }
-  .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .pa-account-bulk-mount:not(:empty) {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 700px) {
-  .pa-accounts .pa-account-controls-card--class .pa-account-controls.card__content {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .pa-account-controls-card--class .pa-account-qr-mount {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    padding-left: 0;
-    padding-top: 0.6rem;
-  }
-  .pa-account-controls-card--class .pa-account-bulk-section[data-phase='idle'] .pa-account-bulk-content {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 @media (max-width: 640px) {
   .pa-account-qr-panel .pa-credentials-actions {
     display: grid;
@@ -373,15 +218,8 @@
     width: 100%;
     min-width: 0;
   }
-  .pa-account-qr-panel .pa-credentials-actions button:nth-of-type(3) {
-    margin-left: 0;
-  }
-  .pa-account-filters,
   .pa-account-facts {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .pa-account-controls-card--class .pa-account-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .pa-account-actions button,
   .pa-account-page-controls button {
@@ -458,8 +296,7 @@
   .pa-student-drawer {
     width: 100vw;
   }
-  .pa-student-drawer .pa-settings-fields,
-  .pa-account-filters {
+  .pa-student-drawer .pa-settings-fields {
     grid-template-columns: minmax(0, 1fr);
   }
   .pa-account-facts {
@@ -538,4 +375,181 @@
 }
 .pa-account-table td > .pa-seal-count {
   display: flex;
+}
+
+/* Tighter HeroUI chrome, wider content: the list card matches the controls card, and the room
+   saved goes to the gaps between blocks, filters and rows. */
+.pa-accounts {
+  gap: 0.75rem;
+}
+.pa-accounts .pa-account-list-card {
+  padding: 0.5rem;
+}
+.pa-accounts .pa-account-list-card > .card__content {
+  padding: 0.25rem;
+}
+.pa-account-table .table__cell {
+  padding-block: 0.55rem;
+}
+/* The count sits right above its table: one small gap instead of three stacked ones. */
+.pa-accounts .pa-account-list-card > .card__content {
+  gap: 0.35rem;
+}
+.pa-accounts .pa-account-list-card .pa-account-page-controls,
+.pa-accounts .pa-account-list-card .pa-account-table {
+  margin-block: 0;
+}
+
+/* Controls card (owner request 07/10/2026): low, dense and categorised so the list stays in
+   view. Line one finds a student (search, order); every other line is one category named in a
+   shared left rail: filters, then the class tools as a grouped pair of rows. */
+.pa-accounts .pa-account-controls.card__content {
+  --pa-rail: 5.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  padding: 0.15rem;
+}
+.pa-account-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem 1rem;
+  min-width: 0;
+  margin-bottom: 0.45rem;
+}
+.pa-account-filters .pa-account-class-filter,
+.pa-account-filter-row {
+  grid-column: 1 / -1;
+}
+.pa-account-filters .pa-account-search {
+  max-width: none;
+}
+.pa-account-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1.4rem;
+  min-width: 0;
+  padding-inline: 0.6rem;
+}
+.pa-account-rail,
+.pa-accounts .pa-account-qr-panel h2,
+.pa-accounts .pa-account-bulk-section h3 {
+  flex: 0 0 var(--pa-rail);
+  width: var(--pa-rail);
+  margin-right: -0.4rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.pa-account-filters .pa-account-filter-tags {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+}
+.pa-account-filters .pa-account-filter-tags > .label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.pa-account-filters .pa-account-filter-tags .tag-group__list {
+  gap: 0.25rem;
+}
+/* Class tools: two rows of one grouped surface. */
+.pa-account-qr-mount,
+.pa-account-bulk-mount:not(:empty) {
+  min-width: 0;
+  background: var(--surface-secondary);
+  padding: 0.4rem 0.6rem;
+}
+.pa-account-qr-mount {
+  border-radius: 0.8rem 0.8rem 0.3rem 0.3rem;
+}
+.pa-account-bulk-mount:not(:empty) {
+  border-radius: 0.3rem 0.3rem 0.8rem 0.8rem;
+}
+.pa-account-qr-mount:last-child,
+.pa-account-qr-mount:has(+ .pa-account-bulk-mount:empty) {
+  border-radius: 0.8rem;
+}
+.pa-account-qr-panel,
+.pa-account-bulk-section {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  min-width: 0;
+}
+.pa-account-qr-panel .pa-qr-batch-tools,
+.pa-account-bulk-content {
+  display: flex;
+  flex: 1 1 0;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  min-width: 0;
+}
+.pa-account-qr-panel .pa-credentials-actions {
+  flex: 1 1 auto;
+}
+.pa-account-bulk-content > p {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
+  align-items: center;
+  gap: 0.25rem 0.3rem;
+}
+/* The rail already names the group; the label stays for assistive technology. */
+.pa-account-qr-panel .pa-qr-batch-tools > .radio-group:first-child > .label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.pa-account-qr-panel .pa-qr-batch-tools .radio-group > .label {
+  flex-basis: auto;
+  margin-right: 0.15rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.pa-account-qr-panel .pa-credentials-actions,
+.pa-account-bulk-content > div {
+  gap: 0.3rem;
+}
+.pa-account-qr-panel .pa-credentials-actions button,
+.pa-account-bulk-content > div button {
+  min-height: 1.75rem;
+  height: 1.75rem;
+  padding-block: 0;
+  padding-inline: 0.6rem;
+}
+.pa-account-qr-panel .pa-credentials-actions .button--primary {
+  margin-left: auto;
+}
+/* On the grouped surface the neutral controls take the card colour, so they still read as buttons. */
+.pa-account-qr-panel .pa-credentials-actions .button--secondary,
+.pa-account-bulk-content > div .button--secondary,
+.pa-account-qr-panel .radio:not([data-selected]) {
+  background: var(--surface);
+}
+@media (max-width: 900px) {
+  .pa-account-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-qr-panel,
+  .pa-account-bulk-section {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 640px) {
+  .pa-account-qr-panel .pa-credentials-actions .button--primary {
+    margin-left: 0;
+  }
 }

@@ -106,6 +106,11 @@ it('shows only available shifts with class counts and keeps them out of other ar
       Conteúdo
     </PortalScopeTabsV1>,
   );
+  // Shifts and classes stay out of the way until asked for.
+  expect(screen.queryByRole('tab', { name: /Turno/ })).toBeNull();
+  await user.click(
+    await screen.findByRole('button', { name: 'Configurar política para turma ou turno' }),
+  );
   await user.click(await screen.findByRole('tab', { name: 'Turno Matutino · 2 turmas' }));
   expect(onShiftChange).toHaveBeenCalledWith('MATUTINO');
   expect(screen.queryByRole('tab', { name: /Noturno|Vespertino/ })).toBeNull();
@@ -143,7 +148,7 @@ it('edits all six grade agendas at shift scope without publication commands and 
   );
   await screen.findByText(/1 turma tem regras suspensas pelo turno/);
   expect(screen.getByText('Este turno')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Personalizações de turmas e alunos' })).toBeNull();
+  expect(screen.queryByRole('tab', { name: 'Políticas personalizadas' })).toBeNull();
   await user.click(await screen.findByRole('tab', { name: 'Notas' }));
   expect(screen.getAllByRole('switch', { name: /^Mostrar/ })).toHaveLength(7);
   await user.click(screen.getByRole('switch', { name: 'Mostrar as notas do 1º trimestre agora' }));
@@ -205,6 +210,9 @@ it('selects a shift inside the full administrative page without changing the out
   render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
   await screen.findByRole('switch', { name: 'Portal aberto agora' });
+  await user.click(
+    await screen.findByRole('button', { name: 'Configurar política para turma ou turno' }),
+  );
   await user.click(await screen.findByRole('tab', { name: 'Turno Matutino · 2 turmas' }));
   await screen.findByText('Este turno');
   expect(
@@ -218,13 +226,13 @@ it('preserves unsaved access and grade agendas when saving another field', async
   const { client, writes } = settingsClient({ ...settingsFixtureV1(), scope: SHIFT });
   const { reader } = readerOf();
   render(<StudentPoliciesV1 client={client} reader={reader} scope={SHIFT} canWrite />);
-  await user.click(await screen.findByRole('button', { name: 'Adicionar agendamento' }));
+  await user.click(await screen.findByRole('button', { name: 'Novo agendamento' }));
   await user.click(screen.getByRole('tab', { name: 'Notas' }));
   const firstPeriod = () =>
     screen
       .getByRole('heading', { name: '1º trimestre' })
       .closest('section, article, .pa-grade-card') as HTMLElement;
-  await user.click(within(firstPeriod()).getByRole('button', { name: 'Adicionar agendamento' }));
+  await user.click(within(firstPeriod()).getByRole('button', { name: 'Novo agendamento' }));
   await user.click(screen.getByRole('tab', { name: 'Segurança' }));
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Pedir verificação após' }), {
     target: { value: '4' },
@@ -251,7 +259,7 @@ it('preserves an unsaved grade agenda when saving another period', async () => {
   await user.click(await screen.findByRole('tab', { name: 'Notas' }));
   const firstPeriod = () =>
     screen.getByRole('heading', { name: '1º trimestre' }).closest('.pa-grade-card') as HTMLElement;
-  await user.click(within(firstPeriod()).getByRole('button', { name: 'Adicionar agendamento' }));
+  await user.click(within(firstPeriod()).getByRole('button', { name: 'Novo agendamento' }));
   await user.click(screen.getByRole('switch', { name: 'Mostrar as notas do 2º trimestre agora' }));
   await user.click(
     within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmar alteração' }),

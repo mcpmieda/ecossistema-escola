@@ -141,7 +141,8 @@ describe('gradebook importer structure', () => {
     expect(hook).toContain('createGradebookCanonicalImportRequestV9');
     expect(hook).toContain('persistGradebookCanonicalImportV9');
     expect(bridge).toContain("fetch('/api/gradebook/import-persistence'");
-    expect(panel).toContain('Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.');
+    expect(panel).toContain('Selecionar Relação');
+    expect(panel).toContain('Selecionar planilhas');
     expect(panel).toContain('Sem mudanças acadêmicas');
     expect(panel).not.toContain('Importação por valores V8');
     expect(`${panel}\n${hook}`).not.toContain('import-persistence-client-v2');

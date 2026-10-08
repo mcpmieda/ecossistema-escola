@@ -198,11 +198,10 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     );
   }
   return (
-    <Card className="pa-operations-card">
+    <Card className="pa-operations-card pa-flat">
       <Card.Header>
         <div className="pa-operations-header">
           <div>
-            <h2>Sessões</h2>
             <p className="text-xs text-muted">{props.scopeLabel}</p>
           </div>
           <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />

@@ -547,7 +547,9 @@ export function RelationalWorkspacePageV2() {
           </Card.Content>
         </Card>
       ) : null}
-      {workspace.busy.context ? (
+      {/* Only a first read or a change of year announces itself: a background re-read that
+          inserted this line pushed the page down and back up every cycle. */}
+      {workspace.busy.context && workspace.context?.year.year !== workspace.year ? (
         <div role="status" className="flex items-center gap-2 text-sm text-muted">
           <Spinner size="sm" />
           Carregando cadastro de {workspace.year ?? '—'}…

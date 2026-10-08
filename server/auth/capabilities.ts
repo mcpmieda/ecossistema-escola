@@ -6,8 +6,6 @@ export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]>
     'platform.snapshot.read',
     'platform.overview.read',
     'platform.health.read',
-    'publications.read',
-    'pages.read',
     'platform.modules.read',
     'platform.audit.read',
     'platform.settings.read',

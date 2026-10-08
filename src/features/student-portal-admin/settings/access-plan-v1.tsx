@@ -282,7 +282,7 @@ export function AccessPlanCardV1({
               <>
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant={owns ? 'primary' : 'secondary'}
                   isDisabled={disabled || (owns && !dirty && !fromCalendar)}
                   aria-label={owns ? 'Salvar agendamentos' : 'Personalizar Entrada no Portal'}
                   onPress={saveSchedule}

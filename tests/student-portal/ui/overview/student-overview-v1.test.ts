@@ -87,7 +87,7 @@ describe('actual operational summary and health', () => {
       }),
     );
     await screen.findByText('Cadastro automático desativado');
-    expect(screen.getByText(/353 alunos com vínculo/)).toBeTruthy();
+    expect(screen.getByText('Alunos com vínculo').nextElementSibling?.textContent).toBe('353');
     await user.click(screen.getByRole('button', { name: 'Ativar cadastro automático' }));
     const review = await screen.findByRole('alertdialog');
     expect(review.textContent).toContain('381 perfis');

@@ -38,13 +38,14 @@ describe('Centro de Administração module contract', () => {
     }
   });
 
-  it('keeps future content domains planned and the released administrative core ready', () => {
+  it('keeps the released administrative core ready, with no placeholder or catalogue area', () => {
     const states = new Map(navigableModules.map((module) => [module.route, module.state]));
-    expect(states.get('publicacoes')).toBe('planned');
-    expect(states.get('paginas')).toBe('planned');
+    // Publicações, Páginas and Sistemas left the Centro on 07/10/2026 (owner request).
+    const routes = navigableModules.map((module): string => module.route);
+    for (const removed of ['publicacoes', 'paginas', 'sistemas']) expect(routes).not.toContain(removed);
+    expect(navigableModules.every((module) => module.state === 'ready')).toBe(true);
     expect(states.get('visao-geral')).toBe('ready');
     expect(states.get('operacao')).toBe('ready');
-    expect(states.get('sistemas')).toBe('ready');
     expect(states.get('auditoria')).toBe('ready');
     expect(states.get('configuracoes')).toBe('ready');
     expect(states.get('banco-de-notas')).toBe('ready');

@@ -321,16 +321,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.pa-policy-customizations {
-  border-top: 1px solid var(--border);
-}
-.pa-custom-settings--compact {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-  padding: 0;
-}
 .pa-policy-navigation .tabs__tab {
   gap: 0.45rem;
 }
@@ -570,4 +560,23 @@
 .pa-grades-scope p {
   flex: 1 1 18rem;
   margin: 0;
+}
+/* The classes and shifts of the policy scope open on request, beside "Toda a escola". */
+.school-class-tabs:has(> .pa-scope-toggle) {
+  flex-flow: row wrap;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+.school-class-tabs:has(> .pa-scope-toggle) > .tabs__list-container {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.school-class-tabs:has(> .pa-scope-toggle) > :not(.tabs__list-container, .pa-scope-toggle) {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.pa-scope-toggle {
+  flex: 0 0 auto;
+  color: var(--muted);
 }

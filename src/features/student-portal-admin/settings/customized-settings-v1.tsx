@@ -23,7 +23,6 @@ import {
 } from './customization-values-v1';
 
 type Props = {
-  compact?: boolean;
   reader: PortalAdminReadClientV2;
   client: PortalAdminClientV1;
   canWrite: boolean;
@@ -41,7 +40,7 @@ const valueLabel = (value: unknown) =>
         ? value.map((period) => customizationPeriodV1(String(period))).join(', ') ||
           'Nenhum período'
         : 'Personalizado';
-function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, compact }: Props) {
+function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: Props) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');
   const nameSearch = useDebouncedSearchV1(search);
@@ -74,17 +73,15 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen, co
     read.reload();
   };
   return (
-    <Card className={`pa-custom-settings${compact ? ' pa-custom-settings--compact' : ''}`}>
-      {!compact ? (
-        <Card.Header className="flex-row items-center justify-between">
-          <h3>Políticas personalizadas</h3>
-          <InfoV1 label="Sobre as políticas personalizadas">
-            Somente diferenças atuais definidas para alunos ou turmas. Quem apenas segue o padrão
-            não aparece. A lixeira desfaz a opção escolhida e volta ao padrão aplicável; não apaga
-            pessoas, notas ou auditoria.
-          </InfoV1>
-        </Card.Header>
-      ) : null}
+    <Card className="pa-custom-settings">
+      <Card.Header className="flex-row items-center justify-between">
+        <h3>Políticas personalizadas</h3>
+        <InfoV1 label="Sobre as políticas personalizadas">
+          Somente diferenças atuais definidas para alunos ou turmas. Quem apenas segue o padrão não
+          aparece. A lixeira desfaz a opção escolhida e volta ao padrão aplicável; não apaga
+          pessoas, notas ou auditoria.
+        </InfoV1>
+      </Card.Header>
       <Card.Content>
         <Input
           aria-label="Buscar personalizações por aluno ou turma"

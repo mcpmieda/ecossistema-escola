@@ -144,18 +144,20 @@ function OverviewBodyV1(props: OperationsPropsV1) {
     }
   };
   return (
-    <Card className="pa-operations-card">
-      <Card.Header>
-        <div className="pa-operations-header">
-          <div>
-            <h2>Visão geral do Portal</h2>
-            <p>{props.scopeLabel} · 2026</p>
-          </div>
-          <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
-        </div>
-      </Card.Header>
+    <Card className="pa-operations-card pa-overview">
       <Card.Content>
-        {read.state.state === 'loading' && <p role="status">Consultando operação…</p>}
+        {read.state.state === 'loading' && (
+          <>
+            <p role="status" className="sr-only">
+              Consultando operação…
+            </p>
+            <div className="pa-overview-skeleton" aria-hidden="true">
+              {Array.from({ length: 6 }, (_, index) => (
+                <span key={index} />
+              ))}
+            </div>
+          </>
+        )}
         {read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -165,65 +167,90 @@ function OverviewBodyV1(props: OperationsPropsV1) {
         )}
         {data && (
           <>
-            <div className="pa-operations-header">
-              <h3>Funcionamento</h3>
-              <InfoV1 label="Sobre o funcionamento">
-                Situação do serviço e das tarefas automáticas, independente das permissões de cada
-                aluno.
-              </InfoV1>
-            </div>
-            {data.health ? (
-              <Chip
-                variant="soft"
-                color={
-                  data.health === 'normal'
-                    ? 'success'
-                    : data.health === 'attention'
-                      ? 'warning'
-                      : 'danger'
-                }
-              >
-                {healthLabels[data.health]}
-              </Chip>
-            ) : (
-              <p role="alert">Saúde indisponível para consulta. Nenhum estado foi presumido.</p>
-            )}
-            {data.health === 'attention' && (
-              <p>
-                Há trabalho pendente além da janela esperada. Confira novamente após o
-                processamento.
-              </p>
-            )}
-            {data.health === 'intervention' && (
-              <p>
-                A operação requer investigação administrativa. A liberação de acesso depende das
-                verificações próprias.
-              </p>
-            )}
+            <section className="pa-overview-hero pa-rise" aria-label="Funcionamento">
+              <div className="pa-overview-hero-main">
+                <p className="pa-overview-scope">{props.scopeLabel} · 2026</p>
+                <div className="pa-overview-health">
+                  <h3>Funcionamento</h3>
+                  {data.health ? (
+                    <Chip
+                      variant="soft"
+                      color={
+                        data.health === 'normal'
+                          ? 'success'
+                          : data.health === 'attention'
+                            ? 'warning'
+                            : 'danger'
+                      }
+                    >
+                      <span className="pa-overview-pulse" aria-hidden="true" />
+                      {healthLabels[data.health]}
+                    </Chip>
+                  ) : null}
+                  <InfoV1 label="Sobre o funcionamento">
+                    Situação do serviço e das tarefas automáticas, independente das permissões de
+                    cada aluno.
+                  </InfoV1>
+                </div>
+                {!data.health && (
+                  <p role="alert">Saúde indisponível para consulta. Nenhum estado foi presumido.</p>
+                )}
+                {data.health === 'attention' && (
+                  <p>
+                    Há trabalho pendente além da janela esperada. Confira novamente após o
+                    processamento.
+                  </p>
+                )}
+                {data.health === 'intervention' && (
+                  <p>
+                    A operação requer investigação administrativa. A liberação de acesso depende das
+                    verificações próprias.
+                  </p>
+                )}
+              </div>
+              <div className="pa-overview-hero-side">
+                <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
+                {data.overview && (
+                  <p className="pa-operations-muted">
+                    Resumo consultado em {operationDateV1(data.overview.observedAt)}.
+                  </p>
+                )}
+              </div>
+            </section>
             {data.overview ? (
               <>
-                <p className="pa-operations-muted">
-                  Resumo consultado em {operationDateV1(data.overview.observedAt)}.
-                </p>
                 <OverviewDashboardV1 counts={data.overview.counts} />
                 {data.overview.counts.accounts === 0 ? <p>Nenhuma conta neste recorte.</p> : null}
                 {data.population && (
-                  <section aria-labelledby="pa-population-title">
-                    <h3 id="pa-population-title">Cadastro do Portal</h3>
-                    <p>
-                      {data.population.classes} turmas · {data.population.eligibleSourceProfiles}{' '}
-                      alunos com vínculo · {data.population.exitSourceProfiles} vínculos de saída.
-                    </p>
-                    <p>
-                      {data.population.accounts} contas existentes ·{' '}
-                      {data.population.missingProfiles} cadastros pendentes ·{' '}
-                      {data.population.overrideRows} opções personalizadas.
-                    </p>
-                    <Chip variant="soft" color={data.population.enabled ? 'success' : 'warning'}>
-                      {data.population.enabled
-                        ? 'Cadastro automático ativo'
-                        : 'Cadastro automático desativado'}
-                    </Chip>
+                  <section
+                    className="pa-overview-population pa-rise"
+                    aria-labelledby="pa-population-title"
+                  >
+                    <div className="pa-overview-population-head">
+                      <h3 id="pa-population-title">Cadastro do Portal</h3>
+                      <Chip variant="soft" color={data.population.enabled ? 'success' : 'warning'}>
+                        {data.population.enabled
+                          ? 'Cadastro automático ativo'
+                          : 'Cadastro automático desativado'}
+                      </Chip>
+                    </div>
+                    <dl className="pa-overview-facts">
+                      {(
+                        [
+                          ['Turmas', data.population.classes],
+                          ['Alunos com vínculo', data.population.eligibleSourceProfiles],
+                          ['Vínculos de saída', data.population.exitSourceProfiles],
+                          ['Contas existentes', data.population.accounts],
+                          ['Cadastros pendentes', data.population.missingProfiles],
+                          ['Opções personalizadas', data.population.overrideRows],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <div key={label}>
+                          <dt>{label}</dt>
+                          <dd>{value.toLocaleString('pt-BR')}</dd>
+                        </div>
+                      ))}
+                    </dl>
                     {populationError && (
                       <p role="alert">
                         A sincronização não foi confirmada. Consulte novamente ou tente a mesma

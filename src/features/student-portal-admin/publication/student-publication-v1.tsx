@@ -51,12 +51,11 @@ const termLabel = (period: string) =>
   period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
 function operationLabel(command: PublicationCommandV1) {
   if (command.operation === 'unpublish') return 'Retirar publicação';
-  if (command.operation === 'publish-update') return 'Publicar notas novas';
-  return 'Publicar notas';
+  return 'Publicar as notas novas';
 }
 function confirmationLabel(command: PublicationCommandV1) {
   if (command.operation === 'unpublish') return 'Confirmar retirada';
-  if (command.operation === 'publish-update') return 'Publicar notas novas';
+  if (command.operation === 'publish-update') return 'Publicar as notas novas';
   return 'Confirmar publicação';
 }
 
@@ -89,20 +88,20 @@ function PublicationActionsV1({
           size="sm"
           variant="primary"
           isDisabled={disabled}
-          aria-label={`Publicar notas de ${item.period}`}
+          aria-label={`Publicar as notas novas de ${item.period}`}
           onPress={() => review(item, 'publish')}
         >
-          Publicar notas
+          Publicar as notas novas
         </Button>
       ) : null}
       {canPublishManualUpdate ? (
         <Button
           size="sm"
           isDisabled={disabled}
-          aria-label={`Publicar notas novas de ${item.period}`}
+          aria-label={`Publicar as notas novas de ${item.period}`}
           onPress={() => review(item, 'publish-update')}
         >
-          Publicar notas novas
+          Publicar as notas novas
         </Button>
       ) : null}
       {published ? (
@@ -126,7 +125,7 @@ function publicationStepTextV1(item: PublicationItemV1, autoUpdate: boolean) {
   if (item.state === 'update-pending')
     return autoUpdate
       ? 'Publicada. As notas novas do Banco serão publicadas sozinhas.'
-      : 'Publicada. O Banco tem notas mais novas que ainda não foram publicadas.';
+      : 'O Banco tem notas mais novas que ainda não foram publicadas.';
   return 'Publicada e igual ao Banco.';
 }
 

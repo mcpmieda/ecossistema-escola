@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Accordion,
   Button,
   Card,
   Chip,
@@ -51,7 +50,6 @@ import type { PublicationItemV1 } from '../publication/publication-values-v1';
 import { accessOpenAtV1 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
-import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import './student-settings-v1.css';
 
 type ReviewIntentV1 =
@@ -499,8 +497,6 @@ function SettingsReadyV1({
   const accessDisabled =
     fieldDisabled || controlledByShift('accessEnabled') || controlledByShift('accessSchedule');
   const gradesDisabled = fieldDisabled || controlledByShift('calendar');
-  const [customizationsOpen, setCustomizationsOpen] = useState(false);
-  const [customizationsVisited, setCustomizationsVisited] = useState(false);
   const renderField = (field: SettingsFieldV1) =>
     field === 'accessSchedule' ? null : field === 'accessEnabled' ? (
       // The switch and its schedules are one unit, edited on their own card.
@@ -526,6 +522,20 @@ function SettingsReadyV1({
         onDirtyChange={onDirtyChange}
       />
     );
+  const customizations =
+    reader &&
+    onOpenCustomization &&
+    fixedScope.kind !== 'account' &&
+    fixedScope.kind !== 'shift' ? (
+      <CustomizedSettingsV1
+        key={settingsScopeKeyV1(fixedScope)}
+        reader={reader}
+        client={client}
+        scope={fixedScope}
+        canWrite={canWrite}
+        onOpen={onOpenCustomization}
+      />
+    ) : null;
   return (
     <>
       <SettingsMutationFeedbackV1
@@ -544,6 +554,7 @@ function SettingsReadyV1({
       ) : null}
       {area === 'policies' ? (
         <PolicyLayoutV1
+          customizations={customizations}
           field={renderField}
           shift={fixedScope.kind === 'shift'}
           grades={
@@ -625,46 +636,7 @@ function SettingsReadyV1({
           {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map(renderField)}
         </div>
       ) : null}
-      {area !== 'general' &&
-      reader &&
-      onOpenCustomization &&
-      fixedScope.kind !== 'account' &&
-      fixedScope.kind !== 'shift' ? (
-        <Accordion className="pa-policy-customizations">
-          <Accordion.Item
-            id="customizations"
-            isExpanded={customizationsOpen}
-            onExpandedChange={(open) => {
-              setCustomizationsOpen(open);
-              if (open) setCustomizationsVisited(true);
-            }}
-          >
-            <Accordion.Heading>
-              <Accordion.Trigger>
-                Personalizações de turmas e alunos
-                <Accordion.Indicator />
-              </Accordion.Trigger>
-            </Accordion.Heading>
-            <Accordion.Panel>
-              <Accordion.Body>
-                {customizationsVisited ? (
-                  <LiveRefreshScopeV1 active={customizationsOpen}>
-                    <CustomizedSettingsV1
-                      key={settingsScopeKeyV1(fixedScope)}
-                      reader={reader}
-                      client={client}
-                      scope={fixedScope}
-                      canWrite={canWrite}
-                      onOpen={onOpenCustomization}
-                      compact
-                    />
-                  </LiveRefreshScopeV1>
-                ) : null}
-              </Accordion.Body>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
-      ) : null}
+      {area !== 'general' && area !== 'policies' ? customizations : null}
       {area !== 'policies' && fixedScope.kind === 'school' && canWrite ? (
         <LinkClosureV1
           key={data.version}
@@ -895,7 +867,6 @@ function SettingsScopeV1({
       <header className="pa-settings-heading">
         {area !== 'policies' ? (
           <div>
-            <h2>Configurações</h2>
             <p>{label}</p>
           </div>
         ) : null}

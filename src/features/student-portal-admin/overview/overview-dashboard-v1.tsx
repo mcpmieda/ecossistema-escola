@@ -56,22 +56,24 @@ export function OverviewDashboardV1({ counts }: { counts: Counts }) {
     <div className="pa-dashboard">
       <dl className="pa-dashboard-stats">
         {stats.map(([key, label, tone, Icon, help]) => (
-          <Card key={key} className={`pa-stat pa-stat--${tone}`}>
+          <Card key={key} className={`pa-stat pa-stat--${tone} pa-rise`}>
             <Card.Content>
               <div className="pa-stat-top">
-                <span className="pa-stat-icon">
-                  <Icon size={21} aria-hidden="true" />
-                </span>
+                <dt>{label}</dt>
                 <InfoV1 label={`Sobre ${label}`}>{help}</InfoV1>
               </div>
-              <dt>{label}</dt>
-              <dd>{counts[key].toLocaleString('pt-BR')}</dd>
+              <div className="pa-stat-value">
+                <dd>{counts[key].toLocaleString('pt-BR')}</dd>
+                <span className="pa-stat-icon">
+                  <Icon size={18} aria-hidden="true" />
+                </span>
+              </div>
             </Card.Content>
           </Card>
         ))}
       </dl>
       <div className="pa-dashboard-bottom">
-        <Card>
+        <Card className="pa-rise">
           <Card.Header className="flex-row justify-between items-center">
             <h3>Acesso ao Portal</h3>
             <InfoV1 label="Sobre o acesso ao Portal">
@@ -114,7 +116,7 @@ export function OverviewDashboardV1({ counts }: { counts: Counts }) {
             </Meter>
           </Card.Content>
         </Card>
-        <Card>
+        <Card className="pa-rise">
           <Card.Header className="flex-row justify-between items-center">
             <h3>Cadastro e vínculo</h3>
             <InfoV1 label="Sobre cadastro e vínculo">

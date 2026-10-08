@@ -13,16 +13,14 @@ function source(path: string): string {
 }
 
 describe('Centro de Administração production release', () => {
-  it('publishes the approved core as production while future areas remain planned', () => {
+  it('publishes the approved core as production, with no placeholder area', () => {
     const states = new Map(coreModules.map((module) => [module.route, module.state]));
 
     expect(states.get('visao-geral')).toBe('ready');
     expect(states.get('operacao')).toBe('ready');
-    expect(states.get('sistemas')).toBe('ready');
     expect(states.get('auditoria')).toBe('ready');
     expect(states.get('configuracoes')).toBe('ready');
-    expect(states.get('publicacoes')).toBe('planned');
-    expect(states.get('paginas')).toBe('planned');
+    expect(coreModules.every((module) => module.state === 'ready')).toBe(true);
 
     const snapshot = buildPlatformSnapshot(
       {

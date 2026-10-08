@@ -3,6 +3,7 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
+import { admPreviewGradebookV1 } from './build/adm-preview-gradebook-v1';
 import { browserBoundaryV1 } from './build/browser-boundary-v1';
 
 /** Serves only locally stored, git-ignored preview photos to the existing avatar URL. */
@@ -42,7 +43,13 @@ function localPreviewPhotos(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [localPreviewPhotos(), react(), tailwindcss(), browserBoundaryV1('admin')],
+  plugins: [
+    localPreviewPhotos(),
+    admPreviewGradebookV1(),
+    react(),
+    tailwindcss(),
+    browserBoundaryV1('admin'),
+  ],
   server: { host: '127.0.0.1', port: 4175, strictPort: true },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
 });
