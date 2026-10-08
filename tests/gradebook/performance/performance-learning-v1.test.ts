@@ -54,15 +54,18 @@ it('requires at least three numeric instruments and two low scores in the same c
   const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1 });
   expect(value.learning!.students[0]!.recurring[0]!.instrumentTerms).toEqual([2]);
   const insufficient = learningFixtureV1({ studentCount: 1, componentCount: 1, override: (fact) => fact.term === 1 || fact.slot === 13 ? { valueMilli: null } : {} }).value;
-  expect(insufficient.learning!.students[0]!.recurrenceAssessed).toBe(false);
-  expect(insufficient.learning!.students[0]!.recurring).toEqual([]);
+  // BN-DEC-042: the blank first term counts as not done, so the two terms in a row below the
+  // minimum are what flags the student; the instruments alone still need three marks.
+  expect(insufficient.learning!.students[0]!.recurrenceAssessed).toBe(true);
+  expect(insufficient.learning!.students[0]!.recurring[0]!.instrumentTerms).toEqual([]);
+  expect(insufficient.learning!.students[0]!.recurring[0]!.consecutiveTerms.length).toBeGreaterThan(0);
 });
-it('detects repeated low complete term results and keeps no-evidence students unclassified', () => {
+it('detects repeated low term results, including a student with nothing recorded', () => {
   const { value } = learningFixtureV1();
   expect(value.learning!.students[0]!.recurring[0]!.consecutiveTerms).toEqual([2]);
-  expect(value.learning!.students[3]!.recurrenceAssessed).toBe(false);
+  expect(value.learning!.students[3]!.recurrenceAssessed).toBe(true);
   expect(value.learning!.students[3]!.participation.percent).toBeNull();
-  expect(value.learning!.students[3]!.recurring).toEqual([]);
+  expect(value.learning!.students[3]!.recurring.length).toBeGreaterThan(0);
 });
 it('keeps recovery gain separate from the original quantitative comparison and the official result', () => {
   const before = learningFixtureV1({ studentCount: 1, componentCount: 1 }).value;

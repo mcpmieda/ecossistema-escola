@@ -91,9 +91,9 @@ describe('BN-DEC-035: PARA improves Q; it is never an extra assessment', () => {
     }
   });
 
-  it('does not turn an empty period into zero or invent an absent PARA definition', () => {
+  it('reads an empty period as not done and does not invent an absent PARA definition', () => {
     const empty = parallelFixture848({ av1: null, av2: null, qualitative: null });
-    expect(empty.cell).toMatchObject({ state: 'not-recorded', valueMilli: null });
+    expect(empty.cell).toMatchObject({ state: 'partial', valueMilli: 0 });
     const zero = parallelFixture848({ av1: null, av2: null, qualitative: null, parallel: 0 });
     expect(zero.cell).toMatchObject({ state: 'partial', valueMilli: 0 });
     const without = parallelFixture848({ includeParallel: false });
