@@ -13,6 +13,9 @@ import type {
   PerformanceTermComparisonV4,
 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
+import { PERFORMANCE_LENSES_V3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 import type {
   PerformanceRequestV2,
   PerformanceReadyV2,
@@ -37,6 +40,26 @@ type Filters = {
   referencePeriod: PerformanceReferencePeriodV4 | null;
 };
 type Detail = Extract<PerformanceReadyV2, { operation: 'student-detail' | 'cell-detail' }>;
+/** Filters kept for the tab so a reload returns to the same reading; ids and choices only. */
+const storedFiltersV2 = z
+  .object({
+    classId: z.number().int().positive().nullable(),
+    period: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal('annual')]),
+    mode: z.enum(['regular', 'recovery']),
+    statuses: z.array(z.number().int().min(1).max(7).nullable()).min(1).max(8),
+    lens: z.enum(PERFORMANCE_LENSES_V3),
+    offerId: z.number().int().positive().nullable(),
+    referencePeriod: z.union([z.literal(1), z.literal(2)]).nullable(),
+  })
+  .strict();
+/** The reading always brings every situation; which ones are listed is chosen on screen. */
+const EVERY_STATUS_V2: PerformanceStatusV2[] = [null, 1, 2, 3, 4, 5, 7];
+const filtersKeyV2 = (year: number) => `gradebook-performance-filters:${year}`;
+const readStoredFiltersV2 = (year: number) =>
+  readSessionViewV1(filtersKeyV2(year), (value) => {
+    const parsed = storedFiltersV2.safeParse(value);
+    return parsed.success ? (parsed.data as Filters) : null;
+  });
 export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = true) {
   const shared = useGradebookYear();
   const year = shared?.year ?? null;
@@ -50,15 +73,21 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     PerformanceReadyV2,
     { operation: 'classes' }
   > | null>(null);
-  const [filters, setFilters] = useState<Filters>({
-    classId: null,
-    period: 1,
-    mode: 'regular',
-    statuses: [null, 7],
-    lens: 'result',
-    offerId: null,
-    referencePeriod: null,
-  });
+  const [filters, setFilters] = useState<Filters>(
+    () =>
+      (year === null ? null : readStoredFiltersV2(year)) ?? {
+        classId: null,
+        period: 1,
+        mode: 'regular',
+        statuses: [null, 7],
+        lens: 'result',
+        offerId: null,
+        referencePeriod: null,
+      },
+  );
+  // A restored class still has to exist in what the server lists, and its reading is asked
+  // for once the classes are in.
+  const restoring = useRef(filters.classId !== null);
   const [matrix, setMatrix] = useState<PerformanceMatrixV2 | null>(null);
   const [analysis, setAnalysis] = useState<PerformanceAnalysisV3 | null>(null);
   const [comparison, setComparison] = useState<PerformanceTermComparisonV4 | null>(null);
@@ -191,7 +220,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       classId: selected.classId,
       period: selected.period,
       mode: selected.mode,
-      statuses: selected.statuses,
+      statuses: EVERY_STATUS_V2,
       lens: selected.lens,
       offerId: selected.offerId,
       referencePeriod: selected.referencePeriod,
@@ -272,6 +301,25 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     canRefresh: () =>
       filters.classId !== null && !busy.matrix && !busy.detail && failure !== 'not-authorized',
   });
+  useEffect(() => {
+    if (year !== null) writeSessionViewV1(filtersKeyV2(year), filters);
+  }, [year, filters]);
+  useEffect(() => {
+    if (!restoring.current || year === null || !classes || classes.nextOffset != null) return;
+    restoring.current = false;
+    if (!classes.classes.some((item) => item.id === filters.classId)) {
+      setFilters((current) => ({
+        ...current,
+        classId: null,
+        lens: 'result',
+        offerId: null,
+        referencePeriod: null,
+      }));
+      return;
+    }
+    if (dashboardEnabled) void loadDashboard(filters);
+    // Runs once, when the classes of the restored year arrive.
+  }, [classes, year]);
   async function select(next: Partial<Filters>, forceDashboard = false) {
     const selected = { ...filters, ...next };
     if ('classId' in next && next.classId !== filters.classId) {
@@ -291,6 +339,14 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     if (selected.statuses.length === 0) return;
     if (JSON.stringify(selected) === JSON.stringify(filters)) {
       await refresh(forceDashboard);
+      return;
+    }
+    // The situations listed only filter the reading already on screen: nothing is read again.
+    if (
+      JSON.stringify({ ...selected, statuses: null }) ===
+      JSON.stringify({ ...filters, statuses: null })
+    ) {
+      setFilters(selected);
       return;
     }
     // Only a real context/filter change clears the old data and closes its detail.

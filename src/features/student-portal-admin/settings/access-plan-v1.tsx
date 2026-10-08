@@ -280,15 +280,18 @@ export function AccessPlanCardV1({
             }
             actions={
               <>
-                <Button
-                  size="sm"
-                  variant={owns ? 'primary' : 'secondary'}
-                  isDisabled={disabled || (owns && !dirty && !fromCalendar)}
-                  aria-label={owns ? 'Salvar agendamentos' : 'Personalizar Entrada no Portal'}
-                  onPress={saveSchedule}
-                >
-                  {owns ? 'Salvar agendamentos' : 'Personalizar'}
-                </Button>
+                {/* Saving shows only while there is something to save. */}
+                {!owns || dirty || (fromCalendar && saved.schedule.length > 0) ? (
+                  <Button
+                    size="sm"
+                    variant={owns ? 'primary' : 'secondary'}
+                    isDisabled={disabled}
+                    aria-label={owns ? 'Salvar agendamentos' : 'Personalizar Entrada no Portal'}
+                    onPress={saveSchedule}
+                  >
+                    {owns ? 'Salvar agendamentos' : 'Personalizar'}
+                  </Button>
+                ) : null}
                 {!school && owns ? (
                   <Button
                     size="sm"

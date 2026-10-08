@@ -307,6 +307,8 @@ export function NotesImportPanel() {
   // selection carries them along, and a batch always sends its Relação first.
   const batchFiles = useRef<readonly File[]>([]);
   const [waiting, setWaiting] = useState<readonly File[]>([]);
+  // The waiting workbooks did not fit beside the selection: they follow once its Relação is in.
+  const deferred = useRef(false);
   const {
     authorizationRequired,
     diagnosticAuditFailures,
@@ -330,12 +332,20 @@ export function NotesImportPanel() {
 
   useEffect(() => {
     if (loading) return;
-    const blocked = new Set(
-      results
-        .filter((result) => waitsForRelationV1(persistence[result.id]))
-        .map((result) => result.manifest.fileName),
+    const decided = new Map(
+      results.map((result) => [result.manifest.fileName, persistence[result.id]]),
     );
-    setWaiting(batchFiles.current.filter((file) => blocked.has(file.name)));
+    // A workbook leaves the wait only with an answer of its own: one held because the
+    // Relação of its batch was refused, or left out of the batch, keeps waiting.
+    setWaiting((current) =>
+      batchFiles.current.filter((file) => {
+        const state = decided.get(file.name);
+        return (
+          waitsForRelationV1(state) ||
+          (current.some((item) => item.name === file.name) && state?.state !== 'completed')
+        );
+      }),
+    );
     if (results.length === 0) return;
     const relations = results.filter(isMasterRelationResult);
     const marks = results.filter((result) => !isMasterRelationResult(result));
@@ -345,6 +355,14 @@ export function NotesImportPanel() {
       relation: relations.length ? allSaved(relations) : current.relation,
       marks: marks.length ? allSaved(marks) : current.marks,
     }));
+    if (deferred.current && relations.length > 0 && allSaved(relations)) {
+      deferred.current = false;
+      const held = batchFiles.current.filter((file) => !decided.has(file.name));
+      if (held.length > 0) {
+        batchFiles.current = held;
+        void handleFiles(held);
+      }
+    }
   }, [loading, results, persistence]);
   // The Relação is asked for while workbooks wait on it; the workbooks once it is in.
   const relationTone: ImportStepToneV1 = sent.relation
@@ -363,8 +381,11 @@ export function NotesImportPanel() {
   };
   const importSelected = (selected: readonly File[]) => {
     const chosen = new Set(selected.map((file) => file.name));
-    batchFiles.current = [...selected, ...waiting.filter((file) => !chosen.has(file.name))];
-    return handleFiles(batchFiles.current);
+    const held = waiting.filter((file) => !chosen.has(file.name));
+    batchFiles.current = [...selected, ...held];
+    // Over the batch limit, the selection goes alone and the waiting workbooks follow it.
+    deferred.current = held.length > 0 && batchFiles.current.length > MAX_NOTES_IMPORT_FILES;
+    return handleFiles(deferred.current ? selected : batchFiles.current);
   };
 
   const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;

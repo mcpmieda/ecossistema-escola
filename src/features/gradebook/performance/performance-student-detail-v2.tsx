@@ -18,7 +18,8 @@ export function PerformanceStudentDetailV2({
 }: {
   readonly detail: Detail;
   readonly focusPeriod: PerformancePeriodV2;
-  readonly openComponent: (studentId: number, offerId: number) => void;
+  /** `term` asks the breakdown to open on that trimester instead of the period in view. */
+  readonly openComponent: (studentId: number, offerId: number, term?: 1 | 2 | 3) => void;
   readonly openCenter: (studentId: number) => void;
 }) {
   const drawerBody = useRef<HTMLDivElement | null>(null);
@@ -64,8 +65,16 @@ export function PerformanceStudentDetailV2({
     <>
       <Drawer.Header className="border-b border-separator pb-5 pr-10">
         <div className="flex min-w-0 items-center gap-4">
-          <LinkedStudentPhotoAvatarV1 decorative size="lg" className="size-16 shrink-0"
-            subject={{ source: 'gradebook', academicYear: detail.context.year, studentIds: [student.id] }} />
+          <LinkedStudentPhotoAvatarV1
+            decorative
+            size="lg"
+            className="size-16 shrink-0"
+            subject={{
+              source: 'gradebook',
+              academicYear: detail.context.year,
+              studentIds: [student.id],
+            }}
+          />
           <div className="min-w-0">
             <Drawer.Heading className="break-words text-2xl font-bold tracking-tight">
               {student.name}
@@ -83,8 +92,14 @@ export function PerformanceStudentDetailV2({
             </p>
           </div>
         </div>
-        <StudentPhotoPanelV1 showAvatar={false}
-          subject={{ source: 'gradebook', academicYear: detail.context.year, studentIds: [student.id] }} />
+        <StudentPhotoPanelV1
+          showAvatar={false}
+          subject={{
+            source: 'gradebook',
+            academicYear: detail.context.year,
+            studentIds: [student.id],
+          }}
+        />
       </Drawer.Header>
       <Drawer.Body ref={drawerBody} className="flex min-w-0 flex-col gap-5 pt-5">
         {detail.operation === 'student-detail' ? (
@@ -97,7 +112,7 @@ export function PerformanceStudentDetailV2({
               <p className="text-sm font-medium">{detail.row.formalCouncilDecision.label}</p>
             ) : null}
             {visibleTerms.length ? (
-              <Table>
+              <Table className="performance-detail-table">
                 <Table.ScrollContainer>
                   <Table.Content aria-label="Notas do aluno por trimestre">
                     <Table.Header>
@@ -106,7 +121,11 @@ export function PerformanceStudentDetailV2({
                       </Table.Column>
                       {visibleTerms.map((index) => (
                         <Table.Column key={index} id={`term-${index}`}>
-                          {index + 1}º trimestre
+                          {index + 1}º{' '}
+                          <span className="performance-detail-table__long">trimestre</span>
+                          <span className="performance-detail-table__short" aria-hidden="true">
+                            tri
+                          </span>
                         </Table.Column>
                       ))}
                     </Table.Header>
@@ -125,7 +144,21 @@ export function PerformanceStudentDetailV2({
                           </Table.Cell>
                           {visibleTerms.map((term) => (
                             <Table.Cell key={term}>
-                              <GradeValue cell={offering.terms[term]} />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-auto min-h-8 min-w-0 px-1 py-0.5"
+                                aria-label={`${detail.offers[index]!.subject.label}, ${term + 1}º trimestre`}
+                                onPress={() =>
+                                  openComponent(
+                                    student.id,
+                                    offering.offerId,
+                                    (term + 1) as 1 | 2 | 3,
+                                  )
+                                }
+                              >
+                                <GradeValue cell={offering.terms[term]} />
+                              </Button>
                             </Table.Cell>
                           ))}
                         </Table.Row>

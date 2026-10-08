@@ -532,20 +532,24 @@ describe('real shell, shared year and rendered performance journey', () => {
     await loaded();
     const group = host.querySelector('[data-slot="tag-group"]');
     expect(group?.textContent).toContain('Situações exibidas');
-    expect(group?.querySelector('[data-slot="tag-group-list"]')?.getAttribute('aria-label')).toBe(
+    const labelledBy = group
+      ?.querySelector('[data-slot="tag-group-list"]')
+      ?.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelledBy!.split(' ')[0]!)?.textContent).toBe(
       'Situações exibidas',
     );
     const tags = [...group!.querySelectorAll<HTMLElement>('[data-slot="tag"]')];
     expect(tags.map((tag) => tag.textContent)).toEqual(['Em curso', 'Estava no']);
     expect(tags.every((tag) => tag.getAttribute('data-selected') === 'true')).toBe(true);
+    const read = requests.filter((value) => value.operation === 'dashboard');
+    expect(read).toHaveLength(1);
+    // One reading brings every situation; the tags only choose which ones are listed.
+    expect(read[0]!.statuses).toEqual([null, 1, 2, 3, 4, 5, 7]);
     await act(async () => {
       tags[1]!.click();
     });
-    await waitFor(() =>
-      requests.some(
-        (value) => value.operation === 'dashboard' && JSON.stringify(value.statuses) === '[null]',
-      ),
-    );
+    await waitFor(() => tags[1]!.getAttribute('data-selected') !== 'true');
+    expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
   });
   it('reopens the same student after using Centers without discarding the performance matrix', async () => {
     await loaded();
@@ -843,8 +847,7 @@ describe('four lenses and analytical investigation V3', () => {
     expect(
       host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent,
     ).toContain(belowStudent.name);
-    await click('Ver estatísticas');
-    expect(host.textContent).toContain('Mediana proporcional');
+    expect(host.textContent).not.toContain('Ver estatísticas');
     await click('Voltar ao gráfico');
     expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(1);

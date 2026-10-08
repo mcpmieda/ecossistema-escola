@@ -5,6 +5,7 @@ import type {
   PerformanceAnalysisV3,
   AnalysisReadingV3,
 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import type { PerformanceStatusV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import type { PerformanceDashboardV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { gradeText, subjectText } from './performance-display-v2';
 import {
@@ -32,20 +33,27 @@ export function PerformanceAnalysisPanelV3({
   open,
   renderResult,
   focusOffer,
+  statuses,
 }: {
   readonly value: PerformanceAnalysisV3;
   readonly dashboard: PerformanceDashboardV5;
   readonly open: (studentId: number, offerId?: number) => void;
   readonly renderResult: (ids: ReadonlySet<number> | null) => ReactNode;
   readonly focusOffer: (offerId: number) => void;
+  /** Situations listed in the lens matrix. */
+  readonly statuses: readonly PerformanceStatusV2[];
 }) {
   const [selection, setSelection] = useState<PerformanceDashboardSelectionV5>(null);
-  const [expanded, setExpanded] = useState(false);
   const column =
     selection?.kind === 'column' ? value.columns.find((item) => item.key === selection.key) : null;
+  // prettier-ignore
   const ids = selection?.kind === 'group' ? new Set(dashboard.overview.groups[selection.group]) : null;
-  const rows = value.rows.filter((row) => ids === null || ids.has(row.studentId));
   const students = new Map(value.matrix.rows.map((row) => [row.student.id, row.student]));
+  const rows = value.rows.filter(
+    (row) =>
+      (ids === null || ids.has(row.studentId)) &&
+      statuses.includes(students.get(row.studentId)?.status ?? null),
+  );
   const offers = new Map(value.matrix.offers.map((offer) => [offer.id, offer]));
   const selectionLabel =
     selection?.kind === 'group'
@@ -68,57 +76,21 @@ export function PerformanceAnalysisPanelV3({
           Composição regular dos alunos em recuperação. A nota de REC está em Resultado.
         </p>
       ) : null}
-      <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm" role="status">
-        {selection?.kind === 'column' ? (
-          <>
-            Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz
-            permanece completa.
-          </>
-        ) : selectionLabel ? (
-          <>
-            Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)
-            <Button size="sm" variant="ghost" onPress={() => setSelection(null)}>
-              Limpar filtro
-            </Button>
-          </>
-        ) : null}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto"
-          onPress={() => setExpanded((current) => !current)}
-          aria-expanded={expanded}
-        >
-          {expanded ? 'Ocultar estatísticas' : 'Ver estatísticas'}
-        </Button>
-      </div>
-      {expanded ? (
-        <div className="overflow-x-auto rounded-xl border border-separator bg-surface p-2">
-          <table className="w-full text-left text-xs">
-            <caption className="mb-2 text-left text-muted">
-              Leituras classificadas com máximo conhecido; Resultado admite soma numérica parcial.
-            </caption>
-            <thead>
-              <tr>
-                <th className="p-2">Componente / avaliação</th>
-                <th className="p-2">População considerada</th>
-                <th className="p-2">Com percentual</th>
-                <th className="p-2">Média proporcional</th>
-                <th className="p-2">Mediana proporcional</th>
-              </tr>
-            </thead>
-            <tbody>
-              {value.columns.map((item) => (
-                <tr key={item.key} className="border-t border-separator">
-                  <th className="p-2 font-normal">{item.label}</th>
-                  <td className="p-2">{item.summary.considered}</td>
-                  <td className="p-2">{item.summary.scaled}</td>
-                  <td className="p-2">{percent(item.summary.meanPercent)}</td>
-                  <td className="p-2">{percent(item.summary.medianPercent)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {selection?.kind === 'column' || selectionLabel ? (
+        <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm" role="status">
+          {selection?.kind === 'column' ? (
+            <>
+              Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz
+              permanece completa.
+            </>
+          ) : selectionLabel ? (
+            <>
+              Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)
+              <Button size="sm" variant="ghost" onPress={() => setSelection(null)}>
+                Limpar filtro
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
       {value.lens === 'result' ? (
@@ -137,6 +109,7 @@ export function PerformanceAnalysisPanelV3({
           }))}
           rows={rows.map((row) => ({
             student: students.get(row.studentId)!,
+            below: row.values.map((reading) => reading.bucket === 'below'),
             values: row.values.map((reading) => (
               <span key={reading.key} className="inline-flex flex-col items-center gap-0.5">
                 <span

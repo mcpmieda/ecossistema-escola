@@ -76,9 +76,8 @@ describe('Performance dashboard V5 HeroUI', () => {
 
   it('keeps status selection in the matrix header and partial markers out of the row flow', () => {
     expect(page).not.toContain('SlidersHorizontal');
-    expect(matrix).toContain('<TagGroup');
-    expect(matrix).toContain('selectionMode="multiple"');
-    expect(matrix).toContain('disallowEmptySelection');
+    expect(matrix).toContain('<FilterTagsV1');
+    expect(matrix).toContain('if (selected.length > 0) onStatusesChange(selected);');
     expect(matrix).toContain('performance-matrix-header');
     expect(matrix).not.toContain('Situação dos estudantes por componente curricular');
     expect(display).toContain('absolute -right-2 -top-1');

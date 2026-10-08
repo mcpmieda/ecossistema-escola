@@ -8,6 +8,10 @@ import type {
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { requestRelationalCouncilV3 } from './relational-council-client-v3';
+import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+
+/** The class in session, kept for the tab across a reload. */
+const VIEW_KEY_V3 = 'gradebook-council-view';
 
 type CouncilClass = Extract<RelationalCouncilResponseV3, { state: 'ready'; operation: 'classes' }>['classes'][number];
 type Command = Exclude<RelationalCouncilRequestV3, { operation: 'classes' | 'workspace' }>;
@@ -33,6 +37,10 @@ export function useRelationalCouncilV3() {
   const sequence = useRef(0);
   const draftProtected = useRef(false);
   const selectedClass = useRef<number | null>(null);
+  const [restoreClass] = useState(() => {
+    const stored = readSessionRecordV1(VIEW_KEY_V3);
+    return { current: stored ? { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId) } : null };
+  });
 
   const loseAccess = useCallback(() => {
     clearAuthorization?.(); selectedClass.current = null; setClasses([]); setClassId(null); setWorkspace(null);
@@ -57,6 +65,12 @@ export function useRelationalCouncilV3() {
         selectedClass.current = null; setClassId(null); setWorkspace(null);
       }
       setStale(false);
+      const stored = restoreClass.current;
+      restoreClass.current = null;
+      if (stored && stored.year === year && selectedClass.current === null && response.classes.some((item) => item.id === stored.classId)) {
+        selectedClass.current = stored.classId; setClassId(stored.classId);
+        void loadWorkspace(stored.classId!);
+      }
       return true;
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -119,6 +133,7 @@ export function useRelationalCouncilV3() {
     workspaceController.current?.abort(); sequence.current += 1;
     selectedClass.current = next;
     setClassId(next); setWorkspace(null); setFailure(null);
+    if (year !== null) writeSessionViewV1(VIEW_KEY_V3, { year, classId: next });
     if (next !== null) await loadWorkspace(next);
   }
 
