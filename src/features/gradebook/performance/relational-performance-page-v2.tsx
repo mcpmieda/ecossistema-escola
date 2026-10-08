@@ -1,6 +1,6 @@
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Chip, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
+import { Alert, Button, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
 import {
   PERFORMANCE_PERSPECTIVES_V6,
@@ -25,6 +25,8 @@ import type {
   PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
+import { ChartColumn } from 'lucide-react';
+import { GradebookYearContextBanner } from '../../../platform/gradebook-year-provider';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
 
 /** The perspective and what was picked inside it, kept for the tab across a reload. */
@@ -74,6 +76,13 @@ interface FilterItem {
   readonly label: string;
 }
 type PerformanceSelectId = 'period' | 'mode' | 'comparison' | 'assessment-component';
+const PERIOD_TABS = [
+  { id: '1', label: '1º tri' },
+  { id: '2', label: '2º tri' },
+  { id: '3', label: '3º tri' },
+  { id: 'annual', label: 'Ano' },
+] as const;
+
 function PerformanceSelect({
   id,
   label,
@@ -230,6 +239,7 @@ export function RelationalPerformancePageV2({
     state.filters.lens === 'assessments' ||
     state.filters.period === 1 ||
     state.filters.period === 'annual';
+  const selectedClass = state.classes?.classes.find((item) => item.id === state.filters.classId);
   const comparisonItems: FilterItem[] = [
     { id: 'none', label: 'Sem comparação' },
     { id: '1', label: '1º trimestre' },
@@ -240,34 +250,41 @@ export function RelationalPerformancePageV2({
       aria-label="Desempenho relacional"
       className="performance-workspace grid min-w-0 grid-cols-1 gap-4"
     >
-      <header className="flex min-h-12 flex-wrap items-center gap-2">
-        <div>
-          <h2 className="text-xl font-semibold tracking-[-0.03em]">Desempenho</h2>
+      <header className="performance-head">
+        <span className="performance-head__icon" aria-hidden="true">
+          <ChartColumn size={18} />
+        </span>
+        <div className="performance-head__title">
+          <h2>Desempenho</h2>
+          {selectedClass ? (
+            <p>
+              {selectedClass.label}
+              {state.matrix ? ` · ${state.matrix.rows.length} estudantes` : ''}
+            </p>
+          ) : null}
         </div>
-        <Chip size="sm" variant="soft" className="ml-auto">
-          Análise · {state.year}
-        </Chip>
-      </header>
-      <div className="w-60 max-w-full" aria-label="Contexto de Desempenho">
-        <PerformanceSelect
-          id="period"
-          label="Período"
-          value={String(state.filters.period)}
-          isOpen={openSelect === 'period'}
-          onOpenChange={changeOpenSelect}
-          items={[
-            { id: '1', label: '1º trimestre' },
-            { id: '2', label: '2º trimestre' },
-            { id: '3', label: '3º trimestre' },
-            { id: 'annual', label: 'Ano completo' },
-          ]}
-          onChange={(value) =>
+        <Tabs
+          className="performance-period-tabs"
+          selectedKey={String(state.filters.period)}
+          onSelectionChange={(key) =>
             void state.select({
-              period: value === 'annual' ? 'annual' : (Number(value) as PerformancePeriodV2),
+              period: key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2),
             })
           }
-        />
-      </div>
+        >
+          <Tabs.ListContainer>
+            <Tabs.List aria-label="Período">
+              {PERIOD_TABS.map((item) => (
+                <Tabs.Tab key={item.id} id={item.id}>
+                  {item.label}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs.ListContainer>
+        </Tabs>
+        <GradebookYearContextBanner />
+      </header>
       <ClassTabsV1
         items={state.classes?.classes ?? []}
         selectedId={state.filters.classId}
@@ -282,7 +299,7 @@ export function RelationalPerformancePageV2({
           }}
           className="min-w-0"
         >
-          <Tabs.ListContainer>
+          <Tabs.ListContainer className="performance-perspectives">
             <Tabs.List aria-label="Perspectivas de Desempenho">
               {PERFORMANCE_PERSPECTIVES_V6.map((item) => (
                 <Tabs.Tab id={item.id} key={item.id}>
@@ -295,39 +312,6 @@ export function RelationalPerformancePageV2({
           <Tabs.Panel id="notes" className="grid min-w-0 gap-4">
             {state.filters.classId !== null ? (
               <PerformanceGridYearV2.Provider value={state.year}>
-                <div className="grid grid-cols-2 gap-3 sm:max-w-lg">
-                  {' '}
-                  <PerformanceSelect
-                    id="mode"
-                    label="Modo"
-                    value={state.filters.mode}
-                    isOpen={openSelect === 'mode'}
-                    onOpenChange={changeOpenSelect}
-                    items={[
-                      { id: 'regular', label: 'Regular' },
-                      { id: 'recovery', label: 'Recuperação' },
-                    ]}
-                    onChange={(value) => void state.select({ mode: value as PerformanceModeV2 })}
-                  />
-                  <PerformanceSelect
-                    id="comparison"
-                    label="Comparar com"
-                    value={
-                      state.filters.referencePeriod === null
-                        ? 'none'
-                        : String(state.filters.referencePeriod)
-                    }
-                    items={comparisonItems}
-                    disabled={comparisonDisabled}
-                    isOpen={openSelect === 'comparison'}
-                    onOpenChange={changeOpenSelect}
-                    onChange={(value) =>
-                      void state.select({
-                        referencePeriod: value === 'none' ? null : (Number(value) as 1 | 2),
-                      })
-                    }
-                  />
-                </div>
                 <Tabs
                   selectedKey={state.filters.lens}
                   className="performance-lens-tabs min-w-0"
@@ -336,16 +320,52 @@ export function RelationalPerformancePageV2({
                       void state.select({ lens: key as PerformanceLensV3 });
                   }}
                 >
-                  <Tabs.ListContainer className="h-10 max-w-full self-start">
-                    <Tabs.List aria-label="Lentes de Desempenho">
-                      {PERFORMANCE_LENSES_V3.map((lens) => (
-                        <Tabs.Tab key={lens} id={lens} className="min-w-28">
-                          {lensLabel[lens]}
-                          <Tabs.Indicator />
-                        </Tabs.Tab>
-                      ))}
-                    </Tabs.List>
-                  </Tabs.ListContainer>
+                  <div className="performance-notes-bar">
+                    <Tabs.ListContainer className="h-10 max-w-full self-start">
+                      <Tabs.List aria-label="Lentes de Desempenho">
+                        {PERFORMANCE_LENSES_V3.map((lens) => (
+                          <Tabs.Tab key={lens} id={lens} className="min-w-28">
+                            {lensLabel[lens]}
+                            <Tabs.Indicator />
+                          </Tabs.Tab>
+                        ))}
+                      </Tabs.List>
+                    </Tabs.ListContainer>
+                    <div className="performance-notes-bar__selects">
+                      <PerformanceSelect
+                        id="mode"
+                        label="Modo"
+                        value={state.filters.mode}
+                        isOpen={openSelect === 'mode'}
+                        onOpenChange={changeOpenSelect}
+                        items={[
+                          { id: 'regular', label: 'Regular' },
+                          { id: 'recovery', label: 'Recuperação' },
+                        ]}
+                        onChange={(value) =>
+                          void state.select({ mode: value as PerformanceModeV2 })
+                        }
+                      />
+                      <PerformanceSelect
+                        id="comparison"
+                        label="Comparar com"
+                        value={
+                          state.filters.referencePeriod === null
+                            ? 'none'
+                            : String(state.filters.referencePeriod)
+                        }
+                        items={comparisonItems}
+                        disabled={comparisonDisabled}
+                        isOpen={openSelect === 'comparison'}
+                        onOpenChange={changeOpenSelect}
+                        onChange={(value) =>
+                          void state.select({
+                            referencePeriod: value === 'none' ? null : (Number(value) as 1 | 2),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
                   <div className="performance-lens-status" aria-live="polite">
                     {state.failure ? (
                       <Alert status="warning">

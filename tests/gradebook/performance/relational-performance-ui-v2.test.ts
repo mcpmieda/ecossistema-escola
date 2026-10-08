@@ -328,11 +328,25 @@ function selectTrigger(label: string) {
   );
 }
 function selectedValue(label: string) {
+  if (label === 'Período') {
+    const key = document
+      .querySelector('[role="tablist"][aria-label="Período"] [aria-selected="true"]')
+      ?.getAttribute('data-key');
+    return key === 'annual' ? 'Ano completo' : key ? `${key}º trimestre` : null;
+  }
   return (
     selectRoot(label)?.querySelector<HTMLElement>('[data-slot="select-value"]')?.textContent ?? null
   );
 }
 async function select(label: string, value: string) {
+  if (label === 'Período') {
+    // The period is a row of buttons in the header.
+    const selector = `[role="tablist"][aria-label="Período"] [data-key="${value}"]`;
+    await waitFor(() => Boolean(document.querySelector(selector)));
+    await act(async () => document.querySelector<HTMLElement>(selector)!.click());
+    await settle();
+    return;
+  }
   if (label === 'Turma') {
     await waitFor(() =>
       Boolean(
@@ -459,23 +473,24 @@ describe('real shell, shared year and rendered performance journey', () => {
     const classTabs = document.querySelector(
       '[role="tablist"][aria-label="Turmas de Desempenho"]',
     )!;
+    const period = document.querySelector('[role="tablist"][aria-label="Período"]')!;
+    expect(selectRoot('Período')).toBeNull();
     expect(
-      selectRoot('Período')!.compareDocumentPosition(classTabs) & Node.DOCUMENT_POSITION_FOLLOWING,
+      period.compareDocumentPosition(classTabs) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await act(async () => selectTrigger('Modo')!.click());
     await settle();
     expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(true);
     await act(async () =>
-      selectTrigger('Período')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
+      selectTrigger('Comparar com')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
     );
     await settle();
     expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(false);
-    expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(true);
     await act(async () =>
       document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
     );
     await settle();
-    expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(false);
+    expect(selectRoot('Comparar com')?.hasAttribute('data-open')).toBe(false);
   });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
     await loaded();

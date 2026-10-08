@@ -3,7 +3,7 @@ import { Accordion, Alert, Button, Card, Chip, Meter, SearchField, Table } from 
 import { ArrowRight, BookOpen, MessageCircle, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
-  AnalyticsBarsV6, AnalyticsCoverageV6, AnalyticsHintV6, AnalyticsPanelV6,
+  AnalyticsBarsV6, AnalyticsCoverageV6, AnalyticsHintBodyV6 as Hint, AnalyticsHintV6, AnalyticsPanelV6,
   AnalyticsRecoveryV6, AnalyticsTimelineV6,
 } from './performance-analytics-charts-v6';
 import { analyticsPercentV6 as percent, analyticsDeltaV6 as delta, analyticsNumberV6 as number } from './analytics-format-v6';
@@ -20,7 +20,7 @@ const LABELS: Record<Filter, string> = {
   'below-down': 'Abaixo e com queda', 'above-down': 'Na referência, mas com queda', recovery: 'Melhoraram com a paralela',
 };
 function Panel({ title, hint, children, footer }: {
-  title: string; hint: string; children: ReactNode; footer?: ReactNode;
+  title: string; hint: ReactNode; children: ReactNode; footer?: ReactNode;
 }) {
   return <AnalyticsPanelV6 title={title} action={<AnalyticsHintV6 label={`Sobre ${title}`}>{hint}</AnalyticsHintV6>} footer={footer}>{children}</AnalyticsPanelV6>;
 }
@@ -85,13 +85,13 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
   const periodName = value.period === 'annual' ? 'Ano letivo' : `${value.period}º trimestre`;
   const kpis = [
     { title: 'Desempenho médio', value: percent(value.summary.result.mean), caption: `${value.students.filter((item) => item.summary.complete > 0).length} alunos com resultado · ${periodName}`, icon: BookOpen, tone: 'accent', filter: 'all' as Filter,
-      hint: 'Média das notas finais calculadas dos componentes, em percentual. Mantém os pesos da escola; notas incompletas não entram. Não é medida direta de conhecimento.' },
+      hint: <Hint what="A nota média da turma, de 0 a 100." steps={['Cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens de todas as notas finais da turma.', 'Divide-se a soma pelo número de notas.']} result={`Nesta turma: ${value.summary.result.n} notas somadas ÷ ${value.summary.result.n} = ${percent(value.summary.result.mean)}.`} note="Nota ainda incompleta fica de fora; não conta como zero." /> },
     { title: 'Evolução trimestral', value: delta(value.summary.movement.meanDeltaPP), caption: reference ? `Em relação ao ${reference}º trimestre` : 'Disponível a partir do 2º trimestre', icon: TrendingUp, tone: 'accent', filter: 'compared' as Filter,
-      hint: 'Compara os mesmos alunos e componentes nos dois trimestres. Sinal positivo indica notas maiores; negativo, menores. A dificuldade das avaliações pode variar.' },
+      hint: <Hint what="Mostra se as notas subiram ou caíram desde o trimestre anterior." steps={['Para cada aluno, em cada disciplina, compara-se a nota deste trimestre com a do anterior. Exemplo: 60% antes e 70% agora dá +10 pontos.', 'Tira-se a média de todas essas diferenças.']} result={reference ? `Nesta turma: ${value.summary.movement.n} comparações com o ${reference}º trimestre, média de ${delta(value.summary.movement.meanDeltaPP)}.` : undefined} note="Só entra quem tem nota nos dois trimestres. Número positivo: a turma subiu. Negativo: caiu." /> },
     { title: 'Alunos em evolução', value: reference && count('compared') ? String(count('rising')) : '—', caption: reference ? `de ${count('compared')} alunos com comparação` : 'Ainda sem trimestre anterior', icon: Users, tone: 'success', filter: 'rising' as Filter,
-      hint: 'Alunos cuja média das mudanças de nota foi positiva em relação ao trimestre anterior. Não usa a ordem das atividades como se fosse uma data.' },
+      hint: <Hint what="Quantos alunos melhoraram desde o trimestre anterior." steps={['Para cada aluno, tira-se a média das diferenças entre as notas deste trimestre e as do anterior.', 'Se essa média for maior que zero, o aluno conta como em evolução.']} result={reference ? `Nesta turma: ${count('rising')} de ${count('compared')} alunos comparados.` : undefined} note="Aluno sem nota em um dos trimestres fica de fora." /> },
     { title: 'Atenção recorrente', value: learning && assessed ? String(count('attention')) : '—', caption: `${assessed} alunos com base para analisar`, icon: TrendingDown, tone: 'warning', filter: 'attention' as Filter,
-      hint: 'Notas abaixo da referência repetidas no mesmo componente: em 2 dos últimos trimestres ou em pelo menos 2 de 3 ou mais instrumentos com nota. Participação não conta como dificuldade nas atividades.' },
+      hint: <Hint what="Alunos que ficaram abaixo do mínimo mais de uma vez na mesma disciplina." steps={['Olha-se cada disciplina do aluno, uma por vez.', `O aluno entra na conta se ficou abaixo de ${percent(value.minimumPercent)} em dois trimestres seguidos nessa disciplina.`, 'Ou se, no mesmo trimestre, ficou abaixo em 2 ou mais atividades (quando há pelo menos 3 com nota).']} result={`Nesta turma: ${learning && assessed ? count('attention') : '—'} de ${assessed} alunos analisados.`} note="Nota de participação não entra nessa conta." /> },
   ];
   const distribution: { key: Filter; label: string; count: number; tone: string }[] = [
     { key: 'above', label: 'Na referência em todos', count: count('above'), tone: 'success' },
@@ -108,7 +108,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
     {!learning ? <Alert><Alert.Content><Alert.Title>Indicadores complementares ainda indisponíveis.</Alert.Title><Alert.Description>Não há dados suficientes nesta resposta para participação e atenção recorrente.</Alert.Description></Alert.Content></Alert> : null}
     <div className="learning-row learning-row--journey learning-enter">
       <AnalyticsTimelineV6 summary={value.summary} onPeriod={onPeriod} schoolLanguage />
-      <Panel title="Quantitativo × qualitativo" hint="Compara os mesmos alunos e componentes. Quantitativo: as duas avaliações, antes da recuperação paralela. Qualitativo: atividades e participação. Uma diferença não explica, sozinha, sua causa.">
+      <Panel title="Quantitativo × qualitativo" hint={<Hint what="Compara como a turma foi nas provas e nas atividades." steps={['Quantitativo: quanto a turma fez nas duas avaliações do trimestre, antes da recuperação paralela.', 'Qualitativo: quanto fez nas atividades e na participação.', 'Subtrai-se um do outro para ver a diferença.']} result={learning?.dimensions.gapPP != null ? `Nesta turma: ${percent(learning.dimensions.qualitativePercent)} − ${percent(learning.dimensions.quantitativePercent)} = ${delta(learning.dimensions.gapPP)}, em ${learning.dimensions.students} alunos.` : undefined} note="A diferença mostra onde a turma vai melhor, não o motivo." />}>
         <div className="learning-composition">
           <MetricBar label="Quantitativo" caption="Duas avaliações por trimestre" value={learning?.dimensions.quantitativePercent ?? null} tone="accent" />
           <MetricBar label="Qualitativo" caption="Atividades + participação" value={learning?.dimensions.qualitativePercent ?? null} tone="violet" />
@@ -118,7 +118,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
       </Panel>
     </div>
     <div className="learning-row learning-row--evidence learning-enter">
-      <Panel title="Participação avaliada" hint="Resume as notas de participação dadas pelos professores. Reúne as partes pelos pontos possíveis; cada aluno tem o mesmo peso no resumo. Não mede presença, disciplina ou personalidade.">
+      <Panel title="Participação avaliada" hint={<Hint what="A nota média de participação dada pelos professores." steps={['Em cada disciplina: pontos de participação que o aluno ganhou ÷ pontos que podia ganhar. Exemplo: 4 de 5 vale 80%.', 'Tira-se a média das disciplinas do aluno.', 'Tira-se a média entre os alunos.']} result={`Nesta turma: ${learning?.participation.students ?? 0} alunos, ${learning?.participation.recorded ?? 0} notas = ${percent(learning?.participation.percent ?? null)}.`} note="Não mede presença nem comportamento." />}>
         <div className="learning-participation"><MessageCircle className="learning-participation-icon" size={24} aria-hidden="true" /><strong className="learning-score">{percent(learning?.participation.percent ?? null)}</strong><span className="learning-muted">Já incluída no qualitativo.</span>
           <span className="learning-participation-change">{learning?.participation.deltaPP != null ? `${delta(learning.participation.deltaPP)} desde T${reference}` : 'Sem comparação entre trimestres.'}</span>
           <span className="learning-muted">{learning?.participation.students ?? 0} alunos · {learning?.participation.recorded ?? 0} notas consideradas</span>
@@ -126,12 +126,12 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
           <Button size="sm" variant="secondary" onPress={() => select('participation')}>Ver participação por aluno <ArrowRight size={14} /></Button>
         </div>
       </Panel>
-      <Panel title="Situação nas notas" hint={`Referência da escola: ${percent(value.minimumPercent)}. Um aluno fica abaixo se tiver ao menos um componente com resultado completo abaixo desse valor. Sem resultado suficiente não significa dificuldade.`}>
+      <Panel title="Situação nas notas" hint={<Hint what="Quantos alunos estão com todas as notas no mínimo da escola." steps={[`O mínimo da escola é ${percent(value.minimumPercent)}.`, 'Na referência: todas as disciplinas com nota completa no mínimo ou acima.', 'Abaixo: pelo menos uma disciplina com nota abaixo do mínimo.', 'Sem conclusão: ainda faltam notas para dizer.']} result={`Nesta turma: ${value.summary.students} alunos.`} note="Sem conclusão não significa dificuldade." />}>
         <div className="learning-distribution" aria-hidden="true">{distribution.filter((item) => item.count > 0).map((item) => <span key={item.key} className={`learning-tone--${item.tone}`} style={{ flexGrow: item.count }} />)}</div>
         <div className="learning-distribution-list">{distribution.map((item) => <Button key={item.key} variant="ghost" className={`learning-distribution-item learning-tone--${item.tone}`} onPress={() => select(item.key)}><span className="learning-dot" /><span>{item.label}</span><strong>{item.count}</strong></Button>)}</div>
         <span className="learning-muted">{value.summary.students} alunos · referência {percent(value.minimumPercent)}</span>
       </Panel>
-      <Panel title="Componentes" hint="Desempenho médio em cada disciplina, alunos abaixo da referência e mudança desde o trimestre anterior. Clique no componente para ver as notas.">
+      <Panel title="Componentes" hint={<Hint what="A nota média da turma em cada disciplina, de 0 a 100." steps={['Cada nota final da disciplina vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas da disciplina.']} note="Embaixo de cada barra: quantos alunos ficaram abaixo do mínimo e quanto a média mudou desde o trimestre anterior. Clique na disciplina para ver as notas." />}>
         <div className="learning-component-scroll"><AnalyticsBarsV6 items={value.components.map((item) => ({
           id: item.offer.id, label: item.offer.subject.label, value: item.summary.result.mean,
           below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
@@ -140,7 +140,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
       </Panel>
     </div>
     <div className="learning-row learning-row--action learning-enter">
-      <Panel title="Acompanhamento dos alunos" hint="Clique nos indicadores para filtrar esta lista. Ela mostra as notas que justificam o acompanhamento; não é um diagnóstico do aluno.">
+      <Panel title="Acompanhamento dos alunos" hint={<Hint what="Os alunos de cada indicador desta tela." steps={['Notas: a média do aluno no período, de 0 a 100.', 'O número ao lado: quanto essa média mudou desde o trimestre anterior.']} note="Clique em um indicador para filtrar a lista. Ela mostra as notas que pedem acompanhamento; não é um diagnóstico do aluno." />}>
         <div className="learning-filters" aria-label="Filtros de acompanhamento">{(['attention', 'rising', 'falling', 'all'] as const).map((key) => <Button key={key} size="sm" variant={filter === key ? 'secondary' : 'ghost'} aria-pressed={filter === key} onPress={() => { setFilter(key); setSearch(''); }}>{key === 'attention' ? 'Acompanhar' : key === 'rising' ? 'Evoluções' : key === 'falling' ? 'Quedas' : 'Todos'}</Button>)}</div>
         <div className="learning-list-heading"><h3 ref={listHeading} tabIndex={-1}>{LABELS[filter]}</h3><Chip size="sm">{selectedRows.length}</Chip></div>
         <SearchField aria-label="Buscar no acompanhamento" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Buscar aluno" /><SearchField.ClearButton /></SearchField.Group></SearchField>
@@ -154,7 +154,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
         </div>
         {reference ? <div className="learning-priority" aria-label="Nível atual e evolução">{(['below-up', 'below-down', 'above-down'] as const).map((key) => <Button key={key} size="sm" variant="ghost" onPress={() => select(key)}><strong>{count(key)}</strong><span>{LABELS[key]}</span></Button>)}</div> : null}
       </Panel>
-      <Panel title="Atividades para revisar" hint="Atividades em que há alunos abaixo da referência, começando pelas que concentram mais dificuldades. Exige ao menos 3 notas com máximo conhecido. Participação e paralela ficam fora desta lista.">
+      <Panel title="Atividades para revisar" hint={<Hint what="As atividades em que mais alunos ficaram abaixo do mínimo." steps={['Em cada atividade, conta-se quantos alunos ficaram abaixo do mínimo.', 'A lista começa pelas atividades com mais alunos abaixo.', 'O número à direita é a nota média da turma na atividade.']} note="Só entram atividades com pelo menos 3 notas. Participação e paralela ficam de fora." />}>
         <div className="learning-activity-list">{reviewActivities.slice(0, 5).map((item) => <Button key={item.key} variant="ghost" className="learning-activity" onPress={() => onNotes(item.offerId)}><span><strong>{item.label}</strong><span className="learning-muted">{item.subject} · T{item.term}</span><span className="learning-muted">{item.below} de {item.stats.n} alunos abaixo</span></span><span className="learning-activity-score">{percent(item.stats.mean)}<ArrowRight size={14} /></span></Button>)}</div>
         {!reviewActivities.length ? <p className="learning-empty">{learning ? 'Nenhuma atividade com dificuldade identificada e base suficiente neste recorte.' : 'Aguardando os indicadores complementares.'}</p> : <span className="learning-muted">Até 5 destaques. Clique para ver todas as notas do componente.</span>}
         <div className="learning-recovery-summary"><strong>{learning?.parallel.students ?? '—'}</strong><span>alunos melhoraram com a recuperação paralela</span><Button size="sm" variant="ghost" onPress={() => select('recovery')}>Ver alunos <ArrowRight size={14} /></Button></div>
