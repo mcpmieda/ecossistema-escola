@@ -365,7 +365,11 @@ it.each(['classes', 'components', 'teachers'] as const)(
     expect(valueAfter('REC lançada')).toBe(String(summary.recovery.recorded));
     expect(valueAfter('REC pendente')).toBe(String(summary.recovery.pending));
     expect(valueAfter('Completos')).toBe(String(summary.complete));
-    expect(valueAfter('Parciais')).toBe(String(summary.partial));
+    // The marker of blank instruments is counted from the cells of the scope on screen.
+    const offers = tab === 'components' ? [component.offer.id] : tab === 'teachers' ? teacher.offerIds : null;
+    expect(valueAfter('Parciais')).toBe(String(value.students.reduce((sum, item) => sum +
+      item.cells.filter((cell) => (offers === null || offers.includes(cell.offerId)) &&
+        cell.result.state === 'partial').length, 0)));
     expect(valueAfter('Sem nota')).toBe(String(summary.missing));
     expect(valueAfter('Zeros registrados')).toBe(String(summary.coverage.zeros));
 
@@ -456,7 +460,11 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
       <AnalyticsDistributionV6 summary={value.summary} />
       <AnalyticsCompositionV6 summary={value.summary} />
       <AnalyticsRecoveryV6 summary={value.summary} />
-      <AnalyticsCoverageV6 summary={value.summary} />
+      <AnalyticsCoverageV6
+        summary={value.summary}
+        partial={value.students.reduce((sum, item) => sum +
+          item.cells.filter((cell) => cell.result.state === 'partial').length, 0)}
+      />
     </div>,
   );
 
@@ -507,7 +515,8 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
   ).toBeTruthy();
 
   expect(valueAfter('Completos')).toBe(String(value.summary.complete));
-  expect(valueAfter('Parciais')).toBe(String(value.summary.partial));
+  expect(valueAfter('Parciais')).toBe(String(value.students.reduce((sum, item) => sum +
+    item.cells.filter((cell) => cell.result.state === 'partial').length, 0)));
   expect(valueAfter('Sem nota')).toBe(String(value.summary.missing));
   expect(valueAfter('Indisponíveis')).toBe(String(value.summary.unavailable));
   expect(valueAfter('Zeros registrados')).toBe(String(value.summary.coverage.zeros));

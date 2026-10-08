@@ -293,4 +293,8 @@ Consequências aceitas pelo responsável:
 
 Não muda: zero digitado continua zero; AM/U importadas não são sobrescritas; snapshots e boletins já emitidos não são reinterpretados; as leituras por instrumento (lente Avaliações e atividades para revisar) continuam considerando apenas notas lançadas.
 
-Contrato: `performance-analytics-v6` passa a contar em `complete` todo resultado e em `partial` a parte deles com instrumento em branco; `performance-analysis-v3` deixa de proibir percentual em leitura parcial fora da lente Resultado. Nenhum campo de transporte foi acrescentado ou removido.
+Participação segue a mesma leitura: instrumento de participação com máximo conhecido e sem nota mantém seu máximo no denominador e soma zero; instrumento sem máximo conhecido continua fora. A variação entre trimestres não exige mais preenchimento completo.
+
+A comparação com a AM importada vale para todo resultado calculado, inclusive o marcado como parcial; sem AM importada continua indisponível.
+
+Contrato: nenhum campo de transporte foi acrescentado ou removido. O resumo de `performance-analytics-v6` mantém a invariante anterior (`complete + partial + missing + unavailable = readings`): todo resultado é contado em `complete` e `partial` passa a ser zero; o marcador de instrumento em branco é lido do estado de cada célula. `relational-performance-v2` admite comparação com a fonte em célula parcial e `performance-analysis-v3` deixa de proibir percentual em leitura parcial fora da lente Resultado. Uma aba aberta antes da publicação valida com o contrato antigo e pode mostrar a leitura como indisponível nessas duas situações até ser recarregada.

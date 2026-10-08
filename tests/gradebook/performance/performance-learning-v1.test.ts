@@ -22,26 +22,37 @@ it('combines divided participation by points, keeping both instrument identities
   expect(value.components[0]!.instruments.filter((item) => item.slot === 11 || item.slot === 12)).toHaveLength(2);
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
 });
-it('does not turn missing participation into zero or compare partial participation periods', () => {
+it('counts a blank participation instrument as not done and still compares the periods', () => {
   const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override: (fact) => fact.slot === 11 ? { valueMilli: null } : {} });
   const participation = value.learning!.students[0]!.participation;
-  expect(participation.percent).toBe(80);
+  // One instrument at 80% and a blank one worth half as much: 160 of 300 points.
+  expect(participation.percent).toBeCloseTo(160 / 3);
   expect(participation.recorded).toBe(1);
   expect(participation.expected).toBe(2);
-  expect(participation.deltaPP).toBeNull();
-  expect(value.learning!.participation.comparedStudents).toBe(0);
+  expect(participation.deltaPP).not.toBeNull();
+  expect(value.learning!.participation.comparedStudents).toBe(1);
+});
+it('reads fully blank participation as zero, never as missing', () => {
+  const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override: (fact) => fact.slot === 11 || fact.slot === 12 ? { valueMilli: null } : {} });
+  const participation = value.learning!.students[0]!.participation;
+  expect(participation.percent).toBe(0);
+  expect(participation.recorded).toBe(0);
+  expect(participation.expected).toBe(2);
+  // Blank in both periods: compared, and unchanged.
+  expect(participation.deltaPP).toBe(0);
 });
 it('excludes an unknown maximum and reports that limitation without inventing a denominator', () => {
   const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override: (fact) => fact.slot === 11 ? { maximumMilli: null } : {} });
   expect(value.learning!.participation.unscaled).toBe(1);
   expect(value.learning!.participation.percent).toBe(80);
-  expect(value.learning!.participation.deltaPP).toBeNull();
+  // The instrument without a maximum stays out; the scaled one is compared between periods.
+  expect(value.learning!.participation.deltaPP).not.toBeNull();
 });
-it('compares participation only on the same complete components of consecutive terms', () => {
+it('compares participation on every component of consecutive terms, blanks included', () => {
   const { value } = learningFixtureV1({ studentCount: 1, componentCount: 2, override: (fact, _student, component) => component === 1 && fact.term === 1 && fact.slot >= 11 ? { valueMilli: null } : {} });
   expect(value.learning!.students[0]!.participation.components).toBe(2);
-  expect(value.learning!.students[0]!.participation.comparedComponents).toBe(1);
-  expect(value.learning!.participation.deltaPP).toBeCloseTo(20);
+  expect(value.learning!.students[0]!.participation.comparedComponents).toBe(2);
+  expect(value.learning!.participation.deltaPP).not.toBeNull();
   expect(learningFixtureV1({ period: 1 }).value.learning!.participation.deltaPP).toBeNull();
   expect(learningFixtureV1({ period: 'annual' }).value.learning!.participation.deltaPP).toBeNull();
 });
@@ -64,7 +75,7 @@ it('detects repeated low term results, including a student with nothing recorded
   const { value } = learningFixtureV1();
   expect(value.learning!.students[0]!.recurring[0]!.consecutiveTerms).toEqual([2]);
   expect(value.learning!.students[3]!.recurrenceAssessed).toBe(true);
-  expect(value.learning!.students[3]!.participation.percent).toBeNull();
+  expect(value.learning!.students[3]!.participation.percent).toBe(0);
   expect(value.learning!.students[3]!.recurring.length).toBeGreaterThan(0);
 });
 it('keeps recovery gain separate from the original quantitative comparison and the official result', () => {

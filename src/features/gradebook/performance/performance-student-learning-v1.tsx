@@ -263,7 +263,7 @@ export function PerformanceStudentLearningV1({
           </Accordion.Heading>
           <Accordion.Panel>
             <Accordion.Body>
-              <AnalyticsCoverageV6 summary={student.summary} />
+              <AnalyticsCoverageV6 summary={student.summary} partial={student.cells.filter((cell) => cell.result.state === 'partial').length} />
             </Accordion.Body>
           </Accordion.Panel>
         </Accordion.Item>

@@ -1,3 +1,4 @@
+import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   resolveSimplifiedTermV1,
   resolveSimplifiedComponentRecoveryV1,
@@ -182,7 +183,7 @@ export function performanceCellV2(
             ? 'at-or-above'
             : 'below',
     sourceComparison:
-      state !== 'complete' || base.sourceReferenceMilli === null || valueMilli === null
+      !performanceResultCountsV2(state) || base.sourceReferenceMilli === null || valueMilli === null
         ? 'unavailable'
         : valueMilli === base.sourceReferenceMilli
           ? 'match'

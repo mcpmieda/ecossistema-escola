@@ -273,9 +273,16 @@ export function AnalyticsRecoveryV6({ summary }: { summary: PerformanceAnalytics
   ];
   return <AnalyticsPanelV6 title="Recuperação" action={<AnalyticsHintV6 label="Sobre recuperação">Contagem por aluno, componente e trimestre. Aplicabilidade e substituição vêm do motor existente.</AnalyticsHintV6>} footer={<><span>Paralela aplicada: {summary.parallel.applied}/{summary.parallel.applicable}</span><span className="ml-auto">Aplicabilidade indefinida: {recovery.unknown}</span></>}><dl className="grid grid-cols-3 gap-x-3 gap-y-5">{items.map(([label, value]) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{value}</dd></div>)}</dl></AnalyticsPanelV6>;
 }
-export function AnalyticsCoverageV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
+export function AnalyticsCoverageV6({
+  summary,
+  partial,
+}: {
+  summary: PerformanceAnalyticsSummaryV6;
+  /** Results with a blank instrument, counted from the cells of this scope. */
+  partial: number;
+}) {
   return <AnalyticsPanelV6 title="Qualidade da leitura" footer={<><span>Referências da fonte: {summary.source.recorded}</span><span className="ml-auto">Divergências: {summary.source.different}/{summary.source.comparable}</span></>}><Meter value={summary.coverage.percent ?? 0} aria-label="Cobertura dos instrumentos" color="accent"><Label>Notas lançadas</Label><Meter.Output>{percent(summary.coverage.percent)}</Meter.Output><Meter.Track><Meter.Fill /></Meter.Track></Meter><dl className="mt-5 grid grid-cols-3 gap-3">{[
-    ['Completos', summary.complete], ['Parciais', summary.partial], ['Sem nota', summary.missing],
+    ['Completos', summary.complete], ['Parciais', partial], ['Sem nota', summary.missing],
     ['Indisponíveis', summary.unavailable], ['Zeros registrados', summary.coverage.zeros], ['Lançamentos ausentes', summary.coverage.missing],
   ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}</dl></AnalyticsPanelV6>;
 }

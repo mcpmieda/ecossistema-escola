@@ -32,7 +32,9 @@ export function analyticsStudentItemsV6(
       meanPercent: stats ? stats.meanPercent : item.summary.result.mean,
       below: stats ? stats.below : item.summary.below,
       complete: stats ? stats.complete : item.summary.complete,
-      partial: stats ? stats.partial : item.summary.partial,
+      partial: stats
+        ? stats.partial
+        : item.cells.filter((cell) => cell.result.state === 'partial').length,
       deltaPP: stats ? stats.deltaPP : item.summary.movement.meanDeltaPP,
     };
   });

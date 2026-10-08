@@ -124,7 +124,15 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const at = (id: number) => result.rows.find((r) => r.student.id === id)!.cells[0]!;
     expect(at(1)).toMatchObject({ valueMilli: 24000, state: 'complete', sourceReferenceMilli: 24000, sourceComparison: 'match' });
     expect(at(2)).toMatchObject({ valueMilli: 0, state: 'complete', level: 'below' });
+    // A result with a blank instrument is still compared with the imported AM.
     expect(at(3)).toMatchObject({ state: 'partial', level: 'below' });
+    expect(at(3).sourceComparison).toBe(
+      at(3).sourceReferenceMilli === null
+        ? 'unavailable'
+        : at(3).valueMilli === at(3).sourceReferenceMilli
+          ? 'match'
+          : 'mismatch',
+    );
     // Nothing recorded reads as not done: zero, marked partial.
     expect(at(5)).toMatchObject({ valueMilli: 0, state: 'partial', level: 'below' });
     const recovery = await matrix({ mode: 'recovery' });
@@ -566,7 +574,7 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
     expect(result).toMatchObject({
       authority: 'calculated-preview',
       classStudents: 8,
-      summary: { students: 6, readings: 12, complete: 12, partial: 4, missing: 0, unavailable: 0 },
+      summary: { students: 6, readings: 12, complete: 12, partial: 0, missing: 0, unavailable: 0 },
     });
     expect(performanceAnalyticsResponseSchemaV6.safeParse(result).success).toBe(true);
     expect(result.components).toHaveLength(2);

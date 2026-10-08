@@ -137,7 +137,7 @@ const cell = z
       ctx.addIssue({ code: 'custom', message: 'repeat failure must be below' });
     if (
       value.sourceComparison !== 'unavailable' &&
-      (value.state !== 'complete' || value.sourceReferenceMilli === null)
+      (!numeric || value.sourceReferenceMilli === null)
     )
       ctx.addIssue({ code: 'custom', message: 'unavailable comparison' });
   });

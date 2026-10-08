@@ -72,6 +72,21 @@ describe('applicable parallel coverage with BN-DEC-035 numeric exception', () =>
     expect(empty.cell).toMatchObject({ state: 'partial', valueMilli: 0 });
   });
 
+  it('compares a result with a blank instrument with the imported AM, like the projection does', () => {
+    const { projection } = parallelFixture848();
+    const withAm = (am: number | null) => ({
+      ...projection,
+      closing: { ...projection.closing, am: projection.closing.am.map((value, index) => (index === 1 ? am : value)) },
+    }) as unknown as typeof projection;
+    expect(performanceCellV2(withAm(9000), 2, 'regular')).toMatchObject({
+      state: 'partial', valueMilli: 14000, sourceReferenceMilli: 9000, sourceComparison: 'mismatch' });
+    expect(performanceCellV2(withAm(14000), 2, 'regular')).toMatchObject({
+      state: 'partial', sourceComparison: 'match' });
+    // No imported AM: nothing to compare with.
+    expect(performanceCellV2(withAm(null), 2, 'regular')).toMatchObject({
+      state: 'partial', sourceReferenceMilli: null, sourceComparison: 'unavailable' });
+  });
+
   it('does not fabricate an unconfigured instrument and propagates coverage to the annual result', () => {
     const unconfigured = parallelFixture848({ includeParallel: false });
     expect(unconfigured.projection.terms[1]!.coverage.requiredSlots).toEqual([1, 2, 11]);
@@ -90,7 +105,7 @@ describe('applicable parallel coverage with BN-DEC-035 numeric exception', () =>
     expect(analytics.students[0]!.cells[0]!.qualitative.complete).toBe(true);
     expect(analytics.summary.coverage).toMatchObject({ expected: 4, recorded: complete ? 4 : 3,
       missing: complete ? 0 : 1, zeros: parallel === 0 ? 1 : 0 });
-    expect(analytics.summary.partial).toBe(complete ? 0 : 1);
+    expect(analytics.summary.partial).toBe(0);
     expect(analytics.summary.movement.n).toBe(1);
     expect(analytics.teachers[0]!.students[0]!.partial).toBe(complete ? 0 : 1);
     expect(analytics.components[0]!.instruments.find((item) => item.slot === 3)?.coverage)

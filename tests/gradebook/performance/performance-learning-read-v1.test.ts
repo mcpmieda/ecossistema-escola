@@ -96,13 +96,13 @@ it('keeps older analytics labels and response shape when the caller does not opt
   expect(current.summary).toEqual(legacy.summary);
   expect(current.students).toEqual(legacy.students);
 });
-it('keeps a missing part out of the average and out of complete-period comparison', async () => {
+it('counts a missing part as not done in the average and in the period comparison', async () => {
   await pg.exec('UPDATE gradebook.nota SET valor=NULL WHERE instrumento_id=151 AND aluno_id=1');
   try {
     const value = await read();
     expect(value.learning!.participation.recorded).toBe(7);
     expect(value.learning!.participation.expected).toBe(8);
-    expect(value.learning!.students[0]!.participation.comparedComponents).toBe(1);
+    expect(value.learning!.students[0]!.participation.comparedComponents).toBe(2);
     expect(value.learning!.students[0]!.participation.percent).toBeGreaterThan(0);
   } finally { await pg.exec('UPDATE gradebook.nota SET valor=0 WHERE instrumento_id=151 AND aluno_id=1'); }
 });

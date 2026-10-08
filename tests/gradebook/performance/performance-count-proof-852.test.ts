@@ -316,7 +316,7 @@ function oracleSummary(
     students: studentIds.length,
     readings: pairs.length,
     complete: complete.length,
-    partial: pairs.filter((pair) => pair.result.state === 'partial').length,
+    partial: 0,
     missing: pairs.filter((pair) => pair.result.state === 'not-recorded').length,
     unavailable: pairs.filter((pair) => pair.result.state === 'unavailable').length,
     above: complete.length - below.length,
@@ -529,7 +529,10 @@ function rawParticipation(
       fact.maximumMilli !== null &&
       fact.maximumMilli > 0,
   );
-  const maximum = valid.reduce((sum, fact) => sum + fact.maximumMilli!, 0);
+  // BN-DEC-042: blank scaled instruments keep their maximum and add no points.
+  const maximum = facts
+    .filter((fact) => fact.maximumMilli !== null && fact.maximumMilli > 0)
+    .reduce((sum, fact) => sum + fact.maximumMilli!, 0);
   const points = valid.reduce((sum, fact) => sum + fact.valueMilli!, 0);
   return {
     percent: maximum > 0 ? (points / maximum) * 100 : null,
@@ -568,13 +571,9 @@ function proveLearningStudentFromFacts(
     expected += current.expected;
     unscaled += current.unscaled;
     if (current.percent !== null) currentParticipation.push(current.percent);
-    if (reference !== null && current.complete) {
+    if (reference !== null && current.percent !== null) {
       const previous = rawParticipation(projection, [reference]);
-      if (
-        previous.complete &&
-        previous.percent !== null &&
-        current.percent !== null
-      )
+      if (previous.percent !== null)
         participationChanges.push(current.percent - previous.percent);
     }
 
@@ -760,7 +759,11 @@ function proofAllV6Scopes(
         [student.studentId],
       );
       expect(student.complete).toBe(expected.complete);
-      expect(student.partial).toBe(expected.partial);
+      expect(student.partial).toBe(
+        own.filter(
+          (pair) => pair.studentId === student.studentId && pair.result.state === 'partial',
+        ).length,
+      );
       expect(student.below).toBe(expected.below);
       expectMetric(student.meanPercent, expected.result.mean);
       expectMetric(student.deltaPP, expected.movement.meanDeltaPP);
@@ -854,7 +857,7 @@ function proofAllV6Scopes(
     .map((instrument) => instrument.key);
   expect(learning.activitiesToReview).toEqual(expectedActivities);
 
-  expect(value.summary.complete + value.summary.missing + value.summary.unavailable)
+  expect(value.summary.complete + value.summary.partial + value.summary.missing + value.summary.unavailable)
     .toBe(value.summary.readings);
   expect(value.summary.above + value.summary.below).toBe(value.summary.complete);
   expect(value.summary.studentsAtOrAbove + value.summary.studentsBelow + value.summary.studentsPending)
@@ -1417,7 +1420,10 @@ describe('performance count proof #852', () => {
       },
     });
     proofAllV6Scopes(value, matrix, projections);
-    expect(value.summary.partial).toBeGreaterThan(0);
+    expect(value.summary.partial).toBe(0);
+    expect(
+      value.students.some((item) => item.cells.some((cell) => cell.result.state === 'partial')),
+    ).toBe(true);
     expect(value.summary.parallel.applied).toBeGreaterThan(0);
     expect(value.summary.coverage.zeros).toBeGreaterThan(0);
     expect(value.components.some((component) =>

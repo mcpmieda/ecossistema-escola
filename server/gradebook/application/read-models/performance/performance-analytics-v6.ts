@@ -196,7 +196,10 @@ function summarize(
     students: studentIds.length,
     readings: pairs.length,
     complete: results.length,
-    partial: pairs.filter((pair) => pair.cell.result.state === 'partial').length,
+    // BN-DEC-042: every result is counted in "complete". The sum of the four counters stays
+    // equal to the readings, which is what clients opened before this rule validate; the
+    // blank-instrument marker is read from each cell's state.
+    partial: 0,
     missing: pairs.filter((pair) => pair.cell.result.state === 'not-recorded').length,
     unavailable: pairs.filter((pair) => pair.cell.result.state === 'unavailable').length,
     above: results.length - below.length,
@@ -455,17 +458,15 @@ export function buildPerformanceAnalyticsV6(
         offerIds,
         summary: summarize(own, period, studentIds),
         students: studentIds.map((studentId) => {
-          const summary = summarize(
-            teacherStudents.get(teacher.id)!.get(studentId) ?? [],
-            period,
-            [studentId],
-          );
+          const own = teacherStudents.get(teacher.id)!.get(studentId) ?? [];
+          const summary = summarize(own, period, [studentId]);
           return {
             studentId,
             meanPercent: summary.result.mean,
             below: summary.below,
             complete: summary.complete,
-            partial: summary.partial,
+            // The marker of blank instruments, read from the cells (BN-DEC-042).
+            partial: own.filter((pair) => pair.cell.result.state === 'partial').length,
             deltaPP: summary.movement.meanDeltaPP,
           };
         }),

@@ -11,8 +11,11 @@ const numeric = (values: readonly (number | null)[]) => values.filter((item): it
 const participationFacts = (projection: PerformanceProjectionV2, terms: readonly Term[]) =>
   projection.facts.filter((fact) => terms.includes(fact.term) && fact.slot >= 11 && isParticipationLabelV1(fact.label));
 function participationValue(facts: readonly PerformanceFactV2[]) {
-  const valid = facts.filter((fact) => fact.valueMilli !== null && fact.maximumMilli !== null && fact.maximumMilli > 0);
-  const maximum = valid.reduce((sum, fact) => sum + fact.maximumMilli!, 0);
+  // BN-DEC-042: a blank instrument was not done, so it keeps its maximum and adds no points.
+  // An instrument without a known maximum cannot be scaled and stays out, as before.
+  const scaled = facts.filter((fact) => fact.maximumMilli !== null && fact.maximumMilli > 0);
+  const valid = scaled.filter((fact) => fact.valueMilli !== null);
+  const maximum = scaled.reduce((sum, fact) => sum + fact.maximumMilli!, 0);
   const points = valid.reduce((sum, fact) => sum + fact.valueMilli!, 0);
   if (!Number.isSafeInteger(maximum) || !Number.isSafeInteger(points)) throw new Error('learning-overflow');
   return {
@@ -49,9 +52,9 @@ export function buildPerformanceLearningV1(
       expected += current.expected;
       unscaled += current.unscaled;
       if (current.percent !== null) currentParticipation.push(current.percent);
-      if (reference !== null && current.complete) {
+      if (reference !== null && current.percent !== null) {
         const previous = participationValue(participationFacts(projection, [reference]));
-        if (previous.complete && previous.percent !== null && current.percent !== null)
+        if (previous.percent !== null)
           participationChanges.push(current.percent - previous.percent);
       }
       const instrumentTerms: Term[] = [], consecutiveTerms: Term[] = [];
