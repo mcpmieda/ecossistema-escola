@@ -101,3 +101,53 @@
   .learning-overview .learning-enter { animation: none; transform: none; }
   .learning-overview *, .learning-overview *::before, .learning-overview *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
+
+/* Compact, fixed proportions (08/10/2026): the screen reads like a desktop panel. */
+.learning-overview { gap: .75rem; }
+.learning-overview .card { padding: .75rem .9rem; gap: .4rem; }
+.learning-overview .card__header { padding: 0 0 .35rem; }
+.learning-overview .card__content { padding: 0; gap: .5rem; }
+.learning-overview .card__footer { padding: .4rem 0 0; }
+.learning-overview .card__title { font-size: .85rem; }
+.learning-kpis { gap: .6rem; }
+.learning-kpi .card__header { font-size: .75rem; }
+.learning-kpi-icon { padding: .3rem; border-radius: .5rem; }
+.learning-kpi-button { min-height: 2rem; }
+.learning-kpi-button strong { font-size: 1.45rem; }
+.learning-row { gap: .75rem; }
+.learning-overview .analytics-timeline { height: 8.5rem; }
+.learning-composition { gap: .7rem; padding-top: 0; }
+.learning-inline { margin-bottom: .3rem; }
+.learning-inline b { font-size: 1.15rem; }
+.learning-composition-note { padding: .5rem .65rem; font-size: .75rem; }
+.learning-composition-note strong { font-size: .95rem; }
+.learning-participation { gap: .35rem; }
+.learning-score { font-size: 1.6rem; }
+.learning-distribution { margin: .25rem 0 .5rem; height: .6rem; }
+.learning-distribution-list { gap: .1rem; margin-bottom: .35rem; }
+.learning-distribution-item { min-height: 1.9rem; padding: .2rem 0; font-size: .75rem; }
+.learning-distribution-item strong { font-size: 1.05rem; }
+.learning-component-scroll { max-height: 12.5rem; }
+.learning-component-scroll > div { gap: .55rem; }
+.learning-component-scroll strong { font-size: .85rem; }
+.learning-overview .meter__track { height: .4rem; }
+.learning-recovery-summary > strong { font-size: 1.25rem; }
+.learning-overview .meter__fill { transform-origin: left; animation: learning-grow 520ms cubic-bezier(.2, .8, .2, 1) both; }
+.learning-distribution > span { transform-origin: left; animation: learning-grow 520ms cubic-bezier(.2, .8, .2, 1) both; }
+.learning-overview .analytics-line { stroke-dasharray: 1; animation: learning-draw 700ms ease-out both; }
+.learning-overview .analytics-timeline circle, .learning-overview .analytics-timeline text { animation: learning-enter 260ms ease-out 380ms both; }
+.learning-kpi:nth-child(2) { animation-delay: 40ms; }
+.learning-kpi:nth-child(3) { animation-delay: 80ms; }
+.learning-kpi:nth-child(4) { animation-delay: 120ms; }
+.learning-kpi { animation: learning-enter 240ms ease-out both; }
+@keyframes learning-grow { from { transform: scaleX(0); } }
+@keyframes learning-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@container (min-width: 761px) {
+  .learning-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .learning-row--evidence { grid-template-columns: minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1.2fr); }
+  .learning-row--evidence > :last-child { grid-column: auto; }
+  .learning-component-scroll > div { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learning-overview .analytics-line { stroke-dasharray: none; }
+}

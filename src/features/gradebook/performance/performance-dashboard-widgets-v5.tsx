@@ -1,3 +1,4 @@
+import { MarqueeTextV1 } from '../../../shared/ui/marquee-text-v1';
 import type { ReactNode } from 'react';
 import { Button, Chip, Surface } from '@heroui/react';
 import {
@@ -34,7 +35,7 @@ function KpiCard({ icon, value, label, detail, tone, pressed, onPress }: {
     <span className={`performance-kpi__icon performance-kpi__icon--${tone}`} aria-hidden="true">{icon}</span>
     <span className="min-w-0">
       <span className="flex items-baseline gap-2"><strong className="text-2xl font-semibold tabular-nums tracking-[-0.04em]">{value}</strong><span className="text-xs font-medium">{label}</span></span>
-      <span className="mt-1 block truncate text-xs text-muted">{detail}</span>
+      <MarqueeTextV1 className="performance-kpi__detail">{detail}</MarqueeTextV1>
     </span>
   </>;
   return <Surface variant="default" className={`performance-kpi ${pressed ? 'performance-kpi--pressed' : ''}`}>
@@ -155,13 +156,13 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
       </div>
       <div className="performance-panorama__counts" aria-label="Quantidades do panorama">
         <button type="button" className="performance-panorama__item" title="Todos no mínimo ou acima" aria-label={`${stats.allAtOrAbove} estudante(s) com todos os componentes no mínimo ou acima`} aria-pressed={selection?.kind === 'group' && selection.group === 'allAtOrAbove'} onClick={() => choose('allAtOrAbove')}>
-          <i className="performance-legend performance-legend--above"/><strong>{stats.allAtOrAbove}</strong>
+          <i className="performance-legend performance-legend--above"/><MarqueeTextV1>No mínimo ou acima</MarqueeTextV1><strong>{stats.allAtOrAbove}</strong>
         </button>
         <button type="button" className="performance-panorama__item" title="Algum componente abaixo do mínimo" aria-label={`${stats.withBelow} estudante(s) com algum componente abaixo do mínimo`} aria-pressed={selection?.kind === 'group' && selection.group === 'withBelow'} onClick={() => choose('withBelow')}>
-          <i className="performance-legend performance-legend--below"/><strong>{stats.withBelow}</strong>
+          <i className="performance-legend performance-legend--below"/><MarqueeTextV1>Abaixo do mínimo</MarqueeTextV1><strong>{stats.withBelow}</strong>
         </button>
         <button type="button" className="performance-panorama__item" title={pendingLabel} aria-label={`${stats.pending} estudante(s): ${pendingLabel}`} aria-pressed={selection?.kind === 'group' && selection.group === 'pending'} onClick={() => choose('pending')}>
-          <i className="performance-legend performance-legend--pending"/><strong>{stats.pending}</strong>
+          <i className="performance-legend performance-legend--pending"/><MarqueeTextV1>Sem classificação</MarqueeTextV1><strong>{stats.pending}</strong>
         </button>
       </div>
     </div>

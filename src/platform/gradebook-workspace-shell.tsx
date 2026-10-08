@@ -369,7 +369,8 @@ function GradebookWorkspaceShellContent() {
             );
           })}
         </div>
-        <GradebookYearContextBanner />
+        {/* Desempenho carries the year in its own header. */}
+        {activeSurface === 'performance' ? null : <GradebookYearContextBanner />}
       </div>
 
       <p className="sr-only" aria-live="polite">

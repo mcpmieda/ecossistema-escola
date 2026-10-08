@@ -41,8 +41,38 @@ export function AnalyticsHintV6({ label, children }: { label: string; children: 
       >
         <Info size={14} />
       </Tooltip.Trigger>
-      <Tooltip.Content className="max-w-64 text-xs">{children}</Tooltip.Content>
+      <Tooltip.Content className="analytics-hint">{children}</Tooltip.Content>
     </Tooltip>
+  );
+}
+/** What a card shows, the steps behind its number, the result here, and what it does not mean. */
+export function AnalyticsHintBodyV6({
+  what,
+  steps,
+  result,
+  note,
+}: {
+  what: ReactNode;
+  steps?: readonly ReactNode[];
+  result?: ReactNode;
+  note?: ReactNode;
+}) {
+  return (
+    <div className="analytics-hint__body">
+      <p>{what}</p>
+      {steps?.length ? (
+        <div className="analytics-hint__calc">
+          <span>Como é calculado</span>
+          <ol>
+            {steps.map((step, index) => (
+              <li key={index}>{step}</li>
+            ))}
+          </ol>
+          {result ? <p className="analytics-hint__result">{result}</p> : null}
+        </div>
+      ) : null}
+      {note ? <p className="analytics-hint__note">{note}</p> : null}
+    </div>
   );
 }
 export function AnalyticsKpisV6({
@@ -134,7 +164,7 @@ export function AnalyticsTimelineV6({
               {delta(summary.movement.meanDeltaPP)} · T{summary.movement.reference}
             </Chip>
           ) : null}
-          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral">Mostra a média das notas finais calculadas em cada trimestre. A variação compara os mesmos alunos e componentes; por isso pode diferir da subtração dos dois pontos do gráfico.</AnalyticsHintV6> : null}
+          {schoolLanguage ? <AnalyticsHintV6 label="Sobre Trajetória trimestral"><AnalyticsHintBodyV6 what="A nota média da turma em cada trimestre, de 0 a 100." steps={['Em cada trimestre, cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens e divide-se pelo número de notas daquele trimestre.']} note="O número no canto compara só quem tem nota nos dois trimestres. Por isso pode ser diferente de subtrair um ponto do outro." /></AnalyticsHintV6> : null}
         </div>
       }
       footer={
@@ -144,7 +174,7 @@ export function AnalyticsTimelineV6({
         </>
       }
     >
-      <svg viewBox="0 0 570 224" className="h-52 w-full" aria-hidden="true">
+      <svg viewBox="0 0 570 224" className="analytics-timeline h-52 w-full" aria-hidden="true">
         <defs>
           <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
@@ -161,7 +191,7 @@ export function AnalyticsTimelineV6({
           const path = segment.map((point, index) => `${index ? 'L' : 'M'} ${x(point.index)} ${y(point.value)}`).join(' ');
           return <g key={segment[0]!.index}>
             <path d={`${path} L ${x(segment[segment.length - 1]!.index)} 186 L ${x(segment[0]!.index)} 186 Z`} fill={`url(#${gradient})`} />
-            <path d={path} stroke="var(--accent)" strokeWidth="3" fill="none" strokeLinejoin="round" />
+            <path className="analytics-line" pathLength={1} d={path} stroke="var(--accent)" strokeWidth="3" fill="none" strokeLinejoin="round" />
           </g>;
         })}
         {values.map((item, index) => (
