@@ -1,5 +1,4 @@
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
-import { StableReadStatusV1 } from '../../../shared/live-data/stable-read-status-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Chip, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
@@ -348,9 +347,6 @@ export function RelationalPerformancePageV2({
                     </Tabs.List>
                   </Tabs.ListContainer>
                   <div className="performance-lens-status" aria-live="polite">
-                    <StableReadStatusV1 busy={state.busy.matrix || state.busy.classes}>
-                      Atualizando a mesma leitura…
-                    </StableReadStatusV1>
                     {state.failure ? (
                       <Alert status="warning">
                         <Alert.Content>

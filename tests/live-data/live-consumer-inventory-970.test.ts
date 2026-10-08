@@ -35,8 +35,14 @@ describe('BN-21 current live consumer inventory', () => {
     expect(heavy).toContain('LIVE_HEAVY_READ_INTERVAL_V1');
     expect(heavy).toContain('intervalMs: LIVE_HEAVY_READ_INTERVAL_V1');
 
+    // Desempenho's Notas reads the whole class at once and joined the heavy cadence by the
+    // owner's decision of 08/10/2026; every other consumer keeps the interactive one.
+    const notes = source('src/features/gradebook/performance/use-relational-performance-v2.ts');
+    expect(notes).toContain('intervalMs: LIVE_HEAVY_READ_INTERVAL_V1');
+
     for (const [path] of consumers) {
       if (path.endsWith('use-performance-analytics-v6.ts')) continue;
+      if (path.endsWith('use-relational-performance-v2.ts')) continue;
       expect(source(path), path).not.toContain('LIVE_HEAVY_READ_INTERVAL_V1');
     }
   });

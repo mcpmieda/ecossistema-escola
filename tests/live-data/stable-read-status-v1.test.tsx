@@ -33,10 +33,11 @@ it.each([250, 1200])('keeps the same text footprint and following content at wid
   }
   // JSDOM proves stable DOM/CSS visibility, not browser geometry or cumulative layout shift.
 });
-it('uses an unconditional stable row in both actual background-refresh surfaces', () => {
+it('uses an unconditional stable row where a background refresh is announced', () => {
   const performance = readFileSync('src/features/gradebook/performance/relational-performance-page-v2.tsx', 'utf8');
   const publication = readFileSync('src/features/student-portal-admin/publication/student-publication-v1.tsx', 'utf8');
-  expect(performance).toContain('<StableReadStatusV1 busy={state.busy.matrix || state.busy.classes}>');
+  // Desempenho re-reads silently: what is on screen stays, with no status line.
+  expect(performance).not.toContain('StableReadStatusV1');
   expect(performance).not.toContain('{state.busy.matrix || state.busy.classes ? (');
   expect(publication).toContain('<StableReadStatusV1 busy={view.refreshing}>');
   expect(publication).not.toContain('{view.refreshing ? <p');
