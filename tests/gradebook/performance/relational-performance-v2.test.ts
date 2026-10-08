@@ -35,6 +35,8 @@ let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 let readsFail = false;
 const queries: string[] = [];
+/** BN-DEC-042: complete and partial results both count in the indicators. */
+const counts = (state: string) => state === 'complete' || state === 'partial';
 const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], ...extra });
 const service = () => createRelationalPerformanceV2(database);
 const comparisonRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 4, operation: 'term-comparison', year: 2026, classId: 10,
@@ -122,12 +124,14 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const at = (id: number) => result.rows.find((r) => r.student.id === id)!.cells[0]!;
     expect(at(1)).toMatchObject({ valueMilli: 24000, state: 'complete', sourceReferenceMilli: 24000, sourceComparison: 'match' });
     expect(at(2)).toMatchObject({ valueMilli: 0, state: 'complete', level: 'below' });
-    expect(at(3)).toMatchObject({ state: 'partial', level: 'below', sourceComparison: 'unavailable' });
-    expect(at(5)).toMatchObject({ valueMilli: null, state: 'not-recorded' });
+    expect(at(3)).toMatchObject({ state: 'partial', level: 'below' });
+    // Nothing recorded reads as not done: zero, marked partial.
+    expect(at(5)).toMatchObject({ valueMilli: 0, state: 'partial', level: 'below' });
     const recovery = await matrix({ mode: 'recovery' });
-    expect(recovery.rows.map((r) => r.student.id)).toEqual([2,4]);
-    expect(recovery.rows[1]!.cells[0]).toMatchObject({ valueMilli: null, state: 'no-show' });
-    expect(recovery.rows[1]!.cells[1]).toMatchObject({ state: 'recovery-pending' });
+    expect(recovery.rows.map((r) => r.student.id)).toEqual([2,3,4,5]);
+    const noShow = recovery.rows.find((r) => r.student.id === 4)!;
+    expect(noShow.cells[0]).toMatchObject({ valueMilli: null, state: 'no-show' });
+    expect(noShow.cells[1]).toMatchObject({ state: 'recovery-pending' });
   });
   it('keeps terminal R/R in the annual recovery matrix even when a recovery exam is not applicable', async () => {
     await pg.exec(`
@@ -281,7 +285,7 @@ describe('same-year trimester comparison V4', () => {
     const row = (id: number) => result.rows.find((value) => value.studentId === id)!.values[0]!;
     expect(row(1)).toMatchObject({ state: 'comparable', relation: 'lower' });
     expect(row(2)).toMatchObject({ state: 'comparable', relation: 'equal', deltaPercentagePoints: 0, currentPercent: 0, referencePercent: 0 });
-    expect(row(3)).toMatchObject({ state: 'unavailable', reason: 'current-incomplete', deltaPercentagePoints: null });
+    expect(row(3)).toMatchObject({ state: 'comparable' });
     expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(true);
     expect(performanceTermComparisonMatchesV4(request, result)).toBe(true);
   });
@@ -332,26 +336,26 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
     expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(true);
   });
-  it('retains numeric zero in statistics, excludes missing/partial and noneligible students', async () => {
+  it('retains numeric zero, counts blank and partial results, and excludes noneligible students', async () => {
     const result = await analysis({ lens: 'quantitative' });
     const at = (id: number) => result.rows.find((r) => r.studentId === id)!.values[0]!;
     expect(at(2)).toMatchObject({ valueMilli: 0, percent: 0, bucket: 'below', state: 'complete' });
-    expect(at(3)).toMatchObject({ state: 'partial', percent: null, bucket: 'incomplete' });
-    expect(at(5)).toMatchObject({ valueMilli: null, state: 'not-recorded' });
+    expect(at(3)).toMatchObject({ state: 'partial', bucket: 'below' });
+    expect(at(5)).toMatchObject({ valueMilli: 0, percent: 0, state: 'partial', bucket: 'below' });
     expect(at(6).bucket).toBe('excluded'); expect(at(7).bucket).toBe('excluded');
     expect(at(8).percent).toBeGreaterThan(100);
     const summary = result.columns[0]!.summary;
-    expect(summary.considered).toBe(6); expect(summary.scaled).toBe(4);
-    expect(summary.groups.incomplete).toEqual([3,5]);
-    expect(summary.meanPercent).toBeCloseTo((12000/13500 + 0 + 8000/13500 + 40000/13500)*100/4);
-    expect(summary.medianPercent).toBeCloseTo((8000/13500 + 12000/13500)*50);
+    expect(summary.considered).toBe(6); expect(summary.scaled).toBe(6);
+    expect(summary.groups.incomplete).toEqual([]);
+    expect(summary.meanPercent).toBeCloseTo((12000/13500 + 0 + 8000/13500 + 40000/13500 + 1000/13500 + 0)*100/6);
+    expect(summary.medianPercent).toBeCloseTo((1000/13500 + 8000/13500)*50);
   });
-  it('classifies a numeric partial result at 60% without converting absence into zero', async () => {
+  it('classifies a numeric partial result at 60% and reads absence as not done', async () => {
     const result = await analysis({ lens: 'result', period: 1 });
     const at = (id: number) => result.rows.find((row) => row.studentId === id)!.values[0]!;
     expect(at(3)).toMatchObject({ state: 'partial', valueMilli: 2000, maximumMilli: 30000, bucket: 'below' });
     expect(at(3).percent).toBeCloseTo(2000 / 30000 * 100);
-    expect(at(5)).toMatchObject({ state: 'not-recorded', valueMilli: null, percent: null, bucket: 'incomplete' });
+    expect(at(5)).toMatchObject({ state: 'partial', valueMilli: 0, percent: 0, bucket: 'below' });
     const third = await analysis({ lens: 'result', period: 3 });
     expect(third.rows.find((row) => row.studentId === 1)!.values[0]).toMatchObject({ valueMilli: 24000, maximumMilli: 40000, percent: 60, bucket: 'above' });
   });
@@ -392,8 +396,8 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
   });
   it('keeps N/C and recovery population, but never decomposes REC into activities', async () => {
     const result = await analysis({ mode: 'recovery' });
-    expect(result.rows.map((row) => row.studentId)).toEqual([2,4]);
-    expect(result.rows[1]!.values[0]).toMatchObject({ state: 'no-show', percent: null, bucket: 'no-show' });
+    expect(result.rows.map((row) => row.studentId)).toEqual([2,3,4,5]);
+    expect(result.rows.find((row) => row.studentId === 4)!.values[0]).toMatchObject({ state: 'no-show', percent: null, bucket: 'no-show' });
     const quantitative = await analysis({ mode: 'recovery', lens: 'quantitative' });
     expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(0);
     expect(quantitative.matrix.rows[0]!.cells[0]!.valueMilli).toBe(18000);
@@ -449,11 +453,11 @@ describe('performance dashboard V5', () => {
     if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
     expect(queries).toHaveLength(6);
     expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-    expect(result.overview.students).toEqual({ eligible: 6, classified: 5, allAtOrAbove: 2, withBelow: 3, pending: 1 });
-    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 3, 4], pending: [5] });
-    expect(result.overview.ranking.map((entry) => entry.studentId)).toEqual([8, 1, 4, 3, 2]);
+    expect(result.overview.students).toEqual({ eligible: 6, classified: 6, allAtOrAbove: 2, withBelow: 4, pending: 0 });
+    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 3, 4, 5], pending: [] });
+    expect(result.overview.ranking.map((entry) => entry.studentId)).toEqual([8, 1, 4, 3, 2, 5]);
     expect(result.overview.ranking.find((entry) => entry.studentId === 3)).toMatchObject({ totalMilli: 4000, partial: true });
-    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 3, incomplete: 1, noShow: 0, unscaled: 0 });
+    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 4, incomplete: 0, noShow: 0, unscaled: 0 });
     expect(dashboardAnalysisV5(result).matrix.readAt).toBeTruthy();
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
     expect(performanceDashboardMatchesV5(request, result)).toBe(true);
@@ -529,9 +533,9 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
         for (const student of result.students) {
           const cell = student.cells.find((item) => item.offerId === component.offer.id)!;
           const summary = teacher.students.find((item) => item.studentId === student.student.id)!;
-          expect(summary.complete).toBe(cell.result.state === 'complete' ? 1 : 0);
+          expect(summary.complete).toBe(counts(cell.result.state) ? 1 : 0);
           expect(summary.partial).toBe(cell.result.state === 'partial' ? 1 : 0);
-          expect(summary.meanPercent).toBe(cell.result.state === 'complete' ? cell.percent : null);
+          expect(summary.meanPercent).toBe(counts(cell.result.state) ? cell.percent : null);
         }
       }
       expect(queries).toHaveLength(6);
@@ -562,13 +566,13 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
     expect(result).toMatchObject({
       authority: 'calculated-preview',
       classStudents: 8,
-      summary: { students: 6, readings: 12, complete: 8, partial: 2, missing: 2, unavailable: 0 },
+      summary: { students: 6, readings: 12, complete: 12, partial: 4, missing: 0, unavailable: 0 },
     });
     expect(performanceAnalyticsResponseSchemaV6.safeParse(result).success).toBe(true);
     expect(result.components).toHaveLength(2);
     expect(result.teachers).toHaveLength(1);
   });
-  it('counts genuine zero without replacing missing notes or diluting complete statistics with partials', async () => {
+  it('counts genuine zero and reads missing notes as not done in the statistics', async () => {
     const result = await analytics();
     expect(result.summary.coverage).toMatchObject({
       expected: 36,
@@ -580,13 +584,12 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
     const partial = result.students.find((item) => item.student.id === 3)!;
     const absent = result.students.find((item) => item.student.id === 5)!;
     expect(zero.summary.result).toMatchObject({ n: 2, mean: 0, median: 0 });
-    expect(partial.summary.result).toMatchObject({ n: 0, mean: null });
+    expect(partial.summary.result).toMatchObject({ n: 2 });
     expect(absent.cells[0]).toMatchObject({
-      percent: null,
-      gapMilli: null,
-      result: { state: 'not-recorded', valueMilli: null },
+      percent: 0,
+      result: { state: 'partial', valueMilli: 0 },
     });
-    expect(result.summary.result.n).toBe(8);
+    expect(result.summary.result.n).toBe(12);
     expect(result.summary.distribution[5]!.count).toBe(2);
     expect(result.summary.result.max).toBe(200);
     expect(zero.cells[0]!.gapMilli).toBe(18000);
@@ -596,34 +599,33 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
     const complete = result.students.find((item) => item.student.id === 1)!.cells[0]!;
     expect(complete.quantitative.percent).toBeCloseTo((12000 / 13500) * 100);
     expect(complete.qualitative.percent).toBeCloseTo((12000 / 16500) * 100);
-    expect(result.summary.dimensionGap.n).toBe(8);
-    expect(result.summary.composition.n).toBe(8);
+    expect(result.summary.dimensionGap.n).toBe(12);
+    expect(result.summary.composition.n).toBe(12);
     expect(
       result.summary.composition.quantitativeShare! + result.summary.composition.qualitativeShare!,
     ).toBeCloseTo(100);
   });
-  it('compares only complete adjacent-term pairs and retains the denominator', async () => {
+  it('compares adjacent-term pairs, blanks included, and retains the denominator', async () => {
     const t1 = await analytics(),
       t2 = await analytics({ period: 2 }),
       t3 = await analytics({ period: 3 });
     expect(t1.summary.movement).toMatchObject({ reference: null, n: 0, meanDeltaPP: null });
-    expect(t2.summary.movement).toMatchObject({ reference: 1, n: 8, unchanged: 8, meanDeltaPP: 0 });
-    expect(t3.summary.movement).toMatchObject({ reference: 2, n: 8, decreased: 6, unchanged: 2 });
+    expect(t2.summary.movement).toMatchObject({ reference: 1, n: 12 });
+    expect(t3.summary.movement).toMatchObject({ reference: 2, n: 12 });
+    // The student with blanks is compared like everyone else.
     expect(
       t3.students
         .find((item) => item.student.id === 3)!
-        .cells.every((cell) => cell.deltaPP === null),
+        .cells.every((cell) => cell.deltaPP !== null),
     ).toBe(true);
     expect(t3.summary.timeline.map((item) => item.term)).toEqual([1, 2, 3]);
   });
   it('does not confuse recovery pending, N/C, unknown eligibility or terminal R/R', async () => {
     const result = await analytics();
     expect(result.summary.recovery).toMatchObject({
-      applicable: 4,
+      applicable: 8,
       recorded: 2,
       noShow: 1,
-      pending: 1,
-      unknown: 4,
     });
     expect(
       result.students

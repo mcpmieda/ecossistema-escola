@@ -81,7 +81,7 @@ it('uses one bounded snapshot for complete, partial, zero and empty results', as
   if (response.state !== 'ready' || response.operation !== 'matrix') throw new Error('expected-matrix');
   expect(response.rows.map((row) => [row.cells[0]!.state, row.cells[0]!.valueMilli])).toEqual([
     ['partial',14000], ['complete',14000], ['complete',18000], ['complete',19000],
-    ['not-recorded',null], ['complete',15000],
+    ['partial',0], ['complete',15000],
   ]);
   expect(queries).toHaveLength(6);
   expect(queries[0]).toContain('READ ONLY');
@@ -132,7 +132,7 @@ it.each([1,2,3,4])('filters only a new bulletin projection, retaining official A
   if (response.state !== 'ready' || response.operation !== 'preview') throw new Error('expected-preview');
   const term = response.model.subjects[0]!.terms[0]!;
   expect(term.sourceAmMilli).toBe(26000);
-  expect(term.coverage.complete).toBe(n!==1);
+  expect(term.coverage.complete).toBe(true);
   expect(term.instruments.some((item) => item.slot===3)).toBe(n!==3);
   expect(term.coverage.missingSlots).toEqual(n===1 ? [3] : []);
   if (n===1) expect(term.instruments.find((item) => item.slot===3)).toMatchObject({ valueMilli: null, notDone: true });

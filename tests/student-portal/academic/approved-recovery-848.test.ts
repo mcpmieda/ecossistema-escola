@@ -53,7 +53,7 @@ it.each(['score', 'nc', 'rr', 'recovery-pending'] as const)(
         .filter((item) => item.term === term)
         .map((item) => ({ slot: item.slot as SimplifiedInstrumentSlotV1, maximumMilli: item.maximum, valueMilli: item.value })) });
       expect(current.parallelApplicable).toBe(true);
-      expect(current.coverage).toMatchObject({ complete: false, missingSlots: [3] });
+      expect(current.coverage).toMatchObject({ complete: true, missingSlots: [3] });
       const parallel = subject.periods.find((period) => period.period === `T${term}`)!.partials!
         .find((item) => item.assessmentId === 8480000 + term * 100 + 3)!;
       expect(parallel).toMatchObject({ mark: { kind: 'absent' }, notDone: true });
@@ -61,10 +61,11 @@ it.each(['score', 'nc', 'rr', 'recovery-pending'] as const)(
   },
 );
 
-it.each([1, 2, 11])('does not waive a missing regular slot %s or invent official authority', (slot) => {
+it.each([1, 2, 11])('reads a blank regular slot %s as not done without inventing official authority', (slot) => {
   const { projected } = approvedSource848('score', slot);
   expect(projected.finalAuthority).toEqual({ global: false, subjectIds: [] });
-  expect(projected.student.subjects[0]!.periods.some((period) => period.period.startsWith('REC'))).toBe(false);
+  // BN-DEC-042: the result with the blank slot is final, so its approved recovery is shown.
+  expect(projected.student.subjects[0]!.periods.some((period) => period.period.startsWith('REC'))).toBe(true);
   expect(projected.student.subjects[0]!.officialAnnual).toMatchObject({ valueMilli: 60000 });
 });
 

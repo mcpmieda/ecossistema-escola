@@ -315,8 +315,7 @@ describe('relational bulletin V2', () => {
       if (incomplete.state !== 'insufficient-data')
         throw new Error('ordinary-incomplete-bulletin-was-not-blocked');
       expect(incomplete.reasons).toEqual(expect.arrayContaining([
-        expect.stringMatching(/^incomplete-calculation:/u),
-        expect.stringMatching(/^annual-in-progress:/u),
+        expect.stringMatching(/^final-recovery-pending:/u),
       ]));
     } finally {
       await pg.exec(`
