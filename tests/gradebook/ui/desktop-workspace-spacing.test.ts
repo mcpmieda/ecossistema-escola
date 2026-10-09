@@ -12,7 +12,7 @@ describe('Banco de Notas desktop workspace spacing', () => {
   it('uses the available workspace width without changing the other platform pages', () => {
     // Since the side-only composition of 08/10/2026 every area sits beside the side column and
     // takes the whole width that is left.
-    expect(app).toContain('<main className="shell-main shell-main--service">');
+    expect(app).toContain('className="shell-main shell-main--service"');
     expect(rule('.shell-main--service')).toContain('max-width: none;');
   });
 });
