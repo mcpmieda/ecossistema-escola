@@ -11,6 +11,7 @@ import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
 import { PlatformSearch } from './platform/search';
+import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
@@ -144,6 +145,7 @@ function AdminShell({ identity }: { identity: Identity }) {
   const drawerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useDrawerSwipeV1(menuOpen, setMenuOpen, drawerRef);
   useEffect(() => {
     if (!menuOpen) return;
     const drawer = drawerRef.current;
