@@ -1,4 +1,6 @@
-import { cleanup, renderHook } from '@testing-library/react';
+import { AlertDialog } from '@heroui/react';
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
+import { useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDrawerSwipeV1 } from '../src/platform/drawer-swipe-v1';
 
@@ -77,19 +79,115 @@ describe('phone drawer swipe', () => {
     expect(setOpen).toHaveBeenLastCalledWith(true);
   });
 
-  it('does nothing on a text field, under another open layer, or on a computer', () => {
+  it('does nothing on a text field or on a computer', () => {
     mount(false);
     swipe(document.getElementById('field')!, [20, 300], [160, 300]);
     expect(setOpen).not.toHaveBeenCalled();
-    const layer = document.createElement('div');
-    layer.setAttribute('role', 'dialog');
-    document.body.appendChild(layer);
-    swipe(document.getElementById('text')!, [20, 300], [160, 300]);
-    expect(setOpen).not.toHaveBeenCalled();
-    layer.remove();
     phone = false;
     swipe(document.getElementById('text')!, [20, 300], [160, 300]);
     expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  it.each(['dialog', 'alertdialog'])('neither opens nor closes under an open %s', (role) => {
+    const layer = document.createElement('div');
+    layer.setAttribute('role', role);
+    layer.textContent = 'Confirmar';
+    document.body.appendChild(layer);
+    mount(false);
+    swipe(layer, [20, 300], [160, 300]);
+    cleanup();
+    // The drawer comes first in the page and is open; the other layer still counts.
+    const drawer = document.createElement('aside');
+    drawer.setAttribute('role', 'dialog');
+    document.body.insertBefore(drawer, document.body.firstChild);
+    mount(true, drawer);
+    swipe(layer, [200, 300], [60, 300]);
+    expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  it('is not held back by a list that is part of the page or by a hidden layer', () => {
+    const list = document.createElement('div');
+    list.setAttribute('role', 'listbox');
+    const hidden = document.createElement('div');
+    hidden.setAttribute('role', 'alertdialog');
+    hidden.checkVisibility = () => false;
+    document.body.appendChild(list);
+    document.body.appendChild(hidden);
+    mount(false);
+    swipe(document.getElementById('text')!, [20, 300], [160, 300]);
+    expect(setOpen).toHaveBeenLastCalledWith(true);
+  });
+
+  it('counts a popover of the component library as an open layer', () => {
+    const popover = document.createElement('div');
+    popover.setAttribute('data-slot', 'select-popover');
+    document.body.appendChild(popover);
+    mount(false);
+    swipe(document.getElementById('text')!, [20, 300], [160, 300]);
+    expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  it('stays out of the way while the page is enlarged by zoom, and works again at normal scale', () => {
+    const text = document.getElementById('text')!;
+    const view = { scale: 2, offsetLeft: 187.5 };
+    vi.stubGlobal('visualViewport', view);
+    mount(false);
+    // Dragging the enlarged view back to its start: zoomed when the finger lands.
+    touch('touchstart', text, 40, 300);
+    view.offsetLeft = 0;
+    touch('touchend', text, 330, 300);
+    expect(setOpen).not.toHaveBeenCalled();
+    // Still zoomed with the view already at its start.
+    swipe(text, [40, 300], [330, 300]);
+    expect(setOpen).not.toHaveBeenCalled();
+    // The view moved during the gesture even though the scale reads as normal.
+    view.scale = 1;
+    view.offsetLeft = 30;
+    touch('touchstart', text, 40, 300);
+    view.offsetLeft = 0;
+    touch('touchend', text, 330, 300);
+    expect(setOpen).not.toHaveBeenCalled();
+    swipe(text, [40, 300], [330, 300]);
+    expect(setOpen).toHaveBeenLastCalledWith(true);
+  });
+
+  it('leaves the drawer alone under a real confirmation of the component library', async () => {
+    function Screen({ confirming }: { confirming: boolean }) {
+      const drawer = useRef<HTMLElement>(null);
+      const [open, setOpenState] = useState(false);
+      useDrawerSwipeV1(open, setOpenState, drawer);
+      return (
+        <>
+          <aside ref={drawer} data-testid="drawer" data-open={String(open)} />
+          <p>Texto da página.</p>
+          {confirming ? (
+            <AlertDialog.Backdrop isOpen isDismissable={false}>
+              <AlertDialog.Container>
+                <AlertDialog.Dialog>
+                  <AlertDialog.Header>
+                    <AlertDialog.Heading>Confirmar encerramento de sessões</AlertDialog.Heading>
+                  </AlertDialog.Header>
+                  <AlertDialog.Body>
+                    <p>Corpo sintético da confirmação.</p>
+                  </AlertDialog.Body>
+                </AlertDialog.Dialog>
+              </AlertDialog.Container>
+            </AlertDialog.Backdrop>
+          ) : null}
+        </>
+      );
+    }
+    const drawerState = () => screen.getByTestId('drawer').getAttribute('data-open');
+    const view = render(<Screen confirming />);
+    const dialog = await screen.findByRole('alertdialog');
+    // The state change is flushed before it is read, so "false" means the swipe was refused.
+    act(() => swipe(screen.getByText('Corpo sintético da confirmação.'), [20, 300], [200, 300]));
+    expect(dialog.isConnected).toBe(true);
+    expect(drawerState()).toBe('false');
+    // Control: the same screen without the confirmation opens on the same swipe.
+    view.rerender(<Screen confirming={false} />);
+    act(() => swipe(screen.getByText('Texto da página.'), [20, 300], [200, 300]));
+    expect(drawerState()).toBe('true');
   });
 
   it('does not treat the drawer itself as another layer', () => {

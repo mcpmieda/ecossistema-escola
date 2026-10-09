@@ -28,9 +28,33 @@ const ownsTheDragV1 = (target: EventTarget | null) =>
   target instanceof Element &&
   target.closest('input, textarea, select, [contenteditable="true"], [role="slider"]') !== null;
 
+/** What opens over the page: dialogs and confirmations, modal layers, popovers and menus.
+ * A list or a menu that is simply part of the page is not one of them. */
+const LAYERS_V1 =
+  '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [data-slot$="popover"]';
+/** Whether any layer other than the drawer itself is really open. The drawer is told apart
+ * element by element, so it never hides another layer that comes after it in the page. */
+function otherLayerOpenV1(drawer: HTMLElement | null): boolean {
+  return [...document.querySelectorAll<HTMLElement>(LAYERS_V1)].some(
+    (layer) =>
+      layer !== drawer &&
+      !drawer?.contains(layer) &&
+      !layer.contains(drawer) &&
+      !layer.closest('[inert]') &&
+      (typeof layer.checkVisibility !== 'function' || layer.checkVisibility()),
+  );
+}
+
+/** The page enlarged by a pinch: a sideways drag then moves the enlarged view, not the drawer. */
+const viewV1 = () => ({
+  zoomed: (window.visualViewport?.scale ?? 1) > 1.01,
+  left: window.visualViewport?.offsetLeft ?? 0,
+});
+
 /**
  * On phones, a swipe to the right opens the side drawer and a swipe to the left closes it.
- * Vertical scrolling, sideways-sliding content, text fields and other open dialogs are left alone.
+ * Vertical scrolling, sideways-sliding content, text fields, any other open layer and a page
+ * enlarged by zoom are left alone; the buttons keep working in every case.
  */
 export function useDrawerSwipeV1(
   open: boolean,
@@ -47,6 +71,8 @@ export function useDrawerSwipeV1(
       target: EventTarget | null;
       slidesRight: boolean;
       slidesLeft: boolean;
+      zoomed: boolean;
+      left: number;
     } | null = null;
     const onStart = (event: TouchEvent) => {
       const touch = event.touches.length === 1 ? event.touches[0] : undefined;
@@ -58,6 +84,7 @@ export function useDrawerSwipeV1(
             target: event.target,
             slidesRight: slidesSidewaysV1(event.target, true),
             slidesLeft: slidesSidewaysV1(event.target, false),
+            ...viewV1(),
           }
         : null;
     };
@@ -73,16 +100,17 @@ export function useDrawerSwipeV1(
       // Clearly sideways: long enough and at least twice as wide as it is tall.
       if (Math.abs(dx) < MIN_DISTANCE_V1 || Math.abs(dx) < Math.abs(dy) * 2) return;
       if (ownsTheDragV1(from.target)) return;
+      // Zoomed when the finger landed or lifted, or the enlarged view moved in between.
+      const view = viewV1();
+      if (from.zoomed || view.zoomed || Math.abs(view.left - from.left) > 1) return;
+      // Another layer is open over the page (a confirmation, a student's drawer, a menu): the
+      // drawer neither opens nor closes under it.
+      if (otherLayerOpenV1(drawer.current)) return;
       if (open) {
         if (dx < 0 && !from.slidesLeft) setOpen(false);
         return;
       }
-      if (dx <= 0) return;
-      // Another layer is open over the page (a student's drawer, a menu): it keeps its gestures.
-      const layer = document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]');
-      if (layer && layer !== drawer.current) return;
-      if (from.slidesRight) return;
-      setOpen(true);
+      if (dx > 0 && !from.slidesRight) setOpen(true);
     };
     const onCancel = () => {
       start = null;
