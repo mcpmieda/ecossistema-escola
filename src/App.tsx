@@ -6,11 +6,10 @@ import {
 import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
-import { ServiceSidebarV2, ShellSidebarV3, TopNavigationV2, serviceSectionFromHashV2, serviceSectionsV2 } from './platform/navigation';
+import { ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
-import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
@@ -160,8 +159,10 @@ function AdminShell({ identity }: { identity: Identity }) {
       if (event.key !== 'Tab' || !drawer) return;
       // Tab and Shift+Tab stay inside the drawer.
       const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
-        // The search and the profile of the column are not shown inside the phone drawer.
-        .filter((item) => item.tabIndex >= 0 && !item.closest('.shell-side__search, .shell-side__profile'));
+        // Only what can really take focus: nothing hidden by the styles (the column's search and
+        // profile are not shown in the phone drawer) and nothing inside an inert branch.
+        .filter((item) => item.tabIndex >= 0 && !item.closest('.shell-side__search, .shell-side__profile, [inert]') &&
+          (typeof item.checkVisibility !== 'function' || item.checkVisibility()));
       const first = stops[0], last = stops.at(-1);
       if (!first || !last) return;
       const active = document.activeElement;
@@ -182,7 +183,6 @@ function AdminShell({ identity }: { identity: Identity }) {
       menuButtonRef.current?.focus();
     };
   }, [menuOpen]);
-  const sections = serviceSectionsV2(route);
   const section = serviceSectionFromHashV2(route, hash);
   const native = !platformRouteNeedsMicrosoftV2(route, section);
   const showPage = loadState.status === 'ready' && (native || (
@@ -221,7 +221,6 @@ function AdminShell({ identity }: { identity: Identity }) {
             <small>Escola Mun. Prof.ª Iêda Alves de Oliveira · MCPM</small>
           </span>
         </a>
-        <TopNavigationV2 route={route} modules={modules} loading={loadState.status === 'loading'} />
         <div className="shell-tools">
             <PlatformSearch snapshot={snapshot} />
             <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
@@ -246,7 +245,6 @@ function AdminShell({ identity }: { identity: Identity }) {
             search={<PlatformSearch snapshot={snapshot} />}
             profile={profileMenu}
           />
-          {sections.length > 0 && <ServiceSidebarV2 route={route} section={section} serviceName={routeLabels[route]} />}
         </aside>
         <main ref={mainRef} className="shell-main shell-main--service">
           <DraftUpdatesNoticeV1 />

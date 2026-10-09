@@ -87,6 +87,21 @@ it('keeps the keyboard inside the phone drawer, closes it on Escape and gives fo
   expect(document.activeElement?.getAttribute('data-open')).toBe('true');
   expect(document.querySelector('main')?.hasAttribute('inert')).toBe(true);
   expect(document.querySelector('.shell-topbar')?.hasAttribute('inert')).toBe(true);
+  // The drawer holds one navigation only; no hidden copy of the old section row is a tab stop.
+  expect(drawer.querySelector('.shell-sidenav')).toBeNull();
+  expect(within(drawer).getAllByRole('navigation')).toHaveLength(1);
+  const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button')].filter(
+    (item) => !item.closest('.shell-side__search, .shell-side__profile'),
+  );
+  const first = stops[0]!, last = stops.at(-1)!;
+  // The open area (Banco de notas) has sections, so the last stop is an area after them.
+  expect(last.textContent).toBe('Configurações');
+  // The two edges wrap inside the drawer.
+  last.focus();
+  await user.tab();
+  expect(document.activeElement).toBe(first);
+  await user.tab({ shift: true });
+  expect(document.activeElement).toBe(last);
   // Both directions, more steps than there are stops: focus never leaves the drawer.
   for (let step = 0; step < 30; step++) {
     await user.tab({ shift: step % 2 === 0 });

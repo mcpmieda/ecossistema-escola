@@ -1536,9 +1536,6 @@ button.performance-kpi__button:hover {
   }
 }
 
-@media (forced-colors: active) {
-}
-
 /* #817: compact desktop data, preserving the native HeroUI table anatomy. */
 :where(.pa-admin-page, .gradebook-workspace) .table__cell,
 :where(.pa-admin-page, .gradebook-workspace) .table__column {
@@ -1673,55 +1670,10 @@ button.performance-kpi__button:hover {
   gap: 0.5rem;
   min-width: 0;
 }
-.shell-topnav {
-  grid-area: nav;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.shell-topnav ul {
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-  width: max-content;
-}
-.shell-topnav__item {
-  display: block;
-  border-radius: 999px;
-  padding: 0.3rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    color 90ms ease,
-    background-color 90ms ease;
-}
-.shell-topnav__item:hover {
-  color: var(--foreground);
-  background: var(--surface-secondary);
-}
-.shell-topnav__item[data-selected='true'] {
-  color: var(--foreground);
-  background: var(--surface-secondary);
-  font-weight: 650;
-}
-.shell-topnav__item:focus-visible,
-.shell-sidenav__item:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
-  outline-offset: 2px;
-}
 /* One row at every width. Below 1500px the areas need the room, so the brand keeps only its
    mark, the profile only its avatar, and the search rests as an icon that opens on focus. */
 .shell-topbar {
   position: sticky;
-}
-.shell-topnav ul {
-  margin-inline: auto;
-}
-.shell-topnav__item[data-selected='true'] {
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 .shell-tools .platform-search-desktop {
   width: 15rem;
@@ -1788,13 +1740,6 @@ button.performance-kpi__button:hover {
   .shell-tools .platform-search-desktop:not(:focus-within) .search-field__input {
     opacity: 0;
   }
-  .shell-topnav__item {
-    padding-inline: 0.5rem;
-    font-size: 0.8rem;
-  }
-  .shell-topnav ul {
-    gap: 0;
-  }
 }
 .shell-body--service {
   display: grid;
@@ -1820,53 +1765,6 @@ button.performance-kpi__button:hover {
   margin-inline: 0;
   padding: 0.75rem 0.9rem 1rem 0.3rem;
 }
-.shell-sidenav__service {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
-  padding: 0.25rem 0.5rem 0.7rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  font-size: 0.9rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-.shell-sidenav__service-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: 0.65rem;
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.shell-sidenav ul {
-  display: grid;
-  gap: 0.15rem;
-}
-.shell-sidenav__item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  border-radius: 0.8rem;
-  padding: 0.5rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition:
-    color 90ms ease,
-    background-color 90ms ease;
-}
-.shell-sidenav__item:hover {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-}
-.shell-sidenav__item[data-selected='true'] {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 8%, transparent);
-  font-weight: 650;
-}
 /* The side menu replaces the area tabs; the year selector and its warning stay. */
 .platform-shell--v2 .pa-area-tabs,
 .platform-shell--v2 .gradebook-area-tabs {
@@ -1888,17 +1786,6 @@ button.performance-kpi__button:hover {
     position: static;
     height: auto;
     padding: 0.5rem 0.75rem 0;
-  }
-  .shell-sidenav__service {
-    display: none;
-  }
-  .shell-sidenav ul {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .shell-sidenav__item {
-    white-space: nowrap;
   }
   .shell-main--service {
     padding: 0.6rem 0.75rem 1rem;
@@ -2592,38 +2479,6 @@ button.performance-kpi__button:hover {
 }
 
 /* Phones (08/10/2026): the service menu shows when there is more to the side. */
-.shell-sidenav__more {
-  display: none;
-}
-@media (max-width: 900px) {
-  .shell-sidenav {
-    position: relative;
-  }
-  .shell-sidenav__more {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    z-index: 1;
-    width: 2.25rem;
-    align-items: center;
-    color: var(--foreground);
-    pointer-events: none;
-  }
-  .shell-sidenav__more--start {
-    left: 0;
-    justify-content: flex-start;
-    background: linear-gradient(to right, var(--background) 45%, transparent);
-  }
-  .shell-sidenav__more--end {
-    right: 0;
-    justify-content: flex-end;
-    background: linear-gradient(to left, var(--background) 45%, transparent);
-  }
-  .shell-sidenav[data-more-start] .shell-sidenav__more--start,
-  .shell-sidenav[data-more-end] .shell-sidenav__more--end {
-    display: flex;
-  }
-}
 @media (max-width: 640px) {
   /* Mode and comparison side by side, each with its label above. */
   .performance-notes-bar__selects {
@@ -2734,38 +2589,6 @@ button.performance-kpi__button:hover {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
-.platform-shell--v2 .shell-topnav ul {
-  gap: 0;
-  margin-inline: 0;
-}
-.platform-shell--v2 .shell-topnav__item {
-  display: flex;
-  height: 3.5rem;
-  align-items: center;
-  padding-inline: 0.95rem;
-  border-radius: 0;
-  color: var(--masthead-muted);
-  font-size: 0.84rem;
-  font-weight: 550;
-  letter-spacing: 0.005em;
-  transition:
-    color 120ms ease,
-    background-color 120ms ease,
-    box-shadow 120ms ease;
-}
-.platform-shell--v2 .shell-topnav__item:hover {
-  color: var(--masthead-ink);
-  background: rgb(255 255 255 / 0.06);
-}
-.platform-shell--v2 .shell-topnav__item[data-selected='true'] {
-  color: #fff;
-  background: rgb(255 255 255 / 0.09);
-  box-shadow: inset 0 -3px 0 var(--masthead-accent);
-}
-.platform-shell--v2 .shell-topnav__item:focus-visible {
-  outline: 2px solid var(--masthead-accent);
-  outline-offset: -2px;
-}
 .platform-shell--v2 .shell-tools .search-field__group {
   border: 1px solid var(--masthead-line);
   background: rgb(255 255 255 / 0.08);
@@ -2837,9 +2660,6 @@ button.performance-kpi__button:hover {
     gap: 0 0.6rem;
     padding-inline: 0.75rem;
   }
-  .platform-shell--v2 .shell-topnav__item {
-    padding-inline: 0.7rem;
-  }
 }
 .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar,
 .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar__fallback {
@@ -2873,9 +2693,6 @@ button.performance-kpi__button:hover {
   .platform-shell--v2 .shell-tools .platform-search-desktop {
     width: 11.5rem;
   }
-  .platform-shell--v2 .shell-topnav__item {
-    padding-inline: 0.75rem;
-  }
   .platform-shell--v2 .shell-topbar {
     gap: 0 1rem;
   }
@@ -2902,9 +2719,6 @@ button.performance-kpi__button:hover {
     border-radius: 1.25rem;
     background: var(--surface);
     box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 30%, transparent);
-  }
-  .platform-shell--v2 .shell-aside > .shell-sidenav {
-    display: none;
   }
   .platform-shell--v2 .shell-main--service {
     padding: 0.75rem 1rem 1rem 0.9rem;
@@ -3038,9 +2852,6 @@ button.performance-kpi__button:hover {
     display: inline-flex;
     grid-area: menu;
   }
-  .platform-shell--v2 .shell-topnav {
-    display: none;
-  }
   .platform-shell--v2 .shell-brand {
     color: var(--foreground);
   }
@@ -3084,9 +2895,6 @@ button.performance-kpi__button:hover {
   .platform-shell--v2 .shell-aside[data-open='true'] {
     transform: translateX(0);
     visibility: visible;
-  }
-  .platform-shell--v2 .shell-aside > .shell-sidenav {
-    display: none;
   }
   .shell-drawer-backdrop {
     position: fixed;
