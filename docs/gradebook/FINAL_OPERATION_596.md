@@ -23,7 +23,7 @@ O ano oficial em operação é 2026. O ano 2025 foi materializado a partir de ar
 1. Confirmar usuário autorizado, ano letivo global e turma antes de qualquer ação.
 2. Em ano novo, importar a Relação antes das fontes de notas; a importação materializa o ano automaticamente.
 3. Reimportar arquivo idêntico somente quando necessário: o resultado esperado é “sem mudanças acadêmicas”.
-4. Conferir Auditoria e Centrais antes de interpretar Desempenho, boletins ou relatórios.
+4. Conferir Auditoria e a Relação importada antes de interpretar Desempenho, boletins ou relatórios. A interface Centrais foi retirada por solicitação do responsável em 09/10/2026; o cadastro mestre permanece.
 5. Usar Desempenho para leitura e comparação entre trimestres do mesmo ano; ele não substitui a fonte oficial.
 6. No fechamento anual, tratar R/R em qualquer componente como reprovação automática e fora do Conselho.
 7. No Conselho, registrar decisão humana e votos favoráveis/contrários; empate e voto de minerva permanecem externos.
@@ -33,7 +33,7 @@ O ano oficial em operação é 2026. O ano 2025 foi materializado a partir de ar
 
 - workflow de validação do PR e deploy Cloudflare Pages verdes no SHA esperado;
 - login/capability, origem oficial e respostas `no-store` preservados;
-- aplicação autenticada abre Importação, Centrais, Auditoria, Desempenho, Boletins, Relatórios e Conselho;
+- aplicação autenticada abre Importação, Auditoria, Desempenho, Boletins, Relatórios, Conselho e Configurações; favoritos antigos de Centrais retornam à Importação;
 - PostgreSQL permanece saudável, sem drift de migration, órfãos ou duplicidades lógicas;
 - falhas de importação, conflitos de revisão, aumentos anormais de latência/payload e achados de segurança são tratados como alerta, não como vazio acadêmico.
 

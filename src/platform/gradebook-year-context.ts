@@ -7,13 +7,10 @@ export interface GradebookYearContextValue {
   readonly loading: boolean;
   readonly epoch: number;
   readonly failure: string | null;
-  readonly targetStudentId: number | null;
-  readonly studentNavigationEpoch: number;
   clearAuthorization(): void;
   retryAuthorization(): void;
   selectYear(year: number): void;
   refreshYears(preferredYear?: number): Promise<void>;
-  openStudent(id: number): void;
 }
 export const GradebookYearContext = createContext<GradebookYearContextValue | null>(null);
 export const useGradebookYear = () => useContext(GradebookYearContext);

@@ -15,10 +15,11 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
 
     expect(contract).toContain('value.split(/[?#]/u)[0]');
-    for (const area of ['operational', 'audit', 'performance', 'bulletins', 'council']) {
+    for (const area of ['audit', 'performance', 'bulletins', 'council']) {
       expect(notes).toContain(`notesAreaHref('${area}')`);
     }
     expect(notes).toContain("platformHref('banco-de-notas')");
+    expect(notes).not.toContain("notesAreaHref('operational')");
     expect(shell).toContain('workspaceSurfaceFromHash');
     expect(shell).toContain("new URLSearchParams(query).get('area')");
     expect(shell).toContain("window.addEventListener('hashchange', onHashChange)");
@@ -39,14 +40,12 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(renderer).not.toMatch(/fetch\(|localStorage|sessionStorage|indexedDB|caches\.open/u);
   });
 
-  it('mantém a rota e as cinco superfícies acadêmicas lazy e isoladas', () => {
+  it('mantém a rota e as superfícies acadêmicas atuais lazy e isoladas', () => {
     const notesPage = source('src/platform/notes-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
-    const operationalSurface = source('src/platform/gradebook-operational-surface.tsx');
 
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     for (const imported of [
-      'gradebook-operational-surface',
       'gradebook-audit-surface',
       'performance-page',
       'bulletin-page',
@@ -54,8 +53,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     ]) {
       expect(shell).toContain(imported);
     }
-    // The #639 read-only page replaces V1 without changing the route/lazy boundary.
-    expect(operationalSurface).toContain('relational-workspace-page-v2');
+    expect(shell).not.toContain('gradebook-operational-surface');
     expect(shell).toContain('class GradebookSurfaceBoundary');
     expect(shell).toContain('role="tablist"');
     expect(shell).toContain('aria-selected={selected}');
@@ -90,9 +88,9 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
 
   it('não introduz persistência acadêmica no navegador nem retry silencioso de writes', () => {
     const frontend = [
-      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
-      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
-      'src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts',
+      'src/platform/gradebook-year-provider.tsx',
+      'src/features/gradebook/operational-workspace/operational-workspace-client-v2.ts',
+      'src/features/student-portal-admin/accounts/accounts-client-v2.ts',
       'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
       'src/features/gradebook/performance/relational-performance-page-v2.tsx',
       'src/features/gradebook/bulletins/bulletin-page.tsx',

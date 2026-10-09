@@ -37,11 +37,10 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
 
   it('mantém o shell ligado exclusivamente às superfícies relacionais atuais', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
-    const operational = source('src/platform/gradebook-operational-surface.tsx');
     const council = source('src/platform/gradebook-council-surface.tsx');
     const bulletins = source('src/features/gradebook/bulletins/bulletin-page.tsx');
 
-    expect(operational).toContain('RelationalWorkspacePageV2');
+    expect(shell).not.toContain('gradebook-operational-surface');
     expect(council).toContain('RelationalCouncilPageV3');
     expect(bulletins).toContain('RelationalBulletinPageV2');
     expect(shell).toContain("import('../features/gradebook/performance/relational-performance-page-v2')");

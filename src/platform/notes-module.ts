@@ -33,14 +33,6 @@ export const notesSections: NotesSection[] = [
     searchTerms: 'importar importação planilha planilhas xlsb xlsx xls leitor reconhecimento',
   },
   {
-    id: 'operational',
-    label: 'Centrais',
-    description: 'Consultar cadastros e a configuração docente do ano letivo selecionado.',
-    href: notesAreaHref('operational'),
-    searchTerms:
-      'central cadastro aluno turma professor componente oferta configuração docente ano letivo',
-  },
-  {
     id: 'audit',
     label: 'Auditoria',
     description: 'Revisar ocorrências, reconciliações, histórico e resoluções.',

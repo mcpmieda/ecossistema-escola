@@ -1,5 +1,9 @@
 # Banco de Notas — ponto de entrada
 
+## Retirada da interface Centrais — 09/10/2026
+
+A superfície Centrais, sua navegação e o atalho de cadastro em Desempenho são retirados por solicitação do responsável. O cadastro mestre anual e os serviços compartilhados permanecem: ano global e catálogo de turmas do Painel do Aluno continuam usando o transporte V2. URLs antigas voltam à Importação. [Impacto, consumidores preservados e validação](CENTERS_UI_RETIREMENT_20261009.md). A entrega fica em PR para revisão; integração e publicação exigem autorização do responsável.
+
 ## Importação — manutenção #1225 (02/10/2026)
 
 A entrega F1–F6 preserva V9/V10/V11 e a autoridade acadêmica vigente; corrige rollback, mede chamadas físicas, agrupa catálogo/estado/instrumentos e limita buffer/fila. [Fluxo, evidências, limites e prestação de contas](IMPORT_PERFORMANCE_V11.md). Integração/publicação e uso real são registrados separadamente na #1225. F7 foi retirada deste release: escopo individual do Portal depende de contrato e aprovação próprios. Nenhuma migration ou reset de dados produtivos faz parte desta entrega.

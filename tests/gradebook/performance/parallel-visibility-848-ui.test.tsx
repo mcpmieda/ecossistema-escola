@@ -21,7 +21,7 @@ function drawer(options: ParallelOptions848) {
   const fixture = parallelFixture848(options);
   const view = (detail: typeof fixture.detail) => <Drawer.Backdrop isOpen onOpenChange={vi.fn()}>
     <Drawer.Content placement="right"><Drawer.Dialog>
-      <PerformanceStudentDetailV2 detail={detail} focusPeriod={2} openComponent={vi.fn()} openCenter={vi.fn()} />
+      <PerformanceStudentDetailV2 detail={detail} focusPeriod={2} openComponent={vi.fn()} />
     </Drawer.Dialog></Drawer.Content>
   </Drawer.Backdrop>;
   return { ...render(view(fixture.detail)), fixture, view };

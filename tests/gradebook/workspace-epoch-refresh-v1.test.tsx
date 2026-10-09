@@ -14,8 +14,6 @@ vi.mock('../../src/platform/gradebook-year-context', () => ({
   useGradebookYear: () => ({
     year: probe.year,
     epoch: probe.epoch,
-    targetStudentId: null,
-    studentNavigationEpoch: 0,
   }),
 }));
 vi.mock('../../src/platform/gradebook-year-provider', () => ({
@@ -35,14 +33,14 @@ vi.mock('../../src/features/gradebook/import/import-panel', async () => {
     },
   };
 });
-vi.mock('../../src/platform/gradebook-operational-surface', async () => {
+vi.mock('../../src/features/gradebook/audit-workspace/gradebook-audit-surface', async () => {
   const { useEffect } = await import('react');
   return {
-    GradebookOperationalSurface() {
+    GradebookAuditSurface() {
       useEffect(() => {
-        probe.reads.push({ area: 'operational', year: probe.year });
+        probe.reads.push({ area: 'audit', year: probe.year });
       }, []);
-      return <div data-testid="synthetic-operational">Centrais sintéticas</div>;
+      return <div data-testid="synthetic-audit">Auditoria sintética</div>;
     },
   };
 });
@@ -69,8 +67,8 @@ it('loads only the active academic area in a new year and preserves an already m
     'Importação sintética em andamento',
   ) as HTMLInputElement;
   fireEvent.change(importInput, { target: { value: 'lote parcialmente processado' } });
-  fireEvent.click(screen.getByRole('tab', { name: 'Centrais' }));
-  await waitFor(() => expect(probe.reads).toEqual([{ area: 'operational', year: 2026 }]));
+  fireEvent.click(screen.getByRole('tab', { name: 'Auditoria' }));
+  await waitFor(() => expect(probe.reads).toEqual([{ area: 'audit', year: 2026 }]));
   fireEvent.click(screen.getByRole('tab', { name: 'Desempenho' }));
   await waitFor(() => expect(probe.reads).toHaveLength(2));
 
@@ -81,20 +79,20 @@ it('loads only the active academic area in a new year and preserves an already m
   });
   await waitFor(() =>
     expect(probe.reads).toEqual([
-      { area: 'operational', year: 2026 },
+      { area: 'audit', year: 2026 },
       { area: 'performance', year: 2026 },
       { area: 'performance', year: 2027 },
     ]),
   );
-  expect(screen.queryByTestId('synthetic-operational')).toBeNull();
+  expect(screen.queryByTestId('synthetic-audit')).toBeNull();
   expect(screen.getByLabelText('Importação sintética em andamento')).toBe(importInput);
   expect(importInput.value).toBe('lote parcialmente processado');
   expect(probe.importMounts).toBe(1);
   expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
 
-  fireEvent.click(screen.getByRole('tab', { name: 'Centrais' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Auditoria' }));
   await waitFor(() => expect(probe.reads).toHaveLength(4));
-  expect(probe.reads.at(-1)).toEqual({ area: 'operational', year: 2027 });
+  expect(probe.reads.at(-1)).toEqual({ area: 'audit', year: 2027 });
   expect(probe.importMounts).toBe(1);
   expect(importInput.value).toBe('lote parcialmente processado');
 });

@@ -234,36 +234,6 @@ beforeEach(() => {
           ],
         })),
       });
-    if (body.operation === 'context')
-      return reply({
-        contractVersion: 2,
-        state: 'ready',
-        operation: 'context',
-        context,
-        counts: {
-          students: 1,
-          classes: 1,
-          teachers: 1,
-          subjects: 1,
-          offers: 1,
-          currentBindings: 1,
-          historicalBindings: 0,
-        },
-      });
-    if (body.operation === 'center')
-      return reply({
-        contractVersion: 2,
-        state: 'ready',
-        operation: 'center',
-        context,
-        center: {
-          entity: { kind: 'student', id: 1, label: student.name },
-          classInfo: null,
-          bindings: [],
-          offers: [],
-          nextOffset: null,
-        },
-      });
     throw new Error('unexpected-synthetic-request');
   });
   vi.stubGlobal('fetch', mock);
@@ -314,6 +284,12 @@ async function click(text: string) {
     button.click();
   });
   await settle();
+}
+async function closeDetail() {
+  const button = document.querySelector<HTMLButtonElement>('[aria-label="Fechar detalhe"]');
+  expect(button).not.toBeNull();
+  await act(async () => button!.click());
+  await waitFor(() => document.querySelector('[data-slot="drawer-body"]') === null);
 }
 function selectRoot(label: string) {
   return (
@@ -492,31 +468,20 @@ describe('real shell, shared year and rendered performance journey', () => {
     await settle();
     expect(selectRoot('Comparar com')?.hasAttribute('data-open')).toBe(false);
   });
-  it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
+  it('loads shared year, class and matrix, then closes the student drawer without leaving Performance', async () => {
     await loaded();
     expect(host.textContent).toContain('Desempenho');
     expect(host.textContent).toContain(student.name);
     expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(0);
     await click(student.name);
     expect(document.body.textContent).not.toContain('Conselho anterior');
+    expect(document.body.textContent).not.toContain('Ver cadastro nas Centrais');
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
     expect(requests.filter((value) => value.operation === 'student-detail')).toHaveLength(1);
-    await click('Ver cadastro nas Centrais');
-    for (
-      let attempt = 0;
-      attempt < 100 && !requests.some((value) => value.operation === 'center');
-      attempt++
-    )
-      await settle();
-    await settle();
-    expect(window.location.hash).toContain('area=operational');
-    expect(host.querySelector('select[aria-label="Ano letivo"]')).toBeNull();
-    expect(host.textContent).toContain('Consulta somente leitura');
-    expect(
-      requests.some(
-        (value) => value.operation === 'center' && value.id === 1 && value.year === 2026,
-      ),
-    ).toBe(true);
+    await closeDetail();
+    expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
+    expect(host.textContent).toContain(student.name);
+    expect(requests.some((value) => value.operation === 'center')).toBe(false);
   });
   it.each([2, 3] as const)(
     'opens a component detail at trimester %i selected in the matrix',
@@ -566,46 +531,34 @@ describe('real shell, shared year and rendered performance journey', () => {
     await waitFor(() => tags[1]!.getAttribute('data-selected') !== 'true');
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
   });
-  it('reopens the same student after using Centers without discarding the performance matrix', async () => {
+  it('reopens the same student after closing without discarding the performance matrix', async () => {
     await loaded();
     await click(student.name);
-    await click('Ver cadastro nas Centrais');
-    for (
-      let attempt = 0;
-      attempt < 100 && !requests.some((value) => value.operation === 'center');
-      attempt++
-    )
-      await settle();
-    await settle();
-    mock.mockResolvedValueOnce(
-      reply({
-        contractVersion: 2,
-        state: 'ready',
-        operation: 'search',
-        context,
-        items: [],
-        nextOffset: null,
-      }),
-    );
-    await click('Pesquisar');
-    await click('Desempenho');
-    // A discarded matrix would be re-read at once on return; the live clock's tab-return
-    // revalidation is legitimate but waits at least 250 ms, so count before it can fire.
-    const dashboardsOnReturn = requests.filter((value) => value.operation === 'dashboard').length;
+    await closeDetail();
     await click(student.name);
-    await click('Ver cadastro nas Centrais');
-    for (
-      let attempt = 0;
-      attempt < 100 && requests.filter((value) => value.operation === 'center').length < 2;
-      attempt++
-    )
-      await settle();
-    expect(requests.filter((value) => value.operation === 'center' && value.id === 1)).toHaveLength(
-      2,
-    );
-    expect(dashboardsOnReturn).toBe(1);
-    expect(host.textContent).not.toContain('Conselho no ano anterior');
-  }, 10_000);
+    await waitFor(() => requests.filter((value) => value.operation === 'student-detail').length === 2);
+    expect(document.querySelector('[data-slot="drawer-heading"]')?.textContent).toBe(student.name);
+    await closeDetail();
+    expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
+    expect(requests.some((value) => value.operation === 'center')).toBe(false);
+  });
+  it('cancels a pending student detail on close and ignores its late response', async () => {
+    await loaded();
+    const original = mock.getMockImplementation()!;
+    let resolve!: (response: Response) => void;
+    const pending = new Promise<Response>((accept) => { resolve = accept; });
+    mock.mockImplementationOnce(() => pending);
+    await click(student.name);
+    const pendingCall = mock.mock.calls.at(-1)!;
+    const pendingSignal = pendingCall[1]?.signal;
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('Carregando detalhe');
+    await closeDetail();
+    expect(pendingSignal?.aborted).toBe(true);
+    await act(async () => { resolve(await original(...pendingCall)); });
+    await settle();
+    expect(document.querySelector('[data-slot="drawer-body"]')).toBeNull();
+    expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
+  });
   it('drops a late old-period response rather than replacing the current trimester', async () => {
     await loaded();
     let resolve!: (response: Response) => void;
@@ -1116,11 +1069,9 @@ it('keeps the granular drawer, focus and scroll stable during automatic revalida
   await waitFor(() => scrollIntoView.mock.calls.length === 1);
   const body = document.querySelector<HTMLElement>('[data-slot="drawer-body"]')!;
   const heading = document.querySelector('[data-slot="drawer-heading"]');
-  const openCenter = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-    (b) => b.textContent === 'Ver cadastro nas Centrais',
-  )!;
+  const closeButton = document.querySelector<HTMLButtonElement>('[aria-label="Fechar detalhe"]')!;
   body.scrollTop = 137;
-  await act(async () => openCenter.focus());
+  await act(async () => closeButton.focus());
   const baseline = requests.filter((r) => r.operation === 'cell-detail').length;
   await act(async () => notifyLiveChangeV1('gradebook'));
   await waitFor(() => requests.filter((r) => r.operation === 'cell-detail').length > baseline);
@@ -1129,7 +1080,7 @@ it('keeps the granular drawer, focus and scroll stable during automatic revalida
   expect(document.querySelector('[data-slot="drawer-body"]')).toBe(body);
   expect(document.querySelector('[data-slot="drawer-heading"]')).toBe(heading);
   expect(body.scrollTop).toBe(137);
-  expect(document.activeElement).toBe(openCenter);
+  expect(document.activeElement).toBe(closeButton);
   expect(scrollIntoView).toHaveBeenCalledTimes(1);
 });
 

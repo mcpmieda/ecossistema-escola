@@ -540,10 +540,6 @@ export function RelationalPerformancePageV2({
                 detail={detail}
                 focusPeriod={focusTerm ?? state.filters.period}
                 openComponent={open}
-                openCenter={(id) => {
-                  close();
-                  state.openStudent?.(id);
-                }}
               />
             ) : (
               <>

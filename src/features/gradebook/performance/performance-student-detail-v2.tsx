@@ -15,13 +15,11 @@ export function PerformanceStudentDetailV2({
   detail,
   focusPeriod,
   openComponent,
-  openCenter,
 }: {
   readonly detail: Detail;
   readonly focusPeriod: PerformancePeriodV2;
   /** `term` asks the breakdown to open on that trimester instead of the period in view. */
   readonly openComponent: (studentId: number, offerId: number, term?: 1 | 2 | 3) => void;
-  readonly openCenter: (studentId: number) => void;
 }) {
   const drawerBody = useRef<HTMLDivElement | null>(null);
   const focusedTerm = useRef<HTMLElement | null>(null);
@@ -258,9 +256,6 @@ export function PerformanceStudentDetailV2({
             ) : null}
           </>
         )}
-        <Button variant="secondary" className="self-start" onPress={() => openCenter(student.id)}>
-          Ver cadastro nas Centrais
-        </Button>
         <div ref={focusSpacer} aria-hidden="true" className="shrink-0" />
       </Drawer.Body>
     </>

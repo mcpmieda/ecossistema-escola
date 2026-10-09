@@ -41,14 +41,12 @@ describe('F9 — shell, isolamento e code splitting', () => {
     const notesPage = source('src/platform/notes-page.tsx');
     const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
-    const operationalSurface = source('src/platform/gradebook-operational-surface.tsx');
 
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     expect(workspacePage).toContain('<GradebookWorkspaceShell />');
     expect(notesPage).not.toContain('gradebook-workspace-shell');
     expect(notesPage).not.toContain('../features/gradebook/import/import-batch');
     for (const featurePath of [
-      'gradebook-operational-surface',
       'audit-workspace/gradebook-audit-surface',
       'performance/relational-performance-page-v2',
       'bulletins/bulletin-page',
@@ -56,10 +54,7 @@ describe('F9 — shell, isolamento e code splitting', () => {
     ]) {
       expect(shell).toContain(`import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`);
     }
-    expect(operationalSurface).toContain('<OperationalWorkspacePage />');
-    // Contract #639 replaces the mounted read-only center, not the lazy shell boundary.
-    expect(operationalSurface).toContain('relational-workspace-page-v2');
-    expect(operationalSurface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
+    expect(shell).not.toContain('gradebook-operational-surface');
 
     expect(app).not.toMatch(/features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u);
     expect(shell).toContain("const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao'");
@@ -114,13 +109,13 @@ describe('F9 — shell, isolamento e code splitting', () => {
 });
 
 describe('F9 — privacidade, auth e transporte', () => {
-  it('proíbe storage acadêmico persistente e service worker/cache nas cinco superfícies', () => {
+  it('proíbe storage acadêmico persistente e service worker/cache nos consumidores acadêmicos', () => {
     expect(academicFrontend).not.toMatch(
       /localStorage|sessionStorage|indexedDB|IDBDatabase|CacheStorage|caches\.open|navigator\.serviceWorker|serviceWorker\.register/u,
     );
   });
 
-  it('mantém fetch acadêmico no-store em todo cliente das cinco superfícies', () => {
+  it('mantém fetch acadêmico no-store em todo cliente dos consumidores acadêmicos', () => {
     const clients = academicFrontendFiles.filter((path) => {
       const content = source(path);
       return content.includes('/api/gradebook/') && content.includes('fetch(');

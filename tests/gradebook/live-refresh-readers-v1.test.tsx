@@ -10,8 +10,6 @@ import { requestPerformanceDashboardV5 } from '../../src/features/gradebook/perf
 import { usePerformanceAnalyticsV6 } from '../../src/features/gradebook/performance/use-performance-analytics-v6';
 import { requestPerformanceAnalyticsV6 } from '../../src/features/gradebook/performance/performance-analytics-client-v6';
 import { performanceAnalyticsFixtureV6 } from './performance/performance-analytics-fixture-v6';
-import { useRelationalWorkspaceV2 } from '../../src/features/gradebook/operational-workspace/use-relational-workspace-v2';
-import { requestOperationalWorkspaceV2 } from '../../src/features/gradebook/operational-workspace/operational-workspace-client-v2';
 import { LiveRefreshScopeV1 } from '../../src/shared/live-data/live-refresh-scope-v1';
 import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 import { mockSecureJitterV1 } from '../live-data/secure-jitter-fixture';
@@ -23,7 +21,6 @@ vi.mock('../../src/features/gradebook/council/relational-council-client-v3');
 vi.mock('../../src/features/gradebook/performance/relational-performance-client-v2');
 vi.mock('../../src/features/gradebook/performance/performance-dashboard-client-v5');
 vi.mock('../../src/features/gradebook/performance/performance-analytics-client-v6');
-vi.mock('../../src/features/gradebook/operational-workspace/operational-workspace-client-v2');
 
 const context = { year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 };
 const councilCatalog = {
@@ -135,27 +132,6 @@ it('reports failed performance reads to the clock instead of retrying every inva
   expect(dashboard).toHaveBeenCalledTimes(2);
   await advance(120_000);
   expect(dashboard).toHaveBeenCalledTimes(2);
-});
-
-it('stops workspace search revalidation when its context read fails', async () => {
-  const send = vi.mocked(requestOperationalWorkspaceV2);
-  send.mockResolvedValue({
-    contractVersion: 2, state: 'ready', operation: 'context',
-    context,
-    counts: { students: 0, classes: 0, teachers: 0, subjects: 0, offers: 0, currentBindings: 0, historicalBindings: 0 },
-  });
-  const hook = renderHook(() => useRelationalWorkspaceV2(), { wrapper });
-  await act(async () => {});
-  send.mockResolvedValue({ contractVersion: 2, state: 'ready', operation: 'search', context, items: [], nextOffset: null });
-  await act(async () => { await hook.result.current.search(); });
-  expect(hook.result.current.searched).toBe(true);
-  send.mockClear();
-  send.mockResolvedValue({ contractVersion: 2, state: 'unavailable' });
-  await invalidate();
-  expect(send).toHaveBeenCalledTimes(1);
-  expect(send.mock.calls[0]?.[0].operation).toBe('context');
-  await invalidate();
-  expect(send).toHaveBeenCalledTimes(1);
 });
 
 it('retains analytics cooldown across fast perspective switches and reads only a newly selected context', async () => {
