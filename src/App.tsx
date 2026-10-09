@@ -3,14 +3,13 @@ import {
   Alert, Avatar, Button, Chip, Description, Dropdown,
   Label, Separator, Spinner, Surface,
 } from '@heroui/react';
-import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, ShieldCheck } from 'lucide-react';
+import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
-import { ServiceSidebarV2, TopNavigationV2, serviceSectionFromHashV2, serviceSectionsV2 } from './platform/navigation';
+import { ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
-import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
@@ -31,7 +30,9 @@ function usePlatformRoute(): PlatformRoute {
   useEffect(() => {
     const onHashChange = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHashChange);
-    if (!window.location.hash) window.history.replaceState(null, '', '#/visao-geral');
+    if (!window.location.hash) window.history.replaceState(null, '', '#/banco-de-notas');
+    // Addresses saved before Auditoria moved into Saúde do Sistema.
+    if (/^#\/?auditoria\b/u.test(window.location.hash)) window.location.replace('#/operacao?area=audit');
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   return route;
@@ -131,30 +132,64 @@ function AdminShell({ identity }: { identity: Identity }) {
   const route = usePlatformRoute();
   const { loadState, reload } = usePlatformDataV2();
   const logoutFormRef = useRef<HTMLFormElement>(null);
-  const firstName = useMemo(() => identity.name?.trim().split(/\s+/u)[0] || 'Administrador', [identity.name]);
   const snapshot = useMemo(() => loadState.status === 'ready' ? {
     ...loadState.snapshot,
     coreModules: withStudentPortalModule(loadState.snapshot.coreModules, identity.capabilities ?? []),
   } : null, [loadState, identity.capabilities]);
   const modules = snapshot?.coreModules ?? [];
-  const native = !platformRouteNeedsMicrosoftV2(route);
+  const hash = useLocationHash();
+  // On phones the side column is a drawer; it closes when the address changes.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [hash]);
+  const drawerRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const drawer = drawerRef.current;
+    const main = mainRef.current;
+    // Everything but the drawer is inert while it is open: the page and the whole top bar.
+    const bar = document.querySelector<HTMLElement>('.shell-topbar');
+    main?.setAttribute('inert', '');
+    bar?.setAttribute('inert', '');
+    (drawer?.querySelector<HTMLElement>(".shell-side__area[data-open='true']") ??
+      drawer?.querySelector<HTMLElement>('.shell-side__area'))?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key !== 'Tab' || !drawer) return;
+      // Tab and Shift+Tab stay inside the drawer.
+      const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
+        // Only what can really take focus: nothing hidden by the styles (the column's search and
+        // profile are not shown in the phone drawer) and nothing inside an inert branch.
+        .filter((item) => item.tabIndex >= 0 && !item.closest('.shell-side__search, .shell-side__profile, [inert]') &&
+          (typeof item.checkVisibility !== 'function' || item.checkVisibility()));
+      const first = stops[0], last = stops.at(-1);
+      if (!first || !last) return;
+      const active = document.activeElement;
+      if (!drawer.contains(active)) { event.preventDefault(); first.focus(); }
+      else if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+    };
+    // The drawer only exists on phones; a window that grows past them closes it.
+    const wide = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 901px)') : null;
+    const onWide = () => { if (wide?.matches) setMenuOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    wide?.addEventListener('change', onWide);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      wide?.removeEventListener('change', onWide);
+      main?.removeAttribute('inert');
+      bar?.removeAttribute('inert');
+      menuButtonRef.current?.focus();
+    };
+  }, [menuOpen]);
+  const section = serviceSectionFromHashV2(route, hash);
+  const native = !platformRouteNeedsMicrosoftV2(route, section);
   const showPage = loadState.status === 'ready' && (native || (
     (loadState.auxiliary === 'ready' || loadState.auxiliary === 'partial')
-    && !platformRouteUnavailableV2(route, loadState.snapshot)
+    && !platformRouteUnavailableV2(route, loadState.snapshot, section)
   ));
-  const hash = useLocationHash();
-  const sections = serviceSectionsV2(route);
-  return (
-    <div className="platform-shell platform-shell--v2 min-h-svh">
-      <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
-        <a href="#/visao-geral" className="shell-brand text-foreground no-underline" aria-label="Ir para a visão geral do Centro de Administração">
-          <BrandMark compact />
-          <span className="shell-brand__name">Centro de Administração</span>
-        </a>
-        <TopNavigationV2 route={route} modules={modules} loading={loadState.status === 'loading'} />
-        <div className="shell-tools">
-            <PlatformSearch snapshot={snapshot} />
-            <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
+  const profileMenu = (
             <Dropdown>
               <Button variant="ghost" size="md" className="profile-menu-trigger shrink-0 gap-2 px-2.5" aria-label="Abrir menu do perfil">
                 <Avatar size="sm" color="accent" variant="soft"><Avatar.Fallback className="text-xs font-medium">{initials(identity.name)}</Avatar.Fallback></Avatar>
@@ -172,13 +207,46 @@ function AdminShell({ identity }: { identity: Identity }) {
                 <Dropdown.Item id="logout" textValue="Sair" variant="danger"><div className="profile-menu-item-content"><LogOut className="size-4 shrink-0" /><div className="profile-menu-copy"><Label>Sair</Label><Description>Encerrar a sessão institucional</Description></div></div></Dropdown.Item>
               </Dropdown.Menu></Dropdown.Popover>
             </Dropdown>
+  );
+  return (
+    <div className="platform-shell platform-shell--v2 min-h-svh">
+      <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
+        <Button ref={menuButtonRef} variant="ghost" size="md" isIconOnly className="shell-menu-button" aria-controls="shell-drawer" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onPress={() => setMenuOpen((open) => !open)}>
+          {menuOpen ? <X /> : <Menu />}
+        </Button>
+        <a href="#/banco-de-notas" className="shell-brand text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
+          <BrandMark compact />
+          <span className="shell-brand__name">
+            <span>Centro de Administração</span>
+            <small>Escola Mun. Prof.ª Iêda Alves de Oliveira · MCPM</small>
+          </span>
+        </a>
+        <div className="shell-tools">
+            <PlatformSearch snapshot={snapshot} />
+            <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
+            {profileMenu}
         </div>
       </Surface>
-      <div className={sections.length ? 'shell-body shell-body--service' : 'shell-body'}>
-        {sections.length > 0 && <aside className="shell-aside">
-          <ServiceSidebarV2 route={route} section={serviceSectionFromHashV2(route, hash)} serviceName={routeLabels[route]} />
-        </aside>}
-        <main className={sections.length ? 'shell-main shell-main--service' : 'shell-main'}>
+      <div className="shell-body shell-body--service">
+        {menuOpen && <button type="button" className="shell-drawer-backdrop" tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />}
+        <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
+          <Button variant="ghost" size="sm" isIconOnly className="shell-drawer-close" aria-label="Fechar menu" onPress={() => setMenuOpen(false)}><X /></Button>
+          <ShellSidebarV3
+            route={route}
+            section={section}
+            modules={modules}
+            loading={loadState.status === 'loading'}
+            brand={
+              <a href="#/banco-de-notas" className="shell-side__brand-link text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
+                <BrandMark compact />
+                <span>Centro de Administração</span>
+              </a>
+            }
+            search={<PlatformSearch snapshot={snapshot} />}
+            profile={profileMenu}
+          />
+        </aside>
+        <main ref={mainRef} className="shell-main shell-main--service">
           <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">
@@ -194,8 +262,7 @@ function AdminShell({ identity }: { identity: Identity }) {
             </Alert.Content>
           </Alert>}
           {showPage && loadState.status === 'ready' && <div key={route} className="route-stage">
-            {route === 'visao-geral' && <Chip color="accent" variant="soft" className="mb-5"><ShieldCheck className="size-4" />Olá, {firstName}. O Centro de Administração está disponível.</Chip>}
-            <PageContent route={route} snapshot={snapshot ?? loadState.snapshot} />
+            <PageContent route={route} section={section} snapshot={snapshot ?? loadState.snapshot} />
             <Separator className="mt-8" />
             <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><span className="sm:text-right">Atualizado em {formatDate(loadState.snapshot.generatedAt)}</span></footer>
           </div>}

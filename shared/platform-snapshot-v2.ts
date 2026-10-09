@@ -59,12 +59,15 @@ export type PlatformSnapshotV2 = PlatformSnapshotContract & {
 
 const dependencies: Record<PlatformRoute, readonly PlatformSourceSectionV2[]> = {
   'banco-de-notas': [], 'painel-do-aluno': [],
-  'visao-geral': ['lists', 'modules', 'configurations'],
   operacao: [],
-  auditoria: ['lists', 'audit'],
   configuracoes: ['lists', 'configurations', 'migrations'],
 };
-export const platformRouteNeedsMicrosoftV2 = (route: PlatformRoute): boolean => dependencies[route].length > 0;
-export function platformRouteUnavailableV2(route: PlatformRoute, snapshot: PlatformSnapshotV2): boolean {
-  return dependencies[route].some((section) => snapshot.unavailableSections?.includes(section));
+/** Auditoria is a section of Saúde do Sistema; only that section reads the audit lists. */
+const AUDIT_DEPENDENCIES_V2: readonly PlatformSourceSectionV2[] = ['lists', 'audit'];
+const dependenciesOf = (route: PlatformRoute, section?: string) =>
+  route === 'operacao' && section === 'audit' ? AUDIT_DEPENDENCIES_V2 : dependencies[route];
+export const platformRouteNeedsMicrosoftV2 = (route: PlatformRoute, section?: string): boolean =>
+  dependenciesOf(route, section).length > 0;
+export function platformRouteUnavailableV2(route: PlatformRoute, snapshot: PlatformSnapshotV2, section?: string): boolean {
+  return dependenciesOf(route, section).some((item) => snapshot.unavailableSections?.includes(item));
 }

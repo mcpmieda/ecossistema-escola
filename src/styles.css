@@ -1435,7 +1435,23 @@ button.performance-kpi__button:hover {
 @media (max-width: 767px) {
   .table__scroll-container {
     padding-bottom: 0.35rem;
+  }
+  /* The "more to the side" shadow only when the table really slides, and until its end: a
+     table that fits has no scroll timeline, so it gets no shadow behind its rounded corner. */
+  @supports (animation-timeline: scroll(x self)) {
+    .table__scroll-container {
+      animation: table-more-to-the-side linear both;
+      animation-timeline: scroll(x self);
+    }
+  }
+}
+@keyframes table-more-to-the-side {
+  0%,
+  92% {
     box-shadow: inset -14px 0 14px -16px color-mix(in oklab, var(--foreground) 38%, transparent);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
   }
 }
 
@@ -1518,9 +1534,6 @@ button.performance-kpi__button:hover {
   .platform-search-results__item {
     transition: none !important;
   }
-}
-
-@media (forced-colors: active) {
 }
 
 /* #817: compact desktop data, preserving the native HeroUI table anatomy. */
@@ -1657,55 +1670,10 @@ button.performance-kpi__button:hover {
   gap: 0.5rem;
   min-width: 0;
 }
-.shell-topnav {
-  grid-area: nav;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.shell-topnav ul {
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-  width: max-content;
-}
-.shell-topnav__item {
-  display: block;
-  border-radius: 999px;
-  padding: 0.3rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    color 90ms ease,
-    background-color 90ms ease;
-}
-.shell-topnav__item:hover {
-  color: var(--foreground);
-  background: var(--surface-secondary);
-}
-.shell-topnav__item[data-selected='true'] {
-  color: var(--foreground);
-  background: var(--surface-secondary);
-  font-weight: 650;
-}
-.shell-topnav__item:focus-visible,
-.shell-sidenav__item:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
-  outline-offset: 2px;
-}
 /* One row at every width. Below 1500px the areas need the room, so the brand keeps only its
    mark, the profile only its avatar, and the search rests as an icon that opens on focus. */
 .shell-topbar {
   position: sticky;
-}
-.shell-topnav ul {
-  margin-inline: auto;
-}
-.shell-topnav__item[data-selected='true'] {
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 .shell-tools .platform-search-desktop {
   width: 15rem;
@@ -1772,13 +1740,6 @@ button.performance-kpi__button:hover {
   .shell-tools .platform-search-desktop:not(:focus-within) .search-field__input {
     opacity: 0;
   }
-  .shell-topnav__item {
-    padding-inline: 0.5rem;
-    font-size: 0.8rem;
-  }
-  .shell-topnav ul {
-    gap: 0;
-  }
 }
 .shell-body--service {
   display: grid;
@@ -1804,53 +1765,6 @@ button.performance-kpi__button:hover {
   margin-inline: 0;
   padding: 0.75rem 0.9rem 1rem 0.3rem;
 }
-.shell-sidenav__service {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
-  padding: 0.25rem 0.5rem 0.7rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  font-size: 0.9rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-.shell-sidenav__service-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: 0.65rem;
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.shell-sidenav ul {
-  display: grid;
-  gap: 0.15rem;
-}
-.shell-sidenav__item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  border-radius: 0.8rem;
-  padding: 0.5rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition:
-    color 90ms ease,
-    background-color 90ms ease;
-}
-.shell-sidenav__item:hover {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-}
-.shell-sidenav__item[data-selected='true'] {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 8%, transparent);
-  font-weight: 650;
-}
 /* The side menu replaces the area tabs; the year selector and its warning stay. */
 .platform-shell--v2 .pa-area-tabs,
 .platform-shell--v2 .gradebook-area-tabs {
@@ -1872,17 +1786,6 @@ button.performance-kpi__button:hover {
     position: static;
     height: auto;
     padding: 0.5rem 0.75rem 0;
-  }
-  .shell-sidenav__service {
-    display: none;
-  }
-  .shell-sidenav ul {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .shell-sidenav__item {
-    white-space: nowrap;
   }
   .shell-main--service {
     padding: 0.6rem 0.75rem 1rem;
@@ -2573,4 +2476,536 @@ button.performance-kpi__button:hover {
   padding-top: 0.35rem;
   border-top: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
   font-weight: 650;
+}
+
+/* Phones (08/10/2026): the service menu shows when there is more to the side. */
+@media (max-width: 640px) {
+  /* Mode and comparison side by side, each with its label above. */
+  .performance-notes-bar__selects {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    margin-left: 0;
+  }
+  .performance-notes-bar__selects .select {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+  }
+  .performance-notes-bar__selects .select__trigger {
+    width: 100%;
+    min-width: 0;
+  }
+  /* Matrix filters: label above, tags in one row that slides; no search field. */
+  .performance-matrix-filters {
+    gap: 0.6rem;
+  }
+  .performance-matrix-filters .filter-tags-v1--inline {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+  .performance-matrix-filters .filter-tags-v1--inline .tag-group__list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: none;
+  }
+  .performance-matrix-filters .filter-tags-v1--inline .tag {
+    flex: none;
+  }
+  .performance-matrix-filters .search-field {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  /* The year sits in the top corner of the header; the period takes its own row below. */
+  .performance-head > [aria-label='Contexto acadêmico atual'] {
+    order: 1;
+  }
+  .performance-head > .performance-period-tabs {
+    order: 2;
+    flex-basis: 100%;
+  }
+  .performance-notes-bar__selects .select__value {
+    overflow: hidden;
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 640px) {
+  /* Room between the grades table and the drawer's scrollbar, so the corner is not cut. */
+  .drawer__body:has(.performance-detail-table) {
+    padding-inline: 0.25rem 0.75rem;
+    scrollbar-width: thin;
+  }
+}
+/* The grades table of the drawer never scrolls on its own: no stray scrollbar over its corner. */
+.performance-detail-table .table__scroll-container {
+  overflow-y: hidden;
+}
+
+/* Masthead (study of 08/10/2026, after the IBM Carbon UI shell): a dark, full-width band in the
+   school's navy that names the product, with plain links and an accent line on the open area. */
+.platform-shell--v2 .shell-topbar {
+  --masthead-ink: #f3f6fc;
+  --masthead-muted: rgb(226 233 247 / 0.68);
+  --masthead-line: rgb(255 255 255 / 0.1);
+  --masthead-accent: #6ea8ff;
+  min-height: 3.5rem;
+  gap: 0 1.5rem;
+  padding: 0 1.25rem;
+  border: 0;
+  border-bottom: 1px solid #060f24;
+  background: linear-gradient(180deg, #11295c 0%, #0b1d45 100%);
+  box-shadow: 0 10px 28px -22px rgb(6 15 36 / 0.9);
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-topbar::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #c8102e 0 34%, #f3f6fc 34% 38%, #2f6fe4 38% 100%);
+  content: '';
+}
+.platform-shell--v2 .shell-brand {
+  gap: 0.75rem;
+  padding-right: 1.5rem;
+  border-right: 1px solid var(--masthead-line);
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-brand__name {
+  display: grid;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.platform-shell--v2 .shell-brand__name > small {
+  color: var(--masthead-muted);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.platform-shell--v2 .shell-tools .search-field__group {
+  border: 1px solid var(--masthead-line);
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: none;
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-tools .search-field__input {
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-tools .search-field__input::placeholder {
+  color: var(--masthead-muted);
+}
+.platform-shell--v2 .shell-tools .search-field__group svg,
+.platform-shell--v2 .shell-tools .platform-search-shortcut {
+  color: var(--masthead-muted);
+}
+.platform-shell--v2 .shell-tools .platform-search-shortcut {
+  border-color: var(--masthead-line);
+  background: rgb(255 255 255 / 0.06);
+}
+.platform-shell--v2 .shell-tools > .contents > .button--outline {
+  border-color: var(--masthead-line);
+  background: rgb(255 255 255 / 0.06);
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-tools .profile-menu-trigger {
+  min-height: 2.5rem;
+  color: var(--masthead-ink);
+}
+.platform-shell--v2 .shell-tools .profile-menu-trigger:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.platform-shell--v2 .shell-tools .profile-menu-trigger .text-muted,
+.platform-shell--v2 .shell-tools .profile-menu-trigger svg {
+  color: var(--masthead-muted);
+}
+/* Panels that open from the masthead stay on the light surface. */
+.platform-shell--v2 .shell-topbar .platform-search-mobile-panel,
+.platform-shell--v2 .shell-topbar .platform-search-popover {
+  color: var(--foreground);
+}
+.platform-shell--v2 .shell-topbar .platform-search-mobile-panel .search-field__group {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+}
+.platform-shell--v2 .shell-topbar .platform-search-mobile-panel .search-field__input {
+  color: var(--foreground);
+}
+@media (min-width: 1100px) {
+  .platform-shell--v2 .shell-brand__name {
+    display: grid;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger > span:not(.avatar) {
+    display: block;
+  }
+}
+@media (max-width: 1099px) {
+  .platform-shell--v2 .shell-brand {
+    padding-right: 0;
+    border-right: 0;
+  }
+  .platform-shell--v2 .shell-brand__name {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .platform-shell--v2 .shell-topbar {
+    gap: 0 0.6rem;
+    padding-inline: 0.75rem;
+  }
+}
+.platform-shell--v2 .shell-tools .profile-menu-trigger .avatar,
+.platform-shell--v2 .shell-tools .profile-menu-trigger .avatar__fallback {
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+/* Masthead search: a real field when there is room, and a solid one whenever it opens over the menu. */
+.platform-shell--v2 .shell-tools .platform-search-desktop:focus-within .search-field__group {
+  border-color: var(--masthead-accent);
+  background: #17336f;
+}
+@media (min-width: 1360px) {
+  .platform-shell--v2 .shell-tools .platform-search-desktop {
+    width: 15rem;
+    height: auto;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-desktop > .search-field {
+    position: static;
+    width: 100%;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-desktop:focus-within > .search-field {
+    width: 100%;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-desktop .search-field__input,
+  .platform-shell--v2 .shell-tools .platform-search-desktop:not(:focus-within) .search-field__input {
+    opacity: 1;
+    cursor: text;
+  }
+}
+@media (min-width: 1360px) and (max-width: 1599px) {
+  .platform-shell--v2 .shell-tools .platform-search-desktop {
+    width: 11.5rem;
+  }
+  .platform-shell--v2 .shell-topbar {
+    gap: 0 1rem;
+  }
+}
+
+/* Side-only composition (study of 08/10/2026): on a computer the top menu is gone and one
+   rounded HeroUI-style column carries brand, search, areas with their sections, and profile. */
+.shell-side {
+  display: none;
+}
+@media (min-width: 901px) {
+  .platform-shell--v2 .shell-topbar {
+    display: none;
+  }
+  .platform-shell--v2 {
+    --shell-top: 0rem;
+  }
+  .platform-shell--v2 .shell-aside {
+    top: 0.75rem;
+    height: calc(100svh - 1.5rem);
+    margin: 0.75rem 0 0.75rem 0.75rem;
+    padding: 0.85rem 0.6rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+    border-radius: 1.25rem;
+    background: var(--surface);
+    box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 30%, transparent);
+  }
+  .platform-shell--v2 .shell-main--service {
+    padding: 0.75rem 1rem 1rem 0.9rem;
+  }
+  .shell-side {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .shell-side__brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.35rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .shell-side__search .platform-search-desktop {
+    display: block;
+    width: 100%;
+    max-width: none;
+  }
+  .shell-side__search .platform-search-shortcut {
+    display: none;
+  }
+  .shell-side__search .platform-search-popover {
+    width: 22rem;
+    max-width: calc(100vw - 2rem);
+  }
+  .shell-side__areas {
+    display: grid;
+    gap: 0.15rem;
+    overflow-y: auto;
+  }
+  .shell-side__area {
+    display: flex;
+    min-height: 2.35rem;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.75rem;
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 600;
+    transition:
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+  .shell-side__area:hover {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  }
+  .shell-side__area[data-open='true'] {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .shell-side__area:focus-visible,
+  .shell-side__section:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+    outline-offset: 1px;
+  }
+  .shell-side__sections {
+    display: grid;
+    gap: 1px;
+    margin: 0.3rem 0 0.5rem 1.1rem;
+    padding-left: 0.55rem;
+    border-left: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  }
+  .shell-side__section {
+    display: flex;
+    min-height: 1.95rem;
+    align-items: center;
+    padding: 0.25rem 0.55rem;
+    border-radius: 0.6rem;
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+  .shell-side__section:hover {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  }
+  .shell-side__section[data-selected='true'] {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    font-weight: 650;
+  }
+  .shell-side__profile {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  }
+  .shell-side__profile .profile-menu-trigger {
+    width: 100%;
+    min-height: 2.75rem;
+    justify-content: flex-start;
+  }
+  .shell-side__profile .profile-menu-trigger > span:not(.avatar) {
+    display: block;
+  }
+  .shell-side__profile .profile-menu-trigger > svg {
+    display: block;
+    margin-left: auto;
+  }
+}
+
+/* Phones, same study: a slim light bar with a menu button; the side column opens as a drawer. */
+.shell-menu-button,
+.shell-drawer-backdrop {
+  display: none;
+}
+@media (max-width: 900px) {
+  .platform-shell--v2 .shell-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'menu brand tools';
+    min-height: 3.25rem;
+    gap: 0 0.5rem;
+    padding: 0 0.6rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    background: var(--surface);
+    box-shadow: none;
+    color: var(--foreground);
+  }
+  .platform-shell--v2 .shell-topbar::before {
+    content: none;
+  }
+  .shell-menu-button {
+    display: inline-flex;
+    grid-area: menu;
+  }
+  .platform-shell--v2 .shell-brand {
+    color: var(--foreground);
+  }
+  .platform-shell--v2 .shell-brand__name {
+    display: grid;
+    font-size: 0.9rem;
+  }
+  .platform-shell--v2 .shell-brand__name > small {
+    display: none;
+  }
+  .platform-shell--v2 .shell-tools > .contents > .button--outline {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--foreground);
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger,
+  .platform-shell--v2 .shell-tools .profile-menu-trigger svg {
+    color: var(--foreground);
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar,
+  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar__fallback {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  /* The drawer. */
+  .platform-shell--v2 .shell-aside {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 45;
+    width: min(18rem, 86vw);
+    height: 100svh;
+    padding: 1rem 0.75rem;
+    overflow-y: auto;
+    border-right: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+    background: var(--surface);
+    box-shadow: 0 0 60px -20px color-mix(in oklab, var(--foreground) 55%, transparent);
+    transform: translateX(-105%);
+    transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    visibility: hidden;
+  }
+  .platform-shell--v2 .shell-aside[data-open='true'] {
+    transform: translateX(0);
+    visibility: visible;
+  }
+  .shell-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    display: block;
+    border: 0;
+    background: color-mix(in oklab, var(--foreground) 38%, transparent);
+  }
+  .shell-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .shell-side__search,
+  .shell-side__profile {
+    display: none;
+  }
+  .shell-side__brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.35rem 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .shell-side__areas {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .shell-side__area {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.8rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  .shell-side__area[data-open='true'] {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .shell-side__sections {
+    display: grid;
+    gap: 2px;
+    margin: 0.3rem 0 0.5rem 1.2rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  }
+  .shell-side__section {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.65rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .shell-side__section[data-selected='true'] {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    font-weight: 650;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .platform-shell--v2 .shell-aside {
+      transition: none;
+    }
+  }
+}
+
+/* 1. Search inside the side column: the results open to the right of the field's start and are
+   not cut by the column, whose own list is what scrolls. */
+@media (min-width: 901px) {
+  .platform-shell--v2 .shell-aside {
+    overflow: visible;
+  }
+  .shell-side__areas {
+    min-height: 0;
+  }
+  .shell-side__search .platform-search-popover {
+    right: auto;
+    left: 0;
+    width: 22rem;
+    min-width: 0;
+    max-width: calc(100vw - 2.5rem);
+  }
+}
+@media (min-width: 901px) {
+  /* The column is its own layer, above the page, so what opens from it is not painted over. */
+  .platform-shell--v2 .shell-aside {
+    z-index: 20;
+  }
+}
+/* The drawer's own close button, on phones only. */
+.shell-drawer-close {
+  display: none;
+}
+@media (max-width: 900px) {
+  .shell-drawer-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.6rem;
+    display: inline-flex;
+  }
+}
+@media (max-width: 900px) {
+  /* Room for the drawer's close button beside the brand. */
+  .shell-side__brand-link {
+    padding-right: 2.6rem;
+  }
 }

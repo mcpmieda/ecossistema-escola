@@ -35,13 +35,13 @@ const snapshot = {
       capabilities: ['platform.settings.read'],
     },
     {
-      id: 'platform.audit',
-      name: 'Auditoria',
-      description: 'Rastreabilidade das operações administrativas.',
-      route: 'auditoria',
+      id: 'platform.operations',
+      name: 'Saúde do Sistema',
+      description: 'Disponibilidade e trilha de auditoria.',
+      route: 'operacao',
       state: 'ready',
       requiredRole: 'ADMINISTRADOR',
-      capabilities: ['platform.audit.read'],
+      capabilities: ['platform.health.read'],
     },
   ],
   registeredModules: [],
@@ -91,7 +91,7 @@ describe('platform search model', () => {
 
     expect(items.map((item) => item.id)).toEqual([
       'core:platform.settings',
-      'core:platform.audit',
+      'core:platform.operations',
       'core:content.notes',
       'notes:importacao',
       'notes:operational',
@@ -101,6 +101,7 @@ describe('platform search model', () => {
       'notes:reports',
       'notes:council',
       'notes:settings',
+      'health:audit',
       'config:config-1',
     ]);
     expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
@@ -111,7 +112,7 @@ describe('platform search model', () => {
     const items = buildSearchItems(snapshot);
 
     expect(filterSearchItems(items, 'configuracoes')[0]?.href).toBe('#/configuracoes');
-    expect(filterSearchItems(items, 'auditoria')[0]?.href).toBe('#/auditoria');
+    expect(filterSearchItems(items, 'rastreabilidade')[0]?.href).toBe('#/operacao?area=audit');
     expect(filterSearchItems(items, 'importar planilha')[0]?.href).toBe('#/banco-de-notas');
     expect(filterSearchItems(items, 'conselho classe')[0]?.id).toBe('notes:council');
     expect(filterSearchItems(items, 'desempenho resultado')[0]?.id).toBe('notes:performance');

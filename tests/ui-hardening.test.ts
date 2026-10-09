@@ -38,7 +38,10 @@ describe('HeroUI final hardening contract', () => {
     expect(app).toContain('<Dropdown.Item id="logout"');
     expect(app).toContain('Não foi possível concluir sua entrada.');
     expect(app).toContain('Entrar novamente');
-    expect(app).toContain('<TopNavigationV2');
+    expect(app).toContain('<ShellSidebarV3');
+    // The old top menu and section row are gone, not hidden: nothing of them is mounted.
+    expect(app).not.toContain('TopNavigationV2');
+    expect(app).not.toContain('ServiceSidebarV2');
   });
 
   it('removes Ambient Constellation and all active ambient presentation hooks', () => {

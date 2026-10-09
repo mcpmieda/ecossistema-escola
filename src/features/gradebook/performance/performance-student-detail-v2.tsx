@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Button, Drawer, Table } from '@heroui/react';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import '../../student-portal-admin/shared/student-avatar-v1.css';
 import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import type {
   PerformancePeriodV2,
@@ -68,7 +69,8 @@ export function PerformanceStudentDetailV2({
           <LinkedStudentPhotoAvatarV1
             decorative
             size="lg"
-            className="size-16 shrink-0"
+            className="pa-student-avatar size-16 shrink-0"
+            fallbackTone={student.id % 6}
             subject={{
               source: 'gradebook',
               academicYear: detail.context.year,

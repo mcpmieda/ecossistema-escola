@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Chip, SearchField, Surface } from '@heroui/react';
 import { CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
 import type {
@@ -40,6 +40,18 @@ export function PerformanceResultMatrixV2({
 }) {
   const [investigation, setInvestigation] = useState<InvestigationV2>('all');
   const [query, setQuery] = useState('');
+  // The search field is hidden on phones (styles.css, up to 640px); a search typed on a wider
+  // screen is dropped when the field goes away, so no filter stays on without a way to clear it.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const narrow = window.matchMedia('(max-width: 640px)');
+    const drop = () => {
+      if (narrow.matches) setQuery('');
+    };
+    drop();
+    narrow.addEventListener('change', drop);
+    return () => narrow.removeEventListener('change', drop);
+  }, []);
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const rows = value.rows
     .filter((row) => statuses.includes(row.student.status))

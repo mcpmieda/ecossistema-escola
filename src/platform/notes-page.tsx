@@ -45,9 +45,9 @@ class GradebookRouteBoundary extends Component<{ readonly children: ReactNode },
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onPress={() => {
-              if (allowDraftNavigationV1()) window.location.assign('#/visao-geral');
+              if (allowDraftNavigationV1()) window.location.assign('#/operacao');
             }}>
-              Voltar à visão geral
+              Ir para Saúde do Sistema
             </Button>
             <Button size="sm" variant="secondary" onPress={() => {
               if (allowDraftNavigationV1()) window.location.reload();

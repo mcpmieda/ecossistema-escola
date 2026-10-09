@@ -1,20 +1,21 @@
 import { Skeleton } from '@heroui/react';
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import {
   ChartColumn,
   Circle,
   ClipboardList,
   FileText,
   Gavel,
+  HeartPulse,
   LayoutDashboard,
   Library,
+  type LucideIcon,
   MonitorSmartphone,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
   Upload,
   Users,
-  type LucideIcon,
 } from 'lucide-react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
@@ -66,10 +67,17 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
       href: section.href,
       icon: NOTES_SECTION_ICONS_V2[section.id] ?? Circle,
     }));
+  if (route === 'operacao')
+    return [
+      { id: 'health', label: 'Saúde do Sistema', href: '#/operacao', icon: HeartPulse },
+      { id: 'audit', label: 'Auditoria', href: '#/operacao?area=audit', icon: ShieldCheck },
+    ];
   return [];
 }
 /** The section in the address; each service falls back to its own first section. */
 export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): string {
+  if (route === 'operacao')
+    return new URLSearchParams(hash.split('?')[1] ?? '').get('area') === 'audit' ? 'audit' : 'health';
   if (route === 'painel-do-aluno') {
     const section = portalSectionFromHash(hash);
     return section === 'credentials' ? 'accounts' : section;
@@ -83,9 +91,7 @@ export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): st
 const TOP_ORDER_V2: readonly PlatformRoute[] = [
   'banco-de-notas',
   'painel-do-aluno',
-  'visao-geral',
   'operacao',
-  'auditoria',
   'configuracoes',
 ];
 const topOrderV2 = (modules: CoreModuleContract[]) =>
@@ -96,77 +102,78 @@ const guardDraft = (event: MouseEvent<HTMLAnchorElement>) => {
   if (!allowDraftNavigationV1()) event.preventDefault();
 };
 
-export function TopNavigationV2({
-  route,
-  modules,
-  loading,
-}: {
-  route: PlatformRoute;
-  modules: CoreModuleContract[];
-  loading: boolean;
-}) {
-  if (loading) return <Skeleton className="h-8 w-full max-w-xl rounded-full" />;
-  return (
-    <nav aria-label="Navegação principal" className="shell-topnav">
-      <ul>
-        {topOrderV2(withNotesModule(modules)).map((module) => {
-          const isSelected = route === module.route;
-          return (
-            <li key={module.id}>
-              <a
-                href={platformHref(module.route)}
-                aria-current={isSelected ? 'page' : undefined}
-                data-selected={isSelected ? 'true' : undefined}
-                className="shell-topnav__item no-underline"
-                onClick={guardDraft}
-              >
-                {module.name}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-export function ServiceSidebarV2({
+/*
+ * Composition of 08/10/2026 (owner study): on a computer there is no menu on top. One side
+ * column holds the brand, the search, the areas of the Centro with the sections of the open
+ * one, and the profile.
+ */
+export function ShellSidebarV3({
   route,
   section,
-  serviceName,
+  modules,
+  loading,
+  brand,
+  search,
+  profile,
 }: {
   route: PlatformRoute;
   section: string;
-  serviceName: string;
+  modules: CoreModuleContract[];
+  loading: boolean;
+  brand: ReactNode;
+  search: ReactNode;
+  profile: ReactNode;
 }) {
-  const Icon = routeIcons[route];
   return (
-    <nav aria-label={`Seções de ${serviceName}`} className="shell-sidenav">
-      <p className="shell-sidenav__service">
-        <span className="shell-sidenav__service-icon">
-          <Icon className="size-4" />
-        </span>
-        <span className="truncate">{serviceName}</span>
-      </p>
-      <ul>
-        {serviceSectionsV2(route).map((item) => {
-          const isSelected = item.id === section;
-          return (
-            <li key={item.id}>
-              <a
-                href={item.href}
-                aria-current={isSelected ? 'page' : undefined}
-                data-selected={isSelected ? 'true' : undefined}
-                className="shell-sidenav__item no-underline"
-                onClick={guardDraft}
-              >
-                <item.icon className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{item.label}</span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
+    <nav aria-label="Navegação principal" className="shell-side">
+      <div className="shell-side__brand">{brand}</div>
+      <div className="shell-side__search">{search}</div>
+      {loading ? (
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      ) : (
+        <ul className="shell-side__areas">
+          {topOrderV2(withNotesModule(modules)).map((module) => {
+            const open = route === module.route;
+            const Icon = routeIcons[module.route];
+            const sections = open ? serviceSectionsV2(module.route) : [];
+            return (
+              <li key={module.id}>
+                <a
+                  href={platformHref(module.route)}
+                  aria-current={open && sections.length === 0 ? 'page' : undefined}
+                  data-open={open ? 'true' : undefined}
+                  className="shell-side__area no-underline"
+                  onClick={guardDraft}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span className="truncate">{module.name}</span>
+                </a>
+                {sections.length > 0 ? (
+                  <ul className="shell-side__sections">
+                    {sections.map((item) => {
+                      const isSelected = item.id === section;
+                      return (
+                        <li key={item.id}>
+                          <a
+                            href={item.href}
+                            aria-current={isSelected ? 'page' : undefined}
+                            data-selected={isSelected ? 'true' : undefined}
+                            className="shell-side__section no-underline"
+                            onClick={guardDraft}
+                          >
+                            <span className="truncate">{item.label}</span>
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="shell-side__profile">{profile}</div>
     </nav>
   );
 }

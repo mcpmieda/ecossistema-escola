@@ -28,7 +28,7 @@ describe('platform capability authorization', () => {
   });
 
   it('fails closed when a required capability is missing', () => {
-    expect(hasCapability(['platform.overview.read'], 'platform.overview.read')).toBe(true);
+    expect(hasCapability(['platform.health.read'], 'platform.health.read')).toBe(true);
     expect(() => requireCapability([], 'platform.snapshot.read')).toThrow(AuthorizationError);
     expect(() =>
       requireCapability(['platform.snapshot.read'], 'platform.snapshot.read'),

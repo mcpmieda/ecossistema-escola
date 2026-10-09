@@ -43,10 +43,10 @@ describe('Centro de Administração module contract', () => {
     // Publicações, Páginas and Sistemas left the Centro on 07/10/2026 (owner request).
     const routes = navigableModules.map((module): string => module.route);
     for (const removed of ['publicacoes', 'paginas', 'sistemas']) expect(routes).not.toContain(removed);
+    // Visão geral left on 08/10/2026 and Auditoria became a section of Saúde do Sistema.
+    for (const removed of ['visao-geral', 'auditoria']) expect(routes).not.toContain(removed);
     expect(navigableModules.every((module) => module.state === 'ready')).toBe(true);
-    expect(states.get('visao-geral')).toBe('ready');
     expect(states.get('operacao')).toBe('ready');
-    expect(states.get('auditoria')).toBe('ready');
     expect(states.get('configuracoes')).toBe('ready');
     expect(states.get('banco-de-notas')).toBe('ready');
   });
@@ -58,10 +58,10 @@ describe('Centro de Administração module contract', () => {
 
   it('restores known routes, accepts scoped hash query data and falls back safely', () => {
     expect(normalizePlatformRoute('operacao')).toBe('operacao');
-    expect(normalizePlatformRoute('auditoria')).toBe('auditoria');
+    expect(normalizePlatformRoute('auditoria')).toBe('banco-de-notas');
     expect(normalizePlatformRoute('banco-de-notas')).toBe('banco-de-notas');
     expect(normalizePlatformRoute('banco-de-notas?area=bulletins')).toBe('banco-de-notas');
     expect(normalizePlatformRoute('banco-de-notas#council')).toBe('banco-de-notas');
-    expect(normalizePlatformRoute('rota-inexistente?area=bulletins')).toBe('visao-geral');
+    expect(normalizePlatformRoute('rota-inexistente?area=bulletins')).toBe('banco-de-notas');
   });
 });

@@ -1,15 +1,12 @@
 export const PLATFORM_ROUTES = [
-  'visao-geral',
   'operacao',
   'banco-de-notas',
   'painel-do-aluno',
-  'auditoria',
   'configuracoes',
 ] as const;
 
 export const PLATFORM_CAPABILITIES = [
   'platform.snapshot.read',
-  'platform.overview.read',
   'platform.health.read',
   'platform.modules.read',
   'platform.audit.read',
@@ -148,5 +145,5 @@ export function isPlatformRoute(value: string): value is PlatformRoute {
 
 export function normalizePlatformRoute(value: string): PlatformRoute {
   const route = value.split(/[?#]/u)[0] ?? '';
-  return isPlatformRoute(route) ? route : 'visao-geral';
+  return isPlatformRoute(route) ? route : 'banco-de-notas';
 }

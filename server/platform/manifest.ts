@@ -23,31 +23,13 @@ export const coreModuleSchema = z.object({
 export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse([
   STUDENT_PORTAL_MODULE,
   {
-    id: 'core.overview',
-    name: 'Visão geral',
-    description: 'Resumo operacional, integrações e próximos pontos de atenção.',
-    route: 'visao-geral',
-    state: 'ready',
-    requiredRole: 'ADMINISTRADOR',
-    capabilities: ['platform.overview.read'],
-  },
-  {
     id: 'platform.operations',
     name: 'Saúde do Sistema',
-    description: 'Disponibilidade, filas e sinais operacionais do Portal do Aluno.',
+    description: 'Disponibilidade, sinais operacionais do Portal do Aluno e trilha de auditoria.',
     route: 'operacao',
     state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.health.read', 'platform.settings.read'],
-  },
-  {
-    id: 'platform.audit',
-    name: 'Auditoria',
-    description: 'Consulta autorizada da trilha administrativa já preparada na fundação.',
-    route: 'auditoria',
-    state: 'ready',
-    requiredRole: 'ADMINISTRADOR',
-    capabilities: ['platform.audit.read'],
   },
   {
     id: 'platform.settings',
