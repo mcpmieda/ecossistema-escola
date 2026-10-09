@@ -26,12 +26,14 @@ O transporte compartilhado retém as consultas cadastrais de compatibilidade. A 
 
 ## Verificação
 
-Regressões específicas em `tests/gradebook/centers-retirement-v1.test.tsx`: inventário de UI/menu, favorito antigo, navegação repetida, eventos de histórico, preservação de importação e teclado. As suítes de cliente/ano, catálogo do Portal, detalhe de Desempenho, isolamento anual, integração e privacidade são adaptadas sem retirar os gates de transporte/servidor.
+Regressões específicas em `tests/gradebook/centers-retirement-v1.test.tsx`: inventário de UI/menu, favorito antigo, navegação repetida, eventos `hashchange` simulados, preservação de importação e teclado. Essa suíte jsdom não executa os comandos reais Voltar/Avançar de um navegador. As suítes de cliente/ano, catálogo do Portal, detalhe de Desempenho, isolamento anual, integração e privacidade são adaptadas sem retirar os gates de transporte/servidor.
 
 Registrar os resultados efetivos e o SHA final na PR. Testes sintéticos e build não substituem uso autenticado em produção. A validação visual de produção só ocorre depois de publicação autorizada.
 
+Na revisão da PR #1266, o comentário P3 sobre o nome do teste foi confirmado: a cobertura usa eventos sintéticos, não travessia nativa de histórico. O nome e esta documentação foram corrigidos sem mudar as asserções. Uma verificação complementar com navegador foi preparada, mas ficou bloqueada antes da renderização: Chromium local não iniciou por restrição de socket, e o navegador de nuvem não alcançou a porta local. Voltar/Avançar reais permanecem sem evidência adicional; isso não estabeleceu defeito funcional.
+
 ## Publicação e reversibilidade
 
-Entrega em uma PR draft para revisão. O responsável determinou em 09/10/2026 que a publicação ocorre somente com sua autorização. Não habilitar auto-merge, integrar à main ou disparar deploy nesta entrega sem nova autorização explícita. Os workflows de PR fazem validação; o deploy produtivo é acionado por push em main ou disparo manual, não pela abertura da PR.
+Entrega inicialmente em PR draft para revisão. Em 09/10/2026, o responsável autorizou integrar e publicar especificamente a PR #1266 após verificar o comentário e confirmar os gates. Essa autorização permanece condicionada à revisão e ao CI do head final. Os workflows de PR fazem validação; o merge commit em main aciona o deploy produtivo oficial. Não habilitar auto-merge nem duplicar esse deploy com disparo manual.
 
 A alteração é reversível por código e não exige restaurar dados. Como o serviço e seu contrato permanecem, a volta da interface não depende de migration ou reconstrução cadastral.

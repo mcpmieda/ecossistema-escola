@@ -3,7 +3,7 @@
 ## Retirada da interface Centrais — 09/10/2026
 
 - Menu lateral, abas e índice de busca não anunciam a superfície removida; fontes exclusivas de UI não existem.
-- `area=operational` na entrada, navegação repetida e eventos de histórico abre Importação e corrige o endereço sem adicionar entrada de histórico nem desmontar importação em andamento.
+- `area=operational` na entrada, navegação repetida e `hashchange` simulado abre Importação e corrige o endereço sem adicionar entrada de histórico nem desmontar importação em andamento.
 - Teclado percorre as áreas restantes; o detalhe de Desempenho fecha, reabre e mantém foco sem o antigo atalho cadastral.
 - Ano global preserva bootstrap, isolamento por ano, recarga e falhas de autorização; catálogo de turmas do Painel do Aluno continua usando o mesmo cliente V2.
 - Transporte HTTP, validação de contexto/resposta, paginação, no-store, origem, autenticação e read-only permanecem cobertos pelas suítes existentes.

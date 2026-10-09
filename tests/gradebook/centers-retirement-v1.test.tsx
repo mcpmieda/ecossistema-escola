@@ -71,7 +71,7 @@ describe('retirada da superfície Centrais', () => {
     expect(window.history.length).toBe(historyLength);
   });
 
-  it('normaliza links antigos repetidos e eventos de voltar/avançar sem desmontar a importação em andamento', async () => {
+  it('normaliza links antigos repetidos em hashchange simulado sem desmontar a importação em andamento', async () => {
     window.history.replaceState(null, '', '#/banco-de-notas');
     render(<GradebookWorkspaceShell />);
     const input = screen.getByLabelText('Importação sintética') as HTMLInputElement;
