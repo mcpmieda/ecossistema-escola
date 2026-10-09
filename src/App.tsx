@@ -147,13 +147,27 @@ function AdminShell({ identity }: { identity: Identity }) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
+    const drawer = drawerRef.current;
     const main = mainRef.current;
-    const tools = document.querySelector<HTMLElement>('.shell-tools');
+    // Everything but the drawer is inert while it is open: the page and the whole top bar.
+    const bar = document.querySelector<HTMLElement>('.shell-topbar');
     main?.setAttribute('inert', '');
-    tools?.setAttribute('inert', '');
-    drawerRef.current?.querySelector<HTMLElement>('.shell-side__area[data-open], .shell-side__area')?.focus();
+    bar?.setAttribute('inert', '');
+    (drawer?.querySelector<HTMLElement>(".shell-side__area[data-open='true']") ??
+      drawer?.querySelector<HTMLElement>('.shell-side__area'))?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key !== 'Tab' || !drawer) return;
+      // Tab and Shift+Tab stay inside the drawer.
+      const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
+        // The search and the profile of the column are not shown inside the phone drawer.
+        .filter((item) => item.tabIndex >= 0 && !item.closest('.shell-side__search, .shell-side__profile'));
+      const first = stops[0], last = stops.at(-1);
+      if (!first || !last) return;
+      const active = document.activeElement;
+      if (!drawer.contains(active)) { event.preventDefault(); first.focus(); }
+      else if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
     };
     // The drawer only exists on phones; a window that grows past them closes it.
     const wide = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 901px)') : null;
@@ -164,7 +178,7 @@ function AdminShell({ identity }: { identity: Identity }) {
       window.removeEventListener('keydown', onKeyDown);
       wide?.removeEventListener('change', onWide);
       main?.removeAttribute('inert');
-      tools?.removeAttribute('inert');
+      bar?.removeAttribute('inert');
       menuButtonRef.current?.focus();
     };
   }, [menuOpen]);
@@ -215,8 +229,9 @@ function AdminShell({ identity }: { identity: Identity }) {
         </div>
       </Surface>
       <div className="shell-body shell-body--service">
-        {menuOpen && <button type="button" className="shell-drawer-backdrop" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
+        {menuOpen && <button type="button" className="shell-drawer-backdrop" tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />}
         <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
+          <Button variant="ghost" size="sm" isIconOnly className="shell-drawer-close" aria-label="Fechar menu" onPress={() => setMenuOpen(false)}><X /></Button>
           <ShellSidebarV3
             route={route}
             section={section}

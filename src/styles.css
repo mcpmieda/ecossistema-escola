@@ -3183,3 +3183,21 @@ button.performance-kpi__button:hover {
     z-index: 20;
   }
 }
+/* The drawer's own close button, on phones only. */
+.shell-drawer-close {
+  display: none;
+}
+@media (max-width: 900px) {
+  .shell-drawer-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.6rem;
+    display: inline-flex;
+  }
+}
+@media (max-width: 900px) {
+  /* Room for the drawer's close button beside the brand. */
+  .shell-side__brand-link {
+    padding-right: 2.6rem;
+  }
+}
