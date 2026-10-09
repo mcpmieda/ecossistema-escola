@@ -1,5 +1,11 @@
 # Mapa dos consumidores — FINAL-1
 
+## Delta 09/10/2026: retirada da interface Centrais
+
+A tela/hook de Centrais e `gradebook-operational-surface.tsx` são retirados. Desempenho perde somente o atalho para a ficha cadastral; seu detalhe acadêmico permanece. Menu lateral, abas e índice da busca deixam de anunciar `area=operational`; favoritos antigos são normalizados para Importação.
+
+O serviço `operational-workspace` continua compartilhado. `GradebookYearProvider` consome `bootstrap`; `createPortalClassCatalogV2`, no Painel do Aluno, consome `search` de turmas; o request-gate é reutilizado por Desempenho e Analytics. Cliente, handler, DTOs V2, operações `context`/`center` de compatibilidade, guards e consultas somente leitura permanecem. Não há alteração de banco, cadastros, fonte, importador ou regra acadêmica. O mapa anterior de Centrais abaixo é histórico quanto à montagem de UI. [Inventário e validação](CENTERS_UI_RETIREMENT_20261009.md).
+
 ## Delta #1079: retirada contratada de compatibilidade
 
 Workspace V1, Performance V1, Boletins V1, Relatorios V1 e Conselho V1/V2

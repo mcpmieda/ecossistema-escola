@@ -15,13 +15,10 @@ const context = (year = 2026): GradebookYearContextValue => ({
   loading: false,
   epoch: 1,
   failure: null,
-  targetStudentId: null,
-  studentNavigationEpoch: 0,
   clearAuthorization: vi.fn(),
   retryAuthorization: vi.fn(),
   selectYear: vi.fn(),
   refreshYears: async () => {},
-  openStudent: vi.fn(),
 });
 const ready = (year = 2026, version = 0, names = {}) => ({
   contractVersion: 1,

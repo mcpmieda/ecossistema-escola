@@ -23,11 +23,6 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     description: 'Importe e reconheça planilhas sem persistir dados acadêmicos no navegador.',
   },
   {
-    id: 'operational',
-    label: 'Centrais',
-    description: 'Consulte cadastros e a configuração docente importada do ano letivo selecionado.',
-  },
-  {
     id: 'audit',
     label: 'Auditoria',
     description:
@@ -86,9 +81,13 @@ function replaceWorkspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): vo
   if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
 }
 
-const OperationalWorkspaceSurface = preloadedSectionV1(() =>
-  import('./gradebook-operational-surface').then((module) => module.GradebookOperationalSurface),
-);
+function normalizeRetiredWorkspaceSurfaceHash(): void {
+  if (window.location.hash.split('?')[0] !== '#/banco-de-notas') return;
+  const query = window.location.hash.split('?')[1] ?? '';
+  if (new URLSearchParams(query).get('area') === 'operational') {
+    replaceWorkspaceSurfaceHash(DEFAULT_SURFACE);
+  }
+}
 
 const GradebookAuditSurface = preloadedSectionV1(() =>
   import('../features/gradebook/audit-workspace/gradebook-audit-surface').then(
@@ -125,8 +124,7 @@ const SettingsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
 // The area in the address is the first one shown: ask for it at once.
 if (typeof window !== 'undefined') {
   const opened = workspaceSurfaceFromHash();
-  if (opened === 'operational') OperationalWorkspaceSurface.preload();
-  else if (opened === 'audit') GradebookAuditSurface.preload();
+  if (opened === 'audit') GradebookAuditSurface.preload();
   else if (opened === 'performance') PerformancePage.preload();
   else if (opened === 'bulletins') BulletinPage.preload();
   else if (opened === 'reports') InstitutionalReportsPage.preload();
@@ -135,7 +133,6 @@ if (typeof window !== 'undefined') {
 }
 
 const WORKSPACE_SECTIONS_V1 = [
-  OperationalWorkspaceSurface,
   GradebookAuditSurface,
   PerformancePage,
   BulletinPage,
@@ -147,7 +144,6 @@ const SURFACE_COMPONENTS: Record<
   Exclude<GradebookWorkspaceSurfaceId, 'importacao'>,
   ComponentType
 > = {
-  operational: OperationalWorkspaceSurface,
   audit: GradebookAuditSurface,
   performance: PerformancePage,
   bulletins: BulletinPage,
@@ -308,6 +304,7 @@ function GradebookWorkspaceShellContent() {
   useEffect(() => {
     const onHashChange = () => {
       const requested = workspaceSurfaceFromHash();
+      normalizeRetiredWorkspaceSurfaceHash();
       setVisits((current) => {
         if (current.surfaces.has(requested)) return current;
         const next = new Set(current.surfaces);
@@ -316,6 +313,7 @@ function GradebookWorkspaceShellContent() {
       });
       setActiveSurface(requested);
     };
+    normalizeRetiredWorkspaceSurfaceHash();
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -401,10 +399,7 @@ function GradebookWorkspaceShellContent() {
                   <Suspense fallback={<SurfaceLoading label={surface.label} />}>
                     {(() => {
                       const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
-                      const scopeKey =
-                        surface.id === 'operational'
-                          ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
-                          : scope?.epoch;
+                      const scopeKey = scope?.epoch;
                       if (surface.id === 'performance')
                         return <PerformancePage key={scopeKey} isActive={active} />;
                       if (surface.id === 'settings')

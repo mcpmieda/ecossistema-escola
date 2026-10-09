@@ -8,7 +8,6 @@ import {
   Gavel,
   HeartPulse,
   LayoutDashboard,
-  Library,
   type LucideIcon,
   MonitorSmartphone,
   Settings2,
@@ -42,7 +41,6 @@ const PORTAL_SECTION_ICONS_V2: Record<string, LucideIcon> = {
 };
 const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
   [defaultNotesSectionId]: Upload,
-  operational: Library,
   audit: ShieldCheck,
   performance: ChartColumn,
   bulletins: FileText,

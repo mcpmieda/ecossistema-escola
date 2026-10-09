@@ -1,5 +1,9 @@
 # Contexto, pesquisa e Centrais relacionais V2
 
+## Atualização de 09/10/2026
+
+A interface e o fluxo de navegação descritos abaixo são históricos após a retirada solicitada pelo responsável. O transporte V2 permanece para o ano global, catálogo de turmas do Painel do Aluno e compatibilidade de leituras autorizadas. Não recriar a tela a partir deste documento. [Escopo atual e consumidores preservados](CENTERS_UI_RETIREMENT_20261009.md).
+
 Contrato e escopo: #639, entrega da FINAL-1 #633, PR #640. Base: #636, `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`, deploy 254. A #640 foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae` e publicada no deploy 255 / `34477526551`, com sucesso. CI 550: 172 arquivos, 1.326 testes, lint, tipos e build aprovados. Publicação não significa homologação visual/autenticada.
 
 ## Jornada entregue

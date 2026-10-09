@@ -11,8 +11,6 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   const [loading, setLoading] = useState(true);
   const [epoch, setEpoch] = useState(0);
   const [failure, setFailure] = useState<string | null>(null);
-  const [targetStudentId, setTargetStudentId] = useState<number | null>(null);
-  const [studentNavigationEpoch, setStudentNavigationEpoch] = useState(0);
   const requestSequence = useRef(0);
   const yearRef = useRef<number | null>(null);
   const clearAuthorization = useCallback(() => {
@@ -21,7 +19,6 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   const retryAuthorization = useCallback(() => {
     setFailure(null);
     setEpoch((current) => current + 1);
-    setTargetStudentId(null);
   }, []);
   const selectYear = useCallback(
     (nextYear: number) => {
@@ -31,7 +28,6 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
       yearRef.current = nextYear;
       setYear(nextYear);
       setEpoch((value) => value + 1);
-      setTargetStudentId(null);
     },
     [years],
   );
@@ -78,7 +74,6 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     setYear(next);
     if (next !== current) {
       setEpoch((value) => value + 1);
-      setTargetStudentId(null);
     }
     setLoading(false);
   }, []);
@@ -88,11 +83,6 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
       requestSequence.current += 1;
     };
   }, [refreshYears]);
-  const openStudent = useCallback((id: number) => {
-    setTargetStudentId(id);
-    setStudentNavigationEpoch((current) => current + 1);
-    window.location.hash = '#/banco-de-notas?area=operational';
-  }, []);
   const value = useMemo(
     () => ({
       year,
@@ -100,13 +90,10 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
       loading,
       epoch,
       failure,
-      targetStudentId,
-      studentNavigationEpoch,
       clearAuthorization,
       retryAuthorization,
       selectYear,
       refreshYears,
-      openStudent,
     }),
     [
       year,
@@ -114,13 +101,10 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
       loading,
       epoch,
       failure,
-      targetStudentId,
-      studentNavigationEpoch,
       clearAuthorization,
       retryAuthorization,
       selectYear,
       refreshYears,
-      openStudent,
     ],
   );
   return <GradebookYearContext.Provider value={value}>{children}</GradebookYearContext.Provider>;

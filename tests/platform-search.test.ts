@@ -94,7 +94,6 @@ describe('platform search model', () => {
       'core:platform.operations',
       'core:content.notes',
       'notes:importacao',
-      'notes:operational',
       'notes:audit',
       'notes:performance',
       'notes:bulletins',
@@ -104,6 +103,9 @@ describe('platform search model', () => {
       'health:audit',
       'config:config-1',
     ]);
+    expect(items.some((item) => item.id === 'notes:operational')).toBe(false);
+    expect(items.some((item) => item.href.includes('area=operational'))).toBe(false);
+    expect(filterSearchItems(items, 'Centrais')).toEqual([]);
     expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
     expect(filterSearchItems(items, 'SEGREDO_MIGRACAO_NAO_INDEXAR')).toEqual([]);
   });

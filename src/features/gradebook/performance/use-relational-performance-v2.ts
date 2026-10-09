@@ -395,6 +395,5 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     open,
     closeDetail,
     loadClasses,
-    openStudent: shared?.openStudent,
   };
 }
