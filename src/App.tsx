@@ -142,6 +142,32 @@ function AdminShell({ identity }: { identity: Identity }) {
   // On phones the side column is a drawer; it closes when the address changes.
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [hash]);
+  const drawerRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const main = mainRef.current;
+    const tools = document.querySelector<HTMLElement>('.shell-tools');
+    main?.setAttribute('inert', '');
+    tools?.setAttribute('inert', '');
+    drawerRef.current?.querySelector<HTMLElement>('.shell-side__area[data-open], .shell-side__area')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    // The drawer only exists on phones; a window that grows past them closes it.
+    const wide = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 901px)') : null;
+    const onWide = () => { if (wide?.matches) setMenuOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    wide?.addEventListener('change', onWide);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      wide?.removeEventListener('change', onWide);
+      main?.removeAttribute('inert');
+      tools?.removeAttribute('inert');
+      menuButtonRef.current?.focus();
+    };
+  }, [menuOpen]);
   const sections = serviceSectionsV2(route);
   const section = serviceSectionFromHashV2(route, hash);
   const native = !platformRouteNeedsMicrosoftV2(route, section);
@@ -171,7 +197,7 @@ function AdminShell({ identity }: { identity: Identity }) {
   return (
     <div className="platform-shell platform-shell--v2 min-h-svh">
       <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
-        <Button variant="ghost" size="md" isIconOnly className="shell-menu-button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onPress={() => setMenuOpen((open) => !open)}>
+        <Button ref={menuButtonRef} variant="ghost" size="md" isIconOnly className="shell-menu-button" aria-controls="shell-drawer" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onPress={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X /> : <Menu />}
         </Button>
         <a href="#/banco-de-notas" className="shell-brand text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
@@ -190,7 +216,7 @@ function AdminShell({ identity }: { identity: Identity }) {
       </Surface>
       <div className="shell-body shell-body--service">
         {menuOpen && <button type="button" className="shell-drawer-backdrop" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
-        <aside className="shell-aside" data-open={menuOpen ? 'true' : undefined}>
+        <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
           <ShellSidebarV3
             route={route}
             section={section}
@@ -207,7 +233,7 @@ function AdminShell({ identity }: { identity: Identity }) {
           />
           {sections.length > 0 && <ServiceSidebarV2 route={route} section={section} serviceName={routeLabels[route]} />}
         </aside>
-        <main className="shell-main shell-main--service">
+        <main ref={mainRef} className="shell-main shell-main--service">
           <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">

@@ -3159,3 +3159,27 @@ button.performance-kpi__button:hover {
     }
   }
 }
+
+/* 1. Search inside the side column: the results open to the right of the field's start and are
+   not cut by the column, whose own list is what scrolls. */
+@media (min-width: 901px) {
+  .platform-shell--v2 .shell-aside {
+    overflow: visible;
+  }
+  .shell-side__areas {
+    min-height: 0;
+  }
+  .shell-side__search .platform-search-popover {
+    right: auto;
+    left: 0;
+    width: 22rem;
+    min-width: 0;
+    max-width: calc(100vw - 2.5rem);
+  }
+}
+@media (min-width: 901px) {
+  /* The column is its own layer, above the page, so what opens from it is not painted over. */
+  .platform-shell--v2 .shell-aside {
+    z-index: 20;
+  }
+}
