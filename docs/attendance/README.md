@@ -22,7 +22,10 @@ merge, credencial ou mecanismo global de atualização automática foi criado.
 
 O cadastro mestre é `gradebook.aluno` + `gradebook.turma` + `gradebook.vinculo`
 da Relação anual atual. A pessoa é o `studentUid` canônico já persistido em
-`gradebook.student_identity`. O módulo não cria pessoas, não mescla identidades
+`gradebook.student_identity`. Vínculos históricos de origem de transferência
+(`situacao=6`) são excluídos da referência corrente, conforme o predicado vigente
+do Banco; os snapshots de frequência anteriores continuam preservados.
+O módulo não cria pessoas, não mescla identidades
 acadêmicas e não usa número da chamada como identidade. Nomes e turmas originais
 da fonte são preservados; normalização remove acentos, agrupa espaços e compara
 em maiúsculas apenas para a correspondência.
@@ -123,8 +126,9 @@ Locks SHARE curtos sobre as tabelas da Relação impedem mudança entre a confer
 do cadastro e a escrita/leitura. São usadas as permissões da role gradebook_app
 existente, sem ampliação ou role nova em produção.
 
-Na leitura, o backend calcula novamente o fingerprint da Relação. Se aluno,
-turma, ano ou vínculo mudaram, a conciliação antiga não é visível, mesmo que ainda
+Na leitura, o backend calcula novamente o fingerprint da Relação, incluindo
+situação do vínculo e turma relacionada, sem inventar interpretação desses códigos.
+Se aluno, turma, ano ou vínculo mudaram, a conciliação antiga não é visível, mesmo que ainda
 exista no banco. A configuração de matrícula também deve ser revalidada. A API
 não consulta cache de resumos, não usa ETag/304 e sempre revalida autorização e
 elegibilidade. Uma interface futura deve descartar seus dados anteriores ao

@@ -61,7 +61,7 @@ beforeEach(async () => {
   await pg.exec(`TRUNCATE attendance.scope,attendance.configuration,attendance.calendar,attendance.enrollment,
     attendance.batch,attendance.source_record,attendance.coverage,attendance.mark,attendance.decision,attendance.receipt;
     UPDATE gradebook.aluno SET nome=CASE id WHEN 1 THEN 'ALUNA SINTÉTICA UM' ELSE 'ALUNO SINTÉTICO DOIS' END;
-    UPDATE gradebook.vinculo SET turma_id=101 WHERE ano=2026;`);
+    UPDATE gradebook.vinculo SET turma_id=101,situacao=NULL,turma_relacionada_id=NULL WHERE ano=2026;`);
   await service.execute(
     {
       operation: 'configure',
@@ -117,6 +117,7 @@ async function review() {
     candidates: AttendanceCandidateV1[];
     sourceCurrent: boolean;
     history: unknown[];
+    students: { studentUid: string }[];
   };
 }
 async function decision(value: 'same-student' | 'different-students', expectedRevision?: number) {
@@ -240,6 +241,19 @@ describe('attendance PostgreSQL candidate with synthetic fixtures', () => {
     await expect(
       service.execute({ ...(await decision('same-student')), expectedRevision: 2 }, admin),
     ).rejects.toThrow('stale-relation');
+  });
+  it('invalidates old visibility when enrollment state changes without moving the class', async () => {
+    await service.execute(batch(), admin);
+    await summary();
+    await pg.exec('UPDATE gradebook.vinculo SET situacao=1 WHERE aluno_id=1');
+    expect((await review()).sourceCurrent).toBe(false);
+    await expect(summary()).rejects.toThrow('not-visible');
+    await pg.exec(
+      'UPDATE gradebook.vinculo SET situacao=6,turma_relacionada_id=102 WHERE aluno_id=1',
+    );
+    expect((await review()).sourceCurrent).toBe(false);
+    expect((await review()).students.some((student) => student.studentUid === uid)).toBe(false);
+    await expect(summary()).rejects.toThrow('not-visible');
   });
   it('revalidates unchanged source in a new Relação context without losing older snapshots', async () => {
     const source = batch();

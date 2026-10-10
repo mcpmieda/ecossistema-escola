@@ -126,6 +126,8 @@ export interface AttendanceRelationStudentV1 {
   originalName: string;
   originalClass: string;
   classId: number;
+  enrollmentState?: number | null;
+  relatedClassId?: number | null;
 }
 export interface AttendanceCandidateV1 {
   recordKey: string;

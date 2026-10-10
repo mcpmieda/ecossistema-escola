@@ -34,10 +34,10 @@ function fail(code: string, status = 409): never {
 
 async function relation(tx: Tx, scope: AttendanceScopeV1): Promise<AttendanceRelationStudentV1[]> {
   const rows = await tx.query<Row>(
-    `SELECT a.student_uid::text,a.nome,t.codigo,t.id AS class_id
+    `SELECT a.student_uid::text,a.nome,t.codigo,t.id AS class_id,v.situacao,v.turma_relacionada_id
     FROM gradebook.vinculo v JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
     JOIN gradebook.turma t ON t.id=v.turma_id AND t.ano=v.ano
-    WHERE v.ano=$1 AND t.id=$2 ORDER BY a.student_uid,v.numero`,
+    WHERE v.ano=$1 AND t.id=$2 AND v.situacao IS DISTINCT FROM 6 ORDER BY a.student_uid,v.numero`,
     [scope.academicYear, scope.classId],
   );
   return rows.map((r) => ({
@@ -45,6 +45,8 @@ async function relation(tx: Tx, scope: AttendanceScopeV1): Promise<AttendanceRel
     originalName: text(r.nome),
     originalClass: text(r.codigo),
     classId: Number(r.class_id),
+    enrollmentState: r.situacao === null ? null : Number(r.situacao),
+    relatedClassId: r.turma_relacionada_id === null ? null : Number(r.turma_relacionada_id),
   }));
 }
 
