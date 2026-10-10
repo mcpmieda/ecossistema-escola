@@ -39,7 +39,6 @@ const routes: Readonly<Record<string, RouteV1>> = {
   },
   '/api/gradebook/performance': { methods: ['POST'], operation: 'read', bodyBytes: 32768 },
   '/api/gradebook/bulletins': { methods: ['POST'], operation: 'export', bodyBytes: 65536 },
-  '/api/gradebook/reports': { methods: ['POST'], operation: 'export', bodyBytes: 65536 },
   '/api/gradebook/council-workspace': { methods: ['POST'], operation: 'write', bodyBytes: 16384 },
   '/api/gradebook/assessment-names': { methods: ['POST'], operation: 'write', bodyBytes: 8192 },
   '/api/gradebook/year-reset': { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
@@ -122,7 +121,6 @@ export function classifyAdminOperationV1(
     ['catalog', 'students', 'preview', 'history'].includes(String(operation))
   )
     return 'read';
-  if (path === '/api/gradebook/reports' && operation === 'catalog') return 'read';
   return routes[path]?.operation ?? 'write';
 }
 
@@ -147,12 +145,10 @@ function failureBody(path: string, payload: PayloadV1, status: number) {
     return { contractVersion: payload.contractVersion === 2 ? 2 : 1, state };
   if (path === '/api/gradebook/council-workspace')
     return payload.contractVersion === 3 ? { contractVersion: 3, state } : null;
-  if (path === '/api/gradebook/bulletins' || path === '/api/gradebook/reports') {
+  if (path === '/api/gradebook/bulletins') {
     if (payload.contractVersion === 2)
       return { contractVersion: 2, operation: payload.operation, state };
-    return path.endsWith('/bulletins')
-      ? null
-      : { contractVersion: 1, state, report: null, hardStop: null };
+    return null;
   }
   if (path.startsWith('/api/gradebook/') && !path.includes('/admin/'))
     return { contractVersion: 1, state };
@@ -215,7 +211,6 @@ export async function guardAdminOperationV1(
       ([
         '/api/gradebook/operational-workspace',
         '/api/gradebook/bulletins',
-        '/api/gradebook/reports',
       ].includes(path) &&
         payload.contractVersion === 1) ||
       (path === '/api/gradebook/council-workspace' &&

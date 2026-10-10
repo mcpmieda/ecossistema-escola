@@ -68,7 +68,7 @@ const ROUTES = [
   ['performance-routes-v1', 'handlePerformanceRequestV1'],
   ['bulletin-routes-v1', 'handleBulletinRequestV1'],
   ['council-routes-v1', 'handleCouncilWorkspaceRequestV1'],
-  ['institutional-reports-routes-v1', 'handleInstitutionalReportsRequestV1'],
+  ['retired-reports-route', 'handleRetiredGradebookReportsRequest'],
 ] as const;
 
 /** An empty platform (no SharePoint here) seen with every capability. It does not wait for the

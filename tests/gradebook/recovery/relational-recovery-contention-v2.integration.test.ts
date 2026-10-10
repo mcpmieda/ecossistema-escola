@@ -1,23 +1,36 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { onRequest as importDiagnosticsOnRequest } from '../../../functions/api/gradebook/import-diagnostics';
+import type { RuntimeEnv } from '../../../server/env';
 import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
-import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
-import { createRelationalInstitutionalReportsServiceV2 } from '../../../server/gradebook/application/reports/relational-institutional-reports-v2';
 import {
   createGradebookPostgresDatabaseV1,
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresScalarV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2';
-import { createRelationalImportDiagnosticsReadV2 } from '../../../server/gradebook/persistence/postgres/relational-import-diagnostics-read-v2';
 import { assertDisposableRecoveryTargetV2 } from '../../../server/gradebook/recovery/logical-backup-recovery-v2';
 import type {
   RelationalCouncilRequestV3,
   RelationalCouncilResponseV3,
 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
-import type { GradebookImportDiagnosticsAuditRequestV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import type {
+  GradebookImportDiagnosticsAuditListResponseV1,
+  GradebookImportDiagnosticsAuditRequestV1,
+} from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+
+// Only HTTP environment/session boundaries are synthetic; the current GET and SQL run unchanged.
+vi.mock('../../../server/env', () => ({ validateEnv: (env: unknown) => env }));
+vi.mock('../../../server/auth/session', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../server/auth/session')>(),
+  requireAuth: async () => ({ oid: '11111111-1111-4111-8111-111111111111' }),
+}));
+vi.mock('../../../server/gradebook/authorization-v1', () => ({ authorizeGradebookRuntimeV1: () => ({}) }));
+vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1', () => ({
+  withOfficialGradebookDatabaseV1: async (env: RuntimeEnv, operation: (env: RuntimeEnv) => Promise<Response | null>) => operation(env),
+}));
 
 const CONNECTION_STRING = process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '';
 const integration = CONNECTION_STRING.length > 0 ? describe : describe.skip;
@@ -39,20 +52,6 @@ async function rows(
   values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly Row[]> {
   return database.query<Row>(query, values);
-}
-
-function reports(database: GradebookPostgresDatabaseV1) {
-  const bulletins = createRelationalBulletinServiceV2({
-    database,
-    snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
-  });
-  return createRelationalInstitutionalReportsServiceV2({
-    performanceAnalysis: createPerformanceAnalysisV3(database),
-    performanceComparison: createPerformanceTermComparisonV4(database),
-    council: createRelationalCouncilV3(database, ACTOR_ID),
-    bulletins,
-    diagnostics: createRelationalImportDiagnosticsReadV2(database),
-  });
 }
 
 function diagnosticRequest(
@@ -106,6 +105,18 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
   });
 }
 
+async function readCurrentDiagnostics(limit: number) {
+  const response = await importDiagnosticsOnRequest({
+    request: new Request(`https://school.test/api/gradebook/import-diagnostics?ano=2026&limit=${String(limit)}`),
+    env: { OFFICIAL_ORIGIN: 'https://school.test', GRADEBOOK_DATABASE: databaseA },
+  } as unknown as Parameters<typeof importDiagnosticsOnRequest>[0]);
+  expect(response.status).toBe(200);
+  const audit = await response.json() as GradebookImportDiagnosticsAuditListResponseV1;
+  expect(audit).toMatchObject({ version: 1, state: 'ready' });
+  if (audit.state !== 'ready') throw new Error('recovery-current-audit-not-ready');
+  return audit;
+}
+
 function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolvePromise: (() => void) | undefined;
   const promise = new Promise<void>((resolve) => {
@@ -135,10 +146,13 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
   });
 
   it('serves recovered catalog, T2 versus T1, audit, Council and empty bulletin history', async () => {
-    const service = reports(databaseA);
-    const catalog = await service.execute(
-      { contractVersion: 2, operation: 'catalog', year: 2026 },
-      { oid: ACTOR_ID },
+    const bulletins = createRelationalBulletinServiceV2({
+      database: databaseA,
+      snapshots: createRelationalBulletinSnapshotRepositoryV2(databaseA),
+    });
+    const actor = { issuerOid: ACTOR_ID };
+    const catalog = await bulletins.execute(
+      { contractVersion: 2, operation: 'catalog', year: 2026 }, actor,
     );
     expect(catalog.state).toBe('ready');
     if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
@@ -147,52 +161,37 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     expect(catalog.classes.length).toBeGreaterThan(0);
     const classId = catalog.classes[0]!.id;
 
-    const performance = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'performance',
-        family: 'class-results',
-        year: 2026,
-        classId,
-        period: 2,
-        lens: 'result',
-        referenceTerm: 1,
-        statuses: [...ALL_STATUSES],
-      },
-      { oid: ACTOR_ID },
-    );
+    const performance = await createPerformanceTermComparisonV4(databaseA).execute({
+      transportVersion: 4, operation: 'term-comparison', year: 2026, classId,
+      period: 2, mode: 'regular', statuses: [...ALL_STATUSES], lens: 'result',
+      offerId: null, referencePeriod: 1,
+    });
     expect(performance.state).toBe('ready');
 
-    const audit = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'audit',
-        year: 2026,
-        severities: [],
-        codes: [],
-        classCode: null,
-        limit: 5,
-        offset: 0,
-      },
-      { oid: ACTOR_ID },
+    // Exercise the current Audit/Import GET on the restored database, including an empty backup.
+    const recoveredDiagnostics = await rows(databaseA,
+      'SELECT id FROM gradebook.importacao_diagnostico WHERE ano=$1 ORDER BY ultimo_em DESC,id DESC LIMIT 6',
+      [2026]);
+    const audit = await readCurrentDiagnostics(5);
+    expect(audit.items.map((item) => item.id)).toEqual(
+      recoveredDiagnostics.slice(0, 5).map((row) => Number(row.id)),
     );
-    expect(audit.state).toBe('ready');
+    expect(audit.nextOffset).toBe(recoveredDiagnostics.length > 5 ? 5 : null);
+    expect(audit.items.every((item) => item.academicYear === 2026)).toBe(true);
 
-    const council = await service.execute(
-      { contractVersion: 2, operation: 'council', year: 2026, classId },
-      { oid: ACTOR_ID },
+    const council = await createRelationalCouncilV3(databaseA, ACTOR_ID).execute(
+      { contractVersion: 3, operation: 'workspace', year: 2026, classId },
     );
     expect(council.state).toBe('ready');
 
-    const history = await service.execute(
-      { contractVersion: 2, operation: 'bulletin-history', year: 2026, classId },
-      { oid: ACTOR_ID },
+    const history = await bulletins.execute(
+      { contractVersion: 2, operation: 'history', year: 2026, classId }, actor,
     );
     expect(history.state).toBe('ready');
-    if (history.state !== 'ready' || history.operation !== 'bulletin-history') {
+    if (history.state !== 'ready' || history.operation !== 'history') {
       throw new Error('recovery-bulletin-history-not-ready');
     }
-    expect(history.report.items).toHaveLength(0);
+    expect(history.items).toHaveLength(0);
   }, 120_000);
 
   it('blocks a competing diagnostic replacement and keeps only one complete last commit', async () => {
@@ -241,6 +240,11 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const hashes = new Set(finalRows.map((row) => row.hash));
     expect(markers.size).toBe(1);
     expect(hashes.size).toBe(1);
+
+    // Reuse this test's synthetic committed observation to prove a nonempty current read.
+    const audit = await readCurrentDiagnostics(200);
+    expect(audit.items.filter((item) => item.fileName === DIAGNOSTIC_FILE)
+      .map((item) => item.key).sort()).toEqual(finalRows.map((row) => String(row.chave)));
 
     const beforeRollback = finalRows.map((row) => `${String(row.chave)}:${String(row.hash)}`);
     await expect(

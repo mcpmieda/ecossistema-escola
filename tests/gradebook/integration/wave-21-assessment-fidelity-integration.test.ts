@@ -147,7 +147,7 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(reconciliation).not.toContain('delete');
   });
 
-  it('preserva Desempenho, relatórios e boletins V1 com componentes V2', () => {
+  it('preserva Desempenho e boletins V1 com componentes V2', () => {
     const performanceContract = source(
       'shared/gradebook-contracts/performance/class-performance-read-model-v1.ts',
     );
@@ -159,9 +159,6 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     );
     const bulletinContract = source('shared/gradebook-contracts/bulletins/bulletin-contract-v1.ts');
     const bulletinTests = source('tests/gradebook/bulletins/bulletin-emission-service-v1.test.ts');
-    const reportsContract = source(
-      'shared/gradebook-contracts/reports/institutional-reports-contract-v1.ts',
-    );
 
     expect(performanceContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');
     expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
@@ -171,7 +168,6 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(bulletinContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');
     expect(bulletinTests).toContain("source: 'historical-snapshot'");
     expect(bulletinTests).toContain('expect(fixture.calls).toEqual(callsBeforeReprint)');
-    expect(reportsContract).toContain('ClassPerformanceReadModelV1');
   });
 
   it('preserva readiness e catálogo D1 0001–0006 como memória histórica', () => {

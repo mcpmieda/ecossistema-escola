@@ -3,7 +3,7 @@ import { Alert, Button } from '@heroui/react';
 import { FileDown } from 'lucide-react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 
-/** The same snapshot exporter is shared by Desempenho and Relatórios. */
+/** Exports the analytical snapshot selected in Desempenho. */
 export function PerformanceTeacherExportV6({
   value,
   teacherId,

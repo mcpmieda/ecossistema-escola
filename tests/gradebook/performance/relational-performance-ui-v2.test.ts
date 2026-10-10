@@ -1023,39 +1023,6 @@ describe('V6 HeroUI perspectives and shared live invalidation', () => {
   });
 });
 
-describe('Teacher PDF access in the existing Reports area', () => {
-  it('opens the same analytical source only on demand and follows the report period', async () => {
-    const { GradebookYearProvider } = await import('../../../src/platform/gradebook-year-provider');
-    const { PerformanceTeacherReportsV6 } =
-      await import('../../../src/features/gradebook/reports/performance-teacher-reports-v6');
-    root = createRoot(host);
-    const content = (period: 1 | 2 | 3) =>
-      createElement(
-        GradebookYearProvider,
-        null,
-        createElement(PerformanceTeacherReportsV6, { classId: 10, period, isActive: true }),
-      );
-    await act(async () => root!.render(content(2)));
-    await settle();
-    expect(analyticsCalls()).toBe(0);
-    await click('Abrir relatório docente');
-    await waitFor(() => selectRoot('Professor do relatório') !== null);
-    expect(requests.filter((item) => item.operation === 'analytics').at(-1)).toMatchObject({
-      year: 2026,
-      classId: 10,
-      period: 2,
-    });
-    expect(host.textContent).toContain('PDF resumido');
-    expect(host.textContent).toContain('PDF detalhado');
-    await select('Professor do relatório', '2');
-    await act(async () => root!.render(content(3)));
-    await waitFor(
-      () => requests.filter((item) => item.operation === 'analytics').at(-1)?.period === 3,
-    );
-    expect(selectedValue('Professor do relatório')).toContain('Docente sintético 2');
-  });
-});
-
 it('keeps the granular drawer, focus and scroll stable during automatic revalidation', async () => {
   await loaded();
   await select('Período', '2');

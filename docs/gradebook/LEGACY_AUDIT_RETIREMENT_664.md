@@ -1,5 +1,9 @@
 # Retirada seletiva da superfície Audit Workspace V1 — #664 / PR #665
 
+> Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
+O conteúdo abaixo registra o checkpoint histórico; não declara esses consumidores ativos na candidata.
+
 ## Base e prova de dependência
 
 A entrega parte de `main@89cb382d588364560ac250a4a1f0e0d65a079573`, depois da integração da #662/PR #663 e do deploy 267. A inspeção foi feita por símbolos, imports, rotas, composição do shell e testes; nomes contendo `D1`, `audit` ou `V1` não foram tratados como prova de obsolescência.

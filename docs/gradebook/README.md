@@ -1,5 +1,9 @@
 # Banco de Notas — ponto de entrada
 
+## Retirada da aba Relatórios - candidata de 10/10/2026
+
+Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
 ## Retirada da interface Centrais — 09/10/2026
 
 A superfície Centrais, sua navegação e o atalho de cadastro em Desempenho são retirados por solicitação do responsável. O cadastro mestre anual e os serviços compartilhados permanecem: ano global e catálogo de turmas do Painel do Aluno continuam usando o transporte V2. URLs antigas voltam à Importação. [Impacto, consumidores preservados e validação](CENTERS_UI_RETIREMENT_20261009.md). A entrega fica em PR para revisão; integração e publicação exigem autorização do responsável.

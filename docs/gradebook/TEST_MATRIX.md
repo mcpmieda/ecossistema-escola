@@ -1,5 +1,13 @@
 # Matriz de testes — Banco de Notas
 
+## Retirada de Relatórios - #1271 / BN-DEC-043
+
+- Menu/busca/abas não anunciam Relatórios; URL antiga, hashchange, voltar/avançar e recarga normalizam para Importação, preservando lote em andamento.
+- O tombstone exige origem, método, identidade e capacidade; autorizado recebe 410 `{ state: 'retired' }` no-store sem body, banco/bindings ou limiter externo. A regra versionada `unavailable` de BN-DEC-041 não se aplica mais a Reports; demais transportes permanecem.
+- Desempenho/PDF docente, Boletins, Conselho e Importação/Auditoria continuam exercitados por seus consumidores/testes atuais.
+- No ensaio de recuperação PostgreSQL descartável, o GET vigente de `import-diagnostics` deve responder 200/`ready` e corresponder aos IDs recuperados, aceitando um backup sem diagnósticos. A observação sintética do teste de contenção também deve ser legível pelo GET; o adapter exclusivo retirado não é restaurado.
+- Mapeamento e paginação continuam cobertos em PGlite por `import-diagnostics-snapshot-v1.test.ts`. O gate PostgreSQL executa `relational-recovery-contention-v2.integration.test.ts` sem skip; CI completo e gates não são reduzidos.
+
 ## Retirada da interface Centrais — 09/10/2026
 
 - Menu lateral, abas e índice de busca não anunciam a superfície removida; fontes exclusivas de UI não existem.

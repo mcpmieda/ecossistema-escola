@@ -44,7 +44,7 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
     expect(council).toContain('RelationalCouncilPageV3');
     expect(bulletins).toContain('RelationalBulletinPageV2');
     expect(shell).toContain("import('../features/gradebook/performance/relational-performance-page-v2')");
-    expect(shell).toContain("import('../features/gradebook/reports/relational-institutional-reports-page-v2')");
+    expect(shell).not.toContain("import('../features/gradebook/reports/relational-institutional-reports-page-v2')");
     expect(shell).not.toContain("import('../features/gradebook/reports/institutional-reports-page')");
     expect(shell).not.toContain("import('../features/gradebook/performance/performance-page')");
   });
@@ -59,7 +59,7 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
       'handleOperationalWorkspaceRequestV1',
       'handlePerformanceRequestV1',
       'handleBulletinRequestV1',
-      'handleInstitutionalReportsRequestV1',
+      'handleRetiredGradebookReportsRequest',
       'handleCouncilWorkspaceRequestV1',
     ]) {
       expect(functions).toContain(handler);

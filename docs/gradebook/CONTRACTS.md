@@ -1,10 +1,12 @@
 # Contratos — vigência, compatibilidade e lacunas
 
+Retirada solicitada em 10/10/2026, registrada na #1271 e BN-DEC-043: remove a aba Relatórios e seu módulo institucional V1/V2, substituindo somente sua preservação/compatibilidade na BN-DEC-041. O endpoint antigo responde 410 autenticado com `{ state: 'retired' }`; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Estado de integração/publicação e SHA efetivo são registrados na #1271/PR #1270; não inferir homologação real.
+
 A classificação canônica de versões `CURRENT / COMPATIBILITY / HISTORICAL` está em [CONTRACT_VERSION_MAP.md](CONTRACT_VERSION_MAP.md). **Não inferir vigência pelo maior sufixo `vN`.**
 
 ## Desempenho analítico #815
 
-Transporte V6 aditivo, cinco perspectivas descritivas sobre a mesma projeção relacional e PDF docente compartilhado com Relatórios. V1–V5, autoridade, núcleo acadêmico e schema preservados. Contrato, sincronização, semântica, escopo por turma e limitações de validação em [PERFORMANCE_ANALYTICS_V6.md](PERFORMANCE_ANALYTICS_V6.md).
+Transporte V6 aditivo, cinco perspectivas descritivas sobre a mesma projeção relacional e PDF docente disponível em Desempenho. V1–V5, autoridade, núcleo acadêmico e schema preservados. Contrato, sincronização, semântica, escopo por turma e limitações de validação em [PERFORMANCE_ANALYTICS_V6.md](PERFORMANCE_ANALYTICS_V6.md).
 
 ## Portal P2 — classificação de apresentação #745
 
@@ -89,7 +91,6 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Desempenho relacional V2/V3/V4/V5 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts`, `performance-term-comparison-v4.ts` e `performance-dashboard-v5.ts` | matriz/lentes/detalhe integrados; comparação trimestral no mesmo ano; panorama e ranking descritivo no servidor na #672 |
 | Conselho relacional V3            | `shared/gradebook-contracts/council/relational-council-v3.ts`                                                                                                            | contrato #648; sessão/CAS/idempotência/votos/histórico/fotografias, com decisão humana explícita                        |
 | Boletins relacionais V2           | `shared/gradebook-contracts/bulletins/relational-bulletin-v2.ts`                                                                                                         | contrato #654/#676; ano explícito, AM/U oficiais, comparação descritiva, emissão/lote/histórico/reimpressão             |
-| Relatórios institucionais V2      | `shared/gradebook-contracts/reports/relational-institutional-reports-v2.ts`                                                                                              | contrato #656; composição somente leitura das projeções relacionais vigentes                                            |
 | Auditoria atual V2                | `shared/gradebook-contracts/imports/import-diagnostics-v1.ts`                                                                                                            | #658/#676 reutiliza o contrato vigente para leitura corrente do ano global                                              |
 | Tratamento humano da Auditoria V1 | `shared/gradebook-contracts/audit/import-diagnostic-treatment-v1.ts`                                                                                                     | contrato #674; migration aditiva autorizada/aplicada e código em integração pela PR #675                                |
 | Reset anual V1                    | `shared/gradebook-contracts/settings/year-reset-contract-v1.ts`                                                                                                          | contrato #688; prévia versionada e execução transacional de um ano, sem reset global                                    |

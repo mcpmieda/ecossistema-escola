@@ -43,7 +43,9 @@ describe('retirada da superfície Centrais', () => {
     );
     expect(
       notesSections.some((section) =>
-        /Centrais|area=operational/u.test(`${section.label} ${section.href}`),
+        /Centrais|Relatórios|area=(?:operational|reports)/u.test(
+          `${section.label} ${section.href}`,
+        ),
       ),
     ).toBe(false);
     for (const path of [
@@ -59,56 +61,68 @@ describe('retirada da superfície Centrais', () => {
     expect(detail).not.toMatch(/openCenter|Ver cadastro nas Centrais/u);
   });
 
-  it('abre um favorito antigo na Importação e corrige o endereço sem criar outra entrada no histórico', () => {
-    window.history.replaceState(null, '', '#/banco-de-notas?area=operational');
+  it.each([
+    '#/banco-de-notas?area=operational',
+    '#/banco-de-notas?area=reports',
+    '#banco-de-notas?area=reports',
+  ])('abre o favorito antigo %s na Importação sem criar outra entrada no histórico', (hash) => {
+    window.history.replaceState(null, '', hash);
     const historyLength = window.history.length;
     render(<GradebookWorkspaceShell />);
     expect(screen.getByRole('tab', { name: 'Importação' }).getAttribute('aria-selected')).toBe(
       'true',
     );
     expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Relatórios' })).toBeNull();
     expect(window.location.hash).toBe('#/banco-de-notas');
     expect(window.history.length).toBe(historyLength);
   });
 
-  it('normaliza links antigos repetidos em hashchange simulado sem desmontar a importação em andamento', async () => {
-    window.history.replaceState(null, '', '#/banco-de-notas');
-    render(<GradebookWorkspaceShell />);
-    const input = screen.getByLabelText('Importação sintética') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'lote parcialmente processado' } });
-    for (const area of ['performance', 'audit']) {
-      await act(async () => {
-        window.history.replaceState(null, '', `#/banco-de-notas?area=${area}`);
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-      });
-      expect(
-        screen
-          .getByRole('tab', { name: area === 'performance' ? 'Desempenho' : 'Auditoria' })
-          .getAttribute('aria-selected'),
-      ).toBe('true');
-      await act(async () => {
-        window.history.replaceState(null, '', '#/banco-de-notas?area=operational');
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-      });
-      expect(window.location.hash).toBe('#/banco-de-notas');
-      expect(screen.getByRole('tab', { name: 'Importação' }).getAttribute('aria-selected')).toBe(
-        'true',
-      );
-      expect(screen.getByLabelText('Importação sintética')).toBe(input);
-      expect(input.value).toBe('lote parcialmente processado');
-      expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
-    }
-  });
+  it.each(['operational', 'reports'])(
+    'normaliza %s em hashchange simulado sem desmontar a importação em andamento',
+    async (retired) => {
+      window.history.replaceState(null, '', '#/banco-de-notas');
+      render(<GradebookWorkspaceShell />);
+      const input = screen.getByLabelText('Importação sintética') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'lote parcialmente processado' } });
+      for (const area of ['performance', 'audit']) {
+        await act(async () => {
+          window.history.replaceState(null, '', `#/banco-de-notas?area=${area}`);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        });
+        expect(
+          screen
+            .getByRole('tab', { name: area === 'performance' ? 'Desempenho' : 'Auditoria' })
+            .getAttribute('aria-selected'),
+        ).toBe('true');
+        await act(async () => {
+          window.history.replaceState(null, '', `#/banco-de-notas?area=${retired}`);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        });
+        expect(window.location.hash).toBe('#/banco-de-notas');
+        expect(screen.getByRole('tab', { name: 'Importação' }).getAttribute('aria-selected')).toBe(
+          'true',
+        );
+        expect(screen.getByLabelText('Importação sintética')).toBe(input);
+        expect(input.value).toBe('lote parcialmente processado');
+        expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
+        expect(screen.queryByRole('tab', { name: 'Relatórios' })).toBeNull();
+      }
+    },
+  );
 
-  it('não reescreve o endereço de outro módulo com parâmetro homônimo', async () => {
-    window.history.replaceState(null, '', '#/banco-de-notas');
-    render(<GradebookWorkspaceShell />);
-    await act(async () => {
-      window.history.replaceState(null, '', '#/painel-do-aluno?area=operational');
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
-    });
-    expect(window.location.hash).toBe('#/painel-do-aluno?area=operational');
-  });
+  it.each(['operational', 'reports'])(
+    'não reescreve o endereço de outro módulo com parâmetro %s',
+    async (retired) => {
+      window.history.replaceState(null, '', '#/banco-de-notas');
+      render(<GradebookWorkspaceShell />);
+      await act(async () => {
+        window.history.replaceState(null, '', `#/painel-do-aluno?area=${retired}`);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
+      expect(window.location.hash).toBe(`#/painel-do-aluno?area=${retired}`);
+    },
+  );
 
   it('preserva o teclado entre as áreas restantes sem foco órfão', async () => {
     render(<GradebookWorkspaceShell />);

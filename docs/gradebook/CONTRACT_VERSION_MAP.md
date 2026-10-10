@@ -94,16 +94,13 @@ A #1079 retira a execucao HTTP V1/V2, nao todos os tipos que essas versoes compo
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
 | `bulletin-transport-v1.ts` / `bulletin-contract-v1.ts` | COMPATIBILITY/Core | #1079: transporte V1 retorna 410; apresentacao/PDF reutilizados preservados |
-| `relational-bulletin-v2.ts` | **CURRENT** | UI, HTTP, snapshot PostgreSQL e Relatórios V2 |
+| `relational-bulletin-v2.ts` | **CURRENT** | UI, HTTP e snapshot PostgreSQL de Boletins |
 
 Snapshots já emitidos continuam históricos e não são reinterpretados por troca de contrato.
 
 ## 9. Relatórios
 
-| Contrato | Estado | Consumidores |
-| --- | --- | --- |
-| `institutional-reports-contract-v1.ts` | COMPATIBILITY/DTO | #1079: transporte V1 retorna 410; tipos/testes puros preservados |
-| `relational-institutional-reports-v2.ts` | **CURRENT** | UI/HTTP/service V2 e testes PostgreSQL |
+Contratos institucionais V1/V2 e seus consumidores exclusivos retirados nesta candidata. Apenas o endpoint de compatibilidade autenticado retorna `{ state: 'retired' }`/410, sem dependência desses contratos. [Mapa de retirada](REPORTS_RETIREMENT_20261010.md).
 
 ## 10. Regra para versões futuras
 

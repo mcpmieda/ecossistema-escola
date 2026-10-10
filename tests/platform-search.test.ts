@@ -97,7 +97,6 @@ describe('platform search model', () => {
       'notes:audit',
       'notes:performance',
       'notes:bulletins',
-      'notes:reports',
       'notes:council',
       'notes:settings',
       'health:audit',
@@ -118,7 +117,8 @@ describe('platform search model', () => {
     expect(filterSearchItems(items, 'importar planilha')[0]?.href).toBe('#/banco-de-notas');
     expect(filterSearchItems(items, 'conselho classe')[0]?.id).toBe('notes:council');
     expect(filterSearchItems(items, 'desempenho resultado')[0]?.id).toBe('notes:performance');
-    expect(filterSearchItems(items, 'relatórios recuperação')[0]?.id).toBe('notes:reports');
+    expect(filterSearchItems(items, 'relatórios recuperação')).toEqual([]);
+    expect(items.some((item) => item.href.includes('area=reports'))).toBe(false);
     expect(filterSearchItems(items, 'resetar ano letivo')[0]?.id).toBe('notes:settings');
   });
 
