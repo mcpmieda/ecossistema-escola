@@ -100,8 +100,6 @@ Snapshots já emitidos continuam históricos e não são reinterpretados por tro
 
 ## 9. Relatórios
 
-| Contrato | Estado | Consumidores |
-| --- | --- | --- |
 Contratos institucionais V1/V2 e seus consumidores exclusivos retirados nesta candidata. Apenas o endpoint de compatibilidade autenticado retorna `{ state: 'retired' }`/410, sem dependência desses contratos. [Mapa de retirada](REPORTS_RETIREMENT_20261010.md).
 
 ## 10. Regra para versões futuras
