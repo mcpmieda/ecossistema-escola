@@ -1,6 +1,6 @@
 # Contratos — vigência, compatibilidade e lacunas
 
-Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+Retirada solicitada em 10/10/2026, registrada na #1271 e BN-DEC-043: remove a aba Relatórios e seu módulo institucional V1/V2, substituindo somente sua preservação/compatibilidade na BN-DEC-041. O endpoint antigo responde 410 autenticado com `{ state: 'retired' }`; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Estado de integração/publicação e SHA efetivo são registrados na #1271/PR #1270; não inferir homologação real.
 
 A classificação canônica de versões `CURRENT / COMPATIBILITY / HISTORICAL` está em [CONTRACT_VERSION_MAP.md](CONTRACT_VERSION_MAP.md). **Não inferir vigência pelo maior sufixo `vN`.**
 

@@ -1,6 +1,6 @@
-# Retirada da aba Relatórios - candidata de 10/10/2026
+# Retirada da aba Relatórios - decisão de 10/10/2026
 
-Pedido explícito do responsável: excluir a aba Relatórios e o código exclusivo, preservando consumidores. Base inspecionada: `main@e9f5eb576b242fc9018881fd56bcc638ff1e91e5`. Esta entrega fica em branch independente e PR rascunho; não declara remoção em produção, merge, deploy ou homologação real.
+Pedido explícito do responsável: excluir a aba Relatórios e o código exclusivo, preservando consumidores. Base inspecionada: `main@e9f5eb576b242fc9018881fd56bcc638ff1e91e5`. A [issue de contrato #1271](https://github.com/mcpmieda/ecossistema-escola/issues/1271) e a BN-DEC-043 em [DECISIONS.md](DECISIONS.md) substituem expressamente somente a preservação/compatibilidade de Reports da BN-DEC-041. Em 10/10/2026, 21:04 UTC, o responsável autorizou os dois ajustes de revisão e o merge da PR #1270 após validação. Este documento descreve o escopo; os SHAs, a integração e a publicação efetivamente verificadas são registrados na issue/PR, sem presumir homologação real.
 
 ## Alvo e remoção
 
@@ -30,7 +30,7 @@ O Audit Workspace V1 já não tinha consumidor de runtime nesta base: seu runtim
 
 ## Verificação e limites
 
-Os testes exclusivos retirados não são contados como cobertura de comportamento remanescente. Integrações históricas continuam verificando Conselho, Desempenho, durabilidade e PDF; as expectativas de montagem institucional são retiradas. O ensaio de recuperação usa diretamente catálogos/histórico de Boletins, comparação trimestral, Conselho e a leitura SQL de diagnósticos correntes, sem manter o agregador retirado. A suíte de contenção PostgreSQL permanece condicionada ao banco local descartável configurado originalmente.
+Os testes exclusivos retirados não são contados como cobertura de comportamento remanescente. Integrações históricas continuam verificando Conselho, Desempenho, durabilidade e PDF; as expectativas de montagem institucional são retiradas. O ensaio de recuperação usa diretamente catálogos/histórico de Boletins, comparação trimestral, Conselho e o GET vigente de `import-diagnostics` sobre PostgreSQL real descartável, sem manter o agregador/adapter retirado. Somente ambiente/sessão HTTP são sintéticos; o handler e suas consultas/mapeamento permanecem reais. Exige HTTP 200/`ready`, IDs correspondentes ao conjunto recuperado (inclusive vazio) e lê também a observação sintética já criada pelo teste de contenção. A suíte existente PGlite continua cobrindo mapeamento e paginação. A suíte de contenção PostgreSQL permanece condicionada ao banco local descartável configurado originalmente; o gate oficial a executa sem skip.
 
 Regressões cobrem menu/busca, favoritos, hashchange, conservação do lote, teclado e parâmetros de outros módulos, além do dispatch HTTP V1/V2, 401/403/405, origem estrangeira, no-store, ausência de leitura do corpo e de acesso a storage. A revisão independente do mapa estático não encontrou imports órfãos, recursos exclusivos esquecidos ou consumidor remanescente quebrado.
 

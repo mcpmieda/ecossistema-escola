@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { onRequest as importDiagnosticsOnRequest } from '../../../functions/api/gradebook/import-diagnostics';
+import type { RuntimeEnv } from '../../../server/env';
 import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
@@ -14,7 +16,21 @@ import type {
   RelationalCouncilRequestV3,
   RelationalCouncilResponseV3,
 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
-import type { GradebookImportDiagnosticsAuditRequestV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import type {
+  GradebookImportDiagnosticsAuditListResponseV1,
+  GradebookImportDiagnosticsAuditRequestV1,
+} from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+
+// Only HTTP environment/session boundaries are synthetic; the current GET and SQL run unchanged.
+vi.mock('../../../server/env', () => ({ validateEnv: (env: unknown) => env }));
+vi.mock('../../../server/auth/session', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../server/auth/session')>(),
+  requireAuth: async () => ({ oid: '11111111-1111-4111-8111-111111111111' }),
+}));
+vi.mock('../../../server/gradebook/authorization-v1', () => ({ authorizeGradebookRuntimeV1: () => ({}) }));
+vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1', () => ({
+  withOfficialGradebookDatabaseV1: async (env: RuntimeEnv, operation: (env: RuntimeEnv) => Promise<Response | null>) => operation(env),
+}));
 
 const CONNECTION_STRING = process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '';
 const integration = CONNECTION_STRING.length > 0 ? describe : describe.skip;
@@ -89,6 +105,18 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
   });
 }
 
+async function readCurrentDiagnostics(limit: number) {
+  const response = await importDiagnosticsOnRequest({
+    request: new Request(`https://school.test/api/gradebook/import-diagnostics?ano=2026&limit=${String(limit)}`),
+    env: { OFFICIAL_ORIGIN: 'https://school.test', GRADEBOOK_DATABASE: databaseA },
+  } as unknown as Parameters<typeof importDiagnosticsOnRequest>[0]);
+  expect(response.status).toBe(200);
+  const audit = await response.json() as GradebookImportDiagnosticsAuditListResponseV1;
+  expect(audit).toMatchObject({ version: 1, state: 'ready' });
+  if (audit.state !== 'ready') throw new Error('recovery-current-audit-not-ready');
+  return audit;
+}
+
 function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolvePromise: (() => void) | undefined;
   const promise = new Promise<void>((resolve) => {
@@ -140,12 +168,16 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     });
     expect(performance.state).toBe('ready');
 
-    // Check recovered current diagnostics directly; the Reports-only adapter is retired.
-    const audit = await rows(databaseA,
-      'SELECT id,ano FROM gradebook.importacao_diagnostico WHERE ano=$1 ORDER BY ultimo_em DESC,id DESC LIMIT 5',
+    // Exercise the current Audit/Import GET on the restored database, including an empty backup.
+    const recoveredDiagnostics = await rows(databaseA,
+      'SELECT id FROM gradebook.importacao_diagnostico WHERE ano=$1 ORDER BY ultimo_em DESC,id DESC LIMIT 6',
       [2026]);
-    expect(audit.length).toBeLessThanOrEqual(5);
-    expect(audit.every((row) => Number(row.ano) === 2026)).toBe(true);
+    const audit = await readCurrentDiagnostics(5);
+    expect(audit.items.map((item) => item.id)).toEqual(
+      recoveredDiagnostics.slice(0, 5).map((row) => Number(row.id)),
+    );
+    expect(audit.nextOffset).toBe(recoveredDiagnostics.length > 5 ? 5 : null);
+    expect(audit.items.every((item) => item.academicYear === 2026)).toBe(true);
 
     const council = await createRelationalCouncilV3(databaseA, ACTOR_ID).execute(
       { contractVersion: 3, operation: 'workspace', year: 2026, classId },
@@ -208,6 +240,11 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const hashes = new Set(finalRows.map((row) => row.hash));
     expect(markers.size).toBe(1);
     expect(hashes.size).toBe(1);
+
+    // Reuse this test's synthetic committed observation to prove a nonempty current read.
+    const audit = await readCurrentDiagnostics(200);
+    expect(audit.items.filter((item) => item.fileName === DIAGNOSTIC_FILE)
+      .map((item) => item.key).sort()).toEqual(finalRows.map((row) => String(row.chave)));
 
     const beforeRollback = finalRows.map((row) => `${String(row.chave)}:${String(row.hash)}`);
     await expect(
