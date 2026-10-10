@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createAttendanceServiceV1 } from '../../server/attendance/service-v1';
@@ -14,6 +13,10 @@ import type {
   AttendanceCandidateV1,
 } from '../../shared/attendance-contracts/attendance-v1';
 import type { RuntimeEnv } from '../../server/env';
+import {
+  attendanceSyntheticSetupSqlV1,
+  ATTENDANCE_SYNTHETIC_RESET_SQL_V1,
+} from './synthetic-fixture-v1';
 
 const uid = '10000000-0000-4000-8000-000000000001';
 const other = '10000000-0000-4000-8000-000000000002';
@@ -27,23 +30,7 @@ const collectorId = '30000000-0000-4000-8000-000000000001';
 
 beforeAll(async () => {
   pg = new PGlite();
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
-  await pg.exec(`CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;
-    CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE student_portal_app;
-    CREATE TABLE gradebook.student_identity (id uuid PRIMARY KEY);
-    ALTER TABLE gradebook.aluno ADD COLUMN student_uid uuid REFERENCES gradebook.student_identity(id);
-    GRANT USAGE ON SCHEMA gradebook TO gradebook_app;
-    GRANT SELECT,UPDATE ON gradebook.aluno,gradebook.turma,gradebook.vinculo TO gradebook_app;
-    GRANT SELECT ON gradebook.student_identity TO gradebook_app;
-    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,3),(2027,60000,3);
-    INSERT INTO gradebook.student_identity VALUES ('${uid}'),('${other}');
-    INSERT INTO gradebook.aluno(id,ano,nome,student_uid) VALUES
-      (1,2026,'ALUNA SINTÉTICA UM','${uid}'),(2,2026,'ALUNO SINTÉTICO DOIS','${other}');
-    INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES
-      (101,2026,'6A','TURMA SINTETICA A',6,'M'),(102,2026,'6B','TURMA SINTETICA B',6,'M'),
-      (201,2027,'6A','TURMA SINTETICA OUTRO ANO',6,'M');
-    INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,101,1,1),(2026,101,2,2);`);
-  await pg.exec(readFileSync('docs/attendance/schema-v1.sql', 'utf8'));
+  for (const sql of attendanceSyntheticSetupSqlV1()) await pg.exec(sql);
   const queryPort = (client: Pick<PGlite, 'query'>): GradebookPostgresQuerySqlV1 => ({
     async unsafe(sql, parameters = []) {
       const result = await client.query<Record<string, unknown>>(sql, [...parameters]);
@@ -58,10 +45,7 @@ beforeAll(async () => {
 }, 30_000);
 
 beforeEach(async () => {
-  await pg.exec(`TRUNCATE attendance.scope,attendance.configuration,attendance.calendar,attendance.enrollment,
-    attendance.batch,attendance.source_record,attendance.coverage,attendance.mark,attendance.decision,attendance.receipt;
-    UPDATE gradebook.aluno SET nome=CASE id WHEN 1 THEN 'ALUNA SINTÉTICA UM' ELSE 'ALUNO SINTÉTICO DOIS' END;
-    UPDATE gradebook.vinculo SET turma_id=101,situacao=NULL,turma_relacionada_id=NULL WHERE ano=2026;`);
+  await pg.exec(ATTENDANCE_SYNTHETIC_RESET_SQL_V1);
   await service.execute(
     {
       operation: 'configure',
@@ -384,6 +368,52 @@ describe('attendance PostgreSQL candidate with synthetic fixtures', () => {
       contractVersion: 'attendance-v1',
       state: 'not-authorized',
     });
+  });
+  it('never returns an old summary through HTTP conditional headers after loss of eligibility', async () => {
+    await service.execute(batch(), admin);
+    const origin = 'https://synthetic.invalid';
+    const handler = createAttendanceRequestHandlerV1({
+      service,
+      authorizeResponsible: async () => true,
+    });
+    const read = (studentUid = uid, classId = scope.classId) =>
+      handler(
+        new Request(`${origin}/api/attendance/v1`, {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            'Content-Type': 'application/json',
+            'If-None-Match': 'synthetic-old-etag',
+            'If-Modified-Since': 'Thu, 01 Jan 2026 00:00:00 GMT',
+          },
+          body: JSON.stringify({
+            operation: 'monthly-summary',
+            scope: { ...scope, classId },
+            studentUid,
+            month: '2026-01',
+          }),
+        }),
+        { OFFICIAL_ORIGIN: origin } as RuntimeEnv,
+      );
+    const reliable = await read();
+    expect(reliable!.status).toBe(200);
+    expect(await reliable!.json()).toMatchObject({ summary: { coverage: 'reliable' } });
+    const assertHidden = async (response: Response | null, state: string) => {
+      expect(response!.status).toBe(404);
+      expect(response!.headers.get('Cache-Control')).toContain('no-store');
+      expect(response!.headers.get('ETag')).toBeNull();
+      expect(response!.headers.get('Last-Modified')).toBeNull();
+      expect(await response!.json()).toEqual({ contractVersion: 'attendance-v1', state });
+    };
+    await assertHidden(await read(other), 'not-visible');
+    await assertHidden(await read(uid, 9999), 'class-not-in-relation');
+    await service.execute(await decision('different-students'), admin);
+    await assertHidden(await read(), 'not-visible');
+    await service.execute(await decision('same-student'), admin);
+    expect((await read())!.status).toBe(200);
+    await pg.exec('UPDATE gradebook.vinculo SET turma_id=102 WHERE aluno_id=1');
+    await assertHidden(await read(), 'not-visible');
+    expect((await pg.query('SELECT * FROM attendance.mark')).rows).toHaveLength(1);
   });
   it('denies public access and backend modification/deletion of history', async () => {
     await pg.exec('SET ROLE gradebook_app');

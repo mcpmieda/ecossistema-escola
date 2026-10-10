@@ -155,9 +155,10 @@ mostrada ou copiada em um cliente.
    parcial com marcações antigas. O histórico é preservado, mas a consulta
    histórica dos snapshots e de turmas anteriores à transferência ainda não é
    uma API de responsáveis. Quando o snapshot novo é parcial, não publicar totais.
-7. PGlite verifica SQL/constraints/ACL e a transação do adaptador, mas não substitui
-   teste de contenção em múltiplas conexões de PostgreSQL/Hyperdrive reais, nem
-   homologação funcional com fontes reais. Nenhum desses ambientes foi acessado.
+7. A contenção do serviço foi exercitada em PostgreSQL nativo descartável com
+   conexões físicas independentes, além de SQL/constraints/ACL em PGlite. Essa
+   evidência não substitui teste de Hyperdrive, carga ou homologação com fontes
+   reais. Nenhum banco existente, ambiente privado ou produtivo foi acessado.
 
 ## Verificação reproduzível
 
@@ -172,3 +173,38 @@ DECISIONS.md, CONSUMER_MAP.md, CONTRACTS.md, SOURCE_CONTRACT.md, TEST_MATRIX.md,
 adaptador PostgreSQL, autorização e migration da identidade compartilhada.
 `.agents/skills` não estava presente no clone. A memória local consultada só
 continha preferências do usuário, não evidência acadêmica.
+
+### Ensaio nativo descartável e não ativação
+
+Em Windows com `initdb`, `pg_ctl` e `psql` já instalados no PATH:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/attendance/run-local-postgres-v1.ps1
+```
+
+O launcher não instala serviço ou ferramenta. Cria um cluster exclusivo no
+diretório temporário, porta livre, somente `127.0.0.1`, sem senha ou credencial
+persistente. Antes de qualquer DDL de fixture, os testes conferem nome exclusivo
+do banco, marcador aleatório e `data_directory` do cluster criado. A role e os
+dados sintéticos existem somente nesse cluster. No fluxo normal, os clientes são
+fechados, PostgreSQL é parado e a pasta é removida após conferir caminho, marcador,
+ausência de `postmaster.pid` e que a raiz não é um reparse point. Falha/timeout de
+helper preserva a pasta e reporta o caminho/PID; não disputa a limpeza com um
+processo possivelmente ativo. Não aponte esses testes para bancos existentes.
+
+Os sete testes nativos verificam PIDs distintos e `pg_blocking_pids` para provar
+espera física: decisão simultânea com uma única revisão aceita; idempotência
+simultânea; takeover após expiração; expiração enquanto escritor aguarda; expiração
+**depois de o próprio escritor amostrar lease_live=true**; rollback de todas as
+gravações e recibos após erro SQL real no meio de lote parcial, com retry do mesmo
+requestId; e transferência canônica bloqueada durante leitura, seguida de recusa
+do vínculo obsoleto. A lista não comprova capacidade de carga ou transporte real.
+
+A suíte nativa fica **pulada** sem o ambiente exclusivo fornecido pelo launcher;
+um CI verde com essa suíte pulada não constitui prova nativa. `npx vitest run
+tests/attendance` cobre adicionalmente as entradas reais ADM/Portal e o handler
+candidato com cabeçalhos condicionais: sem 304/resumo antigo para aluno não
+conciliado, turma ausente, rejeição ou transferência. `npm run build:public-demo`
+usa o dry-run existente, e `npm run test:public-demo-runtime` testa em Workerd
+local que a demo habilitada também recusa a rota candidata. Nenhum desses comandos
+ativa a API ou publica a aba Alunos.
