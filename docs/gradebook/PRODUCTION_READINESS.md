@@ -1,5 +1,7 @@
 # Readiness — produto relacional e entrega institucional
 
+> Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
 ## Fechamento factual em 11/09/2026
 
 FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e aceite acadêmico #347 estão encerrados. O head consolidado `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66` passou no CI `34667519751`, foi publicado pelo deploy `34667699446` e carregou no smoke autenticado. A evidência integral está em [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md); rotina, responsáveis, monitoramento e incidente estão em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md).

@@ -41,7 +41,7 @@ import { sharePointHealth } from '../server/graph/sharepoint';
 import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookPersistenceAdminRequestV1 } from '../server/gradebook/http/persistence-admin-routes-v1';
-import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
+import { handleRetiredGradebookReportsRequest } from '../server/gradebook/http/retired-reports-route';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
@@ -192,7 +192,7 @@ async function routeOfficialGradebookRequestV1(
   const councilResponse = await handleCouncilWorkspaceRequestV1(request, env, afterCommit);
   if (councilResponse) return councilResponse;
 
-  return handleInstitutionalReportsRequestV1(request, env);
+  return null;
 }
 
 async function route(context: Context, correlationId: string): Promise<Response> {
@@ -424,6 +424,9 @@ async function route(context: Context, correlationId: string): Promise<Response>
 
   const gradebookPersistenceAdminResponse = await handleGradebookPersistenceAdminRequestV1(request, env);
   if (gradebookPersistenceAdminResponse) return gradebookPersistenceAdminResponse;
+
+  const retiredReportsResponse = await handleRetiredGradebookReportsRequest(request, env);
+  if (retiredReportsResponse) return retiredReportsResponse;
 
   if (url.pathname.startsWith('/api/gradebook/')) {
     const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>

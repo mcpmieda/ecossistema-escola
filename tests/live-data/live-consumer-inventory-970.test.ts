@@ -10,7 +10,6 @@ const consumers = [
   ['src/features/gradebook/performance/use-relational-performance-v2.ts', "domains: ['gradebook']"],
   ['src/features/gradebook/council/use-relational-council-v3.ts', "domains: ['gradebook']"],
   ['src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx', "domains: ['gradebook']"],
-  ['src/features/gradebook/reports/relational-institutional-reports-page-v2.tsx', "domains: ['gradebook']"],
   ['src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx', "domains: ['gradebook']"],
   ['src/features/gradebook/settings/assessment-names-v1.tsx', "domains: ['gradebook']"],
   ['src/features/student-portal-admin/accounts/accounts-read-v1.ts', "domains: ['portal', 'gradebook']"],
@@ -20,8 +19,8 @@ const consumers = [
 ] as const;
 
 describe('BN-21 current live consumer inventory', () => {
-  it('keeps the eleven current consumers wired to authorized re-read invalidation', () => {
-    expect(consumers).toHaveLength(11);
+  it('keeps the ten remaining consumers wired to authorized re-read invalidation', () => {
+    expect(consumers).toHaveLength(10);
     for (const [path, domains] of consumers) {
       const value = source(path);
       expect(value, path).toContain('useLiveRefreshV1');

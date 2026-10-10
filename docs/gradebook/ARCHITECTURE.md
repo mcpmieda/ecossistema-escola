@@ -1,5 +1,7 @@
 # Arquitetura — estado relacional e consumidores em transição
 
+Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
 Base integrada: `main@265d9ec886e3d9d5ad1f2b6d9e6af0a2ad3f6bce`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663, retiradas seletivas #664/#666 e refinamentos de Desempenho até #672/PR #673 integrados e publicados. A #674 prepara a trilha humana da Auditoria: a migration foi autorizada/aplicada/postvalidada, enquanto o código ainda está fora da base integrada na PR #675. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
@@ -20,7 +22,7 @@ A unidade acadêmica de escrita e idempotência foi homologada na #613. Atualiza
 
 ## Auditoria de importação atual
 
-`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629/#862; diagnósticos resolvidos e seus tratamentos humanos não permanecem como registros órfãos. A #658 monta somente a leitura desse estado corrente. A #664 retirou a página e o endpoint dedicados do Audit Workspace V1 após provar ausência de consumidor; o núcleo V1 ainda usado por Relatórios V1 permanece e não é fallback nem histórico humano durável.
+`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629/#862; diagnósticos resolvidos e seus tratamentos humanos não permanecem como registros órfãos. A #658 monta somente a leitura desse estado corrente. A #664 retirou a página e o endpoint dedicados do Audit Workspace V1 após provar ausência de consumidor; o runtime V1 foi posteriormente arquivado pela #1079 e não é fallback nem histórico humano durável.
 
 A fotografia persistida e a apresentação operacional do preflight retêm apenas achados acionáveis para o usuário: `blocking-error` e o warning `above-maximum`. Avisos técnicos/esperados como recuperação sem resultado calculado salvo e máximo qualitativo `*` continuam existindo internamente para preservação/normalização fail-safe, mas não poluem a Auditoria nem a lista de avisos para revisar; nenhum deles altera fatos acadêmicos por si só.
 
@@ -44,11 +46,11 @@ A precedência de situações terminais continua no núcleo/serviço anual. O fa
 
 ## Consumidores e reancoragem
 
-O catch-all mantém operações V1 de leitura do Operational Workspace, Boletins e Relatórios para compatibilidade externa. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional, Boletins usa V2 relacional e Relatórios usa V2 relacional. A #658 isolou a página antiga de Auditoria e a #664 retirou sua UI/rota dedicada, preservando o núcleo ainda chamado por Relatórios V1. A #666 retira os demais frontends antigos sem montagem, mas não remove endpoints, serviços ou o renderizador PDF V1 reutilizado. A #660 usa as ofertas importadas como configuração docente e recusa o write `maintenanceVersion` antes do runtime antigo; reativá-lo exigiria contrato/durabilidade novos. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 acrescentou uma relação append-only de snapshots de boletim; #656, #658, #660, #664 e #666 não alteram schema. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
+O catch-all mantém os transportes vigentes de Desempenho, Conselho e Boletins, com os tombstones legados da #1079. Relatórios institucionais V1/V2 são retirados nesta candidata; o tombstone dedicado responde 410 autenticado antes de qualquer composição PostgreSQL. Nenhum núcleo acadêmico ou snapshot foi removido. Ver `CONSUMER_MAP.md`.
 
 Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-read, usando projeção oferta/aluno em lote e uma leitura opcional de instrumentos. AM/U oficiais ficam separadas do cálculo descritivo. Emissão grava somente o snapshot imutável; PDF e reimpressão não voltam às notas atuais. Ver [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
 
-Relatórios V2 é um agregador read-only e limitado dos contratos relacionais já vigentes. Desempenho e comparação usam V3/V4; Conselho usa V3; Auditoria consulta somente achados atuais; histórico/reimpressão usa exclusivamente snapshots V2. Não cria um segundo motor nem reinterpreta autoridade. Ver [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md).
+Relatórios V2 foi um agregador read-only dos contratos relacionais; seu módulo é retirado nesta candidata. Os serviços originais permanecem em suas áreas. Ver [REPORTS_RETIREMENT_20261010.md](REPORTS_RETIREMENT_20261010.md).
 
 Auditoria atual V2 apresenta a fotografia de diagnósticos de 2026. A substituição transacional da fotografia continua pertencendo ao fluxo de importação. A #674 acrescenta, em relação privada e append-only separada, somente reconhecimento e anotação humanos; não resolve achados nem altera fatos acadêmicos. A migration está aplicada e o código segue a integração da PR #675. Ver [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md) e [RELATIONAL_AUDIT_TREATMENT_V1.md](RELATIONAL_AUDIT_TREATMENT_V1.md).
 

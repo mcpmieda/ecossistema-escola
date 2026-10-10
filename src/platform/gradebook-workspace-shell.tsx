@@ -40,12 +40,6 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
       'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
   },
   {
-    id: 'reports',
-    label: 'Relatórios',
-    description:
-      'Produza relatórios institucionais e lotes PDF bounded somente sobre dados oficiais.',
-  },
-  {
     id: 'council',
     label: 'Conselho',
     description:
@@ -82,9 +76,9 @@ function replaceWorkspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): vo
 }
 
 function normalizeRetiredWorkspaceSurfaceHash(): void {
-  if (window.location.hash.split('?')[0] !== '#/banco-de-notas') return;
+  if (!/^#\/?banco-de-notas$/u.test(window.location.hash.split('?')[0] ?? '')) return;
   const query = window.location.hash.split('?')[1] ?? '';
-  if (new URLSearchParams(query).get('area') === 'operational') {
+  if (['operational', 'reports'].includes(new URLSearchParams(query).get('area') ?? '')) {
     replaceWorkspaceSurfaceHash(DEFAULT_SURFACE);
   }
 }
@@ -105,12 +99,6 @@ const BulletinPage = preloadedSectionV1(() =>
   import('../features/gradebook/bulletins/bulletin-page').then((module) => module.BulletinPage),
 );
 
-const InstitutionalReportsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
-  import('../features/gradebook/reports/relational-institutional-reports-page-v2').then(
-    (module) => module.GradebookRelationalInstitutionalReportsPage,
-  ),
-);
-
 const CouncilWorkspaceSurface = preloadedSectionV1(() =>
   import('./gradebook-council-surface').then((module) => module.GradebookCouncilSurface),
 );
@@ -127,7 +115,6 @@ if (typeof window !== 'undefined') {
   if (opened === 'audit') GradebookAuditSurface.preload();
   else if (opened === 'performance') PerformancePage.preload();
   else if (opened === 'bulletins') BulletinPage.preload();
-  else if (opened === 'reports') InstitutionalReportsPage.preload();
   else if (opened === 'council') CouncilWorkspaceSurface.preload();
   else if (opened === 'settings') SettingsPage.preload();
 }
@@ -136,7 +123,6 @@ const WORKSPACE_SECTIONS_V1 = [
   GradebookAuditSurface,
   PerformancePage,
   BulletinPage,
-  InstitutionalReportsPage,
   CouncilWorkspaceSurface,
   SettingsPage,
 ];
@@ -147,7 +133,6 @@ const SURFACE_COMPONENTS: Record<
   audit: GradebookAuditSurface,
   performance: PerformancePage,
   bulletins: BulletinPage,
-  reports: InstitutionalReportsPage,
   council: CouncilWorkspaceSurface,
   settings: SettingsPage,
 };
@@ -404,8 +389,6 @@ function GradebookWorkspaceShellContent() {
                         return <PerformancePage key={scopeKey} isActive={active} />;
                       if (surface.id === 'settings')
                         return <SettingsPage key={scopeKey} isActive={active} />;
-                      if (surface.id === 'reports')
-                        return <InstitutionalReportsPage key={scopeKey} isActive={active} />;
                       return <SurfaceComponent key={scopeKey} />;
                     })()}
                   </Suspense>

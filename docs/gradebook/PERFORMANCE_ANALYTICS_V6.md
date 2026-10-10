@@ -1,5 +1,7 @@
 # Desempenho analítico V6 — #815 / PR #816
 
+O PDF docente permanece em Desempenho após a retirada candidata da aba Relatórios. O painel docente exclusivo daquela aba foi removido; fonte analítica V6, renderer e exportador compartilhados são preservados. [Retirada e validação](REPORTS_RETIREMENT_20261010.md).
+
 ## Escopo autorizado
 
 Pedido do responsável nesta conversa, retomado em 16/09/2026 UTC. Baseline relida: `a20958e913f71154a99ea3a662c4e52fb68e81ae`. Esta entrega acrescenta as perspectivas Visão geral, Turmas, Alunos, Componentes e Professores; Notas mantém os dois gráficos V5, a tabela, as quatro lentes, o modo e a comparação V4. Nenhum importador, dado acadêmico, regra, autoridade, schema, ACL, binding ou segredo é alterado.

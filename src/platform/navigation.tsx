@@ -3,7 +3,6 @@ import type { MouseEvent, ReactNode } from 'react';
 import {
   ChartColumn,
   Circle,
-  ClipboardList,
   FileText,
   Gavel,
   HeartPulse,
@@ -44,7 +43,6 @@ const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
   audit: ShieldCheck,
   performance: ChartColumn,
   bulletins: FileText,
-  reports: ClipboardList,
   council: Gavel,
   settings: Settings2,
 };

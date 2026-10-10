@@ -1,5 +1,9 @@
 # B-16: inventario do runtime legado da #970
 
+> Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
+O conteúdo abaixo registra o checkpoint histórico; não declara esses consumidores ativos na candidata.
+
 > Inventario historico anterior a autorizacao de retirada. A #1079 / BN-DEC-041
 > substitui o bloqueio e as decisoes de manter abaixo: consulte
 > [retirada autorizada](LEGACY_RUNTIME_RETIREMENT_1079.md). Este inventario

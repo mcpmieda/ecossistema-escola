@@ -1,5 +1,9 @@
 # Relatórios institucionais relacionais V2 — #656
 
+> Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
+O conteúdo abaixo registra o checkpoint histórico; não declara esses consumidores ativos na candidata.
+
 ## Escopo e estado factual
 
 A #656/PR #657 substituiu a página ativa de Relatórios V1 por uma composição V2 das fontes relacionais vigentes. A implementação partiu de `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`, foi integrada em `3d762d7412fe0a5760680566ae6739f4d10c1172` e publicada pelo deploy 264 (`34577894561`). O `npm run verify` final passou com 1.486 testes; a CI do head e o smoke autenticado somente leitura ficaram verdes.

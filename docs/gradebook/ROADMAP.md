@@ -1,5 +1,7 @@
 # Roadmap — quatro fases finais
 
+> Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+
 A reconstrução de persistência da #613 e as quatro fases finais terminaram. Este roadmap preserva a fila executada e não apaga evidências anteriores. O fechamento factual está em [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md) e [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md).
 
 ## FINAL-1 — #633: runtime relacional e verdade documental

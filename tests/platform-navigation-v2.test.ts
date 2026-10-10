@@ -17,6 +17,8 @@ describe('shell navigation of 07/10/2026', () => {
       id: 'importacao',
       href: '#/banco-de-notas',
     });
+    expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(false);
+    expect(serviceSectionFromHashV2('banco-de-notas', '#/banco-de-notas?area=reports')).toBe('importacao');
     expect(serviceSectionsV2('configuracoes')).toEqual([]);
     // Auditoria lives inside Saúde do Sistema (owner request of 08/10/2026).
     expect(serviceSectionsV2('operacao').map((section) => [section.label, section.href])).toEqual([

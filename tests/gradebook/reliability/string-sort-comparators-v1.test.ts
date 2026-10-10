@@ -11,7 +11,6 @@ import {
 const root = process.cwd();
 const targets = [
   'server/gradebook/recovery/logical-backup-recovery-v2.ts',
-  'shared/gradebook-contracts/reports/institutional-reports-contract-v1.ts',
   'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
   'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/audit-workspace/d1-audit-workspace-source-v1.ts',
   'shared/gradebook-contracts/performance/class-performance-read-model-v1.ts',

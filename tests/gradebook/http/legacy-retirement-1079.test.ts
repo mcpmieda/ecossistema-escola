@@ -6,7 +6,6 @@ import type { RuntimeEnv } from '../../../server/env';
 import { handleOperationalWorkspaceRequestV1 } from '../../../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/performance-routes-v1';
 import { handleBulletinRequestV1 } from '../../../server/gradebook/http/bulletin-routes-v1';
-import { handleInstitutionalReportsRequestV1 } from '../../../server/gradebook/http/institutional-reports-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../../../server/gradebook/http/council-routes-v1';
 import { handleGradebookPersistenceAdminRequestV1 } from '../../../server/gradebook/http/persistence-admin-routes-v1';
 import { PERFORMANCE_COLUMN_ORDER_V1, PERFORMANCE_ROW_ORDER_V1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
@@ -25,9 +24,6 @@ const cases = [
     body: { transportVersion: 1, operation: 'matrix', request: matrix }, expected: { transportVersion: 1, state: 'unavailable' } },
   { name: 'bulletins-v1', path: 'bulletins', handler: handleBulletinRequestV1,
     body: { contractVersion: 1, operation: 'bootstrap' }, expected: { contractVersion: 1, operation: 'bootstrap', state: 'unavailable' } },
-  { name: 'reports-v1', path: 'reports', handler: handleInstitutionalReportsRequestV1,
-    body: { contractVersion: 1, family: 'class-results', request: matrix },
-    expected: { contractVersion: 1, state: 'unavailable', report: null, hardStop: null } },
   { name: 'council-v1', path: 'council-workspace', handler: handleCouncilWorkspaceRequestV1,
     body: { contractVersion: 1, operation: 'queue', academicYearId: 'year:synthetic:2026',
       classReference: 'class:synthetic:a', page: { limit: 20, cursor: null } },

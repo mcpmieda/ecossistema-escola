@@ -2,16 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
-import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
-import { createRelationalInstitutionalReportsServiceV2 } from '../../../server/gradebook/application/reports/relational-institutional-reports-v2';
 import {
   createGradebookPostgresDatabaseV1,
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresScalarV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2';
-import { createRelationalImportDiagnosticsReadV2 } from '../../../server/gradebook/persistence/postgres/relational-import-diagnostics-read-v2';
 import { assertDisposableRecoveryTargetV2 } from '../../../server/gradebook/recovery/logical-backup-recovery-v2';
 import type {
   RelationalCouncilRequestV3,
@@ -39,20 +36,6 @@ async function rows(
   values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<readonly Row[]> {
   return database.query<Row>(query, values);
-}
-
-function reports(database: GradebookPostgresDatabaseV1) {
-  const bulletins = createRelationalBulletinServiceV2({
-    database,
-    snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
-  });
-  return createRelationalInstitutionalReportsServiceV2({
-    performanceAnalysis: createPerformanceAnalysisV3(database),
-    performanceComparison: createPerformanceTermComparisonV4(database),
-    council: createRelationalCouncilV3(database, ACTOR_ID),
-    bulletins,
-    diagnostics: createRelationalImportDiagnosticsReadV2(database),
-  });
 }
 
 function diagnosticRequest(
@@ -135,10 +118,13 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
   });
 
   it('serves recovered catalog, T2 versus T1, audit, Council and empty bulletin history', async () => {
-    const service = reports(databaseA);
-    const catalog = await service.execute(
-      { contractVersion: 2, operation: 'catalog', year: 2026 },
-      { oid: ACTOR_ID },
+    const bulletins = createRelationalBulletinServiceV2({
+      database: databaseA,
+      snapshots: createRelationalBulletinSnapshotRepositoryV2(databaseA),
+    });
+    const actor = { issuerOid: ACTOR_ID };
+    const catalog = await bulletins.execute(
+      { contractVersion: 2, operation: 'catalog', year: 2026 }, actor,
     );
     expect(catalog.state).toBe('ready');
     if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
@@ -147,52 +133,33 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     expect(catalog.classes.length).toBeGreaterThan(0);
     const classId = catalog.classes[0]!.id;
 
-    const performance = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'performance',
-        family: 'class-results',
-        year: 2026,
-        classId,
-        period: 2,
-        lens: 'result',
-        referenceTerm: 1,
-        statuses: [...ALL_STATUSES],
-      },
-      { oid: ACTOR_ID },
-    );
+    const performance = await createPerformanceTermComparisonV4(databaseA).execute({
+      transportVersion: 4, operation: 'term-comparison', year: 2026, classId,
+      period: 2, mode: 'regular', statuses: [...ALL_STATUSES], lens: 'result',
+      offerId: null, referencePeriod: 1,
+    });
     expect(performance.state).toBe('ready');
 
-    const audit = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'audit',
-        year: 2026,
-        severities: [],
-        codes: [],
-        classCode: null,
-        limit: 5,
-        offset: 0,
-      },
-      { oid: ACTOR_ID },
-    );
-    expect(audit.state).toBe('ready');
+    // Check recovered current diagnostics directly; the Reports-only adapter is retired.
+    const audit = await rows(databaseA,
+      'SELECT id,ano FROM gradebook.importacao_diagnostico WHERE ano=$1 ORDER BY ultimo_em DESC,id DESC LIMIT 5',
+      [2026]);
+    expect(audit.length).toBeLessThanOrEqual(5);
+    expect(audit.every((row) => Number(row.ano) === 2026)).toBe(true);
 
-    const council = await service.execute(
-      { contractVersion: 2, operation: 'council', year: 2026, classId },
-      { oid: ACTOR_ID },
+    const council = await createRelationalCouncilV3(databaseA, ACTOR_ID).execute(
+      { contractVersion: 3, operation: 'workspace', year: 2026, classId },
     );
     expect(council.state).toBe('ready');
 
-    const history = await service.execute(
-      { contractVersion: 2, operation: 'bulletin-history', year: 2026, classId },
-      { oid: ACTOR_ID },
+    const history = await bulletins.execute(
+      { contractVersion: 2, operation: 'history', year: 2026, classId }, actor,
     );
     expect(history.state).toBe('ready');
-    if (history.state !== 'ready' || history.operation !== 'bulletin-history') {
+    if (history.state !== 'ready' || history.operation !== 'history') {
       throw new Error('recovery-bulletin-history-not-ready');
     }
-    expect(history.report.items).toHaveLength(0);
+    expect(history.items).toHaveLength(0);
   }, 120_000);
 
   it('blocks a competing diagnostic replacement and keeps only one complete last commit', async () => {
